@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<body>
+  <input type="datetime-local" id="dt" />
+  <div id="log"></div>
+  <script>
+    const dt = document.getElementById('dt');
+    const log = document.getElementById('log');
+    dt.addEventListener('input', (e) => {
+      log.innerHTML += `<div>input: ${e.target.value}</div>`;
+    });
+    dt.addEventListener('change', (e) => {
+      log.innerHTML += `<div>change: ${e.target.value}</div>`;
+    });
+  </script>
+</body>
+</html>

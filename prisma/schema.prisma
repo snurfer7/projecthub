@@ -1,0 +1,504 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../backend/node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               Int               @id @default(autoincrement())
+  email            String            @unique
+  passwordHash     String            @map("password_hash")
+  firstName        String            @map("first_name")
+  lastName         String            @map("last_name")
+  role             String            @default("member")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  isAdmin          Boolean           @default(false) @map("is_admin")
+  landingPage      String            @default("home") @map("landing_page")
+  activities       Activity[]
+  attachments      Attachment[]
+  companyComments  CompanyComment[]
+  contactComments  ContactComment[]
+  companyWikiPages CompanyWikiPage[]
+  assignedDeals    Deal[]            @relation("DealAssignee")
+  groupMembers     GroupMember[]
+  issueComments    IssueComment[]
+  assignedIssues   Issue[]           @relation("IssueAssignee")
+  authoredIssues   Issue[]           @relation("IssueAuthor")
+  projectComments  ProjectComment[]
+  projectMembers   ProjectMember[]
+  timeEntries      TimeEntry[]
+  wikiPages        WikiPage[]
+
+  showProjectsMenu Boolean           @default(true) @map("show_projects_menu")
+  showGanttMenu    Boolean           @default(true) @map("show_gantt_menu")
+  showCompanyMenu  Boolean           @default(true) @map("show_company_menu")
+  showAdminMenu    Boolean           @default(true) @map("show_admin_menu")
+
+  @@map("users")
+}
+
+model Group {
+  id             Int                 @id @default(autoincrement())
+  name           String              @unique
+  createdAt      DateTime            @default(now()) @map("created_at")
+  members        GroupMember[]
+  assignedIssues Issue[]             @relation("IssueAssigneeGroup")
+  projects       ProjectGroup[]
+  projectRoles   ProjectMemberRole[] @relation("GroupSourceRoles")
+
+  @@map("groups")
+}
+
+model GroupMember {
+  id      Int   @id @default(autoincrement())
+  groupId Int   @map("group_id")
+  userId  Int   @map("user_id")
+  group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user    User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@map("group_members")
+}
+
+model Company {
+  id           Int                  @id @default(autoincrement())
+  name         String               @unique
+  phone        String?
+  website      String?
+  notes        String?
+  createdAt    DateTime             @default(now()) @map("created_at")
+  building     String?
+  city         String?
+  postalCode   String?              @map("postal_code")
+  prefecture   String?
+  street       String?
+  activities   Activity[]
+  associations CompanyAssociation[]
+  comments     CompanyComment[]
+  wikiPages    CompanyWikiPage[]
+  contacts     Contact[]
+  deals        Deal[]
+  projects     Project[]
+
+  @@map("companies")
+}
+
+model Association {
+  id         Int                  @id @default(autoincrement())
+  name       String               @unique
+  phone      String?
+  website    String?
+  notes      String?
+  createdAt  DateTime             @default(now()) @map("created_at")
+  building   String?
+  city       String?
+  postalCode String?              @map("postal_code")
+  prefecture String?
+  street     String?
+  companies  CompanyAssociation[]
+
+  @@map("associations")
+}
+
+model CompanyAssociation {
+  id            Int         @id @default(autoincrement())
+  companyId     Int         @map("company_id")
+  associationId Int         @map("association_id")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  association   Association @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  company       Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, associationId])
+  @@map("company_associations")
+}
+
+model Project {
+  id          Int              @id @default(autoincrement())
+  name        String
+  identifier  String           @unique
+  description String?
+  status      String           @default("active")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  companyId   Int?             @map("company_id")
+  parentId    Int?             @map("parent_id")
+  dueDate     DateTime?        @map("due_date")
+  attachments Attachment[]
+  issues      Issue[]
+  comments    ProjectComment[]
+  groups      ProjectGroup[]
+  members     ProjectMember[]
+  company     Company?         @relation(fields: [companyId], references: [id])
+  parent      Project?         @relation("ProjectHierarchy", fields: [parentId], references: [id])
+  children    Project[]        @relation("ProjectHierarchy")
+  timeEntries TimeEntry[]
+  wikiPages   WikiPage[]
+
+  @@map("projects")
+}
+
+model ProjectGroup {
+  id        Int     @id @default(autoincrement())
+  projectId Int     @map("project_id")
+  groupId   Int     @map("group_id")
+  group     Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, groupId])
+  @@map("project_groups")
+}
+
+model ProjectMember {
+  id        Int                 @id @default(autoincrement())
+  projectId Int                 @map("project_id")
+  userId    Int                 @map("user_id")
+  roles     ProjectMemberRole[]
+  project   Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@map("project_members")
+}
+
+model ProjectMemberRole {
+  id              Int           @id @default(autoincrement())
+  projectMemberId Int           @map("project_member_id")
+  roleId          Int           @map("role_id")
+  sourceGroupId   Int?          @map("source_group_id")
+  member          ProjectMember @relation(fields: [projectMemberId], references: [id], onDelete: Cascade)
+  role            Role          @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  sourceGroup     Group?        @relation("GroupSourceRoles", fields: [sourceGroupId], references: [id])
+
+  @@map("project_member_roles")
+}
+
+model Role {
+  id           Int                  @id @default(autoincrement())
+  name         String               @unique
+  position     Int                  @default(0)
+  description  String?
+  projectRoles ProjectMemberRole[]
+  statuses     RoleStatus[]
+  transitions  WorkflowTransition[]
+
+  @@map("roles")
+}
+
+model RoleStatus {
+  id       Int         @id @default(autoincrement())
+  roleId   Int         @map("role_id")
+  statusId Int         @map("status_id")
+  role     Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  status   IssueStatus @relation(fields: [statusId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, statusId])
+  @@map("role_statuses")
+}
+
+model Tracker {
+  id       Int     @id @default(autoincrement())
+  name     String  @unique
+  position Int     @default(0)
+  issues   Issue[]
+
+  @@map("trackers")
+}
+
+model IssueStatus {
+  id              Int                  @id @default(autoincrement())
+  name            String               @unique
+  isClosed        Boolean              @default(false) @map("is_closed")
+  position        Int                  @default(0)
+  issues          Issue[]
+  roles           RoleStatus[]
+  transitionsTo   WorkflowTransition[] @relation("TransitionTo")
+  transitionsFrom WorkflowTransition[] @relation("TransitionFrom")
+
+  @@map("issue_statuses")
+}
+
+model IssuePriority {
+  id       Int     @id @default(autoincrement())
+  name     String  @unique
+  position Int     @default(0)
+  issues   Issue[]
+
+  @@map("issue_priorities")
+}
+
+model Issue {
+  id                Int             @id @default(autoincrement())
+  projectId         Int             @map("project_id")
+  trackerId         Int             @map("tracker_id")
+  statusId          Int             @map("status_id")
+  priorityId        Int             @map("priority_id")
+  authorId          Int             @map("author_id")
+  assignedToId      Int?            @map("assigned_to_id")
+  subject           String
+  description       String?
+  startDate         DateTime?       @map("start_date")
+  dueDate           DateTime?       @map("due_date")
+  estimatedHours    Int?            @map("estimated_hours")
+  doneRatio         Int             @default(0) @map("done_ratio")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+  assignedToGroupId Int?            @map("assigned_to_group_id")
+  position          Int             @default(0)
+  attachments       Attachment[]
+  comments          IssueComment[]
+  relationsFrom     IssueRelation[] @relation("IssueFrom")
+  relationsTo       IssueRelation[] @relation("IssueTo")
+  assignedToGroup   Group?          @relation("IssueAssigneeGroup", fields: [assignedToGroupId], references: [id])
+  assignedTo        User?           @relation("IssueAssignee", fields: [assignedToId], references: [id])
+  author            User            @relation("IssueAuthor", fields: [authorId], references: [id])
+  priority          IssuePriority   @relation(fields: [priorityId], references: [id])
+  project           Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status            IssueStatus     @relation(fields: [statusId], references: [id])
+  tracker           Tracker         @relation(fields: [trackerId], references: [id])
+  timeEntries       TimeEntry[]
+
+  @@map("issues")
+}
+
+model IssueRelation {
+  id           Int      @id @default(autoincrement())
+  issueFromId  Int      @map("issue_from_id")
+  issueToId    Int      @map("issue_to_id")
+  relationType String   @default("precedes") @map("relation_type")
+  createdAt    DateTime @default(now()) @map("created_at")
+  issueFrom    Issue    @relation("IssueFrom", fields: [issueFromId], references: [id], onDelete: Cascade)
+  issueTo      Issue    @relation("IssueTo", fields: [issueToId], references: [id], onDelete: Cascade)
+
+  @@unique([issueFromId, issueToId, relationType])
+  @@map("issue_relations")
+}
+
+model IssueComment {
+  id        Int      @id @default(autoincrement())
+  issueId   Int      @map("issue_id")
+  userId    Int      @map("user_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+  issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("issue_comments")
+}
+
+model WikiPage {
+  id        Int        @id @default(autoincrement())
+  projectId Int        @map("project_id")
+  title     String
+  content   String     @default("")
+  authorId  Int        @map("author_id")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+  parentId  Int?       @map("parent_id")
+  position  Int        @default(0)
+  author    User       @relation(fields: [authorId], references: [id])
+  parent    WikiPage?  @relation("WikiHierarchy", fields: [parentId], references: [id])
+  children  WikiPage[] @relation("WikiHierarchy")
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, title])
+  @@map("wiki_pages")
+}
+
+model Attachment {
+  id          Int      @id @default(autoincrement())
+  filename    String
+  contentType String   @map("content_type")
+  fileSize    Int      @map("file_size")
+  filePath    String   @map("file_path")
+  projectId   Int?     @map("project_id")
+  issueId     Int?     @map("issue_id")
+  authorId    Int      @map("author_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  author      User     @relation(fields: [authorId], references: [id])
+  issue       Issue?   @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("attachments")
+}
+
+model TimeEntry {
+  id        Int      @id @default(autoincrement())
+  projectId Int      @map("project_id")
+  issueId   Int?     @map("issue_id")
+  userId    Int      @map("user_id")
+  hours     Float
+  activity  String
+  spentOn   DateTime @map("spent_on") @db.Date
+  comments  String?
+  createdAt DateTime @default(now()) @map("created_at")
+  issue     Issue?   @relation(fields: [issueId], references: [id])
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("time_entries")
+}
+
+model Contact {
+  id         Int             @id @default(autoincrement())
+  companyId  Int             @map("company_id")
+  firstName  String          @map("first_name")
+  lastName   String          @map("last_name")
+  email      String?
+  phone      String?
+  position   String?
+  department String?
+  notes      String?
+  createdAt  DateTime        @default(now()) @map("created_at")
+  activities Activity[]
+  comments   ContactComment[]
+  details    ContactDetail[]
+  company    Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  deals      Deal[]
+
+  @@map("contacts")
+}
+
+model ContactDetail {
+  id         Int      @id @default(autoincrement())
+  contactId  Int      @map("contact_id")
+  department String?
+  position   String?
+  phone      String?
+  email      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  isPrimary  Boolean  @default(false) @map("is_primary")
+  contact    Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@map("contact_details")
+}
+
+model Deal {
+  id                Int        @id @default(autoincrement())
+  companyId         Int        @map("company_id")
+  contactId         Int?       @map("contact_id")
+  name              String
+  amount            Float?
+  status            String     @default("prospecting")
+  probability       Int?
+  expectedCloseDate DateTime?  @map("expected_close_date") @db.Date
+  assignedToId      Int?       @map("assigned_to_id")
+  notes             String?
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
+  activities        Activity[]
+  assignedTo        User?      @relation("DealAssignee", fields: [assignedToId], references: [id])
+  company           Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contact           Contact?   @relation(fields: [contactId], references: [id])
+
+  @@map("deals")
+}
+
+model Activity {
+  id          Int       @id @default(autoincrement())
+  companyId   Int       @map("company_id")
+  contactId   Int?      @map("contact_id")
+  dealId      Int?      @map("deal_id")
+  userId      Int       @map("user_id")
+  type        String
+  subject     String
+  description String?
+  dueDate     DateTime? @map("due_date")
+  completed   Boolean   @default(false)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contact     Contact?  @relation(fields: [contactId], references: [id])
+  deal        Deal?     @relation(fields: [dealId], references: [id])
+  user        User      @relation(fields: [userId], references: [id])
+
+  @@map("activities")
+}
+
+model WorkflowTransition {
+  id          Int         @id @default(autoincrement())
+  roleId      Int         @map("role_id")
+  oldStatusId Int         @map("old_status_id")
+  newStatusId Int         @map("new_status_id")
+  newStatus   IssueStatus @relation("TransitionTo", fields: [newStatusId], references: [id], onDelete: Cascade)
+  oldStatus   IssueStatus @relation("TransitionFrom", fields: [oldStatusId], references: [id], onDelete: Cascade)
+  role        Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, oldStatusId, newStatusId])
+  @@map("workflow_transitions")
+}
+
+model HomePage {
+  id        Int      @id @default(autoincrement())
+  content   String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("home_pages")
+}
+
+model ProjectComment {
+  id        Int      @id @default(autoincrement())
+  projectId Int      @map("project_id")
+  userId    Int      @map("user_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("project_comments")
+}
+
+model CompanyComment {
+  id        Int      @id @default(autoincrement())
+  companyId Int      @map("company_id")
+  userId    Int      @map("user_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("company_comments")
+}
+
+
+model ContactComment {
+  id        Int      @id @default(autoincrement())
+  contactId Int      @map("contact_id")
+  userId    Int      @map("user_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("contact_comments")
+}
+
+model CompanyWikiPage {
+  id        Int               @id @default(autoincrement())
+  companyId Int               @map("company_id")
+  title     String
+  content   String            @default("")
+  position  Int               @default(0)
+  authorId  Int               @map("author_id")
+  parentId  Int?              @map("parent_id")
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+  author    User              @relation(fields: [authorId], references: [id])
+  company   Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent    CompanyWikiPage?  @relation("CompanyWikiHierarchy", fields: [parentId], references: [id])
+  children  CompanyWikiPage[] @relation("CompanyWikiHierarchy")
+
+  @@unique([companyId, title])
+  @@map("company_wiki_pages")
+}
+
+model SystemSetting {
+  id               String    @id @default("default")
+  startTime        String    @default("09:00")
+  endTime          String    @default("18:00")
+  managementTimes  String[]  @default([])
+  conversionTimes  Float[]   @default([])
+
+  @@map("system_settings")
+}
