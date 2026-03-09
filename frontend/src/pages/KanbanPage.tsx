@@ -6,6 +6,8 @@ import { Issue, IssueMetaOptions, IssueStatus } from '../types';
 import Modal from '../components/Modal';
 import IssueForm from '../components/IssueForm';
 import KanbanBoard from '../components/KanbanBoard';
+import IssueDetail from '../components/IssueDetail';
+import { useAuth } from '../hooks/useAuth';
 
 export default function KanbanPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -15,6 +17,10 @@ export default function KanbanPage() {
   const [filterTracker, setFilterTracker] = useState('');
   const [isNewIssueModalOpen, setIsNewIssueModalOpen] = useState(false);
   const [newIssueStatusId, setNewIssueStatusId] = useState<number | undefined>(undefined);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedIssueId, setSelectedIssueId] = useState<number | null>(null);
+  const { user } = useAuth();
 
   const fetchData = async () => {
     try {
@@ -57,6 +63,22 @@ export default function KanbanPage() {
     setIsNewIssueModalOpen(true);
   };
 
+  const handleIssueClick = (issueId: number) => {
+    setSelectedIssueId(issueId);
+    setIsDetailModalOpen(true);
+  };
+
+  const handleEditFromDetail = () => {
+    setIsDetailModalOpen(false);
+    setIsEditModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsDetailModalOpen(false);
+    setIsEditModalOpen(false);
+    setSelectedIssueId(null);
+  };
+
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden">
       {/* Header */}
@@ -91,6 +113,7 @@ export default function KanbanPage() {
         issues={issues}
         onDrop={handleDrop}
         onNewIssue={openNewIssueForColumn}
+        onIssueClick={handleIssueClick}
       />
 
       <Modal
@@ -107,6 +130,42 @@ export default function KanbanPage() {
               fetchData();
             }}
             onCancel={() => setIsNewIssueModalOpen(false)}
+          />
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={isDetailModalOpen}
+        onClose={closeModal}
+        title="チケット詳細"
+      >
+        {isDetailModalOpen && selectedIssueId && user && (
+          <IssueDetail
+            issueId={String(selectedIssueId)}
+            user={user}
+            onEdit={handleEditFromDetail}
+          />
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={closeModal}
+        title="チケット編集"
+      >
+        {isEditModalOpen && selectedIssueId && (
+          <IssueForm
+            issueId={String(selectedIssueId)}
+            onSuccess={() => {
+              setIsEditModalOpen(false);
+              fetchData();
+              // Back to detail
+              setIsDetailModalOpen(true);
+            }}
+            onCancel={() => {
+              setIsEditModalOpen(false);
+              setIsDetailModalOpen(true);
+            }}
           />
         )}
       </Modal>

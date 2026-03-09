@@ -5,7 +5,9 @@ import api from '../api/client';
 import { Issue, IssueComment, Tracker, IssueStatus, IssuePriority, Project, SystemSetting } from '../types';
 import Modal from './Modal';
 import IssueForm from './IssueForm';
+import IssueDetail from './IssueDetail';
 import MarkdownRenderer from './MarkdownRenderer';
+import { useAuth } from '../hooks/useAuth';
 
 interface GanttChartProps {
   issues: Issue[];
@@ -269,6 +271,7 @@ function calcConversionHours(startDate: Date, endDate: Date, settings?: SystemSe
 }
 
 export default function GanttChart({ issues, projects = [], showProject, onUpdateIssue, onIssueCreated, onRelationCreated, systemSettings }: GanttChartProps) {
+  const { user } = useAuth();
   const [zoom, setZoom] = useState<ZoomLevel>('day');
   const [startValue, setStartValue] = useState<string>('');
   const [endValue, setEndValue] = useState<string>('');
@@ -345,6 +348,8 @@ export default function GanttChart({ issues, projects = [], showProject, onUpdat
 
   const [commentModal, setCommentModal] = useState<{ issue: Issue; comments: IssueComment[] } | null>(null);
   const [commentModalLoading, setCommentModalLoading] = useState(false);
+  const [editIssueId, setEditIssueId] = useState<number | null>(null);
+  const [detailIssueId, setDetailIssueId] = useState<number | null>(null);
 
   const handleOpenCommentModal = useCallback(async (e: React.MouseEvent, issue: Issue) => {
     e.preventDefault();
@@ -992,6 +997,11 @@ export default function GanttChart({ issues, projects = [], showProject, onUpdat
     />
   );
 
+  const handleTicketClick = (e: React.MouseEvent, issueId: number) => {
+    e.preventDefault();
+    setDetailIssueId(issueId);
+  };
+
   // すべての親プロジェクトIDを取得
   const parentProjectIds = useMemo(() => {
     return new Set(
@@ -1273,7 +1283,12 @@ export default function GanttChart({ issues, projects = [], showProject, onUpdat
                             {issue.tracker.name}
                           </span>
                         )}
-                        <Link to={`/issues/${issue.id}`} className="text-sky-600 hover:underline truncate">{issue.subject}</Link>
+                        <button
+                          onClick={(e) => handleTicketClick(e, issue.id)}
+                          className="text-sky-600 hover:underline truncate text-left"
+                        >
+                          {issue.subject}
+                        </button>
                         {(issue._count?.comments ?? 0) > 0 && (
                           <button
                             className="ml-1 flex-shrink-0 text-gray-400 hover:text-sky-500"
@@ -1480,6 +1495,46 @@ export default function GanttChart({ issues, projects = [], showProject, onUpdat
           }}
           onCancel={() => setAddModal({ ...addModal, isOpen: false })}
         />
+      </Modal>
+
+      {/* チケット詳細モーダル */}
+      <Modal
+        isOpen={detailIssueId !== null}
+        onClose={() => setDetailIssueId(null)}
+        title="チケット詳細"
+        size="xl"
+      >
+        {(detailIssueId && user) && (
+          <IssueDetail
+            issueId={String(detailIssueId)}
+            user={user}
+            onEdit={() => {
+              setEditIssueId(detailIssueId);
+              setDetailIssueId(null);
+            }}
+            onRefresh={() => {
+              onIssueCreated?.();
+            }}
+          />
+        )}
+      </Modal>
+
+      {/* チケット編集モーダル */}
+      <Modal
+        isOpen={editIssueId !== null}
+        onClose={() => setEditIssueId(null)}
+        title="チケットの編集"
+      >
+        {editIssueId && (
+          <IssueForm
+            issueId={String(editIssueId)}
+            onSuccess={() => {
+              setEditIssueId(null);
+              onIssueCreated?.(); // ガントチャートを更新
+            }}
+            onCancel={() => setEditIssueId(null)}
+          />
+        )}
       </Modal>
 
       {/* ツールチップ */}

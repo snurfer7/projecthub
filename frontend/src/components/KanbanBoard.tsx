@@ -8,6 +8,7 @@ interface KanbanBoardProps {
     issues: Issue[];
     onDrop: (issueId: number, targetStatusId: number) => void;
     onNewIssue?: (statusId: number) => void;
+    onIssueClick?: (issueId: number) => void;
     showProjectName?: boolean;
 }
 
@@ -43,8 +44,9 @@ const IssueCard = React.forwardRef<HTMLDivElement, {
     onDragStart: () => void,
     onDragEnd: () => void,
     onMouseEnter: () => void,
-    onMouseLeave: () => void
-}>(({ issue, showProjectName, isDragging, onDragStart, onDragEnd, onMouseEnter, onMouseLeave }, ref) => {
+    onMouseLeave: () => void,
+    onIssueClick?: (issueId: number) => void;
+}>(({ issue, showProjectName, isDragging, onDragStart, onDragEnd, onMouseEnter, onMouseLeave, onIssueClick }, ref) => {
     const assigneeName = issue.assignedToGroup
         ? issue.assignedToGroup.name
         : issue.assignedTo
@@ -70,7 +72,15 @@ const IssueCard = React.forwardRef<HTMLDivElement, {
             <Link
                 to={`/issues/${issue.id}`}
                 className="text-sm font-semibold text-slate-800 hover:text-sky-600 leading-snug block mb-1 line-clamp-2"
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                    if (onIssueClick) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onIssueClick(issue.id);
+                    } else {
+                        e.stopPropagation();
+                    }
+                }}
             >
                 {issue.subject}
             </Link>
@@ -107,7 +117,7 @@ const IssueCard = React.forwardRef<HTMLDivElement, {
 
 IssueCard.displayName = 'IssueCard';
 
-export default function KanbanBoard({ statuses, issues, onDrop, onNewIssue, showProjectName }: KanbanBoardProps) {
+export default function KanbanBoard({ statuses, issues, onDrop, onNewIssue, onIssueClick, showProjectName }: KanbanBoardProps) {
     const [draggingIssueId, setDraggingIssueId] = useState<number | null>(null);
     const [dragOverStatusId, setDragOverStatusId] = useState<number | null>(null);
     const [hoveredIssueId, setHoveredIssueId] = useState<number | null>(null);
@@ -198,6 +208,7 @@ export default function KanbanBoard({ statuses, issues, onDrop, onNewIssue, show
                                         onMouseEnter={() => setHoveredIssueId(issue.id)}
                                         onMouseLeave={() => setHoveredIssueId(null)}
                                         isDragging={draggingIssueId === issue.id}
+                                        onIssueClick={onIssueClick}
                                         ref={(el) => {
                                             if (el) cardRefs.current.set(issue.id, el);
                                             else cardRefs.current.delete(issue.id);

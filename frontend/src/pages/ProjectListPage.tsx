@@ -6,6 +6,9 @@ import { Project, Company, Issue, IssueStatus, Tracker } from '../types';
 import Modal from '../components/Modal';
 import GanttChart from '../components/GanttChart';
 import KanbanBoard from '../components/KanbanBoard';
+import IssueDetail from '../components/IssueDetail';
+import IssueForm from '../components/IssueForm';
+import { useAuth } from '../hooks/useAuth';
 
 const PRIORITY_COLORS: Record<string, string> = {
   '今すぐ': 'bg-red-100 text-red-700 border-red-200',
@@ -58,6 +61,10 @@ export default function ProjectListPage() {
   const [kanbanFilterAssignedToId, setKanbanFilterAssignedToId] = useState<number | ''>('');
   const [kanbanFilterStartMonth, setKanbanFilterStartMonth] = useState('');
   const [kanbanFilterEndMonth, setKanbanFilterEndMonth] = useState('');
+  const [selectedIssueId, setSelectedIssueId] = useState<number | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const { user } = useAuth();
 
 
   // Project modal states
@@ -186,6 +193,22 @@ export default function ProjectListPage() {
     } catch {
       loadKanbanData();
     }
+  };
+
+  const handleIssueClick = (issueId: number) => {
+    setSelectedIssueId(issueId);
+    setIsDetailModalOpen(true);
+  };
+
+  const handleEditFromDetail = () => {
+    setIsDetailModalOpen(false);
+    setIsEditModalOpen(true);
+  };
+
+  const closeIssueModal = () => {
+    setIsDetailModalOpen(false);
+    setIsEditModalOpen(false);
+    setSelectedIssueId(null);
   };
 
   const filteredProjects = useMemo(() => {
@@ -406,6 +429,7 @@ export default function ProjectListPage() {
             statuses={kanbanStatuses}
             issues={kanbanFilteredIssues}
             onDrop={handleKanbanDrop}
+            onIssueClick={handleIssueClick}
             showProjectName={true}
           />
         )
@@ -477,6 +501,41 @@ export default function ProjectListPage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        isOpen={isDetailModalOpen}
+        onClose={closeIssueModal}
+        title="チケット詳細"
+      >
+        {isDetailModalOpen && selectedIssueId && user && (
+          <IssueDetail
+            issueId={String(selectedIssueId)}
+            user={user}
+            onEdit={handleEditFromDetail}
+          />
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={closeIssueModal}
+        title="チケット編集"
+      >
+        {isEditModalOpen && selectedIssueId && (
+          <IssueForm
+            issueId={String(selectedIssueId)}
+            onSuccess={() => {
+              setIsEditModalOpen(false);
+              loadKanbanData();
+              setIsDetailModalOpen(true);
+            }}
+            onCancel={() => {
+              setIsEditModalOpen(false);
+              setIsDetailModalOpen(true);
+            }}
+          />
+        )}
       </Modal>
     </div>
   );
