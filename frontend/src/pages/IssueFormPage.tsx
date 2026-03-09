@@ -7,6 +7,7 @@ export default function IssueFormPage() {
   const [searchParams] = useSearchParams();
   const isEdit = !!id;
   const initialDueDateStr = searchParams.get('dueDate');
+  const initialStartDateStr = searchParams.get('startDate');
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -14,6 +15,7 @@ export default function IssueFormPage() {
       <IssueForm
         projectId={projectId}
         issueId={id}
+        initialStartDate={initialStartDateStr || undefined}
         initialDueDate={initialDueDateStr || undefined}
         onSuccess={(savedId) => {
           navigate(`/issues/${savedId}`);

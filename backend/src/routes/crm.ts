@@ -17,7 +17,7 @@ router.get('/contacts', async (req: AuthRequest, res: Response) => {
       where,
       include: {
         company: { select: { id: true, name: true } },
-        details: true,
+        details: { include: { location: { select: { id: true, name: true } } } },
         _count: { select: { comments: true } },
       },
       orderBy: { lastName: 'asc' },
@@ -34,7 +34,7 @@ router.get('/contacts/:id', async (req: AuthRequest, res: Response) => {
       where: { id: Number(req.params.id) },
       include: {
         company: { select: { id: true, name: true } },
-        details: true,
+        details: { include: { location: { select: { id: true, name: true } } } },
         deals: { select: { id: true, name: true, status: true, amount: true } },
         activities: {
           include: { user: { select: { id: true, firstName: true, lastName: true } } },

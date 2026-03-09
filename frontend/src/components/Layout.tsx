@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { User } from '../types';
 import Breadcrumb from './Breadcrumb';
 import {
-  Menu, LayoutDashboard, Database, Building2, Settings, LogOut,
+  Menu, Database, Building2, Settings, LogOut,
   Briefcase, ChevronDown, ChevronRight, Users
 } from 'lucide-react';
 
@@ -34,9 +34,6 @@ const TREE_MENU: TreeItem[] = [
     path: '/projects',
     icon: Briefcase,
     key: 'projects',
-    children: [
-      { label: 'ガントチャート', path: '/gantt', icon: LayoutDashboard, key: 'gantt' },
-    ],
   },
   {
     label: '会社',
@@ -59,7 +56,6 @@ const TREE_MENU: TreeItem[] = [
 // ヘッダー用フラットリスト（旧来の設定と互換性を保つ）
 const FLAT_MENU = [
   { label: 'プロジェクト', path: '/projects', icon: Briefcase, key: 'projects' },
-  { label: 'ガントチャート', path: '/gantt', icon: LayoutDashboard, key: 'gantt' },
   { label: '会社', path: '/companies', icon: Building2, key: 'company' },
   { label: '管理', path: '/admin', icon: Database, key: 'admin', adminOnly: true },
 ];
@@ -91,7 +87,6 @@ export default function Layout({ user, onLogout, children }: Props) {
   const headerNavItems = FLAT_MENU.filter((item) => {
     if (item.adminOnly && user.role !== 'admin') return false;
     if (item.key === 'projects') return user.showProjectsMenu !== false;
-    if (item.key === 'gantt') return user.showGanttMenu !== false;
     if (item.key === 'company') return user.showCompanyMenu !== false;
     if (item.key === 'admin') return user.showAdminMenu !== false;
     return true;

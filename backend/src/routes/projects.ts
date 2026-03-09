@@ -94,9 +94,9 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    const managerRole = await prisma.role.findUnique({ where: { name: 'manager' } });
+    const managerRole = await prisma.role.findFirst({ where: { isDefaultRole: true } });
     if (!managerRole) {
-      res.status(500).json({ error: 'マネージャーロールが見つかりません' });
+      res.status(500).json({ error: 'プロジェクトの初期ロールが設定されていません。管理画面のロール設定で「プロジェクトの初期ロール」を有効にしてください。' });
       return;
     }
 
@@ -331,15 +331,23 @@ router.post('/:id/groups', async (req: AuthRequest, res: Response) => {
             data: { projectId, userId: gm.userId }
           });
         }
-        // Add group-sourced roles
+        // Add only roles the member doesn't already have
+        const existingRoleIds = new Set(
+          (await tx.projectMemberRole.findMany({
+            where: { projectMemberId: member.id },
+            select: { roleId: true }
+          })).map((r: any) => r.roleId)
+        );
         for (const rId of roleIds) {
-          await tx.projectMemberRole.create({
-            data: {
-              projectMemberId: member.id,
-              roleId: Number(rId),
-              sourceGroupId: Number(groupId)
-            }
-          });
+          if (!existingRoleIds.has(Number(rId))) {
+            await tx.projectMemberRole.create({
+              data: {
+                projectMemberId: member.id,
+                roleId: Number(rId),
+                sourceGroupId: null
+              }
+            });
+          }
         }
       }
     });
@@ -379,17 +387,22 @@ router.put('/:id/groups/:groupId/role', async (req: AuthRequest, res: Response) 
     }
 
     await prisma.$transaction(async (tx: any) => {
+      // Find group members who are in this project (same approach as the POST endpoint)
+      const group = await tx.group.findUnique({
+        where: { id: groupId },
+        include: { members: { select: { userId: true } } }
+      });
+      const groupUserIds = (group?.members || []).map((m: any) => m.userId);
+      const members = await tx.projectMember.findMany({
+        where: { projectId, userId: { in: groupUserIds } }
+      });
+
       // Delete old roles for this group
       await tx.projectMemberRole.deleteMany({
         where: {
           member: { projectId },
           sourceGroupId: groupId
         }
-      });
-
-      // Add new roles for this group to all members who are currently in the project via this group
-      const members = await tx.projectMember.findMany({
-        where: { projectId, roles: { some: { sourceGroupId: groupId } } }
       });
 
       for (const member of members) {
@@ -418,35 +431,38 @@ router.delete('/:id/groups/:groupId', async (req: AuthRequest, res: Response) =>
     const groupId = Number(req.params.groupId);
 
     await prisma.$transaction(async (tx: any) => {
-      // Find members who have roles from this group
-      const targetRoles = await tx.projectMemberRole.findMany({
-        where: {
-          member: { projectId },
-          sourceGroupId: groupId
-        },
-        select: { projectMemberId: true }
+      // Get members of the group being removed
+      const group = await tx.group.findUnique({
+        where: { id: groupId },
+        include: { members: { select: { userId: true } } }
       });
-      const memberIds = Array.from(new Set(targetRoles.map((r: any) => r.projectMemberId)));
+      const groupUserIds: number[] = (group?.members || []).map((m: any) => m.userId);
 
-      // Remove group-sourced roles
-      await tx.projectMemberRole.deleteMany({
-        where: {
-          member: { projectId },
-          sourceGroupId: groupId
-        }
-      });
+      // Find other groups still assigned to this project
+      const otherAssignedGroupIds = (await tx.projectGroup.findMany({
+        where: { projectId, groupId: { not: groupId } },
+        select: { groupId: true }
+      })).map((pg: any) => pg.groupId);
 
-      // Remove members who have no roles left
-      for (const mId of memberIds) {
-        const rolesCount = await tx.projectMemberRole.count({
-          where: { projectMemberId: mId }
+      // Collect user IDs that belong to other assigned groups
+      const usersInOtherGroups = new Set<number>();
+      for (const otherGId of otherAssignedGroupIds) {
+        const otherGroup = await tx.group.findUnique({
+          where: { id: otherGId },
+          include: { members: { select: { userId: true } } }
         });
-        if (rolesCount === 0) {
-          await tx.projectMember.delete({ where: { id: mId } });
-        }
+        (otherGroup?.members || []).forEach((m: any) => usersInOtherGroups.add(m.userId));
       }
 
-      await (tx as any).projectGroup.deleteMany({
+      // Only remove members who are NOT in any other assigned group
+      const userIdsToRemove = groupUserIds.filter(uid => !usersInOtherGroups.has(uid));
+      if (userIdsToRemove.length > 0) {
+        await tx.projectMember.deleteMany({
+          where: { projectId, userId: { in: userIdsToRemove } }
+        });
+      }
+
+      await tx.projectGroup.deleteMany({
         where: { projectId, groupId }
       });
     });

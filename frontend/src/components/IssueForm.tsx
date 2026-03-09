@@ -19,12 +19,14 @@ function toLocalDatetimeString(dateString?: string | null) {
 interface IssueFormProps {
     projectId?: string;
     issueId?: string;
+    initialStartDate?: string;
     initialDueDate?: string;
+    defaultStatusId?: number;
     onSuccess: (issueId: number) => void;
     onCancel: () => void;
 }
 
-export default function IssueForm({ projectId, issueId, initialDueDate, onSuccess, onCancel }: IssueFormProps) {
+export default function IssueForm({ projectId, issueId, initialStartDate, initialDueDate, defaultStatusId, onSuccess, onCancel }: IssueFormProps) {
     const isEdit = !!issueId;
 
     const [meta, setMeta] = useState<IssueMetaOptions | null>(null);
@@ -34,7 +36,7 @@ export default function IssueForm({ projectId, issueId, initialDueDate, onSucces
     const [assignedToPrincipal, setAssignedToPrincipal] = useState('');
     const [subject, setSubject] = useState('');
     const [description, setDescription] = useState('');
-    const [startDate, setStartDate] = useState('');
+    const [startDate, setStartDate] = useState(initialStartDate || '');
     const [dueDate, setDueDate] = useState(initialDueDate || '');
     const [estimatedHours, setEstimatedHours] = useState('');
     const [doneRatio, setDoneRatio] = useState('0');
@@ -49,18 +51,30 @@ export default function IssueForm({ projectId, issueId, initialDueDate, onSucces
                 const { startTime, endTime } = res.data;
                 setSystemStartTime(startTime);
                 setSystemEndTime(endTime);
+
+                if (!initialStartDate) {
+                    const now = new Date();
+                    const year = now.getFullYear();
+                    const month = String(now.getMonth() + 1).padStart(2, '0');
+                    const day = String(now.getDate()).padStart(2, '0');
+                    const today = `${year}-${month}-${day}`;
+                    setStartDate(`${today}T${startTime}`);
+                } else {
+                    setStartDate(initialStartDate.includes('T') ? initialStartDate : `${initialStartDate}T${startTime}`);
+                }
+
                 if (initialDueDate) {
                     setDueDate(initialDueDate);
                 }
             }).catch(() => { });
         }
-    }, [isEdit, initialDueDate]);
+    }, [isEdit, initialStartDate, initialDueDate]);
 
     useEffect(() => {
         api.get('/issues/meta/options', { params: { projectId: currentProjectId } }).then((res) => {
             setMeta(res.data);
             if (!isEdit && res.data.trackers.length > 0) setTrackerId(String(res.data.trackers[0].id));
-            if (!isEdit && res.data.statuses.length > 0) setStatusId(String(res.data.statuses[0].id));
+            if (!isEdit && res.data.statuses.length > 0) setStatusId(String(defaultStatusId ?? res.data.statuses[0].id));
             if (!isEdit && res.data.priorities.length > 0) {
                 const normal = res.data.priorities.find((p: any) => p.name === '通常');
                 setPriorityId(String(normal?.id || res.data.priorities[0].id));

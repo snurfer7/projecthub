@@ -8,6 +8,7 @@ import Modal from '../components/Modal';
 import CompanyWikiTab from '../components/CompanyWikiTab';
 import CompanyCommentsTab from '../components/CompanyCommentsTab';
 import ContactCommentsSection from '../components/ContactCommentsSection';
+import CompanyLocationsTab from '../components/CompanyLocationsTab';
 
 
 const DEAL_STATUSES: { value: string; label: string; color: string }[] = [
@@ -48,7 +49,7 @@ export default function CompanyDetailPage() {
   const [company, setCompany] = useState<Company | null>(null);
   const { search } = useLocation();
   const query = new URLSearchParams(search);
-  const activeTab = (query.get('tab') || 'overview') as 'overview' | 'contacts' | 'deals' | 'activities' | 'projects' | 'wiki' | 'comments';
+  const activeTab = (query.get('tab') || 'overview') as 'overview' | 'contacts' | 'deals' | 'activities' | 'projects' | 'wiki' | 'comments' | 'locations';
 
   const setActiveTab = (tab: string) => {
     navigate(`?tab=${tab}`, { replace: true });
@@ -59,7 +60,8 @@ export default function CompanyDetailPage() {
   const [showContactModal, setShowContactModal] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [contactForm, setContactForm] = useState({ firstName: '', lastName: '', notes: '' });
-  const [contactDetails, setContactDetails] = useState<{ department: string; position: string; phone: string; email: string; isPrimary: boolean }[]>([]);
+  const [contactDetails, setContactDetails] = useState<{ department: string; position: string; phone: string; email: string; locationId: string; isPrimary: boolean }[]>([]);
+  const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
   const [contactError, setContactError] = useState('');
   const [commentContact, setCommentContact] = useState<Contact | null>(null);
 
@@ -97,6 +99,7 @@ export default function CompanyDetailPage() {
   const loadActivities = () => api.get(`/crm/activities?companyId=${id}`).then((res) => setActivities(res.data));
   const loadMasterAssociations = () => api.get('/admin/associations').then((res) => setMasterAssociations(res.data));
   const loadUsers = () => api.get('/admin/users').then((res) => setUsers(res.data.map((u: any) => ({ id: u.id, firstName: u.firstName, lastName: u.lastName }))));
+  const loadLocations = () => api.get(`/companies/${id}/locations`).then((res) => setLocations(res.data));
 
   useEffect(() => {
     loadCompany();
@@ -105,6 +108,7 @@ export default function CompanyDetailPage() {
     loadActivities();
     loadMasterAssociations();
     loadUsers();
+    loadLocations();
   }, [id]);
 
   const handleDeleteCompany = async () => {
@@ -121,7 +125,7 @@ export default function CompanyDetailPage() {
   const openCreateContact = () => {
     setEditingContact(null);
     setContactForm({ firstName: '', lastName: '', notes: '' });
-    setContactDetails([{ department: '', position: '', phone: '', email: '', isPrimary: false }]);
+    setContactDetails([{ department: '', position: '', phone: '', email: '', locationId: '', isPrimary: false }]);
     setContactError('');
     setShowContactModal(true);
   };
@@ -134,8 +138,9 @@ export default function CompanyDetailPage() {
       position: d.position || '',
       phone: d.phone || '',
       email: d.email || '',
+      locationId: d.locationId?.toString() || '',
       isPrimary: d.isPrimary || false
-    })) : [{ department: '', position: '', phone: '', email: '', isPrimary: false }]);
+    })) : [{ department: '', position: '', phone: '', email: '', locationId: '', isPrimary: false }]);
     setContactError('');
     setShowContactModal(true);
   };
@@ -148,7 +153,10 @@ export default function CompanyDetailPage() {
         ...contactForm,
         companyId,
         notes: contactForm.notes || null,
-        details: contactDetails.filter(d => d.department || d.position || d.phone || d.email),
+        details: contactDetails.filter(d => d.department || d.position || d.phone || d.email || d.locationId).map(d => ({
+          ...d,
+          locationId: d.locationId ? parseInt(d.locationId) : null,
+        })),
       };
       if (editingContact) {
         await api.put(`/crm/contacts/${editingContact.id}`, data);
@@ -285,6 +293,7 @@ export default function CompanyDetailPage() {
     { key: 'activities' as const, label: '活動履歴', count: activities.length },
     { key: 'wiki' as const, label: 'Wiki', count: company._count?.wikiPages || 0 },
     { key: 'comments' as const, label: 'コメント', count: company._count?.comments || 0 },
+    { key: 'locations' as const, label: '拠点', count: company._count?.locations || 0 },
     { key: 'projects' as const, label: 'プロジェクト', count: company.projects?.length || 0 },
   ];
 
@@ -320,6 +329,7 @@ export default function CompanyDetailPage() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">名前</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">拠点</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">所属</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">役職</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">電話</th>
@@ -342,6 +352,15 @@ export default function CompanyDetailPage() {
                           {(c._count?.comments ?? 0) > 0 && c._count!.comments}
                         </button>
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {c.details && c.details.filter(d => d.isPrimary).length > 0 ? (
+                        <div className="space-y-1">
+                          {c.details.filter(d => d.isPrimary).map((d, i) => (
+                            <div key={i} className="text-xs">{d.location?.name || '-'}</div>
+                          ))}
+                        </div>
+                      ) : '-'}
                     </td>
                     <td className="px-4 py-3 text-gray-600">
                       {c.details && c.details.filter(d => d.isPrimary).length > 0 ? (
@@ -646,6 +665,13 @@ export default function CompanyDetailPage() {
         )
       }
 
+      {/* Locations Tab */}
+      {
+        activeTab === 'locations' && (
+          <CompanyLocationsTab companyId={companyId} onUpdateCount={loadCompany} />
+        )
+      }
+
       {/* Contact Comments Modal */}
       <Modal
         isOpen={commentContact !== null}
@@ -680,13 +706,28 @@ export default function CompanyDetailPage() {
           <div className="mb-4">
             <div className="flex justify-between items-center mb-2">
               <label className="block text-sm font-medium text-gray-700">連絡先詳細 (複数設定可)</label>
-              <button type="button" onClick={() => setContactDetails([...contactDetails, { department: '', position: '', phone: '', email: '', isPrimary: false }])}
+              <button type="button" onClick={() => setContactDetails([...contactDetails, { department: '', position: '', phone: '', email: '', locationId: '', isPrimary: false }])}
                 className="text-sky-600 hover:text-sky-800 text-xs font-medium">+ 追加</button>
             </div>
             <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
               {contactDetails.map((detail, index) => (
                 <div key={index} className="border rounded-md p-3 bg-gray-50 relative">
                   <div className="grid grid-cols-2 gap-2 mb-2">
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">拠点</label>
+                      <select value={detail.locationId}
+                        onChange={(e) => {
+                          const newDetails = [...contactDetails];
+                          newDetails[index] = { ...newDetails[index], locationId: e.target.value };
+                          setContactDetails(newDetails);
+                        }}
+                        className="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white">
+                        <option value="">未設定</option>
+                        {locations.map((loc) => (
+                          <option key={loc.id} value={loc.id.toString()}>{loc.name}</option>
+                        ))}
+                      </select>
+                    </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1">所属</label>
                       <input type="text" value={detail.department} placeholder="例: 営業部"

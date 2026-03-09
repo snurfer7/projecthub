@@ -18,11 +18,15 @@ model User {
   createdAt        DateTime          @default(now()) @map("created_at")
   isAdmin          Boolean           @default(false) @map("is_admin")
   landingPage      String            @default("home") @map("landing_page")
+  showAdminMenu    Boolean           @default(true) @map("show_admin_menu")
+  showCompanyMenu  Boolean           @default(true) @map("show_company_menu")
+  showGanttMenu    Boolean           @default(true) @map("show_gantt_menu")
+  showProjectsMenu Boolean           @default(true) @map("show_projects_menu")
   activities       Activity[]
   attachments      Attachment[]
   companyComments  CompanyComment[]
-  contactComments  ContactComment[]
   companyWikiPages CompanyWikiPage[]
+  contactComments  ContactComment[]
   assignedDeals    Deal[]            @relation("DealAssignee")
   groupMembers     GroupMember[]
   issueComments    IssueComment[]
@@ -32,11 +36,6 @@ model User {
   projectMembers   ProjectMember[]
   timeEntries      TimeEntry[]
   wikiPages        WikiPage[]
-
-  showProjectsMenu Boolean           @default(true) @map("show_projects_menu")
-  showGanttMenu    Boolean           @default(true) @map("show_gantt_menu")
-  showCompanyMenu  Boolean           @default(true) @map("show_company_menu")
-  showAdminMenu    Boolean           @default(true) @map("show_admin_menu")
 
   @@map("users")
 }
@@ -83,8 +82,27 @@ model Company {
   contacts     Contact[]
   deals        Deal[]
   projects     Project[]
+  locations    Location[]           @relation("CompanyLocations")
 
   @@map("companies")
+}
+
+model Location {
+  id         Int      @id @default(autoincrement())
+  companyId  Int      @map("company_id")
+  name       String
+  phone      String?
+  postalCode String?  @map("postal_code")
+  prefecture String?
+  city       String?
+  street     String?
+  building   String?
+  notes      String?
+  createdAt      DateTime        @default(now()) @map("created_at")
+  company        Company         @relation("CompanyLocations", fields: [companyId], references: [id], onDelete: Cascade)
+  contactDetails ContactDetail[]
+
+  @@map("locations")
 }
 
 model Association {
@@ -176,13 +194,14 @@ model ProjectMemberRole {
 }
 
 model Role {
-  id           Int                  @id @default(autoincrement())
-  name         String               @unique
-  position     Int                  @default(0)
-  description  String?
-  projectRoles ProjectMemberRole[]
-  statuses     RoleStatus[]
-  transitions  WorkflowTransition[]
+  id              Int                  @id @default(autoincrement())
+  name            String               @unique
+  position        Int                  @default(0)
+  description     String?
+  isDefaultRole   Boolean              @default(false) @map("is_default_role")
+  projectRoles    ProjectMemberRole[]
+  statuses        RoleStatus[]
+  transitions     WorkflowTransition[]
 
   @@map("roles")
 }
@@ -342,20 +361,20 @@ model TimeEntry {
 }
 
 model Contact {
-  id         Int             @id @default(autoincrement())
-  companyId  Int             @map("company_id")
-  firstName  String          @map("first_name")
-  lastName   String          @map("last_name")
+  id         Int              @id @default(autoincrement())
+  companyId  Int              @map("company_id")
+  firstName  String           @map("first_name")
+  lastName   String           @map("last_name")
   email      String?
   phone      String?
   position   String?
   department String?
   notes      String?
-  createdAt  DateTime        @default(now()) @map("created_at")
+  createdAt  DateTime         @default(now()) @map("created_at")
   activities Activity[]
   comments   ContactComment[]
   details    ContactDetail[]
-  company    Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company    Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   deals      Deal[]
 
   @@map("contacts")
@@ -368,9 +387,11 @@ model ContactDetail {
   position   String?
   phone      String?
   email      String?
+  locationId Int?     @map("location_id")
   createdAt  DateTime @default(now()) @map("created_at")
   isPrimary  Boolean  @default(false) @map("is_primary")
   contact    Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  location   Location? @relation(fields: [locationId], references: [id])
 
   @@map("contact_details")
 }
@@ -461,7 +482,6 @@ model CompanyComment {
   @@map("company_comments")
 }
 
-
 model ContactComment {
   id        Int      @id @default(autoincrement())
   contactId Int      @map("contact_id")
@@ -494,11 +514,11 @@ model CompanyWikiPage {
 }
 
 model SystemSetting {
-  id               String    @id @default("default")
-  startTime        String    @default("09:00")
-  endTime          String    @default("18:00")
-  managementTimes  String[]  @default([])
-  conversionTimes  Float[]   @default([])
+  id              String   @id @default("default")
+  startTime       String   @default("09:00")
+  endTime         String   @default("18:00")
+  managementTimes String[] @default([])
+  conversionTimes Float[]  @default([])
 
   @@map("system_settings")
 }

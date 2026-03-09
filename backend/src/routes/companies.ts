@@ -33,7 +33,7 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
           orderBy: { createdAt: 'desc' },
         },
         _count: {
-          select: { comments: true, wikiPages: true, projects: true },
+          select: { comments: true, wikiPages: true, projects: true, locations: true },
         },
       },
     });
@@ -308,6 +308,95 @@ router.patch('/:companyId/wiki/:title/move', async (req: AuthRequest, res: Respo
   } catch (e) {
     console.error('companies.moveWikiPage error:', e);
     res.status(500).json({ error: 'Wikiページの移動に失敗しました' });
+  }
+});
+
+// ==========================================
+// Locations
+// ==========================================
+
+// Get all locations for a company
+router.get('/:companyId/locations', async (req: AuthRequest, res: Response) => {
+  try {
+    const companyId = Number(req.params.companyId);
+    const locations = await prisma.location.findMany({
+      where: { companyId },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(locations);
+  } catch (e) {
+    res.status(500).json({ error: '拠点の取得に失敗しました' });
+  }
+});
+
+// Create a location
+router.post('/:companyId/locations', async (req: AuthRequest, res: Response) => {
+  try {
+    const companyId = Number(req.params.companyId);
+    const { name, phone, postalCode, prefecture, city, street, building, notes } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: '拠点名が必要です' });
+    }
+
+    const location = await prisma.location.create({
+      data: {
+        companyId,
+        name,
+        phone,
+        postalCode,
+        prefecture,
+        city,
+        street,
+        building,
+        notes,
+      },
+    });
+
+    res.status(201).json(location);
+  } catch (e) {
+    res.status(500).json({ error: '拠点の作成に失敗しました' });
+  }
+});
+
+// Update a location
+router.put('/:companyId/locations/:locationId', async (req: AuthRequest, res: Response) => {
+  try {
+    const locationId = Number(req.params.locationId);
+    const { name, phone, postalCode, prefecture, city, street, building, notes } = req.body;
+
+    const location = await prisma.location.update({
+      where: { id: locationId },
+      data: {
+        name,
+        phone,
+        postalCode,
+        prefecture,
+        city,
+        street,
+        building,
+        notes,
+      },
+    });
+
+    res.json(location);
+  } catch (e) {
+    res.status(500).json({ error: '拠点の更新に失敗しました' });
+  }
+});
+
+// Delete a location
+router.delete('/:companyId/locations/:locationId', async (req: AuthRequest, res: Response) => {
+  try {
+    const locationId = Number(req.params.locationId);
+
+    await prisma.location.delete({
+      where: { id: locationId },
+    });
+
+    res.json({ message: '拠点を削除しました' });
+  } catch (e) {
+    res.status(500).json({ error: '拠点の削除に失敗しました' });
   }
 });
 

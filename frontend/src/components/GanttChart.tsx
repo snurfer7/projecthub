@@ -299,12 +299,6 @@ export default function GanttChart({ issues, projects = [], showProject, onUpdat
     currentY: number;
     toIssueId: number | null;
   } | null>(null);
-  const [sortDrag, setSortDrag] = useState<{
-    issue: Issue;
-    startY: number;
-    currentY: number;
-    targetIssueId: number | null;
-  } | null>(null);
 
   type HeaderInfo = { label: string; days: number; dates: Date[]; year: number; month: number; isNewYear: boolean; isNewMonth: boolean; yearSpan: number; monthSpan: number };
 
@@ -345,8 +339,9 @@ export default function GanttChart({ issues, projects = [], showProject, onUpdat
   const [addModal, setAddModal] = useState<{
     isOpen: boolean;
     projectId: number;
+    initialStartDate: string;
     initialDueDate: string;
-  }>({ isOpen: false, projectId: 0, initialDueDate: '' });
+  }>({ isOpen: false, projectId: 0, initialStartDate: '', initialDueDate: '' });
 
   const [commentModal, setCommentModal] = useState<{ issue: Issue; comments: IssueComment[] } | null>(null);
   const [commentModalLoading, setCommentModalLoading] = useState(false);
@@ -899,16 +894,6 @@ export default function GanttChart({ issues, projects = [], showProject, onUpdat
     };
   }, [drag, dayWidth, onUpdateIssue, getOffset, chartStart, workStartMinutes, workEndMinutes, snapMinutes, systemSettings]);
 
-  const handleSortMouseDown = useCallback((e: React.MouseEvent, issue: Issue) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setSortDrag({
-      issue,
-      startY: e.clientY,
-      currentY: e.clientY,
-      targetIssueId: null,
-    });
-  }, []);
 
   const handleRelationMouseDown = useCallback((e: React.MouseEvent, issue: Issue) => {
     e.preventDefault();
@@ -924,11 +909,11 @@ export default function GanttChart({ issues, projects = [], showProject, onUpdat
   }, []);
 
   useEffect(() => {
-    if (!relationDrag && !sortDrag) return;
+    if (!relationDrag) return;
 
     const handleMouseMove = (e: MouseEvent) => {
       if (relationDrag) {
-        document.body.style.cursor = 'grabbing';
+        document.body.classList.add('body-grabbing');
         const elements = document.elementsFromPoint(e.clientX, e.clientY);
         const row = elements.find(el => el.hasAttribute('data-issue-id'));
         const toId = row ? Number(row.getAttribute('data-issue-id')) : null;
@@ -940,60 +925,17 @@ export default function GanttChart({ issues, projects = [], showProject, onUpdat
           toIssueId: toId !== prev.fromIssue.id ? toId : null,
         } : null);
       }
-
-      if (sortDrag) {
-        document.body.style.cursor = 'move';
-        const elements = document.elementsFromPoint(e.clientX, e.clientY);
-        const row = elements.find(el => el.hasAttribute('data-issue-id'));
-        const targetId = row ? Number(row.getAttribute('data-issue-id')) : null;
-
-        setSortDrag(prev => prev ? {
-          ...prev,
-          currentY: e.clientY,
-          targetIssueId: targetId !== prev.issue.id ? targetId : null,
-        } : null);
-      }
     };
 
     const handleMouseUp = async () => {
       // Immediately reset cursor and drag state to avoid persistent "move" cursor
-      document.body.style.cursor = '';
+      document.body.classList.remove('body-grabbing');
       const currentRelationDrag = relationDrag;
-      const currentSortDrag = sortDrag;
       setRelationDrag(null);
-      setSortDrag(null);
 
       if (currentRelationDrag) {
         if (currentRelationDrag.toIssueId && onRelationCreated) {
           await onRelationCreated(currentRelationDrag.fromIssue.id, currentRelationDrag.toIssueId);
-        }
-      }
-
-      if (currentSortDrag) {
-        if (currentSortDrag.targetIssueId) {
-          const fromId = currentSortDrag.issue.id;
-          const toId = currentSortDrag.targetIssueId;
-
-          const newIssues = [...issues];
-          const fromIdx = newIssues.findIndex(i => i.id === fromId);
-          const toIdx = newIssues.findIndex(i => i.id === toId);
-
-          if (fromIdx !== -1 && toIdx !== -1) {
-            const [movedItem] = newIssues.splice(fromIdx, 1);
-            newIssues.splice(toIdx, 0, movedItem);
-
-            const reordered = newIssues.map((issue, index) => ({
-              id: issue.id,
-              position: index
-            }));
-
-            try {
-              await api.put('/issues/reorder', { issues: reordered });
-              onIssueCreated?.();
-            } catch (err) {
-              console.error('Failed to reorder:', err);
-            }
-          }
         }
       }
     };
@@ -1004,7 +946,7 @@ export default function GanttChart({ issues, projects = [], showProject, onUpdat
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [relationDrag, sortDrag, onRelationCreated, issues, onIssueCreated]);
+  }, [relationDrag, onRelationCreated, issues, onIssueCreated]);
 
   const handleBarHover = useCallback((e: React.MouseEvent, issue: Issue) => {
     if (drag) return;
@@ -1027,7 +969,7 @@ export default function GanttChart({ issues, projects = [], showProject, onUpdat
     const dateStr = `${year}-${month}-${day}`;
 
     // モーダルを開く
-    setAddModal({ isOpen: true, projectId, initialDueDate: dateStr });
+    setAddModal({ isOpen: true, projectId, initialStartDate: dateStr, initialDueDate: '' });
   }, [chartStart, dayWidth]);
 
   const resizer = (
@@ -1179,69 +1121,83 @@ export default function GanttChart({ issues, projects = [], showProject, onUpdat
         <div className="bg-white rounded-lg shadow overflow-auto relative" ref={chartRef} style={{ maxHeight: 'calc(100vh - 200px)' }}>
           <div className="relative" style={{ minWidth: totalDays * dayWidth + leftColWidth }}>
             {/* ヘッダー部 */}
-            {/* 1段目：年（全モードで表示） */}
-            <div className="flex border-b sticky top-0 z-30 bg-white h-6 items-center">
-              <div style={{ width: leftColWidth }} className="flex-shrink-0 h-full bg-gray-50 border-r relative sticky left-0 z-40">{resizer}</div>
-              <div className="flex relative h-full items-center">
-                {months.map((m, i) => {
-                  if (!m.isNewYear) return null;
-                  return (
-                    <div key={`year-${i}`} style={{ width: m.yearSpan * dayWidth }} className="text-center text-xs h-full flex items-center justify-center border-l bg-gray-50 text-gray-500 font-medium whitespace-nowrap overflow-hidden">
-                      {m.year}
+            <div className="sticky top-0 z-30 bg-white border-b">
+              <div className="flex relative">
+                {/* 左端の結合されたセル */}
+                <div
+                  style={{
+                    width: leftColWidth,
+                    height: zoom === 'day' ? 96 : zoom === 'month' ? 48 : 24,
+                  }}
+                  className="flex-shrink-0 bg-gray-50 border-r sticky left-0 z-40"
+                >
+                  {resizer}
+                </div>
+
+                <div className="flex-1">
+                  {/* 1段目：年 */}
+                  <div className="flex h-6 items-center border-b">
+                    <div className="flex relative h-full items-center">
+                      {months.map((m, i) => {
+                        if (!m.isNewYear) return null;
+                        return (
+                          <div key={`year-${i}`} style={{ width: m.yearSpan * dayWidth }} className="text-center text-xs h-full flex items-center justify-center border-l bg-gray-50 text-gray-500 font-medium whitespace-nowrap overflow-hidden">
+                            {m.year}
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
+                  </div>
+
+                  {/* 2段目：月（日表示・月表示のみ） */}
+                  {(zoom === 'day' || zoom === 'month') && (
+                    <div className="flex h-6 items-center border-b">
+                      <div className="flex relative h-full items-center">
+                        {months.map((m, i) => {
+                          if (!m.isNewMonth) return null;
+                          return (
+                            <div key={`month-${i}`} style={{ width: m.monthSpan * dayWidth }} className="text-center text-xs h-full flex items-center justify-center border-l bg-gray-50 text-gray-500 font-medium whitespace-nowrap overflow-hidden">
+                              {m.month}月
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 3段目：日（日表示のみ） */}
+                  {zoom === 'day' && (
+                    <div className="flex h-6 items-center border-b">
+                      <div className="flex relative h-full items-center">
+                        {months.map((m, i) => (
+                          <div key={`day-num-${i}`} style={{ width: m.days * dayWidth }} className="text-center text-[10px] h-full flex items-center justify-center border-l bg-gray-50 text-gray-500">
+                            {m.dates[0].getDate()}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 4段目：曜日（日表示のみ） */}
+                  {zoom === 'day' && (
+                    <div className="flex h-6 items-center">
+                      <div className="flex relative h-full items-center">
+                        {months.map((m, i) => {
+                          const dayOfWeek = getDayOfWeekName(m.dates[0]);
+                          const isWeekend = m.dates[0].getDay() === 0 || m.dates[0].getDay() === 6;
+                          return (
+                            <div key={`day-week-${i}`} style={{ width: m.days * dayWidth }}
+                              className={`text-center text-[10px] h-full flex items-center justify-center border-l bg-gray-50 font-medium ${isWeekend ? 'text-red-400' : 'text-gray-400'}`}>
+                              {dayOfWeek}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-
-            {/* 2段目：月（日表示・月表示のみ） */}
-            {(zoom === 'day' || zoom === 'month') && (
-              <div className="flex border-b sticky top-6 z-30 bg-white h-6 items-center">
-                <div style={{ width: leftColWidth }} className="flex-shrink-0 h-full bg-gray-50 border-r relative sticky left-0 z-40">{resizer}</div>
-                <div className="flex relative h-full items-center">
-                  {months.map((m, i) => {
-                    if (!m.isNewMonth) return null;
-                    return (
-                      <div key={`month-${i}`} style={{ width: m.monthSpan * dayWidth }} className="text-center text-xs h-full flex items-center justify-center border-l bg-gray-50 text-gray-500 font-medium whitespace-nowrap overflow-hidden">
-                        {m.month}月
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* 3段目：日（日表示のみ） */}
-            {zoom === 'day' && (
-              <>
-                <div className="flex border-b sticky top-12 z-30 bg-white h-6 items-center">
-                  <div style={{ width: leftColWidth }} className="flex-shrink-0 h-full bg-gray-50 border-r relative sticky left-0 z-40">{resizer}</div>
-                  <div className="flex relative h-full items-center">
-                    {months.map((m, i) => (
-                      <div key={`day-num-${i}`} style={{ width: m.days * dayWidth }} className="text-center text-[10px] h-full flex items-center justify-center border-l bg-gray-50 text-gray-500">
-                        {m.dates[0].getDate()}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                {/* 4段目：曜日（日表示のみ） */}
-                <div className="flex border-b sticky top-[72px] z-30 bg-white h-6 items-center">
-                  <div style={{ width: leftColWidth }} className="flex-shrink-0 h-full bg-gray-50 border-r relative sticky left-0 z-40">{resizer}</div>
-                  <div className="flex relative h-full items-center">
-                    {months.map((m, i) => {
-                      const dayOfWeek = getDayOfWeekName(m.dates[0]);
-                      const isWeekend = m.dates[0].getDay() === 0 || m.dates[0].getDay() === 6;
-                      return (
-                        <div key={`day-week-${i}`} style={{ width: m.days * dayWidth }}
-                          className={`text-center text-[10px] h-full flex items-center justify-center border-l bg-gray-50 font-medium ${isWeekend ? 'text-red-400' : 'text-gray-400'}`}>
-                          {dayOfWeek}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </>
-            )}
 
             {/* チケット行 */}
             {groupedIssues.map((group) => (
@@ -1311,14 +1267,6 @@ export default function GanttChart({ issues, projects = [], showProject, onUpdat
                     <div key={issue.id} className="flex border-b group hover:bg-gray-50 text-[11px]">
                       <div style={{ width: leftColWidth }} className="flex-shrink-0 px-2 py-0.5 text-xs truncate border-r flex items-center sticky left-0 z-20 bg-white group-hover:bg-gray-50" data-issue-id={issue.id}>
                         {showProject && <span className="inline-block w-4 flex-shrink-0" />}
-                        {/* ドラッグハンドル */}
-                        <div
-                          className="p-1 -m-1 mr-0.5 text-gray-400 hover:text-sky-500 cursor-move flex-shrink-0"
-                          onMouseDown={(e) => handleSortMouseDown(e, issue)}
-                          title="ドラッグして順序を並び替え"
-                        >
-                          <GripVertical size={14} className="pointer-events-none" />
-                        </div>
                         <span className="text-gray-400 mr-1 flex-shrink-0">#{issue.id}</span>
                         {issue.tracker && (
                           <span className="text-[10px] px-1 py-0 rounded mr-1 text-white flex-shrink-0" style={{ backgroundColor: trackerColorMap[issue.trackerId] || '#0EA5E9' }}>
@@ -1336,7 +1284,7 @@ export default function GanttChart({ issues, projects = [], showProject, onUpdat
                           </button>
                         )}
                       </div>
-                      <div className={`relative flex-1 ${(relationDrag?.toIssueId === issue.id || sortDrag?.targetIssueId === issue.id) ? 'bg-sky-50' : ''}`} style={{ height: 24 }} data-issue-id={issue.id}>
+                      <div className={`relative flex-1 ${relationDrag?.toIssueId === issue.id ? 'bg-sky-50' : ''}`} style={{ height: 24 }} data-issue-id={issue.id}>
                         {/* グリッド線 */}
                         {gridLines.map((line, i) => (
                           <div key={i} className="absolute top-0 bottom-0" style={{
@@ -1524,6 +1472,7 @@ export default function GanttChart({ issues, projects = [], showProject, onUpdat
       >
         <IssueForm
           projectId={String(addModal.projectId)}
+          initialStartDate={addModal.initialStartDate}
           initialDueDate={addModal.initialDueDate}
           onSuccess={() => {
             setAddModal({ ...addModal, isOpen: false });

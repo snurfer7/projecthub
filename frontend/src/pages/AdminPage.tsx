@@ -39,6 +39,7 @@ export default function AdminPage({ user }: Props) {
   const [masterError, setMasterError] = useState('');
   const [masterStatusIds, setMasterStatusIds] = useState<number[]>([]);
   const [masterTransitions, setMasterTransitions] = useState<Set<string>>(new Set());
+  const [masterIsDefaultRole, setMasterIsDefaultRole] = useState(false);
 
   // Group modal states
   const [showGroupModal, setShowGroupModal] = useState(false);
@@ -162,7 +163,7 @@ export default function AdminPage({ user }: Props) {
 
   const handleUpdateConversionTime = (index: number, value: number) => {
     const updated = [...conversionTimes];
-    updated[index] = value;
+    updated[index] = Math.floor(value);
     setConversionTimes(updated);
   };
 
@@ -272,6 +273,7 @@ export default function AdminPage({ user }: Props) {
     setMasterError('');
     setMasterStatusIds([]);
     setMasterTransitions(new Set());
+    setMasterIsDefaultRole(false);
     setShowMasterModal(true);
   };
 
@@ -282,6 +284,7 @@ export default function AdminPage({ user }: Props) {
     setMasterError('');
     if (type === 'roles' && item.statuses) {
       setMasterStatusIds(item.statuses.map((s: any) => s.statusId));
+      setMasterIsDefaultRole(!!item.isDefaultRole);
       try {
         const res = await api.get(`/admin/roles/${item.id}/transitions`);
         const set = new Set<string>();
@@ -295,6 +298,7 @@ export default function AdminPage({ user }: Props) {
     } else {
       setMasterStatusIds([]);
       setMasterTransitions(new Set());
+      setMasterIsDefaultRole(false);
     }
     setShowMasterModal(true);
   };
@@ -306,6 +310,7 @@ export default function AdminPage({ user }: Props) {
     setMasterError('');
     setMasterStatusIds([]);
     setMasterTransitions(new Set());
+    setMasterIsDefaultRole(false);
   };
 
   const handleSubmitMaster = async (e: FormEvent) => {
@@ -316,6 +321,7 @@ export default function AdminPage({ user }: Props) {
       const data: any = { name: masterName };
       if (masterType === 'roles') {
         data.statusIds = masterStatusIds;
+        data.isDefaultRole = masterIsDefaultRole;
       }
       if (editingMasterId) {
         await api.put(`/admin/${masterType}/${editingMasterId}`, data);
@@ -347,11 +353,13 @@ export default function AdminPage({ user }: Props) {
     setDraggingIdx(idx);
     e.dataTransfer.setData('text/plain', idx.toString());
     e.dataTransfer.effectAllowed = 'move';
+    document.body.classList.add('grabbing-active');
   };
 
   const handleDragEnd = () => {
     setDraggingIdx(null);
     setDropIdx(null);
+    document.body.classList.remove('grabbing-active');
   };
 
   const handleDragOver = (e: React.DragEvent, idx: number) => {
@@ -604,6 +612,9 @@ export default function AdminPage({ user }: Props) {
                         <GripVertical className="w-4 h-4" />
                       </div>
                       <span>{item.name}</span>
+                      {item.isDefaultRole && (
+                        <span className="text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full">初期ロール</span>
+                      )}
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => openEditMasterModal('roles', item)} title="編集" className="p-1.5 text-sky-600 hover:bg-sky-50 rounded"><Pencil className="w-4 h-4" /></button>
@@ -720,9 +731,9 @@ export default function AdminPage({ user }: Props) {
                   <input
                     type="number"
                     min="0"
-                    step="0.5"
+                    step="1"
                     value={conversionTimes[0] ?? 0}
-                    onChange={e => handleUpdateConversionTime(0, parseFloat(e.target.value) || 0)}
+                    onChange={e => handleUpdateConversionTime(0, parseInt(e.target.value) || 0)}
                     className="w-20 border rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
                   />
                   <span className="text-xs text-gray-500">時間</span>
@@ -754,9 +765,9 @@ export default function AdminPage({ user }: Props) {
                       <input
                         type="number"
                         min="0"
-                        step="0.5"
+                        step="1"
                         value={conversionTimes[index + 1] ?? 0}
-                        onChange={e => handleUpdateConversionTime(index + 1, parseFloat(e.target.value) || 0)}
+                        onChange={e => handleUpdateConversionTime(index + 1, parseInt(e.target.value) || 0)}
                         className="w-20 border rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
                       />
                       <span className="text-xs text-gray-500">時間</span>
@@ -803,6 +814,22 @@ export default function AdminPage({ user }: Props) {
             <input type="text" value={masterName} onChange={(e) => setMasterName(e.target.value)} required
               className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
           </div>
+
+          {/* Role-specific isDefaultRole checkbox */}
+          {masterType === 'roles' && (
+            <div className="mb-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={masterIsDefaultRole}
+                  onChange={(e) => setMasterIsDefaultRole(e.target.checked)}
+                  className="rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                />
+                <span className="text-sm font-medium text-gray-700">プロジェクトの初期ロール</span>
+              </label>
+              <p className="text-xs text-gray-500 mt-1 ml-6">プロジェクト作成時に作成者へ自動で割り当てられるロールです。有効にできるのは1つのみです。</p>
+            </div>
+          )}
 
           {/* Role-specific status selection */}
           {masterType === 'roles' && (

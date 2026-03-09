@@ -20,7 +20,6 @@ export default function SettingsPage({ user, refreshUser }: Props) {
   const [landingPage, setLandingPage] = useState(user.landingPage);
 
   const [showProjectsMenu, setShowProjectsMenu] = useState(user.showProjectsMenu);
-  const [showGanttMenu, setShowGanttMenu] = useState(user.showGanttMenu);
   const [showCompanyMenu, setShowCompanyMenu] = useState(user.showCompanyMenu);
   const [showAdminMenu, setShowAdminMenu] = useState(user.showAdminMenu);
   const [menuSettingMessage, setMenuSettingMessage] = useState('');
@@ -30,7 +29,6 @@ export default function SettingsPage({ user, refreshUser }: Props) {
   useEffect(() => {
     setLandingPage(user.landingPage);
     setShowProjectsMenu(user.showProjectsMenu);
-    setShowGanttMenu(user.showGanttMenu);
     setShowCompanyMenu(user.showCompanyMenu);
     setShowAdminMenu(user.showAdminMenu);
   }, [user]);
@@ -57,7 +55,6 @@ export default function SettingsPage({ user, refreshUser }: Props) {
       setLoading(true);
       await api.put('/auth/menu-settings', {
         showProjectsMenu,
-        showGanttMenu,
         showCompanyMenu,
         showAdminMenu
       });
@@ -197,10 +194,6 @@ export default function SettingsPage({ user, refreshUser }: Props) {
             <label className="flex items-center cursor-pointer p-3 border rounded-md hover:bg-gray-50 transition-colors">
               <input type="checkbox" checked={showProjectsMenu} onChange={e => setShowProjectsMenu(e.target.checked)} className="mr-3 rounded border-gray-300 text-sky-600 focus:ring-sky-500 w-4 h-4" />
               <span className="text-sm font-medium text-gray-700">プロジェクト</span>
-            </label>
-            <label className="flex items-center cursor-pointer p-3 border rounded-md hover:bg-gray-50 transition-colors">
-              <input type="checkbox" checked={showGanttMenu} onChange={e => setShowGanttMenu(e.target.checked)} className="mr-3 rounded border-gray-300 text-sky-600 focus:ring-sky-500 w-4 h-4" />
-              <span className="text-sm font-medium text-gray-700">ガントチャート</span>
             </label>
             <label className="flex items-center cursor-pointer p-3 border rounded-md hover:bg-gray-50 transition-colors">
               <input type="checkbox" checked={showCompanyMenu} onChange={e => setShowCompanyMenu(e.target.checked)} className="mr-3 rounded border-gray-300 text-sky-600 focus:ring-sky-500 w-4 h-4" />

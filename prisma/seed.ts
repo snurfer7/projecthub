@@ -26,8 +26,8 @@ async function main() {
   if (roleCount === 0) {
     await prisma.role.createMany({
       data: [
-        { name: 'manager', position: 0 },
-        { name: 'member', position: 1 },
+        { name: '管理者', position: 0, isDefaultRole: true },
+        { name: 'メンバー', position: 1 },
       ],
     });
     console.log('Seeded default roles');

@@ -5,3 +5,29 @@
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
+
+/* Precise overrides for standard grab/grabbing classes to ensure white outline on Chromium */
+.cursor-grab {
+  cursor: -webkit-grab !important;
+  cursor: grab !important;
+}
+
+.cursor-grabbing {
+  cursor: -webkit-grabbing !important;
+  cursor: grabbing !important;
+}
+
+/* Target Tailwind's active variant specifically and precisely */
+.active\:cursor-grabbing:active {
+  cursor: -webkit-grabbing !important;
+  cursor: grabbing !important;
+}
+
+/* Global drag state for native and custom drag-and-drop operations */
+body.grabbing-active,
+body.grabbing-active *,
+body.body-grabbing,
+body.body-grabbing * {
+  cursor: -webkit-grabbing !important;
+  cursor: grabbing !important;
+}

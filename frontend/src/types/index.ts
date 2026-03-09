@@ -26,8 +26,9 @@ export interface Company {
   website?: string;
   notes?: string;
   createdAt: string;
-  _count?: { projects: number; comments: number; wikiPages: number };
+  _count?: { projects: number; comments: number; wikiPages: number; locations: number };
   projects?: { id: number; name: string; identifier: string; status: string }[];
+  locations?: Location[];
   associations?: { id: number; association: Association }[];
   comments?: CompanyComment[];
   wikiPages?: CompanyWikiPage[];
@@ -43,6 +44,20 @@ export interface Association {
   building?: string;
   phone?: string;
   website?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface Location {
+  id: number;
+  companyId: number;
+  name: string;
+  phone?: string;
+  postalCode?: string;
+  prefecture?: string;
+  city?: string;
+  street?: string;
+  building?: string;
   notes?: string;
   createdAt: string;
 }
@@ -98,6 +113,7 @@ export interface Role {
   id: number;
   name: string;
   position: number;
+  isDefaultRole: boolean;
   statuses?: { id: number; statusId: number; status: IssueStatus }[];
   transitions?: { oldStatusId: number; newStatusId: number }[];
 }
@@ -246,6 +262,8 @@ export interface ContactDetail {
   position?: string;
   phone?: string;
   email?: string;
+  locationId?: number | null;
+  location?: { id: number; name: string } | null;
   isPrimary: boolean;
 }
 

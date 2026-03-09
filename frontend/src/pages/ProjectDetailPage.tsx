@@ -23,9 +23,10 @@ export default function ProjectDetailPage() {
   const tabs = [
     { label: '概要', path: `/projects/${projectId}`, count: undefined },
     { label: 'チケット', path: `/projects/${projectId}/issues`, count: project._count?.issues },
+    { label: 'カンバン', path: `/projects/${projectId}/kanban`, count: undefined },
+    { label: 'ガントチャート', path: `/projects/${projectId}/gantt`, count: undefined },
     { label: 'Wiki', path: `/projects/${projectId}/wiki`, count: project._count?.wikiPages },
     { label: 'コメント', path: `/projects/${projectId}/comments`, count: project._count?.comments },
-    { label: 'ガントチャート', path: `/projects/${projectId}/gantt`, count: undefined },
     { label: 'ファイル', path: `/projects/${projectId}/files`, count: project._count?.attachments },
     { label: '時間記録', path: `/projects/${projectId}/time-entries`, count: project._count?.timeEntries },
   ];

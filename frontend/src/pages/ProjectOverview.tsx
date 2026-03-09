@@ -1,8 +1,87 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
-import { Pencil, Trash2, Check, X, Shield, Users } from 'lucide-react';
+import { Pencil, Trash2, Check, X, Shield, Users, ChevronDown, ChevronRight } from 'lucide-react';
 import api from '../api/client';
 import { Project, ProjectMember, ProjectGroup, Role, Group, ProjectMemberRole } from '../types';
+
+function RoleMultiSelect({ roles, value, onChange }: { roles: Role[]; value: Set<number>; onChange: (ids: Set<number>) => void }) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
+
+    const toggle = (id: number) => {
+        const next = new Set(value);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        onChange(next);
+    };
+
+    const selectedRoles = roles.filter(r => value.has(r.id));
+    const selectedText = selectedRoles.map(r => r.name).join(', ');
+
+    return (
+        <div ref={ref} className="relative inline-block w-full max-w-[240px]">
+            {/* Compact Outlined Trigger */}
+            <div
+                onClick={() => setOpen(o => !o)}
+                className={`group relative flex items-center h-8 w-full px-2 border rounded-md cursor-pointer transition-all duration-150 ${open
+                    ? 'border-sky-500 ring-1 ring-sky-500 bg-white'
+                    : 'border-gray-300 hover:border-gray-400 bg-gray-50/30'
+                    }`}
+            >
+                {/* Comma-separated Text with Truncation */}
+                <div className="flex-1 pr-4 overflow-hidden">
+                    {selectedRoles.length > 0 ? (
+                        <span className="text-xs text-slate-700 truncate block font-medium">
+                            {selectedText}
+                        </span>
+                    ) : (
+                        <span className="text-xs text-gray-400">ロールを選択...</span>
+                    )}
+                </div>
+
+                {/* Small Arrow Icon */}
+                <div className="absolute right-1.5 flex items-center pointer-events-none">
+                    <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-150 ${open ? 'rotate-180 text-sky-500' : ''}`} />
+                </div>
+            </div>
+
+            {/* Compact Dropdown Menu */}
+            {open && (
+                <div className="absolute z-[100] left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top">
+                    <div className="py-1 max-h-[240px] overflow-y-auto">
+                        {roles.map(r => {
+                            const selected = value.has(r.id);
+                            return (
+                                <button
+                                    key={r.id}
+                                    type="button"
+                                    onClick={() => toggle(r.id)}
+                                    className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs transition-colors text-left ${selected ? 'bg-sky-50 text-sky-700' : 'text-slate-600 hover:bg-slate-50'
+                                        }`}
+                                >
+                                    <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-all ${selected
+                                        ? 'bg-sky-500 border-sky-500'
+                                        : 'border-gray-300 bg-white'
+                                        }`}>
+                                        {selected && <Check className="w-2.5 h-2.5 text-white" strokeWidth={4} />}
+                                    </div>
+                                    <span className={selected ? 'font-semibold' : 'font-medium'}>{r.name}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
 
 interface ProjectContext {
     project: Project;
@@ -24,8 +103,18 @@ export default function ProjectOverview() {
     const [addLoading, setAddLoading] = useState(false);
 
     // Inline edit states
-    const [editingId, setEditingId] = useState<string | null>(null); // "m:memberId" or "g:groupId"
+    const [editingId, setEditingId] = useState<string | null>(null);
     const [editingRoleIds, setEditingRoleIds] = useState<Set<number>>(new Set());
+
+    // Expanded groups (default: all expanded)
+    const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
+    useEffect(() => {
+        setExpandedGroups(prev => {
+            const next = new Set(prev);
+            (project.groups || []).forEach((pg: ProjectGroup) => next.add(pg.groupId));
+            return next;
+        });
+    }, [project.groups]);
 
     useEffect(() => {
         api.get('/projects/roles/available').then((res) => {
@@ -39,17 +128,24 @@ export default function ProjectOverview() {
     // ── Derived sets ──────────────────────────────────────────────────────────
     const assignedGroupIds = new Set((project.groups || []).map((pg: ProjectGroup) => pg.groupId));
 
-    // Individual members = anyone who has at least one role with sourceGroupId === null
+    // Users who belong to any assigned group
+    const allGroupUserIds = new Set(
+        (project.groups || []).flatMap((pg: ProjectGroup) =>
+            ((pg.group as any)?.members || []).map((gm: any) => gm.userId)
+        )
+    );
+
+    // Individual members = project members who are NOT in any group (includes those with no roles)
     const individualMembers = (project.members || []).filter((m: ProjectMember) =>
-        m.roles.some((r: ProjectMemberRole) => !r.sourceGroupId)
+        !allGroupUserIds.has(m.userId)
     );
 
     // Selectable groups (not yet assigned)
     const selectableGroups = allGroups.filter((g) => !assignedGroupIds.has(g.id));
 
-    // Selectable users (anyone not yet individually added - they can be in groups)
+    // Selectable users (not yet individually added and not in any assigned group)
     const currentIndividualUserIds = new Set(individualMembers.map(m => m.userId));
-    const selectableUsers = allUsers.filter(u => !currentIndividualUserIds.has(u.id));
+    const selectableUsers = allUsers.filter(u => !currentIndividualUserIds.has(u.id) && !allGroupUserIds.has(u.id));
 
     // ── Toggles ───────────────────────────────────────────────────────────────
     const togglePrincipal = (key: string) => {
@@ -111,18 +207,22 @@ export default function ProjectOverview() {
     const cancelEdit = () => { setEditingId(null); setEditingRoleIds(new Set()); };
 
     const saveEdit = async (key: string) => {
-        const [type, id] = key.split(':');
+        const [, id] = key.split(':');
         try {
-            if (type === 'm') {
-                await api.put(`/projects/${project.id}/members/${id}`, { roleIds: Array.from(editingRoleIds) });
-            } else {
-                await api.put(`/projects/${project.id}/groups/${id}/role`, { roleIds: Array.from(editingRoleIds) });
-            }
+            await api.put(`/projects/${project.id}/members/${id}`, { roleIds: Array.from(editingRoleIds) });
             setEditingId(null);
             loadProject();
         } catch {
             alert('ロールの変更に失敗しました');
         }
+    };
+
+    const toggleGroup = (groupId: number) => {
+        setExpandedGroups(prev => {
+            const next = new Set(prev);
+            if (next.has(groupId)) next.delete(groupId); else next.add(groupId);
+            return next;
+        });
     };
 
     // ── Remove ────────────────────────────────────────────────────────────────
@@ -135,7 +235,7 @@ export default function ProjectOverview() {
     };
 
     const handleDeleteGroup = async (pg: ProjectGroup) => {
-        if (!confirm(`グループ「${pg.group.name}」の割り当てを解除しますか？\nグループ経由で追加されたメンバーのロールも削除されます。`)) return;
+        if (!confirm(`グループ「${pg.group.name}」の割り当てを解除しますか？\nグループに所属するメンバーもプロジェクトから削除されます。`)) return;
         try {
             await api.delete(`/projects/${project.id}/groups/${pg.groupId}`);
             loadProject();
@@ -192,53 +292,74 @@ export default function ProjectOverview() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y">
-                                        {/* Groups */}
+                                        {/* Groups (tree) */}
                                         {(project.groups || []).map((pg: ProjectGroup) => {
-                                            const key = `g:${pg.groupId}`;
-                                            const groupRoles = (project.members || [])
-                                                .find(m => m.roles.some(r => r.sourceGroupId === pg.groupId))
-                                                ?.roles.filter(r => r.sourceGroupId === pg.groupId) || [];
-                                            const groupRoleIds = groupRoles.map(r => r.roleId);
-
+                                            const groupMembers: any[] = (pg.group as any)?.members || [];
+                                            const isExpanded = expandedGroups.has(pg.groupId);
                                             return (
-                                                <tr key={key} className="hover:bg-indigo-50/30">
-                                                    <td className="px-4 py-3">
-                                                        <span className="inline-flex items-center gap-1.5 font-medium text-slate-800">
-                                                            <Users className="w-4 h-4 text-indigo-500" />
-                                                            {pg.group.name}
-                                                            <span className="text-xs font-normal text-gray-400 ml-1">({((pg.group as any)?.members || []).length}名)</span>
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        {editingId === key ? (
-                                                            <div className="bg-white border rounded p-2 shadow-sm z-10 absolute mt-1">
-                                                                <div className="space-y-1 mb-2">
-                                                                    {roles.map(r => (
-                                                                        <label key={r.id} className="flex items-center gap-2 px-2 py-1 hover:bg-gray-50 rounded cursor-pointer">
-                                                                            <input type="checkbox" checked={editingRoleIds.has(r.id)} onChange={() => toggleRole(r.id, true)} className="rounded" />
-                                                                            <span className="text-xs">{r.name}</span>
-                                                                        </label>
-                                                                    ))}
-                                                                </div>
-                                                                <div className="flex gap-1 justify-end">
-                                                                    <button onClick={() => saveEdit(key)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"><Check className="w-4 h-4" /></button>
-                                                                    <button onClick={cancelEdit} className="p-1 text-gray-500 hover:bg-gray-50 rounded"><X className="w-4 h-4" /></button>
-                                                                </div>
+                                                <Fragment key={`g-${pg.groupId}`}>
+                                                    {/* Group header row */}
+                                                    <tr className="bg-indigo-50/40 border-b border-indigo-100/60">
+                                                        <td className="px-4 py-2.5" colSpan={2}>
+                                                            <div className="flex items-center gap-2">
+                                                                <button type="button" onClick={() => toggleGroup(pg.groupId)} className="p-0.5 rounded hover:bg-indigo-100 text-indigo-400 transition-colors">
+                                                                    <ChevronRight className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                                                                </button>
+                                                                <Users className="w-4 h-4 text-indigo-500" />
+                                                                <span className="font-semibold text-slate-700 text-sm">{pg.group.name}</span>
+                                                                <span className="text-xs text-gray-400">({groupMembers.length}名)</span>
                                                             </div>
-                                                        ) : (
-                                                            <div className="flex flex-wrap gap-1">
-                                                                {groupRoles.length > 0 ? groupRoles.map(pr => (
-                                                                    <span key={pr.id} className="inline-block px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded text-xs border border-indigo-100 cursor-pointer hover:bg-indigo-100" onClick={() => startEdit(key, groupRoleIds)}>
-                                                                        {pr.role.name}
+                                                        </td>
+                                                        <td className="px-4 py-2.5 text-right">
+                                                            <button onClick={() => handleDeleteGroup(pg)} className="text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                                                        </td>
+                                                    </tr>
+                                                    {/* Group member rows */}
+                                                    {isExpanded && groupMembers.map((gm: any, idx: number) => {
+                                                        const pm = (project.members || []).find(m => m.userId === gm.userId);
+                                                        const mKey = pm ? `m:${pm.id}` : null;
+                                                        const indivRoles = pm?.roles.filter(r => !r.sourceGroupId) || [];
+                                                        const indivRoleIds = indivRoles.map(r => r.roleId);
+                                                        const isLast = idx === groupMembers.length - 1;
+                                                        return (
+                                                            <tr key={`gm-${pg.groupId}-${gm.userId}`} className="hover:bg-gray-50/80">
+                                                                <td className="py-2 pl-10 pr-4">
+                                                                    <span className="inline-flex items-center gap-2 text-sm text-slate-700">
+                                                                        <span className="text-gray-300 select-none text-xs font-mono">{isLast ? '└' : '├'}</span>
+                                                                        <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-600">
+                                                                            {gm.user.lastName[0]}{gm.user.firstName[0]}
+                                                                        </div>
+                                                                        {gm.user.lastName} {gm.user.firstName}
                                                                     </span>
-                                                                )) : <span className="text-gray-300 italic cursor-pointer" onClick={() => startEdit(key, [])}>ロールなし</span>}
-                                                            </div>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-right">
-                                                        <button onClick={() => handleDeleteGroup(pg)} className="text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
-                                                    </td>
-                                                </tr>
+                                                                </td>
+                                                                <td className="px-4 py-2">
+                                                                    {mKey && editingId === mKey ? (
+                                                                        <div className="flex items-center gap-2">
+                                                                            <RoleMultiSelect roles={roles} value={editingRoleIds} onChange={setEditingRoleIds} />
+                                                                            <button onClick={() => saveEdit(mKey)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"><Check className="w-4 h-4" /></button>
+                                                                            <button onClick={cancelEdit} className="p-1 text-gray-500 hover:bg-gray-50 rounded"><X className="w-4 h-4" /></button>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="flex flex-wrap gap-1 items-center">
+                                                                            {indivRoles.map(pr => (
+                                                                                <span key={pr.id} className="inline-block px-2 py-0.5 bg-sky-50 text-sky-700 rounded text-xs border border-sky-100 cursor-pointer hover:bg-sky-100" onClick={() => mKey && startEdit(mKey, indivRoleIds)}>
+                                                                                    {pr.role.name}
+                                                                                </span>
+                                                                            ))}
+                                                                            {indivRoles.length === 0 && mKey && (
+                                                                                <span className="text-gray-300 italic text-xs cursor-pointer" onClick={() => startEdit(mKey, [])}>ロールなし</span>
+                                                                            )}
+                                                                            {pm && mKey && (
+                                                                                <button onClick={() => startEdit(mKey, indivRoleIds)} className="p-0.5 text-gray-400 hover:text-sky-600 rounded bg-gray-50 border border-gray-100 self-center"><Pencil className="w-3 h-3" /></button>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-2"></td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </Fragment>
                                             );
                                         })}
 
@@ -261,26 +382,16 @@ export default function ProjectOverview() {
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         {editingId === key ? (
-                                                            <div className="bg-white border rounded p-2 shadow-sm z-10 absolute mt-1">
-                                                                <p className="text-[10px] font-bold text-gray-400 mb-1 uppercase px-1">個別ロール設定</p>
-                                                                <div className="space-y-1 mb-2">
-                                                                    {roles.map(r => (
-                                                                        <label key={r.id} className="flex items-center gap-2 px-2 py-1 hover:bg-gray-50 rounded cursor-pointer">
-                                                                            <input type="checkbox" checked={editingRoleIds.has(r.id)} onChange={() => toggleRole(r.id, true)} className="rounded" />
-                                                                            <span className="text-xs">{r.name}</span>
-                                                                        </label>
-                                                                    ))}
-                                                                </div>
-                                                                <div className="flex gap-1 justify-end">
-                                                                    <button onClick={() => saveEdit(key)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"><Check className="w-4 h-4" /></button>
-                                                                    <button onClick={cancelEdit} className="p-1 text-gray-500 hover:bg-gray-50 rounded"><X className="w-4 h-4" /></button>
-                                                                </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <RoleMultiSelect roles={roles} value={editingRoleIds} onChange={setEditingRoleIds} />
+                                                                <button onClick={() => saveEdit(key)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"><Check className="w-4 h-4" /></button>
+                                                                <button onClick={cancelEdit} className="p-1 text-gray-500 hover:bg-gray-50 rounded"><X className="w-4 h-4" /></button>
                                                             </div>
                                                         ) : (
-                                                            <div className="flex flex-wrap gap-1">
+                                                            <div className="flex flex-wrap items-center gap-1 min-h-[24px]">
                                                                 {/* Individual roles */}
                                                                 {indivRoles.map(pr => (
-                                                                    <span key={pr.id} className="inline-block px-2 py-0.5 bg-sky-50 text-sky-700 rounded text-xs border border-sky-100 cursor-pointer hover:bg-sky-100" onClick={() => startEdit(key, indivRoleIds)}>
+                                                                    <span key={pr.id} className="inline-block px-2 py-0.5 bg-sky-50 text-sky-700 rounded text-xs border border-sky-100 cursor-pointer hover:bg-sky-100 transition-colors" onClick={() => startEdit(key, indivRoleIds)}>
                                                                         {pr.role.name}
                                                                     </span>
                                                                 ))}
@@ -293,8 +404,12 @@ export default function ProjectOverview() {
                                                                         </span>
                                                                     );
                                                                 })}
-                                                                {m.roles.length === 0 && <span className="text-gray-300 italic cursor-pointer" onClick={() => startEdit(key, [])}>ロールなし</span>}
-                                                                <button onClick={() => startEdit(key, indivRoleIds)} className="p-0.5 text-gray-400 hover:text-sky-600 rounded bg-gray-50 border border-gray-100 self-center"><Pencil className="w-3 h-3" /></button>
+                                                                {m.roles.length === 0 && (
+                                                                    <span className="text-gray-300 text-xs italic">ロールなし</span>
+                                                                )}
+                                                                <button onClick={() => startEdit(key, indivRoleIds)} className="p-1 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded-md transition-all ml-auto" title="ロールを編集">
+                                                                    <Pencil className="w-3.5 h-3.5" />
+                                                                </button>
                                                             </div>
                                                         )}
                                                     </td>
@@ -310,52 +425,66 @@ export default function ProjectOverview() {
                         </div>
 
                         {/* Add Form Column (Sidebar) */}
-                        <div className="w-full md:w-72 flex-shrink-0 p-4 bg-gray-50 border-t md:border-t-0 md:border-l">
-                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">メンバーを追加</p>
-                            {addError && <p className="text-xs text-red-600 mb-2 bg-red-50 border border-red-200 rounded p-2">{addError}</p>}
+                        <div className="w-full md:w-80 flex-shrink-0 p-5 bg-gray-50/50 border-t md:border-t-0 md:border-l border-gray-100">
+                            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                <Users className="w-3.5 h-3.5" /> メンバーを追加
+                            </p>
+                            {addError && <p className="text-xs text-red-600 mb-4 bg-red-50 border border-red-100 rounded-lg p-3 ring-2 ring-red-50">{addError}</p>}
 
                             {/* Principals List */}
-                            <div className="bg-white border rounded overflow-hidden flex flex-col mb-4">
-                                <div className="p-2 border-b bg-gray-50 flex items-center justify-between">
-                                    <span className="text-[10px] font-bold text-gray-400 uppercase">対象の選択</span>
-                                    <span className="text-[10px] text-gray-400">{selectedPrincipals.size}件選択中</span>
+                            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden flex flex-col mb-5 shadow-sm">
+                                <div className="px-3.5 py-2.5 border-b border-gray-100 bg-gray-50/80 flex items-center justify-between">
+                                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tight">対象を選択</span>
+                                    <span className="px-1.5 py-0.5 bg-white border border-gray-200 rounded-md text-[9px] font-bold text-gray-500">{selectedPrincipals.size}件</span>
                                 </div>
-                                <div className="overflow-y-auto h-48 divide-y text-sm">
+                                <div className="overflow-y-auto h-52 divide-y divide-gray-50 text-sm">
                                     {selectableGroups.length > 0 && (
                                         <>
-                                            <div className="px-3 py-1 bg-indigo-50/50 text-[10px] font-bold text-indigo-400 sticky top-0 uppercase">グループ</div>
+                                            <div className="px-3.5 py-1.5 bg-indigo-50/30 text-[9px] font-bold text-indigo-400 sticky top-0 uppercase tracking-widest backdrop-blur-sm">グループ</div>
                                             {selectableGroups.map(g => (
-                                                <label key={`g:${g.id}`} className="flex items-center gap-2 px-3 py-2 hover:bg-indigo-50 cursor-pointer group">
-                                                    <input type="checkbox" checked={selectedPrincipals.has(`g:${g.id}`)} onChange={() => togglePrincipal(`g:${g.id}`)} className="rounded text-indigo-600" />
-                                                    <Users className="w-3.5 h-3.5 text-indigo-400" />
-                                                    <span className="text-slate-700 group-hover:text-indigo-700">{g.name}</span>
+                                                <label key={`g:${g.id}`} className={`flex items-center gap-3 px-3.5 py-2.5 hover:bg-indigo-50/40 cursor-pointer group transition-colors ${selectedPrincipals.has(`g:${g.id}`) ? 'bg-indigo-50/60' : ''}`}>
+                                                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${selectedPrincipals.has(`g:${g.id}`) ? 'bg-indigo-500 border-indigo-500' : 'border-gray-200 bg-white group-hover:border-indigo-300'}`}>
+                                                        {selectedPrincipals.has(`g:${g.id}`) && <Check className="w-2.5 h-2.5 text-white" strokeWidth={4} />}
+                                                    </div>
+                                                    <Users className={`w-4 h-4 ${selectedPrincipals.has(`g:${g.id}`) ? 'text-indigo-500' : 'text-gray-300 group-hover:text-indigo-400'}`} />
+                                                    <span className={`text-[13px] ${selectedPrincipals.has(`g:${g.id}`) ? 'text-indigo-700 font-semibold' : 'text-gray-600 group-hover:text-indigo-600'}`}>{g.name}</span>
+                                                    <input type="checkbox" className="hidden" checked={selectedPrincipals.has(`g:${g.id}`)} onChange={() => togglePrincipal(`g:${g.id}`)} />
                                                 </label>
                                             ))}
                                         </>
                                     )}
-                                    <div className="px-3 py-1 bg-sky-50/50 text-[10px] font-bold text-sky-400 sticky top-0 uppercase">ユーザー</div>
+                                    <div className="px-3.5 py-1.5 bg-sky-50/30 text-[9px] font-bold text-sky-400 sticky top-0 uppercase tracking-widest backdrop-blur-sm">ユーザー</div>
                                     {selectableUsers.length > 0 ? selectableUsers.map(u => (
-                                        <label key={`u:${u.id}`} className="flex items-center gap-2 px-3 py-2 hover:bg-sky-50 cursor-pointer group">
-                                            <input type="checkbox" checked={selectedPrincipals.has(`u:${u.id}`)} onChange={() => togglePrincipal(`u:${u.id}`)} className="rounded text-sky-600" />
-                                            <span className="text-slate-700 group-hover:text-sky-700">{u.lastName} {u.firstName}</span>
+                                        <label key={`u:${u.id}`} className={`flex items-center gap-3 px-3.5 py-2.5 hover:bg-sky-50/40 cursor-pointer group transition-colors ${selectedPrincipals.has(`u:${u.id}`) ? 'bg-sky-50/60' : ''}`}>
+                                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${selectedPrincipals.has(`u:${u.id}`) ? 'bg-sky-500 border-sky-500' : 'border-gray-200 bg-white group-hover:border-sky-300'}`}>
+                                                {selectedPrincipals.has(`u:${u.id}`) && <Check className="w-2.5 h-2.5 text-white" strokeWidth={4} />}
+                                            </div>
+                                            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${selectedPrincipals.has(`u:${u.id}`) ? 'bg-sky-200 text-sky-700' : 'bg-gray-100 text-gray-400 group-hover:bg-sky-100 group-hover:text-sky-500'}`}>
+                                                {u.lastName[0]}{u.firstName[0]}
+                                            </div>
+                                            <span className={`text-[13px] ${selectedPrincipals.has(`u:${u.id}`) ? 'text-sky-700 font-semibold' : 'text-gray-600 group-hover:text-sky-600'}`}>{u.lastName} {u.firstName}</span>
+                                            <input type="checkbox" className="hidden" checked={selectedPrincipals.has(`u:${u.id}`)} onChange={() => togglePrincipal(`u:${u.id}`)} />
                                         </label>
                                     )) : (
-                                        <p className="p-3 text-center text-gray-400 text-xs">追加可能なユーザーはいません</p>
+                                        <p className="p-5 text-center text-gray-400 text-xs italic">追加可能なユーザーはいません</p>
                                     )}
                                 </div>
                             </div>
 
-                            {/* Roles checkboxes */}
-                            <div className="bg-white border rounded overflow-hidden flex flex-col mb-4">
-                                <div className="p-2 border-b bg-gray-50 flex items-center justify-between">
-                                    <span className="text-[10px] font-bold text-gray-400 uppercase">ロールの選択</span>
+                            {/* Roles List */}
+                            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden flex flex-col mb-6 shadow-sm">
+                                <div className="px-3.5 py-2.5 border-b border-gray-100 bg-gray-50/80 flex items-center justify-between">
+                                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tight">ロールを選択</span>
                                 </div>
-                                <div className="p-2 space-y-1">
+                                <div className="p-2.5 space-y-1">
                                     {roles.map(r => (
-                                        <label key={r.id} className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded cursor-pointer group">
-                                            <input type="checkbox" checked={selectedRoleIds.has(r.id)} onChange={() => toggleRole(r.id)} className="rounded" />
-                                            <Shield className="w-3.5 h-3.5 text-gray-300 group-hover:text-sky-500" />
-                                            <span className="text-sm text-slate-700">{r.name}</span>
+                                        <label key={r.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer group transition-all ${selectedRoleIds.has(r.id) ? 'bg-sky-50/60' : 'hover:bg-gray-50'}`}>
+                                            <div className={`w-4.5 h-4.5 rounded-lg border flex items-center justify-center transition-all ${selectedRoleIds.has(r.id) ? 'bg-sky-500 border-sky-500 shadow-sm' : 'border-gray-200 bg-white group-hover:border-sky-300'}`}>
+                                                {selectedRoleIds.has(r.id) && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
+                                            </div>
+                                            <Shield className={`w-4 h-4 ${selectedRoleIds.has(r.id) ? 'text-sky-500' : 'text-gray-300 group-hover:text-sky-400'}`} />
+                                            <span className={`text-[13px] ${selectedRoleIds.has(r.id) ? 'text-sky-700 font-semibold' : 'text-gray-600 group-hover:text-gray-900'}`}>{r.name}</span>
+                                            <input type="checkbox" className="hidden" checked={selectedRoleIds.has(r.id)} onChange={() => toggleRole(r.id)} />
                                         </label>
                                     ))}
                                 </div>
@@ -364,16 +493,24 @@ export default function ProjectOverview() {
                             <button
                                 onClick={handleAdd}
                                 disabled={selectedPrincipals.size === 0 || selectedRoleIds.size === 0 || addLoading}
-                                className="w-full bg-sky-600 text-white text-sm font-medium py-2 rounded shadow-sm hover:bg-sky-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none transition-all flex items-center justify-center gap-2"
+                                className="w-full relative overflow-hidden group bg-sky-600 text-white text-[13px] font-bold py-3.5 rounded-2xl shadow-lg hover:bg-sky-700 active:scale-[0.98] disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none disabled:active:scale-100 transition-all duration-200 flex items-center justify-center gap-2.5"
                             >
-                                {addLoading ? '処理中...' : <><Check className="w-4 h-4" /> メンバーを追加</>}
+                                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-[100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
+                                {addLoading ? (
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        <span>処理中...</span>
+                                    </div>
+                                ) : (
+                                    <><Check className="w-4.5 h-4.5" strokeWidth={3} /> メンバーを追加</>
+                                )}
                             </button>
                         </div>
                     </div>
                 </div>
                 <p className="mt-4 text-xs text-gray-400 leading-relaxed">
-                    ※ グループを割り当てると、グループ所属ユーザー全員に同じロールが付与されます。<br />
-                    ※ グループ経由で追加されたユーザーにも、個別に別のロールを追加することが可能です。
+                    ※ グループを割り当てると、グループ所属ユーザーがツリー形式で表示されます。<br />
+                    ※ 各ユーザーのロールは個別に設定できます。薄いバッジはグループ追加時の初期ロールです。
                 </p>
             </div>
         </>

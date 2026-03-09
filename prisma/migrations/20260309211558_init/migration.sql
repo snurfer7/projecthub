@@ -1,3 +1,6 @@
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
+
 -- CreateTable
 CREATE TABLE "users" (
     "id" SERIAL NOT NULL,
@@ -9,6 +12,10 @@ CREATE TABLE "users" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "is_admin" BOOLEAN NOT NULL DEFAULT false,
     "landing_page" TEXT NOT NULL DEFAULT 'home',
+    "show_admin_menu" BOOLEAN NOT NULL DEFAULT true,
+    "show_company_menu" BOOLEAN NOT NULL DEFAULT true,
+    "show_gantt_menu" BOOLEAN NOT NULL DEFAULT true,
+    "show_projects_menu" BOOLEAN NOT NULL DEFAULT true,
 
     CONSTRAINT "users_pkey" PRIMARY KEY ("id")
 );
@@ -46,6 +53,23 @@ CREATE TABLE "companies" (
     "street" TEXT,
 
     CONSTRAINT "companies_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "locations" (
+    "id" SERIAL NOT NULL,
+    "company_id" INTEGER NOT NULL,
+    "name" TEXT NOT NULL,
+    "phone" TEXT,
+    "postal_code" TEXT,
+    "prefecture" TEXT,
+    "city" TEXT,
+    "street" TEXT,
+    "building" TEXT,
+    "notes" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "locations_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -178,12 +202,11 @@ CREATE TABLE "issues" (
     "description" TEXT,
     "start_date" TIMESTAMP(3),
     "due_date" TIMESTAMP(3),
-    "estimated_hours" DOUBLE PRECISION,
+    "estimated_hours" INTEGER,
     "done_ratio" INTEGER NOT NULL DEFAULT 0,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
     "assigned_to_group_id" INTEGER,
-    "end_date" TIMESTAMP(3),
     "position" INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT "issues_pkey" PRIMARY KEY ("id")
@@ -363,6 +386,17 @@ CREATE TABLE "company_comments" (
 );
 
 -- CreateTable
+CREATE TABLE "contact_comments" (
+    "id" SERIAL NOT NULL,
+    "contact_id" INTEGER NOT NULL,
+    "user_id" INTEGER NOT NULL,
+    "content" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "contact_comments_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "company_wiki_pages" (
     "id" SERIAL NOT NULL,
     "company_id" INTEGER NOT NULL,
@@ -375,6 +409,17 @@ CREATE TABLE "company_wiki_pages" (
     "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "company_wiki_pages_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "system_settings" (
+    "id" TEXT NOT NULL DEFAULT 'default',
+    "startTime" TEXT NOT NULL DEFAULT '09:00',
+    "endTime" TEXT NOT NULL DEFAULT '18:00',
+    "managementTimes" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "conversionTimes" DOUBLE PRECISION[] DEFAULT ARRAY[]::DOUBLE PRECISION[],
+
+    CONSTRAINT "system_settings_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -436,6 +481,9 @@ ALTER TABLE "group_members" ADD CONSTRAINT "group_members_group_id_fkey" FOREIGN
 
 -- AddForeignKey
 ALTER TABLE "group_members" ADD CONSTRAINT "group_members_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "locations" ADD CONSTRAINT "locations_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "company_associations" ADD CONSTRAINT "company_associations_association_id_fkey" FOREIGN KEY ("association_id") REFERENCES "associations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -585,6 +633,12 @@ ALTER TABLE "company_comments" ADD CONSTRAINT "company_comments_company_id_fkey"
 ALTER TABLE "company_comments" ADD CONSTRAINT "company_comments_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "contact_comments" ADD CONSTRAINT "contact_comments_contact_id_fkey" FOREIGN KEY ("contact_id") REFERENCES "contacts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "contact_comments" ADD CONSTRAINT "contact_comments_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "company_wiki_pages" ADD CONSTRAINT "company_wiki_pages_author_id_fkey" FOREIGN KEY ("author_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -592,3 +646,4 @@ ALTER TABLE "company_wiki_pages" ADD CONSTRAINT "company_wiki_pages_company_id_f
 
 -- AddForeignKey
 ALTER TABLE "company_wiki_pages" ADD CONSTRAINT "company_wiki_pages_parent_id_fkey" FOREIGN KEY ("parent_id") REFERENCES "company_wiki_pages"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+

@@ -390,11 +390,14 @@ router.get('/roles', async (_req: AuthRequest, res: Response) => {
 
 router.post('/roles', async (req: AuthRequest, res: Response) => {
   try {
-    const { name, position } = req.body;
+    const { name, position, isDefaultRole } = req.body;
     const max = await prisma.role.aggregate({ _max: { position: true } });
     const nextPos = (max._max.position ?? 0) + 1;
+    if (isDefaultRole) {
+      await prisma.role.updateMany({ data: { isDefaultRole: false } });
+    }
     res.status(201).json(
-      await prisma.role.create({ data: { name, position: position ?? nextPos } })
+      await prisma.role.create({ data: { name, position: position ?? nextPos, isDefaultRole: !!isDefaultRole } })
     );
   } catch (e) {
     res.status(500).json({ error: '作成に失敗しました' });
@@ -404,9 +407,15 @@ router.post('/roles', async (req: AuthRequest, res: Response) => {
 router.put('/roles/:id', async (req: AuthRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
-    const { name, position, statusIds } = req.body;
+    const { name, position, statusIds, isDefaultRole } = req.body;
     const data: any = { name };
     if (position !== undefined) data.position = position;
+    if (isDefaultRole !== undefined) {
+      if (isDefaultRole) {
+        await prisma.role.updateMany({ where: { id: { not: id } }, data: { isDefaultRole: false } });
+      }
+      data.isDefaultRole = !!isDefaultRole;
+    }
 
     // Update role statuses if provided
     if (Array.isArray(statusIds)) {
@@ -712,10 +721,16 @@ router.get('/settings/time', async (_req: AuthRequest, res: Response) => {
 router.put('/settings/time', async (req: AuthRequest, res: Response) => {
   try {
     const { startTime, endTime, managementTimes, conversionTimes } = req.body;
+
+    // Validate conversionTimes are integers
+    const validatedConversionTimes = Array.isArray(conversionTimes)
+      ? conversionTimes.map(v => Math.floor(Number(v) || 0))
+      : [];
+
     const setting = await prisma.systemSetting.upsert({
       where: { id: 'default' },
-      update: { startTime, endTime, managementTimes, conversionTimes },
-      create: { id: 'default', startTime, endTime, managementTimes, conversionTimes },
+      update: { startTime, endTime, managementTimes, conversionTimes: validatedConversionTimes },
+      create: { id: 'default', startTime, endTime, managementTimes, conversionTimes: validatedConversionTimes },
     });
     res.json(setting);
   } catch (e: any) {

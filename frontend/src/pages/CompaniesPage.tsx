@@ -31,19 +31,17 @@ export default function CompaniesPage() {
       <h1 className="text-2xl font-bold text-slate-800 mb-6">会社</h1>
 
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <button onClick={openCreateCompanyModal}
-            className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">
-            新規会社
-          </button>
-          <input
-            type="text"
-            placeholder="会社名、電話番号、住所で検索..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="border rounded-md px-3 py-2 text-sm w-72 focus:outline-none focus:ring-2 focus:ring-sky-500"
-          />
-        </div>
+        <input
+          type="text"
+          placeholder="会社名、電話番号、住所で検索..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="border rounded-md px-3 py-2 text-sm w-72 focus:outline-none focus:ring-2 focus:ring-sky-500"
+        />
+        <button onClick={openCreateCompanyModal}
+          className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">
+          新規会社
+        </button>
       </div>
 
       <div className="bg-white rounded-lg shadow">

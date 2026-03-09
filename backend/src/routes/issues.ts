@@ -29,6 +29,8 @@ router.get('/', async (req: AuthRequest, res: Response) => {
         author: { select: { id: true, firstName: true, lastName: true } },
         assignedTo: { select: { id: true, firstName: true, lastName: true } },
         assignedToGroup: { select: { id: true, name: true } },
+        relationsFrom: true,
+        relationsTo: true,
       },
       orderBy: { updatedAt: 'desc' },
     });
