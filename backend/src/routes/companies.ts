@@ -21,7 +21,7 @@ router.get('/', async (_req: AuthRequest, res: Response) => {
     res.json(companies);
   } catch (e) {
     console.error('companies.getCompanies error:', e);
-    res.status(500).json({ error: '会社の取得に失敗しました' });
+    res.status(500).json({ error: '企業の取得に失敗しました' });
   }
 });
 
@@ -43,13 +43,13 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
     });
 
     if (!company) {
-      return res.status(404).json({ error: '会社が見つかりません' });
+      return res.status(404).json({ error: '企業が見つかりません' });
     }
 
     res.json(company);
   } catch (e) {
     console.error('companies.getCompanyDetail error:', e);
-    res.status(500).json({ error: '会社の取得に失敗しました' });
+    res.status(500).json({ error: '企業の取得に失敗しました' });
   }
 });
 

@@ -8,6 +8,7 @@ import GanttChart from '../components/GanttChart';
 import KanbanBoard from '../components/KanbanBoard';
 import IssueDetail from '../components/IssueDetail';
 import IssueForm from '../components/IssueForm';
+import MultiCombobox from '../components/MultiCombobox';
 import { useAuth } from '../hooks/useAuth';
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -45,6 +46,7 @@ export default function ProjectListPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [listFilterStartMonth, setListFilterStartMonth] = useState('');
   const [listFilterEndMonth, setListFilterEndMonth] = useState('');
+  const [listFilterCompanyIds, setListFilterCompanyIds] = useState<(number | string)[]>([]);
 
   // Gantt-related state
   const [ganttIssues, setGanttIssues] = useState<Issue[]>([]);
@@ -220,6 +222,7 @@ export default function ProjectListPage() {
           || (p.company && p.company.name.toLowerCase().includes(q));
         if (!matchText) return false;
       }
+      if (listFilterCompanyIds.length > 0 && (!p.companyId || !listFilterCompanyIds.some(id => String(id) === String(p.companyId)))) return false;
       if (p.dueDate) {
         const due = p.dueDate.slice(0, 7); // "YYYY-MM"
         if (listFilterStartMonth && due < listFilterStartMonth) return false;
@@ -227,7 +230,7 @@ export default function ProjectListPage() {
       }
       return true;
     });
-  }, [projects, searchQuery, listFilterStartMonth, listFilterEndMonth]);
+  }, [projects, searchQuery, listFilterStartMonth, listFilterEndMonth, listFilterCompanyIds]);
 
   const kanbanFilteredIssues = useMemo(() => {
     return kanbanIssues.filter((issue) => {
@@ -297,7 +300,7 @@ export default function ProjectListPage() {
             <span className="text-xs text-gray-500">検索:</span>
             <input
               type="text"
-              placeholder="プロジェクト名、識別子、会社名..."
+              placeholder="プロジェクト名、識別子、企業名..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="border rounded px-2 py-1 text-xs w-64 focus:outline-none focus:ring-1 focus:ring-sky-500"
@@ -312,6 +315,17 @@ export default function ProjectListPage() {
                 <input type="month" value={listFilterEndMonth} onChange={(e) => setListFilterEndMonth(e.target.value)}
                   className="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500" />
               </div>
+            </div>
+            <div className="w-px h-6 bg-gray-200" />
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 font-medium">企業:</span>
+              <MultiCombobox
+                options={companies.map(c => ({ id: c.id, name: c.name }))}
+                values={listFilterCompanyIds}
+                onChange={(values) => setListFilterCompanyIds(values)}
+                placeholder="全企業"
+                className="w-64"
+              />
             </div>
             <div className="ml-auto text-xs text-gray-400">{filteredProjects.length} 件</div>
           </div>
@@ -371,7 +385,7 @@ export default function ProjectListPage() {
                 <tr>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">プロジェクト名</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">識別子</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">会社</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">企業</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">期限</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">チケット数</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">ステータス</th>
@@ -458,7 +472,7 @@ export default function ProjectListPage() {
           </div>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">会社</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">企業</label>
               <select value={projectCompanyId} onChange={(e) => setProjectCompanyId(e.target.value)}
                 className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
                 <option value="">なし</option>

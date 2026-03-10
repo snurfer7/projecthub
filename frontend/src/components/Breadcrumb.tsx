@@ -110,10 +110,10 @@ export default function Breadcrumb() {
   } else if (pathname === '/gantt') {
     items.push({ label: 'ガントチャート' });
   } else if (pathname === '/companies') {
-    items.push({ label: '会社' });
+    items.push({ label: '企業' });
   } else if (companyMatch) {
     const cid = companyMatch.params.id!;
-    items.push({ label: '会社', path: '/companies' });
+    items.push({ label: '企業', path: '/companies' });
     items.push({ label: companyCache[cid] || '...' });
   } else if (pathname === '/admin') {
     items.push({ label: '管理' });

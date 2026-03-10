@@ -22,6 +22,7 @@ import CompaniesPage from './pages/CompaniesPage';
 import CompanyDetailPage from './pages/CompanyDetailPage';
 import SettingsPage from './pages/SettingsPage';
 import AssociationsPage from './pages/AssociationsPage';
+import LegalEntityStatusesPage from './pages/LegalEntityStatusesPage';
 
 function App() {
   const { user, loading, login, register, logout, refreshUser } = useAuth();
@@ -66,6 +67,7 @@ function App() {
         <Route path="/issues/:id/edit" element={<IssueFormPage />} />
         <Route path="/gantt" element={<GanttAllPage />} />
         <Route path="/associations" element={<AssociationsPage />} />
+        <Route path="/legal-entity-statuses" element={<LegalEntityStatusesPage />} />
         <Route path="/companies" element={<CompaniesPage />} />
         <Route path="/companies/:id" element={<CompanyDetailPage />} />
         <Route path="/settings" element={<SettingsPage user={user} refreshUser={refreshUser} />} />

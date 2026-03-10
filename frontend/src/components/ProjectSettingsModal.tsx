@@ -3,6 +3,10 @@ import { Plus, Trash2 } from 'lucide-react';
 import api from '../api/client';
 import { Project, Company, ProjectRelatedCompany } from '../types';
 import Modal from './Modal';
+import Combobox from './Combobox';
+import FloatingInput from './FloatingInput';
+import FloatingSelect from './FloatingSelect';
+import FloatingTextarea from './FloatingTextarea';
 
 interface ProjectSettingsModalProps {
     projectId: number;
@@ -123,90 +127,98 @@ export default function ProjectSettingsModal({ projectId, isOpen, onClose, onUpd
 
                 <form id="project-form" onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
                     <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">基本情報</h3>
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">プロジェクト名 *</label>
-                        <input type="text" value={name} onChange={(e) => setName(e.target.value)} required
-                            className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-                    </div>
+                    <div className="space-y-4">
+                        <FloatingInput
+                            label="プロジェクト名 *"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            required
+                        />
 
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">識別子</label>
-                        <input type="text" value={identifier} disabled
-                            className="w-full border rounded-md px-3 py-2 bg-gray-50 text-gray-500 cursor-not-allowed" />
-                    </div>
+                        <FloatingInput
+                            label="識別子"
+                            value={identifier}
+                            disabled
+                        />
 
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">ステータス</label>
-                        <select value={status} onChange={(e) => setStatus(e.target.value)}
-                            className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white">
+                        <FloatingSelect
+                            label="ステータス"
+                            value={status}
+                            onChange={(e) => setStatus(e.target.value)}
+                        >
                             <option value="active">有効</option>
                             <option value="closed">終了</option>
                             <option value="archived">アーカイブ</option>
-                        </select>
+                        </FloatingSelect>
+
+                        <Combobox
+                            label="親プロジェクト"
+                            options={[
+                                { id: '', name: 'なし' },
+                                ...allProjects.map((p) => ({ id: p.id, name: p.name }))
+                            ]}
+                            value={parentId}
+                            onChange={setParentId}
+                        />
+
+                        <FloatingInput
+                            label="期限日"
+                            type="date"
+                            value={dueDate}
+                            onChange={(e) => setDueDate(e.target.value)}
+                        />
+
+                        <FloatingTextarea
+                            label="説明"
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            rows={4}
+                        />
                     </div>
 
-
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">親プロジェクト</label>
-                        <select value={parentId} onChange={(e) => setParentId(e.target.value)}
-                            className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white">
-                            <option value="">なし</option>
-                            {allProjects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </select>
-                    </div>
-
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">期限日</label>
-                        <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)}
-                            className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-                    </div>
-
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">説明</label>
-                        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4}
-                            className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-y" />
-                    </div>
-
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2 mt-8">取引先情報</h3>
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">会社</label>
-                        <select value={companyId} onChange={(e) => handleCompanyChange(e.target.value)}
-                            className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white">
-                            <option value="">なし</option>
-                            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">拠点</label>
-                            <select value={locationId} onChange={(e) => setLocationId(e.target.value)}
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2 mt-8">企業</h3>
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <Combobox
+                                label="企業"
+                                options={[
+                                    { id: '', name: 'なし' },
+                                    ...companies.map((c) => ({ id: c.id, name: c.name }))
+                                ]}
+                                value={companyId}
+                                onChange={handleCompanyChange}
+                            />
+                            <FloatingSelect
+                                label="拠点"
+                                value={locationId}
+                                onChange={(e) => setLocationId(e.target.value)}
                                 disabled={!companyId}
-                                className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white disabled:bg-gray-50 disabled:text-gray-400">
+                            >
                                 <option value="">なし</option>
                                 {availableLocations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">担当者</label>
-                            <select value={contactId} onChange={(e) => setContactId(e.target.value)}
+                            </FloatingSelect>
+                            <FloatingSelect
+                                label="担当者"
+                                value={contactId}
+                                onChange={(e) => setContactId(e.target.value)}
                                 disabled={!companyId}
-                                className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white disabled:bg-gray-50 disabled:text-gray-400">
+                            >
                                 <option value="">なし</option>
                                 {availableContacts.map((c) => <option key={c.id} value={c.id}>{c.lastName} {c.firstName}</option>)}
-                            </select>
+                            </FloatingSelect>
                         </div>
-                    </div>
 
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">備考</label>
-                        <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} rows={3}
-                            className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-y" />
+                        <FloatingTextarea
+                            label="備考"
+                            value={remarks}
+                            onChange={(e) => setRemarks(e.target.value)}
+                            rows={2}
+                        />
                     </div>
 
                     <div className="mt-8 mb-6 border-t pt-6">
                         <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-semibold text-gray-800">関連会社</h3>
+                            <h3 className="text-lg font-semibold text-gray-800">関連企業</h3>
                             <button type="button" onClick={handleAddRelatedCompany}
                                 className="flex items-center gap-1 text-sm font-medium text-sky-600 hover:text-sky-700 py-1 px-2 rounded hover:bg-sky-50 transition-colors">
                                 <Plus className="w-4 h-4" />追加
@@ -215,58 +227,59 @@ export default function ProjectSettingsModal({ projectId, isOpen, onClose, onUpd
 
                         {relatedCompanies.length === 0 ? (
                             <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-300 text-gray-500 text-sm">
-                                関連会社はありません
+                                関連企業はありません
                             </div>
                         ) : (
-                            <div className="space-y-4">
+                            <div className="divide-y border rounded-lg bg-white overflow-hidden">
                                 {relatedCompanies.map((rc, index) => {
                                     const c = companies.find(comp => comp.id === rc.companyId);
                                     const rclocations = c?.locations || [];
                                     const rccontacts = c?.contacts || [];
 
                                     return (
-                                        <div key={index} className="p-4 border rounded-lg bg-gray-50/50 relative group">
-                                            <button type="button" onClick={() => handleRemoveRelatedCompany(index)}
-                                                className="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-
-                                            <div className="grid grid-cols-1 gap-4">
-                                                <div>
-                                                    <label className="block text-xs font-medium text-gray-500 mb-1">会社</label>
-                                                    <select value={rc.companyId || ''} onChange={(e) => updateRelatedCompany(index, 'companyId', Number(e.target.value))}
-                                                        className="w-full border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white">
-                                                        <option value="">選択してください</option>
-                                                        {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                                    </select>
-                                                </div>
-
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div>
-                                                        <label className="block text-xs font-medium text-gray-500 mb-1">拠点</label>
-                                                        <select value={rc.locationId || ''} onChange={(e) => updateRelatedCompany(index, 'locationId', e.target.value ? Number(e.target.value) : null)}
+                                        <div key={index} className="p-3 bg-white hover:bg-gray-50/50 transition-colors">
+                                            <div className="flex flex-col gap-2">
+                                                <div className="flex items-start gap-4">
+                                                    <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                        <Combobox
+                                                            label="企業"
+                                                            options={[
+                                                                { id: '', name: '未選択' },
+                                                                ...companies.map((c) => ({ id: c.id, name: c.name }))
+                                                            ]}
+                                                            value={rc.companyId || ''}
+                                                            onChange={(val) => updateRelatedCompany(index, 'companyId', Number(val))}
+                                                        />
+                                                        <FloatingSelect
+                                                            label="拠点"
+                                                            value={rc.locationId || ''}
+                                                            onChange={(e) => updateRelatedCompany(index, 'locationId', e.target.value ? Number(e.target.value) : null)}
                                                             disabled={!rc.companyId}
-                                                            className="w-full border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white disabled:bg-gray-100">
+                                                        >
                                                             <option value="">なし</option>
                                                             {rclocations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-                                                        </select>
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-xs font-medium text-gray-500 mb-1">担当者</label>
-                                                        <select value={rc.contactId || ''} onChange={(e) => updateRelatedCompany(index, 'contactId', e.target.value ? Number(e.target.value) : null)}
+                                                        </FloatingSelect>
+                                                        <FloatingSelect
+                                                            label="担当者"
+                                                            value={rc.contactId || ''}
+                                                            onChange={(e) => updateRelatedCompany(index, 'contactId', e.target.value ? Number(e.target.value) : null)}
                                                             disabled={!rc.companyId}
-                                                            className="w-full border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white disabled:bg-gray-100">
+                                                        >
                                                             <option value="">なし</option>
                                                             {rccontacts.map((contact) => <option key={contact.id} value={contact.id}>{contact.lastName} {contact.firstName}</option>)}
-                                                        </select>
+                                                        </FloatingSelect>
                                                     </div>
+                                                    <button type="button" onClick={() => handleRemoveRelatedCompany(index)}
+                                                        className="mt-5 p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" title="削除">
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
                                                 </div>
-
-                                                <div>
-                                                    <label className="block text-xs font-medium text-gray-500 mb-1">備考</label>
-                                                    <textarea value={rc.remarks || ''} onChange={(e) => updateRelatedCompany(index, 'remarks', e.target.value)} rows={2}
-                                                        className="w-full border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 resize-y" />
-                                                </div>
+                                                <FloatingTextarea
+                                                    label="備考"
+                                                    value={rc.remarks || ''}
+                                                    onChange={(e) => updateRelatedCompany(index, 'remarks', e.target.value)}
+                                                    rows={2}
+                                                />
                                             </div>
                                         </div>
                                     );

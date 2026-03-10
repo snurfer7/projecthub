@@ -31,25 +31,25 @@ function RoleMultiSelect({ roles, value, onChange }: { roles: Role[]; value: Set
             {/* Compact Outlined Trigger */}
             <div
                 onClick={() => setOpen(o => !o)}
-                className={`group relative flex items-center h-8 w-full px-2 border rounded-md cursor-pointer transition-all duration-150 ${open
-                    ? 'border-sky-500 ring-1 ring-sky-500 bg-white'
-                    : 'border-gray-300 hover:border-gray-400 bg-gray-50/30'
+                className={`group relative flex items-center h-10 w-full px-3 border rounded-md cursor-pointer transition-all duration-150 ${open
+                    ? 'border-sky-500 ring-2 ring-sky-500 bg-white'
+                    : 'border-gray-300 hover:border-gray-400 bg-white'
                     }`}
             >
                 {/* Comma-separated Text with Truncation */}
-                <div className="flex-1 pr-4 overflow-hidden">
+                <div className="flex-1 pr-6 overflow-hidden">
                     {selectedRoles.length > 0 ? (
-                        <span className="text-xs text-slate-700 truncate block font-medium">
+                        <span className="text-sm text-slate-700 truncate block font-medium">
                             {selectedText}
                         </span>
                     ) : (
-                        <span className="text-xs text-gray-400">ロールを選択...</span>
+                        <span className="text-sm text-gray-400">ロールを選択...</span>
                     )}
                 </div>
 
                 {/* Small Arrow Icon */}
-                <div className="absolute right-1.5 flex items-center pointer-events-none">
-                    <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-150 ${open ? 'rotate-180 text-sky-500' : ''}`} />
+                <div className="absolute right-2.5 flex items-center pointer-events-none">
+                    <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-150 ${open ? 'rotate-180 text-sky-500' : ''}`} />
                 </div>
             </div>
 
@@ -64,10 +64,10 @@ function RoleMultiSelect({ roles, value, onChange }: { roles: Role[]; value: Set
                                     key={r.id}
                                     type="button"
                                     onClick={() => toggle(r.id)}
-                                    className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs transition-colors text-left ${selected ? 'bg-sky-50 text-sky-700' : 'text-slate-600 hover:bg-slate-50'
+                                    className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors text-left ${selected ? 'bg-sky-50 text-sky-700' : 'text-slate-600 hover:bg-slate-50'
                                         }`}
                                 >
-                                    <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-all ${selected
+                                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${selected
                                         ? 'bg-sky-500 border-sky-500'
                                         : 'border-gray-300 bg-white'
                                         }`}>
@@ -210,9 +210,13 @@ export default function ProjectOverview() {
     const cancelEdit = () => { setEditingId(null); setEditingRoleIds(new Set()); };
 
     const saveEdit = async (key: string) => {
-        const [, id] = key.split(':');
+        const [type, id] = key.split(':');
         try {
-            await api.put(`/projects/${project.id}/members/${id}`, { roleIds: Array.from(editingRoleIds) });
+            if (type === 'm') {
+                await api.put(`/projects/${project.id}/members/${id}`, { roleIds: Array.from(editingRoleIds) });
+            } else if (type === 'u') {
+                await api.post(`/projects/${project.id}/members`, { userId: Number(id), roleIds: Array.from(editingRoleIds) });
+            }
             setEditingId(null);
             loadProject();
         } catch {
@@ -274,9 +278,9 @@ export default function ProjectOverview() {
                     )}
 
                     <div className="mt-8 pt-6 border-t border-gray-100">
-                        <h3 className="text-md font-semibold text-slate-700 mb-4">取引先情報</h3>
+                        <h3 className="text-md font-semibold text-slate-700 mb-4">企業</h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-                            <div><div className="text-gray-500 mb-1">会社</div><div className="text-slate-800 font-medium">{project.company ? <Link to={`/companies/${project.company.id}`} className="text-sky-600 hover:underline">{project.company.name}</Link> : '-'}</div></div>
+                            <div><div className="text-gray-500 mb-1">企業</div><div className="text-slate-800 font-medium">{project.company ? <Link to={`/companies/${project.company.id}`} className="text-sky-600 hover:underline">{project.company.name}</Link> : '-'}</div></div>
                             <div><div className="text-gray-500 mb-1">拠点</div><div className="text-slate-800 font-medium">{project.location?.name || '-'}</div></div>
                             <div><div className="text-gray-500 mb-1">担当者</div><div className="text-slate-800 font-medium">
                                 {project.contact ? (
@@ -303,12 +307,12 @@ export default function ProjectOverview() {
 
                     {project.relatedCompanies && project.relatedCompanies.length > 0 && (
                         <div className="mt-8 pt-6 border-t border-gray-100">
-                            <h3 className="text-md font-semibold text-slate-700 mb-4">関連会社</h3>
+                            <h3 className="text-md font-semibold text-slate-700 mb-4">関連企業</h3>
                             <div className="space-y-6">
                                 {project.relatedCompanies.map((rc, index) => (
                                     <div key={rc.id || index} className="bg-gray-50/50 rounded-lg p-4 border border-gray-100">
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-                                            <div><div className="text-gray-500 mb-1 text-[11px] uppercase tracking-wider">会社</div><div className="text-slate-800 font-medium">{rc.company ? <Link to={`/companies/${rc.company.id}`} className="text-sky-600 hover:underline">{rc.company.name}</Link> : '-'}</div></div>
+                                            <div><div className="text-gray-500 mb-1 text-[11px] uppercase tracking-wider">企業</div><div className="text-slate-800 font-medium">{rc.company ? <Link to={`/companies/${rc.company.id}`} className="text-sky-600 hover:underline">{rc.company.name}</Link> : '-'}</div></div>
                                             <div><div className="text-gray-500 mb-1 text-[11px] uppercase tracking-wider">拠点</div><div className="text-slate-800 font-medium">{rc.location?.name || '-'}</div></div>
                                             <div><div className="text-gray-500 mb-1 text-[11px] uppercase tracking-wider">担当者</div><div className="text-slate-800 font-medium">
                                                 {rc.contact ? (
@@ -385,7 +389,7 @@ export default function ProjectOverview() {
                                                     {/* Group member rows */}
                                                     {isExpanded && groupMembers.map((gm: any, idx: number) => {
                                                         const pm = (project.members || []).find(m => m.userId === gm.userId);
-                                                        const mKey = pm ? `m:${pm.id}` : null;
+                                                        const mKey = pm ? `m:${pm.id}` : `u:${gm.userId}`;
                                                         const indivRoles = pm?.roles.filter(r => !r.sourceGroupId) || [];
                                                         const indivRoleIds = indivRoles.map(r => r.roleId);
                                                         const isLast = idx === groupMembers.length - 1;
@@ -401,7 +405,7 @@ export default function ProjectOverview() {
                                                                     </span>
                                                                 </td>
                                                                 <td className="px-4 py-2">
-                                                                    {mKey && editingId === mKey ? (
+                                                                    {editingId === mKey ? (
                                                                         <div className="flex items-center gap-2">
                                                                             <RoleMultiSelect roles={roles} value={editingRoleIds} onChange={setEditingRoleIds} />
                                                                             <button onClick={() => saveEdit(mKey)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"><Check className="w-4 h-4" /></button>
@@ -410,16 +414,16 @@ export default function ProjectOverview() {
                                                                     ) : (
                                                                         <div className="flex flex-wrap gap-1 items-center">
                                                                             {indivRoles.map(pr => (
-                                                                                <span key={pr.id} className="inline-block px-2 py-0.5 bg-sky-50 text-sky-700 rounded text-xs border border-sky-100 cursor-pointer hover:bg-sky-100" onClick={() => mKey && startEdit(mKey, indivRoleIds)}>
+                                                                                <span key={pr.id} className="inline-block px-2 py-0.5 bg-sky-50 text-sky-700 rounded text-xs border border-sky-100 cursor-pointer hover:bg-sky-100" onClick={() => startEdit(mKey, indivRoleIds)}>
                                                                                     {pr.role.name}
                                                                                 </span>
                                                                             ))}
-                                                                            {indivRoles.length === 0 && mKey && (
+                                                                            {indivRoles.length === 0 && (
                                                                                 <span className="text-gray-300 italic text-xs cursor-pointer" onClick={() => startEdit(mKey, [])}>ロールなし</span>
                                                                             )}
-                                                                            {pm && mKey && (
-                                                                                <button onClick={() => startEdit(mKey, indivRoleIds)} className="p-0.5 text-gray-400 hover:text-sky-600 rounded bg-gray-50 border border-gray-100 self-center"><Pencil className="w-3 h-3" /></button>
-                                                                            )}
+                                                                            <button onClick={() => startEdit(mKey, indivRoleIds)} className="p-0.5 text-gray-400 hover:text-sky-600 rounded bg-gray-50 border border-gray-100 self-center" title="ロールを編集">
+                                                                                <Pencil className="w-3 h-3" />
+                                                                            </button>
                                                                         </div>
                                                                     )}
                                                                 </td>
@@ -475,7 +479,7 @@ export default function ProjectOverview() {
                                                                 {m.roles.length === 0 && (
                                                                     <span className="text-gray-300 text-xs italic">ロールなし</span>
                                                                 )}
-                                                                <button onClick={() => startEdit(key, indivRoleIds)} className="p-1 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded-md transition-all ml-auto" title="ロールを編集">
+                                                                <button onClick={() => startEdit(key, indivRoleIds)} className="p-1 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded-md transition-all h-fit" title="ロールを編集">
                                                                     <Pencil className="w-3.5 h-3.5" />
                                                                 </button>
                                                             </div>

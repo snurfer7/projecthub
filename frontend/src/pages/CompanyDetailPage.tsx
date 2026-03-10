@@ -992,7 +992,7 @@ export default function CompanyDetailPage() {
       <ConfirmationModal
         isOpen={!!confirmDelete}
         title={
-          confirmDelete?.type === 'company' ? '会社の削除' :
+          confirmDelete?.type === 'company' ? '企業の削除' :
             confirmDelete?.type === 'contact' ? '連絡先の削除' :
               confirmDelete?.type === 'deal' ? '商談の削除' :
                 confirmDelete?.type === 'activity' ? '活動の削除' :

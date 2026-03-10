@@ -25,6 +25,8 @@ export interface Company {
   phone?: string;
   website?: string;
   notes?: string;
+  legalEntityStatusId?: number;
+  legalEntityStatus?: LegalEntityStatus;
   createdAt: string;
   _count?: { projects: number; comments: number; wikiPages: number; locations: number };
   projects?: { id: number; name: string; identifier: string; status: string }[];
@@ -46,6 +48,13 @@ export interface Association {
   phone?: string;
   website?: string;
   notes?: string;
+  createdAt: string;
+}
+
+export interface LegalEntityStatus {
+  id: number;
+  name: string;
+  position: number;
   createdAt: string;
 }
 

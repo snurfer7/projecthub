@@ -1,7 +1,9 @@
 import { useState, useEffect, FormEvent } from 'react';
 import api from '../api/client';
-import { Company } from '../types';
+import { Company, LegalEntityStatus } from '../types';
 import Modal from './Modal';
+import FloatingInput from './FloatingInput';
+import FloatingTextarea from './FloatingTextarea';
 
 interface CompanyModalProps {
     isOpen: boolean;
@@ -12,6 +14,8 @@ interface CompanyModalProps {
 
 export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompany }: CompanyModalProps) {
     const [companyName, setCompanyName] = useState('');
+    const [legalEntityStatusId, setLegalEntityStatusId] = useState<number | string>('');
+    const [availableStatuses, setAvailableStatuses] = useState<LegalEntityStatus[]>([]);
     const [companyPostalCode, setCompanyPostalCode] = useState('');
     const [companyPrefecture, setCompanyPrefecture] = useState('');
     const [companyCity, setCompanyCity] = useState('');
@@ -23,9 +27,16 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
     const [companyError, setCompanyError] = useState('');
 
     useEffect(() => {
+        api.get('/admin/legal-entity-statuses')
+            .then(res => setAvailableStatuses(res.data))
+            .catch(console.error);
+    }, []);
+
+    useEffect(() => {
         if (isOpen) {
             if (editingCompany) {
                 setCompanyName(editingCompany.name);
+                setLegalEntityStatusId(editingCompany.legalEntityStatusId || '');
                 setCompanyPostalCode(editingCompany.postalCode || '');
                 setCompanyPrefecture(editingCompany.prefecture || '');
                 setCompanyCity(editingCompany.city || '');
@@ -36,6 +47,7 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
                 setCompanyNotes(editingCompany.notes || '');
             } else {
                 setCompanyName('');
+                setLegalEntityStatusId('');
                 setCompanyPostalCode('');
                 setCompanyPrefecture('');
                 setCompanyCity('');
@@ -55,6 +67,7 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
         try {
             const data = {
                 name: companyName,
+                legalEntityStatusId: legalEntityStatusId || null,
                 postalCode: companyPostalCode || null,
                 prefecture: companyPrefecture || null,
                 city: companyCity || null,
@@ -80,61 +93,91 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
         <Modal
             isOpen={isOpen}
             onClose={onClose}
-            title={editingCompany ? '会社情報編集' : '会社登録'}
+            title={editingCompany ? '企業情報編集' : '企業登録'}
         >
             {companyError && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{companyError}</div>}
             <form onSubmit={handleSubmit}>
                 <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">会社名 *</label>
-                        <input type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} required
-                            className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">電話番号</label>
-                        <input type="text" value={companyPhone} onChange={(e) => setCompanyPhone(e.target.value)}
-                            className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                    <FloatingInput
+                        label="企業名 *"
+                        value={companyName}
+                        onChange={(e) => setCompanyName(e.target.value)}
+                        required
+                    />
+                    <div className="relative">
+                        <select
+                            value={legalEntityStatusId}
+                            onChange={(e) => setLegalEntityStatusId(e.target.value)}
+                            className="peer w-full border border-gray-300 rounded-md px-3 pt-5 pb-2 text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all appearance-none"
+                        >
+                            <option value="">(なし)</option>
+                            {availableStatuses.map(s => (
+                                <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                        </select>
+                        <label className="absolute left-3 top-1.5 text-xs text-gray-500 transition-all pointer-events-none">
+                            法人格
+                        </label>
+                        <div className="absolute right-3 top-4 pointer-events-none text-gray-400">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
                     </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">郵便番号</label>
-                        <input type="text" value={companyPostalCode} onChange={(e) => setCompanyPostalCode(e.target.value)} placeholder="000-0000"
-                            className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">都道府県</label>
-                        <input type="text" value={companyPrefecture} onChange={(e) => setCompanyPrefecture(e.target.value)} placeholder="東京都"
-                            className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-                    </div>
+                    <FloatingInput
+                        label="郵便番号"
+                        value={companyPostalCode}
+                        onChange={(e) => setCompanyPostalCode(e.target.value)}
+                        placeholder="000-0000"
+                    />
+                    <FloatingInput
+                        label="都道府県"
+                        value={companyPrefecture}
+                        onChange={(e) => setCompanyPrefecture(e.target.value)}
+                        placeholder="東京都"
+                    />
                 </div>
                 <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">市区町村</label>
-                        <input type="text" value={companyCity} onChange={(e) => setCompanyCity(e.target.value)} placeholder="千代田区"
-                            className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">番地</label>
-                        <input type="text" value={companyStreet} onChange={(e) => setCompanyStreet(e.target.value)} placeholder="1-1-1"
-                            className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-                    </div>
+                    <FloatingInput
+                        label="市区町村"
+                        value={companyCity}
+                        onChange={(e) => setCompanyCity(e.target.value)}
+                        placeholder="千代田区"
+                    />
+                    <FloatingInput
+                        label="番地"
+                        value={companyStreet}
+                        onChange={(e) => setCompanyStreet(e.target.value)}
+                        placeholder="1-1-1"
+                    />
                 </div>
-                <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">建物名・部屋番号</label>
-                    <input type="text" value={companyBuilding} onChange={(e) => setCompanyBuilding(e.target.value)}
-                        className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                <FloatingInput
+                    label="建物名・部屋番号"
+                    value={companyBuilding}
+                    onChange={(e) => setCompanyBuilding(e.target.value)}
+                />
+
+                <div className="grid grid-cols-2 gap-4 mb-4 mt-4">
+                    <FloatingInput
+                        label="電話番号"
+                        value={companyPhone}
+                        onChange={(e) => setCompanyPhone(e.target.value)}
+                    />
+                    <FloatingInput
+                        label="Webサイト"
+                        value={companyWebsite}
+                        onChange={(e) => setCompanyWebsite(e.target.value)}
+                    />
                 </div>
-                <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Webサイト</label>
-                    <input type="text" value={companyWebsite} onChange={(e) => setCompanyWebsite(e.target.value)}
-                        className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-                </div>
-                <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">備考</label>
-                    <textarea value={companyNotes} onChange={(e) => setCompanyNotes(e.target.value)} rows={2}
-                        className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-                </div>
+
+                <FloatingTextarea
+                    label="備考"
+                    value={companyNotes}
+                    onChange={(e) => setCompanyNotes(e.target.value)}
+                    rows={2}
+                />
 
                 <div className="flex justify-end gap-3">
                     <button type="button" onClick={onClose}

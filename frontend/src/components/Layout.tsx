@@ -36,12 +36,13 @@ const TREE_MENU: TreeItem[] = [
     key: 'projects',
   },
   {
-    label: '会社',
+    label: '企業',
     path: '/companies',
     icon: Building2,
     key: 'company',
     children: [
       { label: '協会', path: '/associations', icon: Users, key: 'associations' },
+      { label: '法人格', path: '/legal-entity-statuses', icon: Database, key: 'legal-entity-statuses' },
     ],
   },
   {
@@ -56,8 +57,7 @@ const TREE_MENU: TreeItem[] = [
 // ヘッダー用フラットリスト（旧来の設定と互換性を保つ）
 const FLAT_MENU = [
   { label: 'プロジェクト', path: '/projects', icon: Briefcase, key: 'projects' },
-  { label: '会社', path: '/companies', icon: Building2, key: 'company' },
-  { label: '管理', path: '/admin', icon: Database, key: 'admin', adminOnly: true },
+  { label: '企業', path: '/companies', icon: Building2, key: 'company' },
 ];
 
 export default function Layout({ user, onLogout, children }: Props) {
@@ -85,10 +85,8 @@ export default function Layout({ user, onLogout, children }: Props) {
 
   // ヘッダーメニュー（ユーザー設定に基づく）
   const headerNavItems = FLAT_MENU.filter((item) => {
-    if (item.adminOnly && user.role !== 'admin') return false;
     if (item.key === 'projects') return user.showProjectsMenu !== false;
     if (item.key === 'company') return user.showCompanyMenu !== false;
-    if (item.key === 'admin') return user.showAdminMenu !== false;
     return true;
   });
 
@@ -136,9 +134,12 @@ export default function Layout({ user, onLogout, children }: Props) {
             </nav>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-slate-300 hidden sm:block">
+            <Link
+              to="/settings"
+              className="text-sm text-slate-300 hidden sm:block hover:text-white transition-colors"
+            >
               {user.lastName} {user.firstName}
-            </span>
+            </Link>
           </div>
         </div>
       </header>
@@ -205,31 +206,35 @@ export default function Layout({ user, onLogout, children }: Props) {
                   {/* 子メニュー */}
                   {hasChildren && expanded && (
                     <div className="ml-4 mt-0.5 space-y-0.5">
-                      {item.children!.map((child) => (
-                        <div key={child.path} className="flex items-center">
-                          {/* ツリーライン */}
-                          <div className="flex flex-col items-center mr-1 self-stretch">
-                            <div className="w-px flex-1 bg-gray-300" />
+                      {item.children!.map((child, childIdx) => {
+                        const isLastChild = childIdx === item.children!.length - 1;
+                        return (
+                          <div key={child.path} className="flex items-center">
+                            {/* ツリーライン */}
+                            <div className="flex flex-col items-center mr-1 self-stretch">
+                              <div className={`w-px bg-gray-300 ${isLastChild ? 'h-1/2' : 'flex-1'}`} />
+                              {!isLastChild && <div className="w-px flex-1 bg-gray-300" />}
+                            </div>
+                            <div className="flex items-center mr-1">
+                              <div className="w-3 h-px bg-gray-300" />
+                            </div>
+                            <Link
+                              to={child.path}
+                              onClick={() => setIsSidebarOpen(false)}
+                              className={`
+                                flex-1 flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors
+                                ${isActive(child.path)
+                                  ? 'bg-sky-50 text-sky-700 font-medium'
+                                  : 'text-gray-600 hover:bg-gray-100'
+                                }
+                              `}
+                            >
+                              <child.icon size={15} />
+                              {child.label}
+                            </Link>
                           </div>
-                          <div className="flex items-center mr-1">
-                            <div className="w-3 h-px bg-gray-300" />
-                          </div>
-                          <Link
-                            to={child.path}
-                            onClick={() => setIsSidebarOpen(false)}
-                            className={`
-                              flex-1 flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors
-                              ${isActive(child.path)
-                                ? 'bg-sky-50 text-sky-700 font-medium'
-                                : 'text-gray-600 hover:bg-gray-100'
-                              }
-                            `}
-                          >
-                            <child.icon size={15} />
-                            {child.label}
-                          </Link>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -238,14 +243,6 @@ export default function Layout({ user, onLogout, children }: Props) {
           </nav>
 
           <footer className="p-4 border-t border-gray-200 bg-gray-50 space-y-1">
-            <Link
-              to="/settings"
-              onClick={() => setIsSidebarOpen(false)}
-              className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
-            >
-              <Settings size={18} />
-              設定
-            </Link>
             <button
               onClick={onLogout}
               className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"

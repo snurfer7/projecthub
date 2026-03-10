@@ -28,19 +28,19 @@ export default function CompaniesPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-slate-800 mb-6">会社</h1>
+      <h1 className="text-2xl font-bold text-slate-800 mb-6">企業</h1>
 
       <div className="flex items-center justify-between mb-4">
         <input
           type="text"
-          placeholder="会社名、電話番号、住所で検索..."
+          placeholder="企業名、電話番号、住所で検索..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="border rounded-md px-3 py-2 text-sm w-72 focus:outline-none focus:ring-2 focus:ring-sky-500"
         />
         <button onClick={openCreateCompanyModal}
           className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">
-          新規会社
+          新規企業
         </button>
       </div>
 
@@ -48,7 +48,7 @@ export default function CompaniesPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">会社名</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">企業名</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">電話番号</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">住所</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">プロジェクト数</th>
@@ -81,7 +81,7 @@ export default function CompaniesPage() {
           </tbody>
         </table>
         {companies.length === 0 && (
-          <div className="text-center py-8 text-gray-500">会社が登録されていません</div>
+          <div className="text-center py-8 text-gray-500">企業が登録されていません</div>
         )}
       </div>
 

@@ -506,13 +506,16 @@ router.put('/roles/:id/transitions', async (req: AuthRequest, res: Response) => 
 router.get('/companies', async (_req: AuthRequest, res: Response) => {
   try {
     const companies = await prisma.company.findMany({
-      include: { _count: { select: { projects: true, wikiPages: true, comments: true, locations: true } } },
+      include: {
+        legalEntityStatus: true,
+        _count: { select: { projects: true, wikiPages: true, comments: true, locations: true } }
+      },
       orderBy: { name: 'asc' },
     });
     res.json(companies);
   } catch (e) {
     console.error('admin.getCompanies error:', e);
-    res.status(500).json({ error: '会社の取得に失敗しました' });
+    res.status(500).json({ error: '企業の取得に失敗しました' });
   }
 });
 
@@ -524,6 +527,7 @@ router.get('/companies/:id', async (req: AuthRequest, res: Response) => {
       where: { id: Number(req.params.id) },
       include: {
         projects: { select: { id: true, name: true, identifier: true, status: true } },
+        legalEntityStatus: true,
         associations: {
           include: { association: true },
           orderBy: { createdAt: 'desc' },
@@ -534,49 +538,115 @@ router.get('/companies/:id', async (req: AuthRequest, res: Response) => {
       },
     });
     if (!company) {
-      res.status(404).json({ error: '会社が見つかりません' });
+      res.status(404).json({ error: '企業が見つかりません' });
       return;
     }
     res.json(company);
   } catch (e) {
     console.error('admin.getCompanyDetail error:', e);
-    res.status(500).json({ error: '会社の取得に失敗しました' });
+    res.status(500).json({ error: '企業の取得に失敗しました' });
   }
 });
 
 router.post('/companies', async (req: AuthRequest, res: Response) => {
   try {
-    const { name, postalCode, prefecture, city, street, building, phone, website, notes } = req.body;
+    const { name, legalEntityStatusId, postalCode, prefecture, city, street, building, phone, website, notes } = req.body;
     const company = await prisma.company.create({
-      data: { name, postalCode, prefecture, city, street, building, phone, website, notes },
+      data: { name, legalEntityStatusId: legalEntityStatusId ? Number(legalEntityStatusId) : null, postalCode, prefecture, city, street, building, phone, website, notes },
     });
     res.status(201).json(company);
   } catch (e) {
-    res.status(500).json({ error: '会社の作成に失敗しました' });
+    res.status(500).json({ error: '企業の作成に失敗しました' });
   }
 });
 
 router.put('/companies/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const { name, postalCode, prefecture, city, street, building, phone, website, notes } = req.body;
+    const { name, legalEntityStatusId, postalCode, prefecture, city, street, building, phone, website, notes } = req.body;
     const companyId = Number(req.params.id);
 
     const company = await prisma.company.update({
       where: { id: companyId },
-      data: { name, postalCode, prefecture, city, street, building, phone, website, notes },
+      data: { name, legalEntityStatusId: legalEntityStatusId ? Number(legalEntityStatusId) : null, postalCode, prefecture, city, street, building, phone, website, notes },
     });
     res.json(company);
   } catch (e) {
-    res.status(500).json({ error: '会社の更新に失敗しました' });
+    res.status(500).json({ error: '企業の更新に失敗しました' });
   }
 });
 
 router.delete('/companies/:id', async (req: AuthRequest, res: Response) => {
   try {
     await prisma.company.delete({ where: { id: Number(req.params.id) } });
-    res.json({ message: '会社を削除しました' });
+    res.json({ message: '企業を削除しました' });
   } catch (e) {
-    res.status(500).json({ error: '会社の削除に失敗しました' });
+    res.status(500).json({ error: '企業の削除に失敗しました' });
+  }
+});
+
+// Legal Entity Statuses
+router.get('/legal-entity-statuses', async (_req: AuthRequest, res: Response) => {
+  try {
+    const statuses = await prisma.legalEntityStatus.findMany({
+      orderBy: { position: 'asc' },
+    });
+    res.json(statuses);
+  } catch (e) {
+    res.status(500).json({ error: '法人格の取得に失敗しました' });
+  }
+});
+
+router.post('/legal-entity-statuses', async (req: AuthRequest, res: Response) => {
+  try {
+    const { name } = req.body;
+    const max = await prisma.legalEntityStatus.aggregate({ _max: { position: true } });
+    const nextPos = (max._max.position ?? 0) + 1;
+    const status = await prisma.legalEntityStatus.create({
+      data: { name, position: nextPos },
+    });
+    res.status(201).json(status);
+  } catch (e) {
+    res.status(500).json({ error: '法人格の作成に失敗しました' });
+  }
+});
+
+router.put('/legal-entity-statuses/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const { name, position } = req.body;
+    const data: any = {};
+    if (name !== undefined) data.name = name;
+    if (position !== undefined) data.position = position;
+    const status = await prisma.legalEntityStatus.update({ where: { id }, data });
+    res.json(status);
+  } catch (e) {
+    res.status(500).json({ error: '法人格の更新に失敗しました' });
+  }
+});
+
+router.post('/legal-entity-statuses/reorder', async (req: AuthRequest, res: Response) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids)) {
+      res.status(400).json({ error: 'ids配列を指定してください' });
+      return;
+    }
+    const ops = ids.map((id: number, idx: number) =>
+      prisma.legalEntityStatus.update({ where: { id }, data: { position: idx } })
+    );
+    await prisma.$transaction(ops);
+    res.json({});
+  } catch (e) {
+    res.status(500).json({ error: '並び替えに失敗しました' });
+  }
+});
+
+router.delete('/legal-entity-statuses/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    await prisma.legalEntityStatus.delete({ where: { id: Number(req.params.id) } });
+    res.json({ message: '法人格を削除しました' });
+  } catch (e) {
+    res.status(500).json({ error: '法人格の削除に失敗しました' });
   }
 });
 

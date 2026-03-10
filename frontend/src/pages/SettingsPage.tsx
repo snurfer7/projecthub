@@ -21,7 +21,6 @@ export default function SettingsPage({ user, refreshUser }: Props) {
 
   const [showProjectsMenu, setShowProjectsMenu] = useState(user.showProjectsMenu);
   const [showCompanyMenu, setShowCompanyMenu] = useState(user.showCompanyMenu);
-  const [showAdminMenu, setShowAdminMenu] = useState(user.showAdminMenu);
   const [menuSettingMessage, setMenuSettingMessage] = useState('');
   const [menuSettingError, setMenuSettingError] = useState('');
 
@@ -30,7 +29,6 @@ export default function SettingsPage({ user, refreshUser }: Props) {
     setLandingPage(user.landingPage);
     setShowProjectsMenu(user.showProjectsMenu);
     setShowCompanyMenu(user.showCompanyMenu);
-    setShowAdminMenu(user.showAdminMenu);
   }, [user]);
 
   const handleUpdateLandingPage = async () => {
@@ -55,8 +53,7 @@ export default function SettingsPage({ user, refreshUser }: Props) {
       setLoading(true);
       await api.put('/auth/menu-settings', {
         showProjectsMenu,
-        showCompanyMenu,
-        showAdminMenu
+        showCompanyMenu
       });
       await refreshUser();
       setMenuSettingMessage('メニュー表示設定を更新しました。');
@@ -171,7 +168,7 @@ export default function SettingsPage({ user, refreshUser }: Props) {
               <option value="home">ホーム</option>
               <option value="projects">プロジェクト</option>
               <option value="gantt">ガントチャート</option>
-              <option value="companies">会社</option>
+              <option value="companies">企業</option>
             </select>
           </div>
           <button
@@ -197,14 +194,8 @@ export default function SettingsPage({ user, refreshUser }: Props) {
             </label>
             <label className="flex items-center cursor-pointer p-3 border rounded-md hover:bg-gray-50 transition-colors">
               <input type="checkbox" checked={showCompanyMenu} onChange={e => setShowCompanyMenu(e.target.checked)} className="mr-3 rounded border-gray-300 text-sky-600 focus:ring-sky-500 w-4 h-4" />
-              <span className="text-sm font-medium text-gray-700">会社</span>
+              <span className="text-sm font-medium text-gray-700">企業</span>
             </label>
-            {user.role === 'admin' && (
-              <label className="flex items-center cursor-pointer p-3 border rounded-md hover:bg-gray-50 transition-colors">
-                <input type="checkbox" checked={showAdminMenu} onChange={e => setShowAdminMenu(e.target.checked)} className="mr-3 rounded border-gray-300 text-sky-600 focus:ring-sky-500 w-4 h-4" />
-                <span className="text-sm font-medium text-gray-700">管理</span>
-              </label>
-            )}
           </div>
 
           <button

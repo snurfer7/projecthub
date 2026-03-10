@@ -266,13 +266,14 @@ router.put('/:id/members/:memberId', async (req: AuthRequest, res: Response) => 
         });
       }
 
-      // If no roles left at all (including group roles), delete the member
-      const rolesCount = await tx.projectMemberRole.count({
-        where: { projectMemberId: memberId }
-      });
-      if (rolesCount === 0) {
-        await tx.projectMember.delete({ where: { id: memberId } });
-      }
+      // If no roles left at all (including group roles), do NOT delete the member
+      // This allows re-assigning roles later via the UI
+      // const rolesCount = await tx.projectMemberRole.count({
+      //   where: { projectMemberId: memberId }
+      // });
+      // if (rolesCount === 0) {
+      //   await tx.projectMember.delete({ where: { id: memberId } });
+      // }
     });
 
     const member = await prisma.projectMember.findUnique({
@@ -293,12 +294,14 @@ router.delete('/:id/members/:memberId', async (req: AuthRequest, res: Response) 
       await tx.projectMemberRole.deleteMany({
         where: { projectMemberId: memberId, sourceGroupId: null }
       });
-      const rolesCount = await tx.projectMemberRole.count({
-        where: { projectMemberId: memberId }
-      });
-      if (rolesCount === 0) {
-        await tx.projectMember.delete({ where: { id: memberId } });
-      }
+      // Do not delete member even if all individual roles are removed.
+      // This keeps the user in the project member list with "No roles".
+      // const rolesCount = await tx.projectMemberRole.count({
+      //   where: { projectMemberId: memberId }
+      // });
+      // if (rolesCount === 0) {
+      //   await tx.projectMember.delete({ where: { id: memberId } });
+      // }
     });
     res.json({ message: '個別ロールを削除しました' });
   } catch (e) {
@@ -384,7 +387,7 @@ router.post('/:id/groups', async (req: AuthRequest, res: Response) => {
               data: {
                 projectMemberId: member.id,
                 roleId: Number(rId),
-                sourceGroupId: null
+                sourceGroupId: Number(groupId) // Correctly set sourceGroupId
               }
             });
           }
