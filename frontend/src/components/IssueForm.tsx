@@ -1,8 +1,9 @@
 import { useState, useEffect, FormEvent } from 'react';
 import api from '../api/client';
-import { Issue, IssueMetaOptions } from '../types';
+import { Issue, IssueMetaOptions, SystemSetting } from '../types';
 import MarkdownEditor from './MarkdownEditor';
 import AnalogTimePicker from './AnalogTimePicker';
+import { formatEstimatedHours } from '../utils/format';
 
 function toLocalDatetimeString(dateString?: string | null) {
     if (!dateString) return '';
@@ -44,30 +45,33 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
     const [error, setError] = useState('');
     const [systemStartTime, setSystemStartTime] = useState('09:00');
     const [systemEndTime, setSystemEndTime] = useState('18:00');
+    const [totalDayConversion, setTotalDayConversion] = useState(0);
 
     useEffect(() => {
-        if (!isEdit) {
-            api.get('/admin/settings/time').then((res) => {
-                const { startTime, endTime } = res.data;
-                setSystemStartTime(startTime);
-                setSystemEndTime(endTime);
+        api.get('/admin/settings/time').then((res) => {
+            const data: SystemSetting = res.data;
+            setSystemStartTime(data.startTime);
+            setSystemEndTime(data.endTime);
+            const total = (data.conversionTimes || []).reduce((a, b) => a + b, 0);
+            setTotalDayConversion(total);
 
+            if (!isEdit) {
                 if (!initialStartDate) {
                     const now = new Date();
                     const year = now.getFullYear();
                     const month = String(now.getMonth() + 1).padStart(2, '0');
                     const day = String(now.getDate()).padStart(2, '0');
                     const today = `${year}-${month}-${day}`;
-                    setStartDate(`${today}T${startTime}`);
+                    setStartDate(`${today}T${data.startTime}`);
                 } else {
-                    setStartDate(initialStartDate.includes('T') ? initialStartDate : `${initialStartDate}T${startTime}`);
+                    setStartDate(initialStartDate.includes('T') ? initialStartDate : `${initialStartDate}T${data.startTime}`);
                 }
 
                 if (initialDueDate) {
                     setDueDate(initialDueDate);
                 }
-            }).catch(() => { });
-        }
+            }
+        }).catch(() => { });
     }, [isEdit, initialStartDate, initialDueDate]);
 
     useEffect(() => {
@@ -226,7 +230,14 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
                         </div>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">予定工数 (時間)</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            予定工数 (時間)
+                            {totalDayConversion > 0 && estimatedHours && (
+                                <span className="ml-1 text-gray-500 font-normal">
+                                    {formatEstimatedHours(Number(estimatedHours), totalDayConversion)}
+                                </span>
+                            )}
+                        </label>
                         <input type="number" value={estimatedHours} onChange={(e) => setEstimatedHours(e.target.value)} step="1" min="0"
                             className="w-full border rounded-md px-3 py-2" />
                     </div>

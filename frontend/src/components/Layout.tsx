@@ -258,7 +258,7 @@ export default function Layout({ user, onLogout, children }: Props) {
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto w-full">
-          <div className="max-w-7xl mx-auto px-4 py-6">
+          <div className="max-w-full mx-auto px-4 py-6">
             <Breadcrumb />
             {children}
           </div>

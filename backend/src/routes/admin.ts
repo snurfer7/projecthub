@@ -506,7 +506,7 @@ router.put('/roles/:id/transitions', async (req: AuthRequest, res: Response) => 
 router.get('/companies', async (_req: AuthRequest, res: Response) => {
   try {
     const companies = await prisma.company.findMany({
-      include: { _count: { select: { projects: true, wikiPages: true, comments: true } } },
+      include: { _count: { select: { projects: true, wikiPages: true, comments: true, locations: true } } },
       orderBy: { name: 'asc' },
     });
     res.json(companies);
@@ -529,7 +529,7 @@ router.get('/companies/:id', async (req: AuthRequest, res: Response) => {
           orderBy: { createdAt: 'desc' },
         },
         _count: {
-          select: { comments: true, wikiPages: true, projects: true },
+          select: { comments: true, wikiPages: true, projects: true, locations: true },
         },
       },
     });

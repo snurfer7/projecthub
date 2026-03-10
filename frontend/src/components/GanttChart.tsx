@@ -8,6 +8,7 @@ import IssueForm from './IssueForm';
 import IssueDetail from './IssueDetail';
 import MarkdownRenderer from './MarkdownRenderer';
 import { useAuth } from '../hooks/useAuth';
+import { formatEstimatedHours } from '../utils/format';
 
 interface GanttChartProps {
   issues: Issue[];
@@ -1552,6 +1553,16 @@ export default function GanttChart({ issues, projects = [], showProject, onUpdat
                 )}
                 {tooltip.issue.dueDate && <div>期日: {new Date(tooltip.issue.dueDate).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })}</div>}
                 {tooltip.issue.assignedTo && <div>担当: {tooltip.issue.assignedTo.lastName} {tooltip.issue.assignedTo.firstName}</div>}
+                {tooltip.issue.estimatedHours && (
+                  <div>
+                    予定工数: {tooltip.issue.estimatedHours}h
+                    {systemSettings && (
+                      <span className="ml-1 text-slate-400">
+                        {formatEstimatedHours(tooltip.issue.estimatedHours, (systemSettings.conversionTimes || []).reduce((a: number, b: number) => a + b, 0))}
+                      </span>
+                    )}
+                  </div>
+                )}
                 <div>進捗: {tooltip.issue.doneRatio}%</div>
               </div>
             </>

@@ -10,7 +10,7 @@ export default function IssueFormPage() {
   const initialStartDateStr = searchParams.get('startDate');
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-full mx-auto">
       <h1 className="text-2xl font-bold text-slate-800 mb-6">{isEdit ? 'チケット編集' : '新規チケット'}</h1>
       <IssueForm
         projectId={projectId}

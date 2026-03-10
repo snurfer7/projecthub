@@ -96,7 +96,7 @@ export default function SettingsPage({ user, refreshUser }: Props) {
   };
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-full">
       <h1 className="text-2xl font-bold mb-6">設定</h1>
 
       <div className="bg-white rounded shadow p-6 mb-6">

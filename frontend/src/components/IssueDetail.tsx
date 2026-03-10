@@ -1,8 +1,9 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
-import { Issue, User } from '../types';
+import { Issue, User, SystemSetting } from '../types';
 import { Pencil, Users, Trash2, X, Check } from 'lucide-react';
+import { formatEstimatedHours } from '../utils/format';
 import MarkdownRenderer from './MarkdownRenderer';
 import MarkdownEditor from './MarkdownEditor';
 import ConfirmationModal from './ConfirmationModal';
@@ -18,6 +19,7 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
     const [issue, setIssue] = useState<Issue | null>(null);
     const [comment, setComment] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [totalDayConversion, setTotalDayConversion] = useState(0);
 
     // Edit comment state
     const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
@@ -50,7 +52,14 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
         onRefresh?.();
     });
 
-    useEffect(() => { load(); }, [issueId]);
+    useEffect(() => {
+        load();
+        api.get('/admin/settings/time').then((res) => {
+            const data: SystemSetting = res.data;
+            const total = (data.conversionTimes || []).reduce((a, b) => a + b, 0);
+            setTotalDayConversion(total);
+        }).catch(() => { });
+    }, [issueId]);
 
     const handleComment = async (e: FormEvent) => {
         e.preventDefault();
@@ -219,7 +228,19 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                         <span className="ml-1">{issue.doneRatio}%</span>
                     </div>
                     {issue.startDate && <div><span className="text-gray-500">開始日時:</span><span className="ml-1">{new Date(issue.startDate).toLocaleString('ja-JP')}</span></div>}
-                    {issue.estimatedHours && <div><span className="text-gray-500">予定工数:</span><span className="ml-1">{issue.estimatedHours}h</span></div>}
+                    {issue.estimatedHours && (
+                        <div>
+                            <span className="text-gray-500">予定工数:</span>
+                            <span className="ml-1">
+                                {issue.estimatedHours}h
+                                {totalDayConversion > 0 && (
+                                    <span className="ml-1 text-gray-500 font-normal">
+                                        {formatEstimatedHours(issue.estimatedHours, totalDayConversion)}
+                                    </span>
+                                )}
+                            </span>
+                        </div>
+                    )}
                     {issue.dueDate && <div><span className="text-gray-500">期日:</span><span className="ml-1">{new Date(issue.dueDate).toLocaleDateString('ja-JP')}</span></div>}
                 </div>
             </div>

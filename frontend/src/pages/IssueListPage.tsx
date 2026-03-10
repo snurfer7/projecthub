@@ -6,14 +6,18 @@ import { Issue, IssueMetaOptions } from '../types';
 import Modal from '../components/Modal';
 import IssueForm from '../components/IssueForm';
 import ConfirmationModal from '../components/ConfirmationModal';
+import IssueDetail from '../components/IssueDetail';
+import { useAuth } from '../hooks/useAuth';
 
 export default function IssueListPage() {
   const { projectId } = useParams<{ projectId: string }>();
+  const { user } = useAuth();
   const [issues, setIssues] = useState<Issue[]>([]);
   const [meta, setMeta] = useState<IssueMetaOptions | null>(null);
   const [filterStatus, setFilterStatus] = useState('');
   const [filterTracker, setFilterTracker] = useState('');
   const [editingIssueId, setEditingIssueId] = useState<string | null>(null);
+  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [isNewIssueModalOpen, setIsNewIssueModalOpen] = useState(false);
   const [deletingIssueId, setDeletingIssueId] = useState<number | null>(null);
 
@@ -101,9 +105,12 @@ export default function IssueListPage() {
                   <span className="bg-slate-100 px-2 py-0.5 rounded text-xs">{issue.tracker?.name}</span>
                 </td>
                 <td className="px-4 py-3">
-                  <Link to={`/issues/${issue.id}`} className="text-sky-600 hover:underline font-medium">
+                  <button
+                    onClick={() => setSelectedIssueId(String(issue.id))}
+                    className="text-sky-600 hover:underline font-medium cursor-pointer text-left w-full"
+                  >
                     {issue.subject}
-                  </Link>
+                  </button>
                 </td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-0.5 rounded text-xs font-medium ${issue.status?.isClosed ? 'bg-gray-100 text-gray-600' : 'bg-green-100 text-green-700'
@@ -167,6 +174,25 @@ export default function IssueListPage() {
               fetchIssues();
             }}
             onCancel={() => setEditingIssueId(null)}
+          />
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={!!selectedIssueId}
+        onClose={() => setSelectedIssueId(null)}
+        title="チケット詳細"
+        size="lg"
+      >
+        {selectedIssueId && user && (
+          <IssueDetail
+            issueId={selectedIssueId}
+            user={user}
+            onEdit={() => {
+              setEditingIssueId(selectedIssueId);
+              setSelectedIssueId(null);
+            }}
+            onRefresh={fetchIssues}
           />
         )}
       </Modal>
