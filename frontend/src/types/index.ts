@@ -29,6 +29,7 @@ export interface Company {
   _count?: { projects: number; comments: number; wikiPages: number; locations: number };
   projects?: { id: number; name: string; identifier: string; status: string }[];
   locations?: Location[];
+  contacts?: Contact[];
   associations?: { id: number; association: Association }[];
   comments?: CompanyComment[];
   wikiPages?: CompanyWikiPage[];
@@ -62,6 +63,18 @@ export interface Location {
   createdAt: string;
 }
 
+export interface ProjectRelatedCompany {
+  id?: number;
+  projectId: number;
+  companyId: number;
+  locationId?: number | null;
+  contactId?: number | null;
+  remarks?: string | null;
+  company?: { id: number; name: string } | null;
+  location?: { id: number; name: string } | null;
+  contact?: { id: number; firstName: string; lastName: string; email?: string; phone?: string } | null;
+}
+
 export interface Project {
   id: number;
   name: string;
@@ -69,14 +82,20 @@ export interface Project {
   description?: string;
   status: string;
   companyId?: number;
+  locationId?: number | null;
+  contactId?: number | null;
   parentId?: number | null;
   dueDate?: string | null;
+  remarks?: string | null;
   createdAt: string;
   company?: { id: number; name: string } | null;
+  location?: { id: number; name: string } | null;
+  contact?: { id: number; firstName: string; lastName: string; email?: string; phone?: string } | null;
   parent?: { id: number; name: string } | null;
   children?: Project[];
   members?: ProjectMember[];
   groups?: ProjectGroup[];
+  relatedCompanies?: ProjectRelatedCompany[];
   _count?: { issues: number; wikiPages?: number; attachments?: number; timeEntries?: number; comments?: number };
 }
 
@@ -180,6 +199,7 @@ export interface IssueComment {
   content: string;
   createdAt: string;
   user: { id: number; firstName: string; lastName: string };
+  attachments?: Attachment[];
 }
 
 export interface WikiPage {
@@ -205,6 +225,10 @@ export interface Attachment {
   filePath: string;
   projectId?: number;
   issueId?: number;
+  issueCommentId?: number;
+  projectCommentId?: number;
+  companyCommentId?: number;
+  contactCommentId?: number;
   authorId: number;
   createdAt: string;
   author: { id: number; firstName: string; lastName: string };
@@ -253,6 +277,7 @@ export interface ContactComment {
   content: string;
   createdAt: string;
   user: { id: number; firstName: string; lastName: string };
+  attachments?: Attachment[];
 }
 
 export interface ContactDetail {
@@ -318,6 +343,7 @@ export interface ProjectComment {
   content: string;
   createdAt: string;
   user: { id: number; firstName: string; lastName: string; email?: string };
+  attachments?: Attachment[];
 }
 
 export interface CompanyComment {
@@ -327,6 +353,7 @@ export interface CompanyComment {
   content: string;
   createdAt: string;
   user: { id: number; firstName: string; lastName: string; email?: string };
+  attachments?: Attachment[];
 }
 
 export interface CompanyWikiPage {

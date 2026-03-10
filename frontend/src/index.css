@@ -25,9 +25,31 @@ body {
 
 /* Global drag state for native and custom drag-and-drop operations */
 body.grabbing-active,
-body.grabbing-active *,
-body.body-grabbing,
-body.body-grabbing * {
+body.body-grabbing {
   cursor: -webkit-grabbing !important;
   cursor: grabbing !important;
+}
+
+/* Base animations that were missing (usually provided by tailwindcss-animate) */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes zoomIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-in {
+  animation-duration: 200ms;
+  animation-fill-mode: both;
+}
+
+.fade-in {
+  animation-name: fadeIn;
+}
+
+.zoom-in-95 {
+  animation-name: zoomIn;
 }

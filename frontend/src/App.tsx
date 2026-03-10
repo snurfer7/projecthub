@@ -16,7 +16,6 @@ import WikiListPage from './pages/WikiListPage';
 import GanttPage from './pages/GanttPage';
 import KanbanPage from './pages/KanbanPage';
 import GanttAllPage from './pages/GanttAllPage';
-import FilesPage from './pages/FilesPage';
 import TimeEntriesPage from './pages/TimeEntriesPage';
 import AdminPage from './pages/AdminPage';
 import CompaniesPage from './pages/CompaniesPage';
@@ -61,7 +60,6 @@ function App() {
           <Route path="comments" element={<ProjectCommentsPage />} />
           <Route path="kanban" element={<KanbanPage />} />
           <Route path="gantt" element={<GanttPage />} />
-          <Route path="files" element={<FilesPage />} />
           <Route path="time-entries" element={<TimeEntriesPage />} />
         </Route>
         <Route path="/issues/:id" element={<IssueDetailPage user={user} />} />

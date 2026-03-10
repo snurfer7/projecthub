@@ -27,6 +27,24 @@ export async function uploadFileToS3(
   fileBuffer: Buffer,
   mimeType: string
 ): Promise<string> {
+  // Ensure bucket exists (helpful for local MinIO setup)
+  try {
+    const { HeadBucketCommand, CreateBucketCommand } = await import('@aws-sdk/client-s3');
+    try {
+      await s3Client.send(new HeadBucketCommand({ Bucket: bucketName }));
+    } catch (err: any) {
+      if (err.name === 'NotFound' || err.$metadata?.httpStatusCode === 404) {
+        console.log(`Bucket ${bucketName} not found. Creating...`);
+        await s3Client.send(new CreateBucketCommand({ Bucket: bucketName }));
+      } else {
+        throw err;
+      }
+    }
+  } catch (err) {
+    console.warn('Bucket existence check failed:', err);
+    // Continue anyway, putObject might still work if permissions are different
+  }
+
   const command = new PutObjectCommand({
     Bucket: bucketName,
     Key: key,

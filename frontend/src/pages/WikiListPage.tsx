@@ -6,6 +6,7 @@ import { Plus } from 'lucide-react';
 import WikiSidebar from '../components/Wiki/WikiSidebar';
 import WikiContent from '../components/Wiki/WikiContent';
 import WikiEditor from '../components/Wiki/WikiEditor';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 export default function WikiListPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -20,6 +21,7 @@ export default function WikiListPage() {
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
   const [editParentId, setEditParentId] = useState<number | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const loadPages = async (selectId?: number) => {
     try {
@@ -102,11 +104,10 @@ export default function WikiListPage() {
 
   const handleDelete = async () => {
     if (!selectedPage) return;
-    if (!confirm('このWikiページを削除しますか？')) return;
-
     try {
       await api.delete(`/wiki/${selectedPage.id}`);
       setSelectedPage(null);
+      setIsDeleting(false);
       await loadPages();
     } catch (err: any) {
       alert(err.response?.data?.error || '削除に失敗しました');
@@ -168,7 +169,7 @@ export default function WikiListPage() {
             authorName={`${selectedPage.author.lastName} ${selectedPage.author.firstName}`}
             updatedAt={selectedPage.updatedAt}
             onEdit={handleEdit}
-            onDelete={handleDelete}
+            onDelete={() => setIsDeleting(true)}
           />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-8 min-h-[400px]">
@@ -186,6 +187,15 @@ export default function WikiListPage() {
           </div>
         )}
       </div>
+
+      <ConfirmationModal
+        isOpen={isDeleting}
+        title="Wikiページの削除"
+        message={`Wikiページ「${selectedPage?.title}」を削除しますか？この操作は取り消せません。`}
+        onConfirm={handleDelete}
+        onCancel={() => setIsDeleting(false)}
+        variant="danger"
+      />
     </div>
   );
 }

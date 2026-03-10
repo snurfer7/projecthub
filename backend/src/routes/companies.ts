@@ -11,7 +11,11 @@ router.use(authenticateToken);
 router.get('/', async (_req: AuthRequest, res: Response) => {
   try {
     const companies = await prisma.company.findMany({
-      include: { _count: { select: { projects: true, wikiPages: true, comments: true, locations: true } } },
+      include: {
+        locations: true,
+        contacts: true,
+        _count: { select: { projects: true, wikiPages: true, comments: true, locations: true } }
+      },
       orderBy: { name: 'asc' },
     });
     res.json(companies);
@@ -102,6 +106,7 @@ router.get('/:companyId/comments', async (req: AuthRequest, res: Response) => {
       where: { companyId },
       include: {
         user: { select: { id: true, firstName: true, lastName: true } },
+        attachments: true,
       },
       orderBy: { createdAt: 'desc' },
     });

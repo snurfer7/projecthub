@@ -5,6 +5,8 @@ import { Plus } from 'lucide-react';
 import WikiSidebar from './Wiki/WikiSidebar';
 import WikiContent from './Wiki/WikiContent';
 import WikiEditor from './Wiki/WikiEditor';
+import ConfirmationModal from './ConfirmationModal';
+
 
 interface CompanyWikiTabProps {
     companyId: number;
@@ -21,6 +23,8 @@ export default function CompanyWikiTab({ companyId }: CompanyWikiTabProps) {
     const [editTitle, setEditTitle] = useState('');
     const [editContent, setEditContent] = useState('');
     const [editParentId, setEditParentId] = useState<number | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+
 
     const loadPages = async (selectTitle?: string) => {
         try {
@@ -90,11 +94,10 @@ export default function CompanyWikiTab({ companyId }: CompanyWikiTabProps) {
 
     const handleDelete = async () => {
         if (!selectedPage) return;
-        if (!confirm(`「${selectedPage.title}」を削除しますか？`)) return;
-
         try {
             await api.delete(`/companies/${companyId}/wiki/${encodeURIComponent(selectedPage.title)}`);
             setSelectedPage(null);
+            setIsDeleting(false);
             await loadPages();
         } catch (err: any) {
             alert(err.response?.data?.error || 'Wikiページの削除に失敗しました');
@@ -158,7 +161,7 @@ export default function CompanyWikiTab({ companyId }: CompanyWikiTabProps) {
                         authorName={`${selectedPage.author.lastName} ${selectedPage.author.firstName}`}
                         updatedAt={selectedPage.updatedAt}
                         onEdit={handleEdit}
-                        onDelete={handleDelete}
+                        onDelete={() => setIsDeleting(true)}
                     />
                 ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-8 min-h-[400px]">
@@ -176,6 +179,15 @@ export default function CompanyWikiTab({ companyId }: CompanyWikiTabProps) {
                     </div>
                 )}
             </div>
+
+            <ConfirmationModal
+                isOpen={isDeleting}
+                title="Wikiページの削除"
+                message={`「${selectedPage?.title}」を削除しますか？この操作は取り消せません。`}
+                onConfirm={handleDelete}
+                onCancel={() => setIsDeleting(false)}
+                variant="danger"
+            />
         </div>
     );
 }

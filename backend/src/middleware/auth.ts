@@ -11,7 +11,12 @@ export interface AuthRequest extends Request {
 
 export function authenticateToken(req: AuthRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  let token = authHeader && authHeader.split(' ')[1];
+
+  // Also support token in query parameter for direct browser downloads
+  if (!token && req.query.token) {
+    token = req.query.token as string;
+  }
 
   if (!token) {
     res.status(401).json({ error: '認証が必要です' });
@@ -26,6 +31,20 @@ export function authenticateToken(req: AuthRequest, res: Response, next: NextFun
     next();
   } catch {
     res.status(403).json({ error: 'トークンが無効です' });
+  }
+}
+
+export function generateDownloadToken(attachmentId: number, userId: number): string {
+  return jwt.sign({ attachmentId, userId, purpose: 'download' }, JWT_SECRET, { expiresIn: '60s' });
+}
+
+export function verifyDownloadToken(token: string): { attachmentId: number; userId: number } | null {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { attachmentId: number; userId: number; purpose: string };
+    if (decoded.purpose !== 'download') return null;
+    return { attachmentId: decoded.attachmentId, userId: decoded.userId };
+  } catch {
+    return null;
   }
 }
 

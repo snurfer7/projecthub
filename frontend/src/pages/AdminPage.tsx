@@ -5,6 +5,7 @@ import { User, Tracker, IssueStatus, IssuePriority, Group, Role, SystemSetting }
 import { Pencil, Trash2, GripVertical, Clock, Plus } from 'lucide-react';
 import Modal from '../components/Modal';
 import AnalogTimePicker from '../components/AnalogTimePicker';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 
 interface Props {
@@ -61,6 +62,9 @@ export default function AdminPage({ user }: Props) {
   const [timeLoading, setTimeLoading] = useState(false);
   const [timeMessage, setTimeMessage] = useState('');
   const [timeError, setTimeError] = useState('');
+
+  // 削除用ステート
+  const [confirmDelete, setConfirmDelete] = useState<{ type: string; id: number; name: string } | null>(null);
 
   if (user.role !== 'admin') return <Navigate to="/" />;
 
@@ -216,8 +220,8 @@ export default function AdminPage({ user }: Props) {
   };
 
   const handleDeleteItem = async (type: string, id: number) => {
-    if (!confirm('削除しますか？')) return;
     setDeletingIds((prev) => new Set([...prev, id]));
+    setConfirmDelete(null);
     try {
       await api.delete(`/admin/${type}/${id}`);
       console.log(`${type} ${id}削除成功`);
@@ -434,8 +438,8 @@ export default function AdminPage({ user }: Props) {
   };
 
   const handleDeleteGroup = async (id: number) => {
-    if (!confirm('このグループを削除しますか？')) return;
     await api.delete(`/admin/groups/${id}`);
+    setConfirmDelete(null);
     if (selectedGroup?.id === id) setSelectedGroup(null);
     loadAll();
   };
@@ -513,7 +517,7 @@ export default function AdminPage({ user }: Props) {
                         <button onClick={() => openEditUserModal(u)} title="編集" className="p-1.5 text-sky-600 hover:bg-sky-50 rounded">
                           <Pencil className="w-4 h-4" />
                         </button>
-                        <button onClick={() => handleDeleteItem('users', u.id)} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded">
+                        <button onClick={() => setConfirmDelete({ type: 'users', id: u.id, name: `${u.lastName} ${u.firstName}` })} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -558,7 +562,7 @@ export default function AdminPage({ user }: Props) {
                         <button onClick={(e) => { e.stopPropagation(); openEditGroupModal(group); }} title="編集" className="p-1.5 text-sky-600 hover:bg-sky-50 rounded">
                           <Pencil className="w-4 h-4" />
                         </button>
-                        <button onClick={(e) => { e.stopPropagation(); handleDeleteGroup(group.id); }} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded">
+                        <button onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: 'groups', id: group.id, name: group.name }); }} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -618,7 +622,7 @@ export default function AdminPage({ user }: Props) {
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => openEditMasterModal('roles', item)} title="編集" className="p-1.5 text-sky-600 hover:bg-sky-50 rounded"><Pencil className="w-4 h-4" /></button>
-                      <button onClick={() => handleDeleteItem('roles', item.id)} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={() => setConfirmDelete({ type: 'roles', id: item.id, name: item.name })} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   </div>
                 );
@@ -672,7 +676,7 @@ export default function AdminPage({ user }: Props) {
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => openEditMasterModal(tab as 'trackers' | 'statuses' | 'priorities', item)} title="編集" className="p-1.5 text-sky-600 hover:bg-sky-50 rounded"><Pencil className="w-4 h-4" /></button>
-                      <button onClick={() => handleDeleteItem(tab, item.id)} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={() => setConfirmDelete({ type: tab, id: item.id, name: item.name })} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   </div>
                 );
@@ -1077,6 +1081,23 @@ export default function AdminPage({ user }: Props) {
           </div>
         </form>
       </Modal>
+
+      <ConfirmationModal
+        isOpen={!!confirmDelete}
+        title={confirmDelete?.type === 'users' ? 'ユーザーの削除' : confirmDelete?.type === 'groups' ? 'グループの削除' : 'データの削除'}
+        message={`${confirmDelete?.name} を削除しますか？この操作は取り消せません。`}
+        onConfirm={() => {
+          if (!confirmDelete) return;
+          if (confirmDelete.type === 'groups') {
+            handleDeleteGroup(confirmDelete.id);
+          } else {
+            handleDeleteItem(confirmDelete.type, confirmDelete.id);
+          }
+        }}
+        onCancel={() => setConfirmDelete(null)}
+        variant="danger"
+      />
     </div>
   );
 }
+

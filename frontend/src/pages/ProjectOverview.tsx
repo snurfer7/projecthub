@@ -3,6 +3,7 @@ import { useOutletContext, Link } from 'react-router-dom';
 import { Pencil, Trash2, Check, X, Shield, Users, ChevronDown, ChevronRight } from 'lucide-react';
 import api from '../api/client';
 import { Project, ProjectMember, ProjectGroup, Role, Group, ProjectMemberRole } from '../types';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 function RoleMultiSelect({ roles, value, onChange }: { roles: Role[]; value: Set<number>; onChange: (ids: Set<number>) => void }) {
     const [open, setOpen] = useState(false);
@@ -108,6 +109,8 @@ export default function ProjectOverview() {
 
     // Expanded groups (default: all expanded)
     const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
+    const [confirmDelete, setConfirmDelete] = useState<{ type: 'member' | 'group'; id: number; name: string; data?: any } | null>(null);
+
     useEffect(() => {
         setExpandedGroups(prev => {
             const next = new Set(prev);
@@ -227,17 +230,17 @@ export default function ProjectOverview() {
 
     // ── Remove ────────────────────────────────────────────────────────────────
     const handleDeleteMemberIndividual = async (member: ProjectMember) => {
-        if (!confirm(`${member.user.lastName} ${member.user.firstName} の個別ロールを削除しますか？\nグループ由来のロールがある場合はメンバーとして残り続けます。`)) return;
         try {
             await api.delete(`/projects/${project.id}/members/${member.id}`);
+            setConfirmDelete(null);
             loadProject();
         } catch { alert('削除に失敗しました'); }
     };
 
     const handleDeleteGroup = async (pg: ProjectGroup) => {
-        if (!confirm(`グループ「${pg.group.name}」の割り当てを解除しますか？\nグループに所属するメンバーもプロジェクトから削除されます。`)) return;
         try {
             await api.delete(`/projects/${project.id}/groups/${pg.groupId}`);
+            setConfirmDelete(null);
             loadProject();
         } catch { alert('削除に失敗しました'); }
     };
@@ -255,16 +258,81 @@ export default function ProjectOverview() {
                     </button>
                 </div>
                 <div className="bg-white rounded-lg shadow p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm mb-8">
                         <div><div className="text-gray-500 mb-1">識別子</div><div className="text-slate-800 font-medium">{project.identifier}</div></div>
                         <div><div className="text-gray-500 mb-1">期限日</div><div className="text-slate-800 font-medium">{project.dueDate ? <span className="text-orange-600 font-medium">{new Date(project.dueDate).toLocaleDateString('ja-JP')}</span> : '-'}</div></div>
-                        <div><div className="text-gray-500 mb-1">会社</div><div className="text-slate-800 font-medium">{project.company ? <Link to={`/companies/${project.company.id}`} className="text-sky-600 hover:underline">{project.company.name}</Link> : '-'}</div></div>
+                        <div />
                     </div>
+
                     {project.description && (
-                        <div className="mt-6 pt-6 border-t">
+                        <div className="mb-8">
                             <div className="text-gray-500 text-sm mb-2">説明</div>
                             <div className="text-slate-700 text-sm whitespace-pre-wrap leading-relaxed">
                                 {project.description}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="mt-8 pt-6 border-t border-gray-100">
+                        <h3 className="text-md font-semibold text-slate-700 mb-4">取引先情報</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+                            <div><div className="text-gray-500 mb-1">会社</div><div className="text-slate-800 font-medium">{project.company ? <Link to={`/companies/${project.company.id}`} className="text-sky-600 hover:underline">{project.company.name}</Link> : '-'}</div></div>
+                            <div><div className="text-gray-500 mb-1">拠点</div><div className="text-slate-800 font-medium">{project.location?.name || '-'}</div></div>
+                            <div><div className="text-gray-500 mb-1">担当者</div><div className="text-slate-800 font-medium">
+                                {project.contact ? (
+                                    <div className="flex flex-col">
+                                        <span>{project.contact.lastName} {project.contact.firstName}</span>
+                                        {(project.contact.email || project.contact.phone) && (
+                                            <span className="text-[11px] text-gray-400 mt-0.5">
+                                                {[project.contact.email, project.contact.phone].filter(Boolean).join(' / ')}
+                                            </span>
+                                        )}
+                                    </div>
+                                ) : '-'}
+                            </div></div>
+                        </div>
+                        {project.remarks && (
+                            <div className="mt-4 pt-4 border-t border-gray-50/50">
+                                <div className="text-gray-500 text-sm mb-2">備考</div>
+                                <div className="text-slate-700 text-sm whitespace-pre-wrap leading-relaxed">
+                                    {project.remarks}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {project.relatedCompanies && project.relatedCompanies.length > 0 && (
+                        <div className="mt-8 pt-6 border-t border-gray-100">
+                            <h3 className="text-md font-semibold text-slate-700 mb-4">関連会社</h3>
+                            <div className="space-y-6">
+                                {project.relatedCompanies.map((rc, index) => (
+                                    <div key={rc.id || index} className="bg-gray-50/50 rounded-lg p-4 border border-gray-100">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+                                            <div><div className="text-gray-500 mb-1 text-[11px] uppercase tracking-wider">会社</div><div className="text-slate-800 font-medium">{rc.company ? <Link to={`/companies/${rc.company.id}`} className="text-sky-600 hover:underline">{rc.company.name}</Link> : '-'}</div></div>
+                                            <div><div className="text-gray-500 mb-1 text-[11px] uppercase tracking-wider">拠点</div><div className="text-slate-800 font-medium">{rc.location?.name || '-'}</div></div>
+                                            <div><div className="text-gray-500 mb-1 text-[11px] uppercase tracking-wider">担当者</div><div className="text-slate-800 font-medium">
+                                                {rc.contact ? (
+                                                    <div className="flex flex-col">
+                                                        <span>{rc.contact.lastName} {rc.contact.firstName}</span>
+                                                        {(rc.contact.email || rc.contact.phone) && (
+                                                            <span className="text-[11px] text-gray-400 mt-0.5">
+                                                                {[rc.contact.email, rc.contact.phone].filter(Boolean).join(' / ')}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                ) : '-'}
+                                            </div></div>
+                                        </div>
+                                        {rc.remarks && (
+                                            <div className="mt-4 pt-3 border-t border-gray-200/50">
+                                                <div className="text-gray-500 text-[11px] mb-1 uppercase tracking-wider">備考</div>
+                                                <div className="text-slate-700 text-sm whitespace-pre-wrap leading-relaxed">
+                                                    {rc.remarks}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     )}
@@ -311,7 +379,7 @@ export default function ProjectOverview() {
                                                             </div>
                                                         </td>
                                                         <td className="px-4 py-2.5 text-right">
-                                                            <button onClick={() => handleDeleteGroup(pg)} className="text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                                                            <button onClick={() => setConfirmDelete({ type: 'group', id: pg.groupId, name: pg.group.name, data: pg })} className="text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
                                                         </td>
                                                     </tr>
                                                     {/* Group member rows */}
@@ -414,7 +482,7 @@ export default function ProjectOverview() {
                                                         )}
                                                     </td>
                                                     <td className="px-4 py-3 text-right">
-                                                        <button onClick={() => handleDeleteMemberIndividual(m)} className="text-gray-300 hover:text-red-500 transition-colors" title="個別ロールをすべて削除"><X className="w-4 h-4" /></button>
+                                                        <button onClick={() => setConfirmDelete({ type: 'member', id: m.id, name: `${m.user.lastName} ${m.user.firstName}`, data: m })} className="text-gray-300 hover:text-red-500 transition-colors" title="個別ロールをすべて削除"><X className="w-4 h-4" /></button>
                                                     </td>
                                                 </tr>
                                             );
@@ -513,6 +581,26 @@ export default function ProjectOverview() {
                     ※ 各ユーザーのロールは個別に設定できます。薄いバッジはグループ追加時の初期ロールです。
                 </p>
             </div>
+
+            <ConfirmationModal
+                isOpen={!!confirmDelete}
+                title={confirmDelete?.type === 'group' ? 'グループ割り当て解除' : 'メンバー削除'}
+                message={
+                    confirmDelete?.type === 'group'
+                        ? `グループ「${confirmDelete.name}」の割り当てを解除しますか？\nグループに所属するメンバーもプロジェクトから削除されます。`
+                        : `${confirmDelete?.name} の個別ロールを削除しますか？\nグループ由来のロールがある場合はメンバーとして残り続けます。`
+                }
+                onConfirm={() => {
+                    if (!confirmDelete) return;
+                    if (confirmDelete.type === 'group') {
+                        handleDeleteGroup(confirmDelete.data);
+                    } else {
+                        handleDeleteMemberIndividual(confirmDelete.data);
+                    }
+                }}
+                onCancel={() => setConfirmDelete(null)}
+                variant="danger"
+            />
         </>
     );
 }

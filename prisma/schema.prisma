@@ -83,6 +83,7 @@ model Company {
   deals        Deal[]
   projects     Project[]
   locations    Location[]           @relation("CompanyLocations")
+  relatedProjectAssociations ProjectRelatedCompany[]
 
   @@map("companies")
 }
@@ -101,6 +102,8 @@ model Location {
   createdAt      DateTime        @default(now()) @map("created_at")
   company        Company         @relation("CompanyLocations", fields: [companyId], references: [id], onDelete: Cascade)
   contactDetails ContactDetail[]
+  projects       Project[]
+  relatedProjectAssociations ProjectRelatedCompany[]
 
   @@map("locations")
 }
@@ -142,18 +145,24 @@ model Project {
   status      String           @default("active")
   createdAt   DateTime         @default(now()) @map("created_at")
   companyId   Int?             @map("company_id")
+  locationId  Int?             @map("location_id")
+  contactId   Int?             @map("contact_id")
   parentId    Int?             @map("parent_id")
   dueDate     DateTime?        @map("due_date")
+  remarks     String?
   attachments Attachment[]
   issues      Issue[]
   comments    ProjectComment[]
   groups      ProjectGroup[]
   members     ProjectMember[]
-  company     Company?         @relation(fields: [companyId], references: [id])
-  parent      Project?         @relation("ProjectHierarchy", fields: [parentId], references: [id])
+  company     Company?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  location    Location?        @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  contact     Contact?         @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  parent      Project?         @relation("ProjectHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children    Project[]        @relation("ProjectHierarchy")
   timeEntries TimeEntry[]
-  wikiPages   WikiPage[]
+  wikiPages        WikiPage[]
+  relatedCompanies ProjectRelatedCompany[]
 
   @@map("projects")
 }
@@ -191,6 +200,23 @@ model ProjectMemberRole {
   sourceGroup     Group?        @relation("GroupSourceRoles", fields: [sourceGroupId], references: [id])
 
   @@map("project_member_roles")
+}
+
+model ProjectRelatedCompany {
+  id          Int      @id @default(autoincrement())
+  projectId   Int      @map("project_id")
+  companyId   Int      @map("company_id")
+  locationId  Int?     @map("location_id")
+  contactId   Int?     @map("contact_id")
+  remarks     String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  location    Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  contact     Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@map("project_related_companies")
 }
 
 model Role {
@@ -271,12 +297,12 @@ model Issue {
   relationsFrom     IssueRelation[] @relation("IssueFrom")
   relationsTo       IssueRelation[] @relation("IssueTo")
   assignedToGroup   Group?          @relation("IssueAssigneeGroup", fields: [assignedToGroupId], references: [id])
-  assignedTo        User?           @relation("IssueAssignee", fields: [assignedToId], references: [id])
-  author            User            @relation("IssueAuthor", fields: [authorId], references: [id])
-  priority          IssuePriority   @relation(fields: [priorityId], references: [id])
+  assignedTo        User?           @relation("IssueAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  author            User            @relation("IssueAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  priority          IssuePriority   @relation(fields: [priorityId], references: [id], onDelete: Cascade)
   project           Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  status            IssueStatus     @relation(fields: [statusId], references: [id])
-  tracker           Tracker         @relation(fields: [trackerId], references: [id])
+  status            IssueStatus     @relation(fields: [statusId], references: [id], onDelete: Cascade)
+  tracker           Tracker         @relation(fields: [trackerId], references: [id], onDelete: Cascade)
   timeEntries       TimeEntry[]
 
   @@map("issues")
@@ -302,7 +328,8 @@ model IssueComment {
   content   String
   createdAt DateTime @default(now()) @map("created_at")
   issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attachments Attachment[]
 
   @@map("issue_comments")
 }
@@ -317,8 +344,8 @@ model WikiPage {
   updatedAt DateTime   @updatedAt @map("updated_at")
   parentId  Int?       @map("parent_id")
   position  Int        @default(0)
-  author    User       @relation(fields: [authorId], references: [id])
-  parent    WikiPage?  @relation("WikiHierarchy", fields: [parentId], references: [id])
+  author    User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent    WikiPage?  @relation("WikiHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children  WikiPage[] @relation("WikiHierarchy")
   project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
@@ -327,18 +354,26 @@ model WikiPage {
 }
 
 model Attachment {
-  id          Int      @id @default(autoincrement())
-  filename    String
-  contentType String   @map("content_type")
-  fileSize    Int      @map("file_size")
-  filePath    String   @map("file_path")
-  projectId   Int?     @map("project_id")
-  issueId     Int?     @map("issue_id")
-  authorId    Int      @map("author_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  author      User     @relation(fields: [authorId], references: [id])
-  issue       Issue?   @relation(fields: [issueId], references: [id], onDelete: Cascade)
-  project     Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id               Int      @id @default(autoincrement())
+  filename         String
+  contentType      String   @map("content_type")
+  fileSize         Int      @map("file_size")
+  filePath         String   @map("file_path")
+  projectId        Int?     @map("project_id")
+  issueId          Int?     @map("issue_id")
+  issueCommentId   Int?     @map("issue_comment_id")
+  projectCommentId Int?     @map("project_comment_id")
+  companyCommentId Int?     @map("company_comment_id")
+  contactCommentId Int?     @map("contact_comment_id")
+  authorId         Int      @map("author_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  author           User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  issue            Issue?   @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  project          Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  issueComment     IssueComment?   @relation(fields: [issueCommentId], references: [id], onDelete: Cascade)
+  projectComment   ProjectComment? @relation(fields: [projectCommentId], references: [id], onDelete: Cascade)
+  companyComment   CompanyComment? @relation(fields: [companyCommentId], references: [id], onDelete: Cascade)
+  contactComment   ContactComment? @relation(fields: [contactCommentId], references: [id], onDelete: Cascade)
 
   @@map("attachments")
 }
@@ -353,9 +388,9 @@ model TimeEntry {
   spentOn   DateTime @map("spent_on") @db.Date
   comments  String?
   createdAt DateTime @default(now()) @map("created_at")
-  issue     Issue?   @relation(fields: [issueId], references: [id])
+  issue     Issue?   @relation(fields: [issueId], references: [id], onDelete: Cascade)
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("time_entries")
 }
@@ -374,8 +409,10 @@ model Contact {
   activities Activity[]
   comments   ContactComment[]
   details    ContactDetail[]
+  projects   Project[]
   company    Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   deals      Deal[]
+  relatedProjectAssociations ProjectRelatedCompany[]
 
   @@map("contacts")
 }
@@ -410,9 +447,9 @@ model Deal {
   createdAt         DateTime   @default(now()) @map("created_at")
   updatedAt         DateTime   @updatedAt @map("updated_at")
   activities        Activity[]
-  assignedTo        User?      @relation("DealAssignee", fields: [assignedToId], references: [id])
+  assignedTo        User?      @relation("DealAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   company           Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  contact           Contact?   @relation(fields: [contactId], references: [id])
+  contact           Contact?   @relation(fields: [contactId], references: [id], onDelete: SetNull)
 
   @@map("deals")
 }
@@ -430,9 +467,9 @@ model Activity {
   completed   Boolean   @default(false)
   createdAt   DateTime  @default(now()) @map("created_at")
   company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  contact     Contact?  @relation(fields: [contactId], references: [id])
-  deal        Deal?     @relation(fields: [dealId], references: [id])
-  user        User      @relation(fields: [userId], references: [id])
+  contact     Contact?  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  deal        Deal?     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("activities")
 }
@@ -465,7 +502,8 @@ model ProjectComment {
   content   String
   createdAt DateTime @default(now()) @map("created_at")
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attachments Attachment[]
 
   @@map("project_comments")
 }
@@ -477,7 +515,8 @@ model CompanyComment {
   content   String
   createdAt DateTime @default(now()) @map("created_at")
   company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attachments Attachment[]
 
   @@map("company_comments")
 }
@@ -489,7 +528,8 @@ model ContactComment {
   content   String
   createdAt DateTime @default(now()) @map("created_at")
   contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attachments Attachment[]
 
   @@map("contact_comments")
 }
@@ -504,9 +544,9 @@ model CompanyWikiPage {
   parentId  Int?              @map("parent_id")
   createdAt DateTime          @default(now()) @map("created_at")
   updatedAt DateTime          @updatedAt @map("updated_at")
-  author    User              @relation(fields: [authorId], references: [id])
+  author    User              @relation(fields: [authorId], references: [id], onDelete: Cascade)
   company   Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  parent    CompanyWikiPage?  @relation("CompanyWikiHierarchy", fields: [parentId], references: [id])
+  parent    CompanyWikiPage?  @relation("CompanyWikiHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children  CompanyWikiPage[] @relation("CompanyWikiHierarchy")
 
   @@unique([companyId, title])

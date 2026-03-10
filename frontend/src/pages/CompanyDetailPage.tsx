@@ -9,6 +9,8 @@ import CompanyWikiTab from '../components/CompanyWikiTab';
 import CompanyCommentsTab from '../components/CompanyCommentsTab';
 import ContactCommentsSection from '../components/ContactCommentsSection';
 import CompanyLocationsTab from '../components/CompanyLocationsTab';
+import ConfirmationModal from '../components/ConfirmationModal';
+
 
 
 const DEAL_STATUSES: { value: string; label: string; color: string }[] = [
@@ -88,7 +90,11 @@ export default function CompanyDetailPage() {
   const [showAddAssociationModal, setShowAddAssociationModal] = useState(false);
   const [newAssociationId, setNewAssociationId] = useState('');
 
+  // 削除用ステート
+  const [confirmDelete, setConfirmDelete] = useState<{ type: string; id: number; name: string } | null>(null);
+
   const companyId = Number(id);
+
 
   const loadCompany = () => api.get(`/admin/companies/${id}`).then((res) => {
     setCompany(res.data);
@@ -112,9 +118,9 @@ export default function CompanyDetailPage() {
   }, [id]);
 
   const handleDeleteCompany = async () => {
-    if (!confirm('この会社を削除しますか？')) return;
     try {
       await api.delete(`/admin/companies/${id}`);
+      setConfirmDelete(null);
       navigate('/companies');
     } catch (err: any) {
       alert(err.response?.data?.error || '削除に失敗しました');
@@ -171,8 +177,8 @@ export default function CompanyDetailPage() {
   };
 
   const handleDeleteContact = async (cId: number) => {
-    if (!confirm('この連絡先を削除しますか？')) return;
     await api.delete(`/crm/contacts/${cId}`);
+    setConfirmDelete(null);
     loadContacts();
   };
 
@@ -221,8 +227,8 @@ export default function CompanyDetailPage() {
   };
 
   const handleDeleteDeal = async (dId: number) => {
-    if (!confirm('この商談を削除しますか？')) return;
     await api.delete(`/crm/deals/${dId}`);
+    setConfirmDelete(null);
     loadDeals();
   };
 
@@ -259,8 +265,8 @@ export default function CompanyDetailPage() {
   };
 
   const handleDeleteActivity = async (aId: number) => {
-    if (!confirm('この活動を削除しますか？')) return;
     await api.delete(`/crm/activities/${aId}`);
+    setConfirmDelete(null);
     loadActivities();
   };
 
@@ -275,9 +281,9 @@ export default function CompanyDetailPage() {
   };
 
   const handleRemoveAssociation = async (associationId: number) => {
-    if (!confirm('この協会の割り当てを削除しますか？')) return;
     try {
       await api.delete(`/admin/companies/${id}/associations/${associationId}`);
+      setConfirmDelete(null);
       loadCompany();
     } catch (err: any) {
       alert(err.response?.data?.error || '協会の削除に失敗しました');
@@ -405,7 +411,7 @@ export default function CompanyDetailPage() {
                         <button onClick={() => openEditContact(c)} title="編集" className="p-1.5 text-sky-600 hover:bg-sky-50 rounded">
                           <Pencil className="w-4 h-4" />
                         </button>
-                        <button onClick={() => handleDeleteContact(c.id)} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded">
+                        <button onClick={() => setConfirmDelete({ type: 'contact', id: c.id, name: `${c.lastName} ${c.firstName}` })} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -455,7 +461,7 @@ export default function CompanyDetailPage() {
                         <button onClick={() => openEditDeal(d)} title="編集" className="p-1.5 text-sky-600 hover:bg-sky-50 rounded">
                           <Pencil className="w-4 h-4" />
                         </button>
-                        <button onClick={() => handleDeleteDeal(d.id)} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded">
+                        <button onClick={() => setConfirmDelete({ type: 'deal', id: d.id, name: d.name })} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -506,7 +512,7 @@ export default function CompanyDetailPage() {
                       className={`w-5 h-5 rounded border flex items-center justify-center text-xs ${a.completed ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-sky-500'}`}>
                       {a.completed && '✓'}
                     </button>
-                    <button onClick={() => handleDeleteActivity(a.id)} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded">
+                    <button onClick={() => setConfirmDelete({ type: 'activity', id: a.id, name: a.subject })} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
@@ -529,7 +535,7 @@ export default function CompanyDetailPage() {
                   <button onClick={() => setShowCompanyModal(true)} title="編集" className="p-1.5 text-sky-600 hover:bg-sky-50 rounded">
                     <Pencil className="w-4 h-4" />
                   </button>
-                  <button onClick={handleDeleteCompany} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded">
+                  <button onClick={() => setConfirmDelete({ type: 'company', id: companyId, name: company.name })} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -612,7 +618,7 @@ export default function CompanyDetailPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex justify-end gap-2">
-                          <button onClick={() => handleRemoveAssociation(ca.association.id)} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded">
+                          <button onClick={() => setConfirmDelete({ type: 'association', id: ca.association.id, name: ca.association.name })} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
@@ -982,6 +988,31 @@ export default function CompanyDetailPage() {
         onSuccess={loadCompany}
         editingCompany={company}
       />
+
+      <ConfirmationModal
+        isOpen={!!confirmDelete}
+        title={
+          confirmDelete?.type === 'company' ? '会社の削除' :
+            confirmDelete?.type === 'contact' ? '連絡先の削除' :
+              confirmDelete?.type === 'deal' ? '商談の削除' :
+                confirmDelete?.type === 'activity' ? '活動の削除' :
+                  confirmDelete?.type === 'association' ? '協会の削除' : '削除の確認'
+        }
+        message={`${confirmDelete?.name} を削除しますか？この操作は取り消せません。`}
+        onConfirm={() => {
+          if (!confirmDelete) return;
+          switch (confirmDelete.type) {
+            case 'company': handleDeleteCompany(); break;
+            case 'contact': handleDeleteContact(confirmDelete.id); break;
+            case 'deal': handleDeleteDeal(confirmDelete.id); break;
+            case 'activity': handleDeleteActivity(confirmDelete.id); break;
+            case 'association': handleRemoveAssociation(confirmDelete.id); break;
+          }
+        }}
+        onCancel={() => setConfirmDelete(null)}
+        variant="danger"
+      />
     </div>
+
   );
 }

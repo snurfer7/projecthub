@@ -122,11 +122,11 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
         assignedTo: { select: { id: true, firstName: true, lastName: true } },
         assignedToGroup: { select: { id: true, name: true } },
         comments: {
-          include: { user: { select: { id: true, firstName: true, lastName: true } } },
+          include: {
+            user: { select: { id: true, firstName: true, lastName: true } },
+            attachments: true,
+          },
           orderBy: { createdAt: 'asc' },
-        },
-        attachments: {
-          include: { author: { select: { id: true, firstName: true, lastName: true } } },
         },
         timeEntries: {
           include: { user: { select: { id: true, firstName: true, lastName: true } } },

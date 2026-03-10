@@ -128,7 +128,10 @@ router.get('/contacts/:id/comments', async (req: AuthRequest, res: Response) => 
   try {
     const comments = await prisma.contactComment.findMany({
       where: { contactId: Number(req.params.id) },
-      include: { user: { select: { id: true, firstName: true, lastName: true } } },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true } },
+        attachments: true,
+      },
       orderBy: { createdAt: 'asc' },
     });
     res.json(comments);

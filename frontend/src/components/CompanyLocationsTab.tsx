@@ -3,6 +3,8 @@ import api from '../api/client';
 import { Location } from '../types';
 import { Pencil, Trash2, MapPin, Phone } from 'lucide-react';
 import LocationModal from './LocationModal';
+import ConfirmationModal from './ConfirmationModal';
+
 
 interface CompanyLocationsTabProps {
     companyId: number;
@@ -15,6 +17,8 @@ export default function CompanyLocationsTab({ companyId, onUpdateCount }: Compan
     const [showModal, setShowModal] = useState(false);
     const [editingLocation, setEditingLocation] = useState<Location | null>(null);
     const [error, setError] = useState('');
+    const [confirmDelete, setConfirmDelete] = useState<{ id: number; name: string } | null>(null);
+
 
     const loadLocations = async () => {
         try {
@@ -44,9 +48,9 @@ export default function CompanyLocationsTab({ companyId, onUpdateCount }: Compan
     };
 
     const handleDelete = async (locationId: number) => {
-        if (!confirm('この拠点を削除しますか？')) return;
         try {
             await api.delete(`/companies/${companyId}/locations/${locationId}`);
+            setConfirmDelete(null);
             loadLocations();
             onUpdateCount();
         } catch (err: any) {
@@ -131,7 +135,7 @@ export default function CompanyLocationsTab({ companyId, onUpdateCount }: Compan
                                             <Pencil className="w-4 h-4" />
                                         </button>
                                         <button
-                                            onClick={() => handleDelete(location.id)}
+                                            onClick={() => setConfirmDelete({ id: location.id, name: location.name })}
                                             className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
                                             title="削除"
                                         >
@@ -158,6 +162,15 @@ export default function CompanyLocationsTab({ companyId, onUpdateCount }: Compan
                 onSubmit={handleSubmit}
                 editingLocation={editingLocation}
                 error={error}
+            />
+
+            <ConfirmationModal
+                isOpen={!!confirmDelete}
+                title="拠点の削除"
+                message={`拠点「${confirmDelete?.name}」を削除しますか？この操作は取り消せません。`}
+                onConfirm={() => confirmDelete && handleDelete(confirmDelete.id)}
+                onCancel={() => setConfirmDelete(null)}
+                variant="danger"
             />
         </div>
     );

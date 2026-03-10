@@ -13,7 +13,16 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     const projects = await prisma.project.findMany({
       include: {
         company: { select: { id: true, name: true } },
+        location: { select: { id: true, name: true } },
+        contact: { select: { id: true, firstName: true, lastName: true } },
         parent: { select: { id: true, name: true } },
+        relatedCompanies: {
+          include: {
+            company: { select: { id: true, name: true } },
+            location: { select: { id: true, name: true } },
+            contact: { select: { id: true, firstName: true, lastName: true } },
+          }
+        },
         members: {
           include: {
             user: { select: { id: true, firstName: true, lastName: true } },
@@ -48,7 +57,16 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
       where: { id: Number(req.params.id) },
       include: {
         company: { select: { id: true, name: true } },
+        location: { select: { id: true, name: true } },
+        contact: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
         parent: { select: { id: true, name: true } },
+        relatedCompanies: {
+          include: {
+            company: { select: { id: true, name: true } },
+            location: { select: { id: true, name: true } },
+            contact: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
+          }
+        },
         children: { select: { id: true, name: true, identifier: true, status: true } },
         members: {
           include: {
@@ -87,18 +105,15 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
 // Create project
 router.post('/', async (req: AuthRequest, res: Response) => {
   try {
-    const { name, identifier, description, companyId, parentId, dueDate } = req.body;
+    const { name, identifier, description, companyId, locationId, contactId, parentId, dueDate, remarks, relatedCompanies } = req.body;
 
-    if (!req.userId) {
-      res.status(401).json({ error: 'ユーザーが認証されていません' });
-      return;
+    if (!name || !identifier) {
+      return res.status(400).json({ error: 'プロジェクト名と識別子が必要です' });
     }
 
-    const managerRole = await prisma.role.findFirst({ where: { isDefaultRole: true } });
-    if (!managerRole) {
-      res.status(500).json({ error: 'プロジェクトの初期ロールが設定されていません。管理画面のロール設定で「プロジェクトの初期ロール」を有効にしてください。' });
-      return;
-    }
+    // Role for the creator
+    const managerRole = await prisma.role.findFirst({ where: { name: '管理者' } }) || await prisma.role.findFirst();
+    if (!managerRole) return res.status(500).json({ error: 'ロールが見つかりません' });
 
     const project = await prisma.project.create({
       data: {
@@ -106,11 +121,22 @@ router.post('/', async (req: AuthRequest, res: Response) => {
         identifier,
         description,
         companyId: companyId ? Number(companyId) : null,
+        locationId: locationId ? Number(locationId) : null,
+        contactId: contactId ? Number(contactId) : null,
         parentId: parentId ? Number(parentId) : null,
         dueDate: dueDate ? new Date(dueDate) : null,
+        remarks,
+        relatedCompanies: {
+          create: (relatedCompanies || []).map((rc: any) => ({
+            companyId: Number(rc.companyId),
+            locationId: rc.locationId ? Number(rc.locationId) : null,
+            contactId: rc.contactId ? Number(rc.contactId) : null,
+            remarks: rc.remarks
+          }))
+        },
         members: {
           create: {
-            userId: req.userId,
+            userId: req.userId!,
             roles: { create: { roleId: managerRole.id, sourceGroupId: null } }
           }
         },
@@ -125,11 +151,25 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 // Update project
 router.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const { name, description, status, companyId, parentId, dueDate } = req.body;
-    const data: any = { name, description, status };
+    const { name, description, status, companyId, locationId, contactId, parentId, dueDate, remarks, relatedCompanies } = req.body;
+    const data: any = { name, description, status, remarks };
     if (companyId !== undefined) data.companyId = companyId ? Number(companyId) : null;
+    if (locationId !== undefined) data.locationId = locationId ? Number(locationId) : null;
+    if (contactId !== undefined) data.contactId = contactId ? Number(contactId) : null;
     if (parentId !== undefined) data.parentId = parentId ? Number(parentId) : null;
     if (dueDate !== undefined) data.dueDate = dueDate ? new Date(dueDate) : null;
+
+    if (relatedCompanies !== undefined) {
+      data.relatedCompanies = {
+        deleteMany: {},
+        create: (relatedCompanies || []).map((rc: any) => ({
+          companyId: Number(rc.companyId),
+          locationId: rc.locationId ? Number(rc.locationId) : null,
+          contactId: rc.contactId ? Number(rc.contactId) : null,
+          remarks: rc.remarks
+        }))
+      };
+    }
     const project = await prisma.project.update({
       where: { id: Number(req.params.id) },
       data,
@@ -480,6 +520,7 @@ router.get('/:id/comments', async (req: AuthRequest, res: Response) => {
       where: { projectId: Number(req.params.id) },
       include: {
         user: { select: { id: true, firstName: true, lastName: true, email: true } },
+        attachments: true,
       },
       orderBy: { createdAt: 'desc' },
     });

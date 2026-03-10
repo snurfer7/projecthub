@@ -2,7 +2,7 @@ import { useState, useEffect, FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
 import { Issue, User, SystemSetting } from '../types';
-import { Pencil, Users, Trash2, X, Check } from 'lucide-react';
+import { Pencil, Users, Trash2, X, Check, Paperclip } from 'lucide-react';
 import { formatEstimatedHours } from '../utils/format';
 import MarkdownRenderer from './MarkdownRenderer';
 import MarkdownEditor from './MarkdownEditor';
@@ -25,6 +25,8 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
     const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
     const [editCommentContent, setEditCommentContent] = useState('');
     const [savingCommentId, setSavingCommentId] = useState<number | null>(null);
+    const [commentFiles, setCommentFiles] = useState<File[]>([]);
+    const [isDragging, setIsDragging] = useState(false);
 
     // Add relation state
     const [showAddRelation, setShowAddRelation] = useState(false);
@@ -66,8 +68,23 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
         if (!comment.trim()) return;
         setSubmitting(true);
         try {
-            await api.post(`/issues/${issueId}/comments`, { content: comment });
+            const res = await api.post(`/issues/${issueId}/comments`, { content: comment });
+
+            // If there are files, upload them and link to the comment
+            if (commentFiles.length > 0) {
+                await Promise.all(commentFiles.map(async (file) => {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('issueCommentId', String(res.data.id));
+                    formData.append('issueId', issueId); // For context
+                    return api.post('/attachments/upload', formData, {
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    });
+                }));
+            }
+
             setComment('');
+            setCommentFiles([]);
             load();
         } finally {
             setSubmitting(false);
@@ -146,6 +163,16 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
         });
     };
 
+    const handleDownload = async (attachmentId: number) => {
+        try {
+            const res = await api.post(`/attachments/token/${attachmentId}`);
+            const { token } = res.data;
+            window.open(`/api/attachments/file/${attachmentId}?downloadToken=${token}`, '_blank');
+        } catch (e) {
+            alert('ファイルの取得に失敗しました');
+        }
+    };
+
     const toggleAddRelation = async () => {
         if (!showAddRelation) {
             setIsFetchingIssues(true);
@@ -171,10 +198,44 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
         }
     };
 
-    if (!issue) return <div className="text-center py-12 text-gray-500">読み込み中...</div>;
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            setCommentFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]);
+        }
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+    };
+
+    if (!issue) return (
+        <div className="text-center py-12 text-gray-500">読み込み中...</div>
+    );
 
     return (
-        <div>
+        <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+        >
+            {isDragging && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-sky-500/10 pointer-events-none">
+                    <div className="bg-white px-6 py-4 rounded-xl shadow-xl border-2 border-dashed border-sky-400 animate-in fade-in zoom-in duration-150">
+                        <p className="text-sky-600 font-medium flex items-center gap-2">
+                            <Paperclip className="w-5 h-5" />
+                            ファイルをドロップして添付
+                        </p>
+                    </div>
+                </div>
+            )}
             <div className="bg-white rounded-lg shadow p-6 mb-6">
                 <div className="flex items-start justify-between mb-4">
                     <div>
@@ -245,18 +306,6 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                 </div>
             </div>
 
-            {/* Attachments */}
-            {issue.attachments && issue.attachments.length > 0 && (
-                <div className="bg-white rounded-lg shadow p-5 mb-6">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3">添付ファイル</h3>
-                    {issue.attachments.map((a) => (
-                        <div key={a.id} className="flex items-center gap-2 py-1">
-                            <a href={`/api/attachments/download/${a.id}`} className="text-sky-600 hover:underline text-sm">{a.filename}</a>
-                            <span className="text-xs text-gray-400">({(a.fileSize / 1024).toFixed(1)} KB)</span>
-                        </div>
-                    ))}
-                </div>
-            )}
 
             {/* Time entries */}
             {issue.timeEntries && issue.timeEntries.length > 0 && (
@@ -437,9 +486,26 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                                     </div>
                                 </div>
                             ) : (
-                                <div className="text-sm text-gray-700 prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2">
-                                    <MarkdownRenderer content={c.content} />
-                                </div>
+                                <>
+                                    <div className="text-sm text-gray-700 prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2">
+                                        <MarkdownRenderer content={c.content} />
+                                    </div>
+                                    {c.attachments && c.attachments.length > 0 && (
+                                        <div className="mt-2 space-y-1">
+                                            {c.attachments.map((a) => (
+                                                <div key={a.id} className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => handleDownload(a.id)}
+                                                        className="text-sky-600 hover:underline text-xs flex items-center gap-1"
+                                                    >
+                                                        <span className="bg-slate-50 px-1 rounded border border-slate-200 text-[10px]">FILE</span> {a.filename}
+                                                    </button>
+                                                    <span className="text-[10px] text-gray-400">({(a.fileSize / 1024).toFixed(1)} KB)</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
                     ))}
@@ -456,10 +522,48 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                         placeholder="コメントを追加... (Markdown対応)"
                         className="mb-3"
                     />
-                    <button type="submit" disabled={submitting || !comment.trim()}
-                        className="bg-sky-600 text-white px-4 py-1.5 rounded text-sm hover:bg-sky-700 disabled:opacity-50">
-                        コメント
-                    </button>
+                    <div className="space-y-3">
+                        {commentFiles.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mb-2">
+                                {commentFiles.map((file, idx) => (
+                                    <div key={idx} className="flex items-center gap-1.5 bg-slate-100 text-slate-700 px-2 py-1 rounded border border-slate-200 text-xs">
+                                        <span className="truncate max-w-[150px]">{file.name}</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setCommentFiles(prev => prev.filter((_, i) => i !== idx))}
+                                            className="text-slate-400 hover:text-red-500 transition-colors"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                            <div className="flex items-center gap-2">
+                                <label className="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 px-3 py-1.5 rounded border border-slate-200 text-xs cursor-pointer transition-colors">
+                                    <Paperclip className="w-3.5 h-3.5" />
+                                    ファイルを添付
+                                    <input
+                                        type="file"
+                                        className="sr-only"
+                                        multiple
+                                        onChange={(e) => {
+                                            const files = Array.from(e.target.files || []);
+                                            if (files.length > 0) {
+                                                setCommentFiles(prev => [...prev, ...files]);
+                                            }
+                                            e.target.value = ''; // Reset to allow same file selection
+                                        }}
+                                    />
+                                </label>
+                            </div>
+                            <button type="submit" disabled={submitting || !comment.trim()}
+                                className="w-full sm:w-auto bg-sky-600 text-white px-6 py-1.5 rounded text-sm font-medium hover:bg-sky-700 disabled:opacity-50 transition-colors">
+                                {submitting ? '投稿中...' : 'コメント'}
+                            </button>
+                        </div>
+                    </div>
                 </form>
             </div>
 

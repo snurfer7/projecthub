@@ -3,6 +3,8 @@ import api from '../api/client';
 import { Association } from '../types';
 import { Pencil, Trash2 } from 'lucide-react';
 import Modal from '../components/Modal';
+import ConfirmationModal from '../components/ConfirmationModal';
+
 
 export default function AssociationsPage() {
     const [associations, setAssociations] = useState<Association[]>([]);
@@ -18,6 +20,7 @@ export default function AssociationsPage() {
     const [website, setWebsite] = useState('');
     const [notes, setNotes] = useState('');
     const [error, setError] = useState('');
+    const [confirmDelete, setConfirmDelete] = useState<{ id: number; name: string } | null>(null);
 
     const loadAssociations = () => {
         api.get('/admin/associations').then((res) => setAssociations(res.data)).catch(console.error);
@@ -82,9 +85,9 @@ export default function AssociationsPage() {
     };
 
     const handleDelete = async (id: number) => {
-        if (!confirm('この協会を削除しますか？')) return;
         try {
             await api.delete(`/admin/associations/${id}`);
+            setConfirmDelete(null);
             loadAssociations();
         } catch (err: any) {
             alert(`削除に失敗しました: ${err.response?.data?.error || err.message}`);
@@ -136,7 +139,7 @@ export default function AssociationsPage() {
                                         <button onClick={() => openEdit(a)} title="編集" className="p-1.5 text-sky-600 hover:bg-sky-50 rounded">
                                             <Pencil className="w-4 h-4" />
                                         </button>
-                                        <button onClick={() => handleDelete(a.id)} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded">
+                                        <button onClick={() => setConfirmDelete({ id: a.id, name: a.name })} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded">
                                             <Trash2 className="w-4 h-4" />
                                         </button>
                                     </div>
@@ -251,6 +254,15 @@ export default function AssociationsPage() {
                     </form>
                 </Modal>
             )}
+
+            <ConfirmationModal
+                isOpen={!!confirmDelete}
+                title="協会の削除"
+                message={`協会「${confirmDelete?.name}」を削除しますか？この操作は取り消せません。`}
+                onConfirm={() => confirmDelete && handleDelete(confirmDelete.id)}
+                onCancel={() => setConfirmDelete(null)}
+                variant="danger"
+            />
         </div>
     );
 }
