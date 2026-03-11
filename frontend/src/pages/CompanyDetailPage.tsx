@@ -13,6 +13,7 @@ import ConfirmationModal from '../components/ConfirmationModal';
 import Combobox from '../components/Combobox';
 import TextInput from '../components/TextInput';
 import NumberInput from '../components/NumberInput';
+import CustomDatePicker from '../components/CustomDatePicker';
 
 
 
@@ -84,6 +85,7 @@ export default function CompanyDetailPage() {
   // Activities
   const [activities, setActivities] = useState<Activity[]>([]);
   const [showActivityModal, setShowActivityModal] = useState(false);
+  const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [activityForm, setActivityForm] = useState({ type: 'call', subject: '', description: '', contactId: '', dealId: '', dueDate: '', completed: false });
   const [activityError, setActivityError] = useState('');
 
@@ -237,7 +239,23 @@ export default function CompanyDetailPage() {
 
   // ========== Activity handlers ==========
   const openCreateActivity = () => {
+    setEditingActivity(null);
     setActivityForm({ type: 'call', subject: '', description: '', contactId: '', dealId: '', dueDate: '', completed: false });
+    setActivityError('');
+    setShowActivityModal(true);
+  };
+
+  const openEditActivity = (a: Activity) => {
+    setEditingActivity(a);
+    setActivityForm({
+      type: a.type,
+      subject: a.subject,
+      description: a.description || '',
+      contactId: a.contactId?.toString() || '',
+      dealId: a.dealId?.toString() || '',
+      dueDate: a.dueDate?.split('T')[0] || '',
+      completed: a.completed,
+    });
     setActivityError('');
     setShowActivityModal(true);
   };
@@ -254,7 +272,11 @@ export default function CompanyDetailPage() {
         dueDate: activityForm.dueDate || null,
         completed: activityForm.completed,
       };
-      await api.post('/crm/activities', data);
+      if (editingActivity) {
+        await api.put(`/crm/activities/${editingActivity.id}`, data);
+      } else {
+        await api.post('/crm/activities', data);
+      }
       setShowActivityModal(false);
       loadActivities();
     } catch (err: any) {
@@ -515,6 +537,9 @@ export default function CompanyDetailPage() {
                       className={`w-5 h-5 rounded border flex items-center justify-center text-xs ${a.completed ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-sky-500'}`}>
                       {a.completed && '✓'}
                     </button>
+                    <button onClick={() => openEditActivity(a)} title="編集" className="p-1.5 text-sky-600 hover:bg-sky-50 rounded">
+                      <Pencil className="w-4 h-4" />
+                    </button>
                     <button onClick={() => setConfirmDelete({ type: 'activity', id: a.id, name: a.subject })} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded">
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -699,12 +724,12 @@ export default function CompanyDetailPage() {
         title={editingContact ? '連絡先編集' : '連絡先登録'}
       >
         {contactError && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{contactError}</div>}
-        <form onSubmit={handleSubmitContact}>
-          <div className="grid grid-cols-2 gap-4 mb-4">
+        <form onSubmit={handleSubmitContact} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4 mb-0">
             <TextInput label="姓 *" required value={contactForm.lastName} onChange={(e) => setContactForm({ ...contactForm, lastName: e.target.value })} />
             <TextInput label="名 *" required value={contactForm.firstName} onChange={(e) => setContactForm({ ...contactForm, firstName: e.target.value })} />
           </div>
-          <div className="mb-4">
+          <div className="mb-0">
             <div className="flex justify-between items-center mb-2">
               <label className="block text-sm font-medium text-gray-700">連絡先詳細 (複数設定可)</label>
               <button type="button" onClick={() => setContactDetails([...contactDetails, { department: '', position: '', phone: '', email: '', locationId: '', isPrimary: false }])}
@@ -713,7 +738,7 @@ export default function CompanyDetailPage() {
             <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
               {contactDetails.map((detail, index) => (
                 <div key={index} className="border rounded-md p-3 bg-gray-50 relative">
-                  <div className="grid grid-cols-2 gap-2 mb-2">
+                  <div className="grid grid-cols-2 gap-4 mb-4">
                     <div className="col-span-2">
                       <Combobox
                         label="拠点"
@@ -780,8 +805,8 @@ export default function CompanyDetailPage() {
               ))}
             </div>
           </div>
-          <TextInput isMultiline label="備考" value={contactForm.notes} onChange={(e) => setContactForm({ ...contactForm, notes: e.target.value })} rows={2} className="mb-4" />
-          <div className="flex justify-end gap-2">
+          <TextInput isMultiline label="備考" value={contactForm.notes} onChange={(e) => setContactForm({ ...contactForm, notes: e.target.value })} rows={2} className="mb-0" />
+          <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setShowContactModal(false)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm">キャンセル</button>
             <button type="submit" className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">{editingContact ? '更新' : '作成'}</button>
           </div>
@@ -795,9 +820,9 @@ export default function CompanyDetailPage() {
         title={editingDeal ? '商談編集' : '商談登録'}
       >
         {dealError && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{dealError}</div>}
-        <form onSubmit={handleSubmitDeal}>
-          <TextInput label="商談名 *" required value={dealForm.name} onChange={(e) => setDealForm({ ...dealForm, name: e.target.value })} className="mb-4" />
-          <div className="grid grid-cols-2 gap-4 mb-4">
+        <form onSubmit={handleSubmitDeal} className="space-y-4">
+          <TextInput label="商談名 *" required value={dealForm.name} onChange={(e) => setDealForm({ ...dealForm, name: e.target.value })} className="mb-0" />
+          <div className="grid grid-cols-2 gap-4 mb-0">
             <NumberInput
               label="金額"
               value={dealForm.amount}
@@ -814,21 +839,24 @@ export default function CompanyDetailPage() {
               endAdornment="%"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-2 gap-4 mb-0">
             <Combobox
               label="ステータス"
               value={dealForm.status}
               options={DEAL_STATUSES.map(s => ({ value: s.value, label: s.label }))}
               onChange={(val) => setDealForm({ ...dealForm, status: val })}
-              className="mb-4"
+              className="mb-0"
             />
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">予定クローズ日</label>
-              <input type="date" value={dealForm.expectedCloseDate} onChange={(e) => setDealForm({ ...dealForm, expectedCloseDate: e.target.value })}
-                className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+              <CustomDatePicker
+                label="予定クローズ日"
+                id="expected-close-date"
+                value={dealForm.expectedCloseDate}
+                onChange={(val) => setDealForm({ ...dealForm, expectedCloseDate: val })}
+              />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-2 gap-4 mb-0">
             <Combobox
               label="連絡先"
               value={dealForm.contactId}
@@ -842,8 +870,8 @@ export default function CompanyDetailPage() {
               onChange={(val) => setDealForm({ ...dealForm, assignedToId: val })}
             />
           </div>
-          <TextInput isMultiline label="備考" value={dealForm.notes} onChange={(e) => setDealForm({ ...dealForm, notes: e.target.value })} rows={2} className="mb-4" />
-          <div className="flex justify-end gap-2">
+          <TextInput isMultiline label="備考" value={dealForm.notes} onChange={(e) => setDealForm({ ...dealForm, notes: e.target.value })} rows={2} className="mb-0" />
+          <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setShowDealModal(false)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm">キャンセル</button>
             <button type="submit" className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">{editingDeal ? '更新' : '作成'}</button>
           </div>
@@ -854,10 +882,11 @@ export default function CompanyDetailPage() {
       <Modal
         isOpen={showActivityModal}
         onClose={() => setShowActivityModal(false)}
-        title="活動登録"
+        title={editingActivity ? '活動履歴編集' : '活動履歴登録'}
       >
-        <form onSubmit={handleSubmitActivity}>
-          <div className="grid grid-cols-2 gap-4 mb-4">
+        {activityError && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{activityError}</div>}
+        <form onSubmit={handleSubmitActivity} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4 mb-0">
             <Combobox
               label="種類"
               value={activityForm.type}
@@ -865,14 +894,17 @@ export default function CompanyDetailPage() {
               onChange={(val) => setActivityForm({ ...activityForm, type: val })}
             />
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">期限日</label>
-              <input type="date" value={activityForm.dueDate} onChange={(e) => setActivityForm({ ...activityForm, dueDate: e.target.value })}
-                className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+              <CustomDatePicker
+                label="期限日"
+                id="activity-due-date"
+                value={activityForm.dueDate}
+                onChange={(val) => setActivityForm({ ...activityForm, dueDate: val })}
+              />
             </div>
           </div>
-          <TextInput label="件名 *" required value={activityForm.subject} onChange={(e) => setActivityForm({ ...activityForm, subject: e.target.value })} className="mb-4" />
-          <TextInput isMultiline label="詳細" value={activityForm.description} onChange={(e) => setActivityForm({ ...activityForm, description: e.target.value })} rows={3} className="mb-4" />
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <TextInput label="件名 *" required value={activityForm.subject} onChange={(e) => setActivityForm({ ...activityForm, subject: e.target.value })} className="mb-0" />
+          <TextInput isMultiline label="詳細" value={activityForm.description} onChange={(e) => setActivityForm({ ...activityForm, description: e.target.value })} rows={3} className="mb-0" />
+          <div className="grid grid-cols-2 gap-4 mb-0">
             <Combobox
               label="連絡先"
               value={activityForm.contactId}
@@ -886,9 +918,19 @@ export default function CompanyDetailPage() {
               onChange={(val) => setActivityForm({ ...activityForm, dealId: val })}
             />
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="activity-completed"
+              checked={activityForm.completed}
+              onChange={(e) => setActivityForm({ ...activityForm, completed: e.target.checked })}
+              className="rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+            />
+            <label htmlFor="activity-completed" className="text-sm font-medium text-gray-700">完了としてマーク</label>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setShowActivityModal(false)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm">キャンセル</button>
-            <button type="submit" className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">作成</button>
+            <button type="submit" className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">{editingActivity ? '更新' : '登録'}</button>
           </div>
         </form>
       </Modal>
@@ -898,13 +940,14 @@ export default function CompanyDetailPage() {
         onClose={() => setShowAddAssociationModal(false)}
         title="協会を割り当て"
       >
-        <Combobox
-          label="協会"
-          value={newAssociationId}
-          options={masterAssociations.filter((ma) => !assignedAssociations.some((aa) => aa.association.id === ma.id)).map((a) => ({ value: a.id.toString(), label: a.name }))}
-          onChange={(val) => setNewAssociationId(val)}
-        />
-        <div className="flex justify-end gap-2">
+        <div className="space-y-4">
+          <Combobox
+            label="協会"
+            value={newAssociationId}
+            options={masterAssociations.filter((ma) => !assignedAssociations.some((aa) => aa.association.id === ma.id)).map((a) => ({ value: a.id.toString(), label: a.name }))}
+            onChange={(val) => setNewAssociationId(val)}
+          />
+          <div className="flex justify-end gap-2 pt-2">
           <button
             type="button"
             onClick={() => {
@@ -930,7 +973,8 @@ export default function CompanyDetailPage() {
             追加
           </button>
         </div>
-      </Modal>
+      </div>
+    </Modal>
 
       <CompanyModal
         isOpen={showCompanyModal}

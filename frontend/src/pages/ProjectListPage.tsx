@@ -10,6 +10,7 @@ import IssueDetail from '../components/IssueDetail';
 import IssueForm from '../components/IssueForm';
 import Combobox from '../components/Combobox';
 import TextInput from '../components/TextInput';
+import CustomDatePicker from '../components/CustomDatePicker';
 import { useAuth } from '../hooks/useAuth';
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -225,7 +226,7 @@ export default function ProjectListPage() {
       }
       if (listFilterCompanyIds.length > 0 && (!p.companyId || !listFilterCompanyIds.some(id => String(id) === String(p.companyId)))) return false;
       if (p.dueDate) {
-        const due = p.dueDate.slice(0, 7); // "YYYY-MM"
+        const due = p.dueDate.slice(0, 10);
         if (listFilterStartMonth && due < listFilterStartMonth) return false;
         if (listFilterEndMonth && due > listFilterEndMonth) return false;
       }
@@ -239,7 +240,7 @@ export default function ProjectListPage() {
       if (kanbanFilterStatusId && issue.statusId !== kanbanFilterStatusId) return false;
       if (kanbanFilterAssignedToId && issue.assignedToId !== kanbanFilterAssignedToId) return false;
       if (issue.dueDate) {
-        const due = issue.dueDate.slice(0, 7);
+        const due = issue.dueDate.slice(0, 10);
         if (kanbanFilterStartMonth && due < kanbanFilterStartMonth) return false;
         if (kanbanFilterEndMonth && due > kanbanFilterEndMonth) return false;
       }
@@ -311,20 +312,22 @@ export default function ProjectListPage() {
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500">期間:</span>
               <div className="flex items-center gap-1">
-                <TextInput
-                  type="month"
+                <CustomDatePicker
                   value={listFilterStartMonth}
-                  onChange={(e) => setListFilterStartMonth(e.target.value)}
+                  onChange={setListFilterStartMonth}
                   size="small"
                   showFloatingLabel={false}
+                  placeholder="開始"
+                  className="w-32"
                 />
                 <span className="text-gray-400 text-xs">〜</span>
-                <TextInput
-                  type="month"
+                <CustomDatePicker
                   value={listFilterEndMonth}
-                  onChange={(e) => setListFilterEndMonth(e.target.value)}
+                  onChange={setListFilterEndMonth}
                   size="small"
                   showFloatingLabel={false}
+                  placeholder="終了"
+                  className="w-32"
                 />
               </div>
             </div>
@@ -353,20 +356,22 @@ export default function ProjectListPage() {
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500">期間:</span>
               <div className="flex items-center gap-1">
-                <TextInput
-                  type="month"
+                <CustomDatePicker
                   value={kanbanFilterStartMonth}
-                  onChange={(e) => setKanbanFilterStartMonth(e.target.value)}
+                  onChange={setListFilterStartMonth}
                   size="small"
                   showFloatingLabel={false}
+                  placeholder="開始"
+                  className="w-32"
                 />
                 <span className="text-gray-400 text-xs">〜</span>
-                <TextInput
-                  type="month"
+                <CustomDatePicker
                   value={kanbanFilterEndMonth}
-                  onChange={(e) => setKanbanFilterEndMonth(e.target.value)}
+                  onChange={setListFilterEndMonth}
                   size="small"
                   showFloatingLabel={false}
+                  placeholder="終了"
+                  className="w-32"
                 />
               </div>
             </div>
@@ -538,11 +543,11 @@ export default function ProjectListPage() {
             </div>
           </div>
           <div className="mb-4">
-            <TextInput
+            <CustomDatePicker
               label="期限日"
-              type="date"
+              id="project-due-date"
               value={projectDueDate}
-              onChange={(e) => setProjectDueDate(e.target.value)}
+              onChange={setProjectDueDate}
             />
           </div>
           <div className="mb-4">

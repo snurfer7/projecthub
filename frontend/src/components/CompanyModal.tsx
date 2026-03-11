@@ -15,6 +15,7 @@ interface CompanyModalProps {
 export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompany }: CompanyModalProps) {
     const [companyName, setCompanyName] = useState('');
     const [legalEntityStatusId, setLegalEntityStatusId] = useState<number | string>('');
+    const [legalEntityPosition, setLegalEntityPosition] = useState<number | string>('');
     const [availableStatuses, setAvailableStatuses] = useState<LegalEntityStatus[]>([]);
     const [companyPostalCode, setCompanyPostalCode] = useState('');
     const [companyPrefecture, setCompanyPrefecture] = useState('');
@@ -37,6 +38,7 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
             if (editingCompany) {
                 setCompanyName(editingCompany.name);
                 setLegalEntityStatusId(editingCompany.legalEntityStatusId || '');
+                setLegalEntityPosition(editingCompany.legalEntityPosition || '');
                 setCompanyPostalCode(editingCompany.postalCode || '');
                 setCompanyPrefecture(editingCompany.prefecture || '');
                 setCompanyCity(editingCompany.city || '');
@@ -48,6 +50,7 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
             } else {
                 setCompanyName('');
                 setLegalEntityStatusId('');
+                setLegalEntityPosition('');
                 setCompanyPostalCode('');
                 setCompanyPrefecture('');
                 setCompanyCity('');
@@ -68,6 +71,7 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
             const data = {
                 name: companyName,
                 legalEntityStatusId: legalEntityStatusId || null,
+                legalEntityPosition: legalEntityPosition || null,
                 postalCode: companyPostalCode || null,
                 prefecture: companyPrefecture || null,
                 city: companyCity || null,
@@ -96,23 +100,42 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
             title={editingCompany ? '企業情報編集' : '企業登録'}
         >
             {companyError && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{companyError}</div>}
-            <form onSubmit={handleSubmit}>
-                <div className="grid grid-cols-2 gap-4 mb-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
                     <TextInput
                         label="企業名 *"
                         value={companyName}
                         onChange={(e) => setCompanyName(e.target.value)}
                         required
                     />
-                    <Combobox
-                        label="法人格"
-                        options={availableStatuses.map(s => ({ value: String(s.id), label: s.name }))}
-
-                        value={legalEntityStatusId}
-                        onChange={setLegalEntityStatusId}
-                    />
+                    <div className="grid grid-cols-2 gap-2">
+                        <Combobox
+                            label="法人格"
+                            options={availableStatuses.map(s => ({ value: String(s.id), label: s.name }))}
+                            value={legalEntityStatusId}
+                            onChange={(val) => {
+                                setLegalEntityStatusId(val);
+                                if (!val) {
+                                    setLegalEntityPosition('');
+                                } else if (!legalEntityStatusId) {
+                                    // Only set default "前" if we are transitioning from unselected to selected
+                                    setLegalEntityPosition('前');
+                                }
+                            }}
+                        />
+                        <Combobox
+                            label="法人格前後"
+                            options={[
+                                { value: '前', label: '前' },
+                                { value: '後', label: '後' },
+                            ]}
+                            value={legalEntityPosition}
+                            onChange={setLegalEntityPosition}
+                            disabled={!legalEntityStatusId}
+                        />
+                    </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="grid grid-cols-2 gap-6">
                     <TextInput
                         label="郵便番号"
                         value={companyPostalCode}
@@ -126,7 +149,7 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
                         placeholder="東京都"
                     />
                 </div>
-                <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="grid grid-cols-2 gap-6">
                     <TextInput
                         label="市区町村"
                         value={companyCity}
@@ -146,7 +169,7 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
                     onChange={(e) => setCompanyBuilding(e.target.value)}
                 />
 
-                <div className="grid grid-cols-2 gap-4 mb-4 mt-4">
+                <div className="grid grid-cols-2 gap-6">
                     <TextInput
                         label="電話番号"
                         value={companyPhone}
@@ -167,7 +190,7 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
                     rows={2}
                 />
 
-                <div className="flex justify-end gap-3">
+                <div className="flex justify-end gap-2 mt-6">
                     <button type="button" onClick={onClose}
                         className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">キャンセル</button>
                     <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors">

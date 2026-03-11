@@ -10,6 +10,7 @@ import MarkdownRenderer from './MarkdownRenderer';
 import { useAuth } from '../hooks/useAuth';
 import { formatEstimatedHours } from '../utils/format';
 import Combobox from './Combobox';
+import CustomDatePicker from './CustomDatePicker';
 
 interface GanttChartProps {
   issues: Issue[];
@@ -394,16 +395,16 @@ export default function GanttChart({ issues, projects = [], showProject, onUpdat
 
     if (zoom === 'day') {
       // 日表示: 当月～5ヶ月後
-      setStartValue(formatMonth(currentYear, currentMonth));
-      setEndValue(formatMonth(currentYear, currentMonth + 5));
+      setStartValue(new Date(currentYear, currentMonth, 1).toISOString().slice(0, 10));
+      setEndValue(new Date(currentYear, currentMonth + 6, 0).toISOString().slice(0, 10));
     } else if (zoom === 'month') {
       // 月表示: 当月～11ヶ月後
-      setStartValue(formatMonth(currentYear, currentMonth));
-      setEndValue(formatMonth(currentYear, currentMonth + 11));
+      setStartValue(new Date(currentYear, currentMonth, 1).toISOString().slice(0, 10));
+      setEndValue(new Date(currentYear, currentMonth + 12, 0).toISOString().slice(0, 10));
     } else if (zoom === 'year') {
       // 年表示: 当年～4年後
-      setStartValue(String(currentYear));
-      setEndValue(String(currentYear + 4));
+      setStartValue(`${currentYear}-01-01`);
+      setEndValue(`${currentYear + 4}-12-31`);
     }
   }, [zoom]);
 
@@ -436,14 +437,24 @@ export default function GanttChart({ issues, projects = [], showProject, onUpdat
     let start: Date;
     let end: Date;
 
-    if (zoom === 'year') {
+    if (zoom === 'year' && startValue.length === 4) {
       start = new Date(Number(startValue), 0, 1);
       end = new Date(Number(endValue), 11, 31);
     } else {
-      const [sy, sm] = startValue.split('-').map(Number);
-      const [ey, em] = endValue.split('-').map(Number);
-      start = new Date(sy, sm - 1, 1);
-      end = new Date(ey, em, 0); // 指定月の末日
+      const startParts = startValue.split('-').map(Number);
+      const endParts = endValue.split('-').map(Number);
+      
+      if (startParts.length === 3) {
+        start = new Date(startParts[0], startParts[1] - 1, startParts[2]);
+      } else {
+        start = new Date(startParts[0], startParts[1] - 1, 1);
+      }
+      
+      if (endParts.length === 3) {
+        end = new Date(endParts[0], endParts[1] - 1, endParts[2]);
+      } else {
+        end = new Date(endParts[0], endParts[1], 0);
+      }
     }
 
     const total = Math.max(daysBetween(start, end) + 1, 1);
@@ -1097,11 +1108,23 @@ export default function GanttChart({ issues, projects = [], showProject, onUpdat
             </div>
           ) : (
             <div className="flex items-center gap-1">
-              <input type="month" value={startValue} onChange={(e) => setStartValue(e.target.value)}
-                className="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500" />
+              <CustomDatePicker
+                value={startValue}
+                onChange={setStartValue}
+                size="small"
+                showFloatingLabel={false}
+                placeholder="開始"
+                className="w-32"
+              />
               <span className="text-gray-400">〜</span>
-              <input type="month" value={endValue} onChange={(e) => setEndValue(e.target.value)}
-                className="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500" />
+              <CustomDatePicker
+                value={endValue}
+                onChange={setEndValue}
+                size="small"
+                showFloatingLabel={false}
+                placeholder="終了"
+                className="w-32"
+              />
             </div>
           )}
         </div>

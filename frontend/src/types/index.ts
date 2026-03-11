@@ -27,6 +27,7 @@ export interface Company {
   notes?: string;
   legalEntityStatusId?: number;
   legalEntityStatus?: LegalEntityStatus;
+  legalEntityPosition?: string;
   createdAt: string;
   _count?: { projects: number; comments: number; wikiPages: number; locations: number };
   projects?: { id: number; name: string; identifier: string; status: string }[];

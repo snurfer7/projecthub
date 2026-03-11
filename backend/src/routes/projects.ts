@@ -194,7 +194,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
 router.post('/:id/members', async (req: AuthRequest, res: Response) => {
   try {
     const projectId = Number(req.params.id);
-    const { userId, roleIds } = req.body; // roleIds should be an array
+    const { userId, roleIds } = req.body;
 
     if (!Array.isArray(roleIds) || roleIds.length === 0) {
       res.status(400).json({ error: 'ロールを指定してください' });
@@ -206,14 +206,27 @@ router.post('/:id/members', async (req: AuthRequest, res: Response) => {
     });
 
     if (member) {
-      // Add individual roles to existing member
-      await prisma.projectMemberRole.createMany({
-        data: roleIds.map((id: number) => ({
-          projectMemberId: member.id,
-          roleId: Number(id),
-          sourceGroupId: null
-        }))
+      await prisma.$transaction(async (tx: any) => {
+        const existingRoles = await tx.projectMemberRole.findMany({
+          where: { projectMemberId: member.id, sourceGroupId: null },
+          select: { roleId: true }
+        });
+        const existingRoleIds = new Set(existingRoles.map((r: any) => r.roleId));
+
+        for (const rId of roleIds) {
+          const numericRoleId = Number(rId);
+          if (!existingRoleIds.has(numericRoleId)) {
+            await tx.projectMemberRole.create({
+              data: {
+                projectMemberId: member.id,
+                roleId: numericRoleId,
+                sourceGroupId: null
+              }
+            });
+          }
+        }
       });
+
       const updated = await prisma.projectMember.findUnique({
         where: { id: member.id },
         include: { user: { select: { id: true, firstName: true, lastName: true, email: true } }, roles: { include: { role: true } } },
@@ -227,14 +240,15 @@ router.post('/:id/members', async (req: AuthRequest, res: Response) => {
         projectId,
         userId: Number(userId),
         roles: {
-          create: roleIds.map((id: number) => ({ roleId: Number(id), sourceGroupId: null }))
+          create: roleIds.map((id: any) => ({ roleId: Number(id), sourceGroupId: null }))
         }
       },
       include: { user: { select: { id: true, firstName: true, lastName: true, email: true } }, roles: { include: { role: true } } },
     });
     res.status(201).json(newMember);
-  } catch (e) {
-    res.status(500).json({ error: 'メンバーの追加に失敗しました' });
+  } catch (e: any) {
+    console.error('Add member error:', e);
+    res.status(500).json({ error: 'メンバーの追加に失敗しました', details: e.message });
   }
 });
 
@@ -266,21 +280,20 @@ router.put('/:id/members/:memberId', async (req: AuthRequest, res: Response) => 
         });
       }
 
-      // If no roles left at all (including group roles), do NOT delete the member
-      // This allows re-assigning roles later via the UI
-      // const rolesCount = await tx.projectMemberRole.count({
-      //   where: { projectMemberId: memberId }
-      // });
-      // if (rolesCount === 0) {
-      //   await tx.projectMember.delete({ where: { id: memberId } });
-      // }
+      // If no roles left at all (including group roles), delete the member
+      const rolesCount = await tx.projectMemberRole.count({
+        where: { projectMemberId: memberId }
+      });
+      if (rolesCount === 0) {
+        await tx.projectMember.delete({ where: { id: memberId } });
+      }
     });
 
     const member = await prisma.projectMember.findUnique({
       where: { id: memberId },
       include: { user: { select: { id: true, firstName: true, lastName: true, email: true } }, roles: { include: { role: true } } },
     });
-    res.json(member || { message: 'メンバーを削除しました' });
+    res.json(member || { message: 'メンバーを削除しました', deleted: true });
   } catch (e) {
     res.status(500).json({ error: 'ロールの更新に失敗しました' });
   }
@@ -294,14 +307,13 @@ router.delete('/:id/members/:memberId', async (req: AuthRequest, res: Response) 
       await tx.projectMemberRole.deleteMany({
         where: { projectMemberId: memberId, sourceGroupId: null }
       });
-      // Do not delete member even if all individual roles are removed.
-      // This keeps the user in the project member list with "No roles".
-      // const rolesCount = await tx.projectMemberRole.count({
-      //   where: { projectMemberId: memberId }
-      // });
-      // if (rolesCount === 0) {
-      //   await tx.projectMember.delete({ where: { id: memberId } });
-      // }
+      // If no roles left at all (including group roles), delete the member
+      const rolesCount = await tx.projectMemberRole.count({
+        where: { projectMemberId: memberId }
+      });
+      if (rolesCount === 0) {
+        await tx.projectMember.delete({ where: { id: memberId } });
+      }
     });
     res.json({ message: '個別ロールを削除しました' });
   } catch (e) {
@@ -344,7 +356,7 @@ router.get('/:id/groups', async (req: AuthRequest, res: Response) => {
 router.post('/:id/groups', async (req: AuthRequest, res: Response) => {
   try {
     const projectId = Number(req.params.id);
-    const { groupId, roleIds } = req.body; // roleIds should be an array
+    const { groupId, roleIds } = req.body;
 
     if (!groupId || !Array.isArray(roleIds) || roleIds.length === 0) {
       res.status(400).json({ error: 'groupId と roleIds は必須です' });
@@ -375,19 +387,21 @@ router.post('/:id/groups', async (req: AuthRequest, res: Response) => {
           });
         }
         // Add only roles the member doesn't already have
-        const existingRoleIds = new Set(
-          (await tx.projectMemberRole.findMany({
-            where: { projectMemberId: member.id },
-            select: { roleId: true }
-          })).map((r: any) => r.roleId)
-        );
+        const existingRoles = await tx.projectMemberRole.findMany({
+          where: { projectMemberId: member.id },
+          select: { roleId: true, sourceGroupId: true }
+        });
+        
+        const existingRoleIds = new Set(existingRoles.map((r: any) => r.roleId));
+        
         for (const rId of roleIds) {
-          if (!existingRoleIds.has(Number(rId))) {
+          const numericRoleId = Number(rId);
+          if (!existingRoleIds.has(numericRoleId)) {
             await tx.projectMemberRole.create({
               data: {
                 projectMemberId: member.id,
-                roleId: Number(rId),
-                sourceGroupId: Number(groupId) // Correctly set sourceGroupId
+                roleId: numericRoleId,
+                sourceGroupId: Number(groupId)
               }
             });
           }
@@ -409,11 +423,12 @@ router.post('/:id/groups', async (req: AuthRequest, res: Response) => {
     });
     res.status(201).json(pg);
   } catch (e: any) {
+    console.error('Assign group error:', e);
     if (e.code === 'P2002') {
       res.status(400).json({ error: 'このグループは既に割り当てられています' });
       return;
     }
-    res.status(500).json({ error: 'グループの追加に失敗しました' });
+    res.status(500).json({ error: 'グループの追加に失敗しました', details: e.message });
   }
 });
 
@@ -564,17 +579,42 @@ router.post('/:id/comments', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Delete project comment
-router.delete('/:id/comments/:commentId', async (req: AuthRequest, res: Response) => {
+// Update project comment
+router.put('/:id/comments/:commentId', async (req: AuthRequest, res: Response) => {
   try {
     const commentId = Number(req.params.commentId);
-    await (prisma as any).projectComment.delete({
+    const { content } = req.body;
+
+    const existing = await (prisma as any).projectComment.findUnique({
       where: { id: commentId },
     });
-    res.json({ message: 'コメントを削除しました' });
+
+    if (!existing) {
+      res.status(404).json({ error: 'コメントが見つかりません' });
+      return;
+    }
+
+    if (existing.userId !== req.userId) {
+      const user = await prisma.user.findUnique({ where: { id: req.userId! } });
+      if (!user?.isAdmin) {
+        res.status(403).json({ error: '編集権限がありません' });
+        return;
+      }
+    }
+
+    const comment = await (prisma as any).projectComment.update({
+      where: { id: commentId },
+      data: { content: content.trim() },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, email: true } },
+      },
+    });
+    res.json(comment);
   } catch (e) {
-    res.status(500).json({ error: 'コメントの削除に失敗しました' });
+    res.status(500).json({ error: 'コメントの更新に失敗しました' });
   }
 });
+
+// Delete project comment
 
 export default router;

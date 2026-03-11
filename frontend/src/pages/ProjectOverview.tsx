@@ -106,7 +106,7 @@ export default function ProjectOverview() {
         if (selectedPrincipals.size === 0 || selectedRoleIds.size === 0) return;
         setAddError('');
         setAddLoading(true);
-        const roleIds = Array.from(selectedRoleIds);
+        const roleIds = Array.from(selectedRoleIds).map(Number);
         try {
             for (const key of selectedPrincipals) {
                 const [type, id] = key.split(':');
@@ -294,15 +294,29 @@ export default function ProjectOverview() {
                                             return (
                                                 <Fragment key={`g-${pg.groupId}`}>
                                                     {/* Group header row */}
-                                                    <tr className="bg-indigo-50/40 border-b border-indigo-100/60">
+                                                    <tr className="bg-indigo-50/40 border-b border-indigo-100/60 transition-colors hover:bg-indigo-50/60">
                                                         <td className="px-4 py-2.5" colSpan={2}>
-                                                            <div className="flex items-center gap-2">
+                                                            <div className="flex items-center gap-3">
                                                                 <button type="button" onClick={() => toggleGroup(pg.groupId)} className="p-0.5 rounded hover:bg-indigo-100 text-indigo-400 transition-colors">
                                                                     <ChevronRight className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                                                                 </button>
-                                                                <Users className="w-4 h-4 text-indigo-500" />
-                                                                <span className="font-semibold text-slate-700 text-sm">{pg.group.name}</span>
-                                                                <span className="text-xs text-gray-400">({groupMembers.length}名)</span>
+                                                                <div className="flex items-center gap-2">
+                                                                    <Users className="w-4 h-4 text-indigo-500" />
+                                                                    <span className="font-bold text-slate-800 text-sm whitespace-nowrap">{pg.group.name}</span>
+                                                                    <span className="text-xs text-indigo-400 font-medium">({groupMembers.length})</span>
+                                                                </div>
+                                                                {/* Display group roles in header */}
+                                                                <div className="flex flex-wrap gap-1 ml-4 py-1">
+                                                                    {(() => {
+                                                                        const anyMember = (project.members || []).find(m => m.roles.some(r => r.sourceGroupId === pg.groupId));
+                                                                        const gRoles = anyMember?.roles.filter(r => r.sourceGroupId === pg.groupId) || [];
+                                                                        return gRoles.map(gr => (
+                                                                            <span key={gr.id} className="inline-block px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[10px] font-bold border border-indigo-200 uppercase tracking-tighter">
+                                                                                {gr.role.name}
+                                                                            </span>
+                                                                        ));
+                                                                    })()}
+                                                                </div>
                                                             </div>
                                                         </td>
                                                         <td className="px-4 py-2.5 text-right">
@@ -346,12 +360,26 @@ export default function ProjectOverview() {
                                                                         </div>
                                                                     ) : (
                                                                         <div className="flex flex-wrap gap-1 items-center">
+                                                                            {/* Individual roles */}
                                                                             {indivRoles.map(pr => (
-                                                                                <span key={pr.id} className="inline-block px-2 py-0.5 bg-sky-50 text-sky-700 rounded text-xs border border-sky-100 cursor-pointer hover:bg-sky-100" onClick={() => startEdit(mKey, indivRoleIds)}>
+                                                                                <span key={pr.id} className="inline-block px-2 py-0.5 bg-sky-50 text-sky-700 rounded text-xs border border-sky-100 cursor-pointer hover:bg-sky-100 transition-colors" onClick={() => startEdit(mKey, indivRoleIds)}>
                                                                                     {pr.role.name}
                                                                                 </span>
                                                                             ))}
-                                                                            {indivRoles.length === 0 && (
+                                                                            {/* Group-inherited roles */}
+                                                                            {(() => {
+                                                                                const groupRoles = pm?.roles.filter(r => r.sourceGroupId !== null) || [];
+                                                                                return groupRoles.map(pr => {
+                                                                                    const groupInfo = (project.groups || []).find(pgInfo => pgInfo.groupId === pr.sourceGroupId);
+                                                                                    const gName = groupInfo?.group.name || 'Group';
+                                                                                    return (
+                                                                                        <span key={pr.id} className="inline-block px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded text-xs border border-indigo-100 opacity-80" title={`グループ「${gName}」より継承`}>
+                                                                                            {pr.role.name}
+                                                                                        </span>
+                                                                                    );
+                                                                                });
+                                                                            })()}
+                                                                            {(!pm || pm.roles.length === 0) && (
                                                                                 <span className="text-gray-300 italic text-xs cursor-pointer" onClick={() => startEdit(mKey, [])}>ロールなし</span>
                                                                             )}
                                                                             <button onClick={() => startEdit(mKey, indivRoleIds)} className="p-0.5 text-gray-400 hover:text-sky-600 rounded bg-gray-50 border border-gray-100 self-center" title="ロールを編集">
@@ -412,9 +440,10 @@ export default function ProjectOverview() {
                                                                 ))}
                                                                 {/* Group-inherited roles */}
                                                                 {groupRoles.map(pr => {
-                                                                    const gName = (project.groups || []).find(pg => pg.groupId === pr.sourceGroupId)?.group.name || 'Group';
+                                                                    const groupInfo = (project.groups || []).find(pg => pg.groupId === pr.sourceGroupId);
+                                                                    const gName = groupInfo?.group.name || 'Group';
                                                                     return (
-                                                                        <span key={pr.id} className="inline-block px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs border border-gray-200 opacity-70" title={`グループ「${gName}」より継承`}>
+                                                                        <span key={pr.id} className="inline-block px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded text-xs border border-indigo-100 opacity-80" title={`グループ「${gName}」より継承`}>
                                                                             {pr.role.name}
                                                                         </span>
                                                                     );

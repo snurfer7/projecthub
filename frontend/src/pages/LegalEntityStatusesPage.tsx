@@ -4,6 +4,7 @@ import { LegalEntityStatus } from '../types';
 import { Pencil, Trash2, GripVertical } from 'lucide-react';
 import Modal from '../components/Modal';
 import ConfirmationModal from '../components/ConfirmationModal';
+import TextInput from '../components/TextInput';
 
 export default function LegalEntityStatusesPage() {
     const [statuses, setStatuses] = useState<LegalEntityStatus[]>([]);
@@ -117,18 +118,14 @@ export default function LegalEntityStatusesPage() {
                 <Modal isOpen={showModal} title={editingId ? '法人格を編集' : '新規法人格'} onClose={closeModal}>
                     <form onSubmit={handleSubmit} className="space-y-4">
                         {error && <div className="p-3 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">法人格名 *</label>
-                            <input
-                                type="text"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                required
-                                autoFocus
-                                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                                placeholder="例: 株式会社"
-                            />
-                        </div>
+                        <TextInput
+                            label="法人格名"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            required
+                            autoFocus
+                            placeholder="例: 株式会社"
+                        />
                         <div className="flex justify-end gap-3 pt-2">
                             <button type="button" onClick={closeModal} className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">
                                 キャンセル

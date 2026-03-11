@@ -156,6 +156,36 @@ router.post('/contacts/:id/comments', async (req: AuthRequest, res: Response) =>
   }
 });
 
+router.put('/contacts/:id/comments/:commentId', async (req: AuthRequest, res: Response) => {
+  try {
+    const commentId = Number(req.params.commentId);
+    const { content } = req.body;
+
+    const existing = await prisma.contactComment.findUnique({
+      where: { id: commentId },
+    });
+
+    if (!existing) {
+      res.status(404).json({ error: 'コメントが見つかりません' });
+      return;
+    }
+
+    if (existing.userId !== req.userId && !req.isAdmin) {
+      res.status(403).json({ error: '編集権限がありません' });
+      return;
+    }
+
+    const comment = await prisma.contactComment.update({
+      where: { id: commentId },
+      data: { content },
+      include: { user: { select: { id: true, firstName: true, lastName: true } } },
+    });
+    res.json(comment);
+  } catch {
+    res.status(500).json({ error: 'コメントの更新に失敗しました' });
+  }
+});
+
 router.delete('/contacts/:id/comments/:commentId', async (req: AuthRequest, res: Response) => {
   try {
     const comment = await prisma.contactComment.findUnique({

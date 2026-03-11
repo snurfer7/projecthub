@@ -1,11 +1,13 @@
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect, FormEvent, useRef } from 'react';
 import api from '../api/client';
 import { Issue, IssueMetaOptions, SystemSetting } from '../types';
 import MarkdownEditor from './MarkdownEditor';
 import AnalogTimePicker from './AnalogTimePicker';
+import CustomTimePicker from './CustomTimePicker';
 import Combobox from './Combobox';
 import TextInput from './TextInput';
 import NumberInput from './NumberInput';
+import CustomDatePicker from './CustomDatePicker';
 import { formatEstimatedHours } from '../utils/format';
 
 function toLocalDatetimeString(dateString?: string | null) {
@@ -158,7 +160,7 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
         <div>
             {error && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{error}</div>}
 
-            <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6">
+            <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-4">
                 <TextInput
                     label="題名 *"
                     value={subject}
@@ -203,25 +205,25 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="relative">
-                            <div className="flex gap-2 border rounded-md px-3 pt-5 pb-2">
-                                <input type="date" value={startDate ? startDate.slice(0, 10) : ''} onChange={(e) => {
-                                    const d = e.target.value;
+                        <div className="grid grid-cols-[1fr_100px] gap-2">
+                            <CustomDatePicker
+                                label="開始日"
+                                id="start-date"
+                                value={startDate ? startDate.slice(0, 10) : ''}
+                                onChange={(val) => {
                                     const t = startDate ? startDate.slice(11, 16) : systemStartTime;
-                                    setStartDate(d ? `${d}T${t}` : '');
-                                }} className="flex-1 bg-transparent focus:outline-none min-w-0" />
-                                <div className="w-24">
-                                    <AnalogTimePicker
-                                        value={startDate ? startDate.slice(11, 16) : systemStartTime}
-                                        onChange={(val) => {
-                                            const d = startDate ? startDate.slice(0, 10) : new Date().toISOString().slice(0, 10);
-                                            setStartDate(`${d}T${val}`);
-                                        }}
-                                        disabled={!startDate}
-                                    />
-                                </div>
-                            </div>
-                            <label className="absolute left-3 top-1.5 text-xs text-gray-500 pointer-events-none">開始日時</label>
+                                    setStartDate(val ? `${val}T${t}` : '');
+                                }}
+                            />
+                            <CustomTimePicker
+                                label="開始時刻"
+                                value={startDate ? startDate.slice(11, 16) : systemStartTime}
+                                onChange={(val) => {
+                                    const d = startDate ? startDate.slice(0, 10) : new Date().toISOString().slice(0, 10);
+                                    setStartDate(`${d}T${val}`);
+                                }}
+                                disabled={!startDate}
+                            />
                         </div>
                         <NumberInput
                             label={`予定工数${totalDayConversion > 0 && estimatedHours ? ` (${formatEstimatedHours(Number(estimatedHours), totalDayConversion)})` : ''}`}
@@ -234,11 +236,11 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                        <TextInput
+                        <CustomDatePicker
                             label="期日"
-                            type="date"
+                            id="due-date"
                             value={dueDate}
-                            onChange={(e) => setDueDate(e.target.value)}
+                            onChange={(val) => setDueDate(val)}
                         />
                         <Combobox
                             label="進捗率 (%)"
@@ -249,7 +251,7 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
                     </div>
                 </div>
 
-                <div className="flex justify-end gap-3">
+                <div className="flex justify-end gap-2 mt-6">
                     <button type="button" onClick={onCancel}
                         className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">キャンセル</button>
                     <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors">

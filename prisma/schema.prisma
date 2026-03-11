@@ -76,6 +76,7 @@ model Company {
   postalCode                 String?                 @map("postal_code")
   prefecture                 String?
   street                     String?
+  legalEntityPosition String?                 @map("legal_entity_position")
   activities                 Activity[]
   associations               CompanyAssociation[]
   comments                   CompanyComment[]
@@ -337,6 +338,7 @@ model IssueComment {
   userId      Int          @map("user_id")
   content     String
   createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime?    @updatedAt @map("updated_at")
   attachments Attachment[]
   issue       Issue        @relation(fields: [issueId], references: [id], onDelete: Cascade)
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -511,6 +513,7 @@ model ProjectComment {
   userId      Int          @map("user_id")
   content     String
   createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime?    @updatedAt @map("updated_at")
   attachments Attachment[]
   project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -524,6 +527,7 @@ model CompanyComment {
   userId      Int          @map("user_id")
   content     String
   createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime?    @updatedAt @map("updated_at")
   attachments Attachment[]
   company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -537,6 +541,7 @@ model ContactComment {
   userId      Int          @map("user_id")
   content     String
   createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime?    @updatedAt @map("updated_at")
   attachments Attachment[]
   contact     Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)

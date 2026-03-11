@@ -61,14 +61,14 @@ export default function LocationModal({ isOpen, onClose, onSubmit, editingLocati
             title={editingLocation ? '拠点編集' : '拠点登録'}
         >
             {error && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{error}</div>}
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} className="space-y-4">
                 <TextInput
                     label="拠点名 *"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     required
                 />
-                <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="grid grid-cols-2 gap-4">
                     <TextInput
                         label="郵便番号"
                         value={formData.postalCode}
@@ -81,7 +81,7 @@ export default function LocationModal({ isOpen, onClose, onSubmit, editingLocati
                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     />
                 </div>
-                <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="grid grid-cols-2 gap-4">
                     <TextInput
                         label="都道府県"
                         value={formData.prefecture}
@@ -110,7 +110,7 @@ export default function LocationModal({ isOpen, onClose, onSubmit, editingLocati
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     rows={3}
                 />
-                <div className="flex justify-end gap-2">
+                <div className="flex justify-end gap-2 mt-6">
                     <button
                         type="button"
                         onClick={onClose}

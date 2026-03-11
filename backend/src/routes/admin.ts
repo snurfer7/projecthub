@@ -550,9 +550,21 @@ router.get('/companies/:id', async (req: AuthRequest, res: Response) => {
 
 router.post('/companies', async (req: AuthRequest, res: Response) => {
   try {
-    const { name, legalEntityStatusId, postalCode, prefecture, city, street, building, phone, website, notes } = req.body;
+    const { name, legalEntityStatusId, legalEntityPosition, postalCode, prefecture, city, street, building, phone, website, notes } = req.body;
     const company = await prisma.company.create({
-      data: { name, legalEntityStatusId: legalEntityStatusId ? Number(legalEntityStatusId) : null, postalCode, prefecture, city, street, building, phone, website, notes },
+      data: {
+        name,
+        legalEntityStatusId: legalEntityStatusId ? Number(legalEntityStatusId) : null,
+        legalEntityPosition,
+        postalCode,
+        prefecture,
+        city,
+        street,
+        building,
+        phone,
+        website,
+        notes
+      },
     });
     res.status(201).json(company);
   } catch (e) {
@@ -562,12 +574,24 @@ router.post('/companies', async (req: AuthRequest, res: Response) => {
 
 router.put('/companies/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const { name, legalEntityStatusId, postalCode, prefecture, city, street, building, phone, website, notes } = req.body;
+    const { name, legalEntityStatusId, legalEntityPosition, postalCode, prefecture, city, street, building, phone, website, notes } = req.body;
     const companyId = Number(req.params.id);
 
     const company = await prisma.company.update({
       where: { id: companyId },
-      data: { name, legalEntityStatusId: legalEntityStatusId ? Number(legalEntityStatusId) : null, postalCode, prefecture, city, street, building, phone, website, notes },
+      data: {
+        name,
+        legalEntityStatusId: legalEntityStatusId ? Number(legalEntityStatusId) : null,
+        legalEntityPosition,
+        postalCode,
+        prefecture,
+        city,
+        street,
+        building,
+        phone,
+        website,
+        notes
+      },
     });
     res.json(company);
   } catch (e) {

@@ -98,20 +98,64 @@ export default function Layout({ user, onLogout, children }: Props) {
   const isActive = (path: string) => location.pathname.startsWith(path);
 
   return (
-    <div className="h-screen bg-gray-50 flex overflow-hidden">
+    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
+      {/* Header */}
+      <header className="bg-slate-800 text-white shadow z-50 h-14 flex items-center shrink-0">
+        <div className="w-full px-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={toggleSidebar}
+              className="p-2 hover:bg-slate-700 rounded-md transition-colors focus:outline-none"
+              aria-label="Toggle Side Menu"
+            >
+              <Menu size={24} />
+            </button>
+            <Link to="/home" className="text-xl font-bold tracking-tight hover:text-slate-300">
+              ProjectHub
+            </Link>
+            {/* ヘッダーナビゲーション（ユーザー設定に基づく） */}
+            <nav className="hidden md:flex items-center gap-1">
+              {headerNavItems.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`
+                    flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
+                    ${isActive(item.path)
+                      ? 'bg-slate-600 text-white'
+                      : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                    }
+                  `}
+                >
+                  <item.icon size={15} />
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+          </div>
+          <div className="flex items-center gap-4">
+            <Link
+              to="/settings"
+              className="text-sm text-slate-300 hidden sm:block hover:text-white transition-colors"
+            >
+              {user.lastName} {user.firstName}
+            </Link>
+          </div>
+        </div>
+      </header>
 
       <div className="flex flex-1 relative overflow-hidden">
         {/* Mobile/Desktop Sidebar Overlay */}
         {isSidebarOpen && (
           <div
-            className="fixed inset-0 bg-black/50 z-40 transition-opacity"
+            className="fixed inset-0 top-14 bg-black/50 z-40 transition-opacity"
             onClick={toggleSidebar}
           />
         )}
 
         <aside
           className={`
-            fixed inset-y-0 left-0 z-50
+            fixed top-14 bottom-0 left-0 z-40
             w-64 bg-white border-r border-gray-200
             transform transition-transform duration-300 ease-in-out
             ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -210,51 +254,6 @@ export default function Layout({ user, onLogout, children }: Props) {
 
         {/* Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Header */}
-          <header className="bg-slate-800 text-white shadow z-30 h-14 flex items-center shrink-0">
-            <div className="w-full px-4 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={toggleSidebar}
-                  className="p-2 hover:bg-slate-700 rounded-md transition-colors focus:outline-none"
-                  aria-label="Toggle Side Menu"
-                >
-                  <Menu size={24} />
-                </button>
-                <Link to="/home" className="text-xl font-bold tracking-tight hover:text-slate-300">
-                  ProjectHub
-                </Link>
-                {/* ヘッダーナビゲーション（ユーザー設定に基づく） */}
-                <nav className="hidden md:flex items-center gap-1">
-                  {headerNavItems.map((item) => (
-                    <Link
-                      key={item.path}
-                      to={item.path}
-                      className={`
-                        flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
-                        ${isActive(item.path)
-                          ? 'bg-slate-600 text-white'
-                          : 'text-slate-300 hover:bg-slate-700 hover:text-white'
-                        }
-                      `}
-                    >
-                      <item.icon size={15} />
-                      {item.label}
-                    </Link>
-                  ))}
-                </nav>
-              </div>
-              <div className="flex items-center gap-4">
-                <Link
-                  to="/settings"
-                  className="text-sm text-slate-300 hidden sm:block hover:text-white transition-colors"
-                >
-                  {user.lastName} {user.firstName}
-                </Link>
-              </div>
-            </div>
-          </header>
-
           {/* Main Content */}
           <main className="flex-1 overflow-y-auto w-full bg-gray-50">
             <div className="max-w-full mx-auto px-4 py-6">

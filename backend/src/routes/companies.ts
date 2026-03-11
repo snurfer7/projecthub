@@ -143,37 +143,42 @@ router.post('/:companyId/comments', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Delete a comment
-router.delete('/:companyId/comments/:commentId', async (req: AuthRequest, res: Response) => {
+// Update a comment
+router.put('/:companyId/comments/:commentId', async (req: AuthRequest, res: Response) => {
   try {
     const commentId = Number(req.params.commentId);
+    const { content } = req.body;
 
-    // Authorization check - only author or admin
-    const comment = await prisma.companyComment.findUnique({
+    const existing = await prisma.companyComment.findUnique({
       where: { id: commentId },
     });
 
-    if (!comment) {
+    if (!existing) {
       return res.status(404).json({ error: 'コメントが見つかりません' });
     }
 
-    if (comment.userId !== req.userId) {
-      // Allow admins to delete any comment
+    if (existing.userId !== req.userId) {
       const user = await prisma.user.findUnique({ where: { id: req.userId! } });
       if (!user?.isAdmin) {
-        return res.status(403).json({ error: 'コメントを削除する権限がありません' });
+        return res.status(403).json({ error: '編集権限がありません' });
       }
     }
 
-    await prisma.companyComment.delete({
+    const comment = await prisma.companyComment.update({
       where: { id: commentId },
+      data: { content },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true } },
+      },
     });
 
-    res.json({ message: 'コメントを削除しました' });
+    res.json(comment);
   } catch (e) {
-    res.status(500).json({ error: 'コメントの削除に失敗しました' });
+    res.status(500).json({ error: 'コメントの更新に失敗しました' });
   }
 });
+
+// Delete a comment
 
 // ==========================================
 // Wiki Pages

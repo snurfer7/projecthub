@@ -5,6 +5,7 @@ import { Project, Company, ProjectRelatedCompany } from '../types';
 import Modal from './Modal';
 import Combobox from './Combobox';
 import TextInput from './TextInput';
+import CustomDatePicker from './CustomDatePicker';
 
 interface ProjectSettingsModalProps {
     projectId: number;
@@ -158,11 +159,11 @@ export default function ProjectSettingsModal({ projectId, isOpen, onClose, onUpd
                             onChange={setParentId}
                         />
 
-                        <TextInput
+                        <CustomDatePicker
                             label="期限日"
-                            type="date"
+                            id="project-due-date"
                             value={dueDate}
-                            onChange={(e) => setDueDate(e.target.value)}
+                            onChange={setDueDate}
                         />
 
                         <TextInput
@@ -174,7 +175,7 @@ export default function ProjectSettingsModal({ projectId, isOpen, onClose, onUpd
                         />
                     </div>
 
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2 mt-8">企業</h3>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2 mt-10">企業</h3>
                     <div className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <Combobox
@@ -211,8 +212,8 @@ export default function ProjectSettingsModal({ projectId, isOpen, onClose, onUpd
                         />
                     </div>
 
-                    <div className="mt-8 mb-6 border-t pt-6">
-                        <div className="flex justify-between items-center mb-4">
+                    <div className="mt-10 mb-6 border-t pt-6">
+                        <div className="flex justify-between items-center mb-6">
                             <h3 className="text-lg font-semibold text-gray-800">関連企業</h3>
                             <button type="button" onClick={handleAddRelatedCompany}
                                 className="flex items-center gap-1 text-sm font-medium text-sky-600 hover:text-sky-700 py-1 px-2 rounded hover:bg-sky-50 transition-colors">
@@ -235,7 +236,7 @@ export default function ProjectSettingsModal({ projectId, isOpen, onClose, onUpd
                                         <div key={index} className="p-3 bg-white hover:bg-gray-50/50 transition-colors">
                                             <div className="flex flex-col gap-2">
                                                 <div className="flex items-start gap-4">
-                                                    <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                    <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
                                                         <Combobox
                                                             label="企業"
                                                             options={companies.map((c) => ({ value: String(c.id), label: c.name }))}
@@ -268,6 +269,7 @@ export default function ProjectSettingsModal({ projectId, isOpen, onClose, onUpd
                                                 <TextInput
                                                     label="備考"
                                                     isMultiline
+                                                    className="mt-4"
                                                     value={rc.remarks || ''}
                                                     onChange={(e) => updateRelatedCompany(index, 'remarks', e.target.value)}
                                                     rows={2}
@@ -280,7 +282,7 @@ export default function ProjectSettingsModal({ projectId, isOpen, onClose, onUpd
                         )}
                     </div>
 
-                    <div className="flex justify-end gap-3">
+                    <div className="flex justify-end gap-2 mt-6 border-t pt-6">
                         <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
                             キャンセル
                         </button>

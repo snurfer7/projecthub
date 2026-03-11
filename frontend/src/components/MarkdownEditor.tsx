@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import MarkdownRenderer from './MarkdownRenderer';
 
 interface MarkdownEditorProps {
@@ -7,6 +7,7 @@ interface MarkdownEditorProps {
     rows?: number;
     placeholder?: string;
     className?: string;
+    autoFocus?: boolean;
 }
 
 const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
@@ -15,9 +16,16 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
     rows = 10,
     placeholder = '',
     className = '',
+    autoFocus = false,
 }) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
+
+    useEffect(() => {
+        if (autoFocus && activeTab === 'edit' && textareaRef.current) {
+            textareaRef.current.focus();
+        }
+    }, [autoFocus, activeTab]);
 
     const insertText = (before: string, after: string = '') => {
         const textarea = textareaRef.current;

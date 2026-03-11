@@ -5,6 +5,7 @@ import { User, Tracker, IssueStatus, IssuePriority, Group, Role, SystemSetting }
 import { Pencil, Trash2, GripVertical, Clock, Plus } from 'lucide-react';
 import Modal from '../components/Modal';
 import AnalogTimePicker from '../components/AnalogTimePicker';
+import CustomTimePicker from '../components/CustomTimePicker';
 import ConfirmationModal from '../components/ConfirmationModal';
 import TextInput from '../components/TextInput';
 import Combobox from '../components/Combobox';
@@ -729,7 +730,7 @@ export default function AdminPage({ user }: Props) {
                 {/* 開始時刻 */}
                 <div className="mb-1">
                   <label className="block text-xs font-semibold text-sky-600 mb-1">開始時刻</label>
-                  <AnalogTimePicker value={startTime} onChange={v => setStartTime(v)} />
+                  <CustomTimePicker value={startTime} onChange={v => setStartTime(v)} showFloatingLabel={false} size="small" />
                 </div>
 
                 {/* 換算時間[0] */}
@@ -753,9 +754,11 @@ export default function AdminPage({ user }: Props) {
                     <div className="mb-1 group flex items-start gap-2">
                       <div className="flex-1 min-w-0">
                         <label className="block text-xs font-semibold text-amber-600 mb-1">管理時刻</label>
-                        <AnalogTimePicker
+                        <CustomTimePicker
                           value={time}
                           onChange={v => handleUpdateManagementTime(index, v)}
+                          showFloatingLabel={false}
+                          size="small"
                         />
                       </div>
                       <button
@@ -787,7 +790,7 @@ export default function AdminPage({ user }: Props) {
                 {/* 終了時刻 */}
                 <div className="mt-1">
                   <label className="block text-xs font-semibold text-rose-600 mb-1">終了時刻</label>
-                  <AnalogTimePicker value={endTime} onChange={v => setEndTime(v)} />
+                  <CustomTimePicker value={endTime} onChange={v => setEndTime(v)} showFloatingLabel={false} size="small" />
                 </div>
               </div>
             </div>

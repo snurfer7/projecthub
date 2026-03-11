@@ -4,6 +4,7 @@ import { Association } from '../types';
 import { Pencil, Trash2 } from 'lucide-react';
 import Modal from '../components/Modal';
 import ConfirmationModal from '../components/ConfirmationModal';
+import TextInput from '../components/TextInput';
 
 
 export default function AssociationsPage() {
@@ -157,92 +158,59 @@ export default function AssociationsPage() {
                 <Modal isOpen={showModal} title={editingId ? '協会を編集' : '新規協会'} onClose={closeModal}>
                     <form onSubmit={handleSubmit} className="space-y-4">
                         {error && <div className="p-3 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">協会名 *</label>
-                            <input
-                                type="text"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                required
-                                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                            />
-                        </div>
+                        <TextInput
+                            label="協会名"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            required
+                        />
                         <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">郵便番号</label>
-                                <input
-                                    type="text"
-                                    value={postalCode}
-                                    onChange={(e) => setPostalCode(e.target.value)}
-                                    placeholder="000-0000"
-                                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">都道府県</label>
-                                <input
-                                    type="text"
-                                    value={prefecture}
-                                    onChange={(e) => setPrefecture(e.target.value)}
-                                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                                />
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">市区町村</label>
-                            <input
-                                type="text"
-                                value={city}
-                                onChange={(e) => setCity(e.target.value)}
-                                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                            <TextInput
+                                label="郵便番号"
+                                value={postalCode}
+                                onChange={(e) => setPostalCode(e.target.value)}
+                                placeholder="000-0000"
+                            />
+                            <TextInput
+                                label="都道府県"
+                                value={prefecture}
+                                onChange={(e) => setPrefecture(e.target.value)}
                             />
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">番地</label>
-                            <input
-                                type="text"
-                                value={street}
-                                onChange={(e) => setStreet(e.target.value)}
-                                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">建物名</label>
-                            <input
-                                type="text"
-                                value={building}
-                                onChange={(e) => setBuilding(e.target.value)}
-                                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">電話番号</label>
-                            <input
-                                type="text"
-                                value={phone}
-                                onChange={(e) => setPhone(e.target.value)}
-                                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">ウェブサイト</label>
-                            <input
-                                type="url"
-                                value={website}
-                                onChange={(e) => setWebsite(e.target.value)}
-                                placeholder="https://"
-                                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">備考</label>
-                            <textarea
-                                value={notes}
-                                onChange={(e) => setNotes(e.target.value)}
-                                rows={3}
-                                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                            />
-                        </div>
+                        <TextInput
+                            label="市区町村"
+                            value={city}
+                            onChange={(e) => setCity(e.target.value)}
+                        />
+                        <TextInput
+                            label="番地"
+                            value={street}
+                            onChange={(e) => setStreet(e.target.value)}
+                        />
+                        <TextInput
+                            label="建物名"
+                            value={building}
+                            onChange={(e) => setBuilding(e.target.value)}
+                        />
+                        <TextInput
+                            label="電話番号"
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                        />
+                        <TextInput
+                            label="ウェブサイト"
+                            type="url"
+                            value={website}
+                            onChange={(e) => setWebsite(e.target.value)}
+                            placeholder="https://"
+                        />
+                        <TextInput
+                            label="備考"
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            isMultiline
+                            rows={3}
+                        />
                         <div className="flex justify-end gap-3 pt-2">
                             <button type="button" onClick={closeModal} className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">
                                 キャンセル

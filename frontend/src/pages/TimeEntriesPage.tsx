@@ -1,10 +1,13 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { Pencil, Trash2 } from 'lucide-react';
 import api from '../api/client';
 import { TimeEntry, Issue } from '../types';
 import Combobox from '../components/Combobox';
 import NumberInput from '../components/NumberInput';
 import TextInput from '../components/TextInput';
+import CustomDatePicker from '../components/CustomDatePicker';
+import Modal from '../components/Modal';
 
 export default function TimeEntriesPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -16,6 +19,7 @@ export default function TimeEntriesPage() {
   const [activity, setActivity] = useState('開発');
   const [spentOn, setSpentOn] = useState(new Date().toISOString().split('T')[0]);
   const [comments, setComments] = useState('');
+  const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
 
   const load = () => {
     api.get('/time-entries', { params: { projectId } }).then((res) => setEntries(res.data));
@@ -26,19 +30,53 @@ export default function TimeEntriesPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    await api.post('/time-entries', {
+    const data = {
       projectId: Number(projectId),
       issueId: issueId ? Number(issueId) : null,
       hours: Number(hours),
       activity,
       spentOn,
       comments,
-    });
+    };
+
+    if (editingEntryId) {
+      await api.put(`/time-entries/${editingEntryId}`, data);
+    } else {
+      await api.post('/time-entries', data);
+    }
+
+    handleCloseForm();
+    load();
+  };
+
+  const handleEdit = (entry: TimeEntry) => {
+    setEditingEntryId(entry.id);
+    setIssueId(entry.issueId ? String(entry.issueId) : '');
+    setHours(String(entry.hours));
+    setActivity(entry.activity);
+    setSpentOn(entry.spentOn.split('T')[0]);
+    setComments(entry.comments || '');
+    setShowForm(true);
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('この時間記録を削除しますか？')) return;
+    try {
+      await api.delete(`/time-entries/${id}`);
+      load();
+    } catch (e) {
+      alert('削除に失敗しました');
+    }
+  };
+
+  const handleCloseForm = () => {
     setShowForm(false);
+    setEditingEntryId(null);
     setHours('');
     setComments('');
     setIssueId('');
-    load();
+    setActivity('開発');
+    setSpentOn(new Date().toISOString().split('T')[0]);
   };
 
   const totalHours = entries.reduce((sum, e) => sum + e.hours, 0);
@@ -50,72 +88,86 @@ export default function TimeEntriesPage() {
           <h1 className="text-2xl font-bold text-slate-800">時間記録</h1>
           <p className="text-sm text-gray-500 mt-1">合計: {totalHours.toFixed(1)} 時間</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)}
+        <button onClick={() => setShowForm(true)}
           className="bg-sky-600 text-white px-4 py-2 rounded-md text-sm hover:bg-sky-700">記録を追加</button>
       </div>
 
-      {showForm && (
-        <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-5 mb-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+      <Modal
+        isOpen={showForm}
+        onClose={handleCloseForm}
+        title={editingEntryId ? "時間記録の編集" : "時間記録の追加"}
+        size="md"
+      >
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Combobox
+                  label="チケット"
+                  options={issues.map((i) => ({ value: String(i.id), label: `#${i.id} ${i.subject}` }))}
+                  value={issueId}
+                  onChange={setIssueId}
+                  size="medium"
+                />
+              </div>
+              <div>
+                <NumberInput
+                  label="時間 *"
+                  value={hours}
+                  onChange={(e) => setHours(e.target.value)}
+                  required
+                  step="0.25"
+                  min="0.25"
+                  endAdornment="時間"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Combobox
+                  label="活動"
+                  options={[
+                    { value: '開発', label: '開発' },
+                    { value: '設計', label: '設計' },
+                    { value: 'レビュー', label: 'レビュー' },
+                    { value: 'テスト', label: 'テスト' },
+                    { value: 'ドキュメント', label: 'ドキュメント' },
+                    { value: 'その他', label: 'その他' },
+                  ]}
+                  value={activity}
+                  onChange={setActivity}
+                  size="medium"
+                />
+              </div>
+              <div>
+                <CustomDatePicker
+                  label="日付"
+                  value={spentOn}
+                  onChange={setSpentOn}
+                  required
+                />
+              </div>
+            </div>
             <div>
-              <Combobox
-                label="チケット"
-                options={issues.map((i) => ({ value: String(i.id), label: `#${i.id} ${i.subject}` }))}
-                value={issueId}
-                onChange={setIssueId}
+              <TextInput
+                label="コメント"
+                value={comments}
+                onChange={(e) => setComments(e.target.value)}
                 size="medium"
               />
             </div>
-            <div>
-              <NumberInput
-                label="時間 *"
-                value={hours}
-                onChange={(e) => setHours(e.target.value)}
-                required
-                step="0.25"
-                min="0.25"
-                endAdornment="時間"
-              />
-            </div>
-            <div>
-              <Combobox
-                label="活動"
-                options={[
-                  { value: '開発', label: '開発' },
-                  { value: '設計', label: '設計' },
-                  { value: 'レビュー', label: 'レビュー' },
-                  { value: 'テスト', label: 'テスト' },
-                  { value: 'ドキュメント', label: 'ドキュメント' },
-                  { value: 'その他', label: 'その他' },
-                ]}
-                value={activity}
-                onChange={setActivity}
-                size="medium"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">日付 *</label>
-              <input type="date" value={spentOn} onChange={(e) => setSpentOn(e.target.value)} required
-                className="w-full border rounded px-2 py-1.5 text-sm" />
-            </div>
           </div>
-          <div className="mb-4">
-            <TextInput
-              label="コメント"
-              value={comments}
-              onChange={(e) => setComments(e.target.value)}
-              size="medium"
-            />
-          </div>
-          <div className="flex gap-2">
-            <button type="submit" className="bg-sky-600 text-white px-4 py-1.5 rounded text-sm hover:bg-sky-700">追加</button>
-            <button type="button" onClick={() => setShowForm(false)}
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={handleCloseForm}
               className="bg-gray-200 text-gray-700 px-4 py-1.5 rounded text-sm hover:bg-gray-300">キャンセル</button>
+            <button type="submit" className="bg-sky-600 text-white px-4 py-1.5 rounded text-sm hover:bg-sky-700">
+              {editingEntryId ? '更新' : '追加'}
+            </button>
           </div>
         </form>
-      )}
+      </Modal>
 
-      <div className="bg-white rounded-lg shadow">
+      <div className="bg-white rounded-lg shadow overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
@@ -125,23 +177,40 @@ export default function TimeEntriesPage() {
               <th className="text-left px-4 py-3 font-medium text-gray-600">活動</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">時間</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">コメント</th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">アクション</th>
             </tr>
           </thead>
           <tbody>
             {entries.map((entry) => (
               <tr key={entry.id} className="border-t hover:bg-gray-50">
-                <td className="px-4 py-3">{entry.spentOn.split('T')[0]}</td>
+                <td className="px-4 py-3 whitespace-nowrap text-gray-600">{entry.spentOn.split('T')[0]}</td>
                 <td className="px-4 py-3">
                   {entry.issue ? (
-                    <Link to={`/issues/${entry.issue.id}`} className="text-sky-600 hover:underline">
+                    <Link to={`/issues/${entry.issue.id}`} className="text-sky-600 hover:underline line-clamp-1">
                       #{entry.issue.id} {entry.issue.subject}
                     </Link>
                   ) : '-'}
                 </td>
-                <td className="px-4 py-3 text-gray-600">{entry.user.lastName} {entry.user.firstName}</td>
-                <td className="px-4 py-3">{entry.activity}</td>
-                <td className="px-4 py-3 font-medium">{entry.hours}h</td>
-                <td className="px-4 py-3 text-gray-500">{entry.comments || '-'}</td>
+                <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{entry.user.lastName} {entry.user.firstName}</td>
+                <td className="px-4 py-3 whitespace-nowrap">{entry.activity}</td>
+                <td className="px-4 py-3 font-medium whitespace-nowrap">{entry.hours}h</td>
+                <td className="px-4 py-3 text-gray-500 line-clamp-1">{entry.comments || '-'}</td>
+                <td className="px-4 py-3 text-right whitespace-nowrap">
+                  <button
+                    onClick={() => handleEdit(entry)}
+                    className="text-sky-600 hover:text-sky-800 mr-4 cursor-pointer"
+                    title="編集"
+                  >
+                    <Pencil size={18} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(entry.id)}
+                    className="text-red-500 hover:text-red-700 cursor-pointer"
+                    title="削除"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
