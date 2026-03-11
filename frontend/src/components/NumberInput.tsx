@@ -1,4 +1,4 @@
-import { InputHTMLAttributes, ReactNode } from 'react';
+import { InputHTMLAttributes, ReactNode, useState, useCallback } from 'react';
 
 interface NumberInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size' | 'type'> {
     label?: string;
@@ -7,6 +7,21 @@ interface NumberInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, '
     size?: 'small' | 'medium' | 'large';
     startAdornment?: ReactNode;
     endAdornment?: ReactNode;
+    /** 3桁区切りカンマ表示を有効にする（デフォルト: false） */
+    useCommaFormat?: boolean;
+}
+
+/** カンマなし数値文字列を3桁カンマ区切りに整形する */
+function formatWithComma(value: string | number | readonly string[] | undefined): string {
+    if (value === undefined || value === null || value === '') return '';
+    const num = parseFloat(String(value).replace(/,/g, ''));
+    if (isNaN(num)) return String(value);
+    return num.toLocaleString('ja-JP');
+}
+
+/** カンマを除去して生の数値文字列を返す */
+function stripComma(value: string): string {
+    return value.replace(/,/g, '');
 }
 
 export default function NumberInput(props: NumberInputProps) {
@@ -20,8 +35,40 @@ export default function NumberInput(props: NumberInputProps) {
         placeholder,
         startAdornment,
         endAdornment,
+        useCommaFormat = false,
+        onChange,
+        onFocus,
+        onBlur,
         ...rest
     } = props;
+
+    // カンマモード: フォーカス中は生の数値を表示、フォーカスアウト時にカンマ整形表示
+    const [isFocused, setIsFocused] = useState(false);
+
+    const handleFocus = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
+        setIsFocused(true);
+        onFocus?.(e);
+    }, [onFocus]);
+
+    const handleBlur = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
+        setIsFocused(false);
+        onBlur?.(e);
+    }, [onBlur]);
+
+    const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        if (useCommaFormat) {
+            // カンマを除いた値を合成してから親へ渡す
+            const raw = stripComma(e.target.value);
+            const syntheticEvent = Object.create(e);
+            Object.defineProperty(syntheticEvent, 'target', {
+                writable: false,
+                value: { ...e.target, value: raw },
+            });
+            onChange?.(syntheticEvent as React.ChangeEvent<HTMLInputElement>);
+        } else {
+            onChange?.(e);
+        }
+    }, [useCommaFormat, onChange]);
 
     const inputId = id || (label ? label.replace(/\s+/g, '-').toLowerCase() : undefined);
 
@@ -82,11 +129,33 @@ export default function NumberInput(props: NumberInputProps) {
             className: inputClasses,
         };
 
+        if (useCommaFormat) {
+            // フォーカス中: 生の数値文字列 / フォーカスアウト: カンマ整形済み文字列
+            const displayValue = isFocused
+                ? (rest.value !== undefined ? String(rest.value) : '')
+                : formatWithComma(rest.value);
+            return (
+                <input
+                    type="text"
+                    inputMode="numeric"
+                    {...rest}
+                    {...commonProps}
+                    value={displayValue}
+                    onChange={handleChange}
+                    onFocus={handleFocus}
+                    onBlur={handleBlur}
+                />
+            );
+        }
+
         return (
             <input
                 type="number"
                 {...rest}
                 {...commonProps}
+                onChange={onChange}
+                onFocus={onFocus}
+                onBlur={onBlur}
             />
         );
     };

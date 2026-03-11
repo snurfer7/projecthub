@@ -803,6 +803,7 @@ export default function CompanyDetailPage() {
               value={dealForm.amount}
               onChange={(e) => setDealForm({ ...dealForm, amount: e.target.value })}
               startAdornment="¥"
+              useCommaFormat
             />
             <NumberInput
               label="確度"
