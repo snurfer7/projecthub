@@ -1,88 +1,11 @@
-import { useState, useEffect, useRef, Fragment } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
-import { Pencil, Trash2, Check, X, Shield, Users, ChevronDown, ChevronRight } from 'lucide-react';
+import { Pencil, Trash2, Check, X, Shield, Users, ChevronRight } from 'lucide-react';
 import api from '../api/client';
 import { Project, ProjectMember, ProjectGroup, Role, Group, ProjectMemberRole } from '../types';
 import ConfirmationModal from '../components/ConfirmationModal';
+import Combobox from '../components/Combobox';
 
-function RoleMultiSelect({ roles, value, onChange }: { roles: Role[]; value: Set<number>; onChange: (ids: Set<number>) => void }) {
-    const [open, setOpen] = useState(false);
-    const ref = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const handler = (e: MouseEvent) => {
-            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-        };
-        document.addEventListener('mousedown', handler);
-        return () => document.removeEventListener('mousedown', handler);
-    }, []);
-
-    const toggle = (id: number) => {
-        const next = new Set(value);
-        if (next.has(id)) next.delete(id); else next.add(id);
-        onChange(next);
-    };
-
-    const selectedRoles = roles.filter(r => value.has(r.id));
-    const selectedText = selectedRoles.map(r => r.name).join(', ');
-
-    return (
-        <div ref={ref} className="relative inline-block w-full max-w-[240px]">
-            {/* Compact Outlined Trigger */}
-            <div
-                onClick={() => setOpen(o => !o)}
-                className={`group relative flex items-center h-10 w-full px-3 border rounded-md cursor-pointer transition-all duration-150 ${open
-                    ? 'border-sky-500 ring-2 ring-sky-500 bg-white'
-                    : 'border-gray-300 hover:border-gray-400 bg-white'
-                    }`}
-            >
-                {/* Comma-separated Text with Truncation */}
-                <div className="flex-1 pr-6 overflow-hidden">
-                    {selectedRoles.length > 0 ? (
-                        <span className="text-sm text-slate-700 truncate block font-medium">
-                            {selectedText}
-                        </span>
-                    ) : (
-                        <span className="text-sm text-gray-400">ロールを選択...</span>
-                    )}
-                </div>
-
-                {/* Small Arrow Icon */}
-                <div className="absolute right-2.5 flex items-center pointer-events-none">
-                    <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-150 ${open ? 'rotate-180 text-sky-500' : ''}`} />
-                </div>
-            </div>
-
-            {/* Compact Dropdown Menu */}
-            {open && (
-                <div className="absolute z-[100] left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top">
-                    <div className="py-1 max-h-[240px] overflow-y-auto">
-                        {roles.map(r => {
-                            const selected = value.has(r.id);
-                            return (
-                                <button
-                                    key={r.id}
-                                    type="button"
-                                    onClick={() => toggle(r.id)}
-                                    className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors text-left ${selected ? 'bg-sky-50 text-sky-700' : 'text-slate-600 hover:bg-slate-50'
-                                        }`}
-                                >
-                                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${selected
-                                        ? 'bg-sky-500 border-sky-500'
-                                        : 'border-gray-300 bg-white'
-                                        }`}>
-                                        {selected && <Check className="w-2.5 h-2.5 text-white" strokeWidth={4} />}
-                                    </div>
-                                    <span className={selected ? 'font-semibold' : 'font-medium'}>{r.name}</span>
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-}
 
 interface ProjectContext {
     project: Project;
@@ -407,7 +330,17 @@ export default function ProjectOverview() {
                                                                 <td className="px-4 py-2">
                                                                     {editingId === mKey ? (
                                                                         <div className="flex items-center gap-2">
-                                                                            <RoleMultiSelect roles={roles} value={editingRoleIds} onChange={setEditingRoleIds} />
+                                                                            <Combobox
+                                                                                options={roles.map(r => ({ value: r.id, label: r.name }))}
+                                                                                value={Array.from(editingRoleIds)}
+                                                                                onChange={(vals: number[]) => setEditingRoleIds(new Set(vals))}
+                                                                                placeholder="ロールを選択..."
+                                                                                isMulti
+                                                                                isSearchable={false}
+                                                                                showFloatingLabel={false}
+                                                                                size="small"
+                                                                                className="w-52"
+                                                                            />
                                                                             <button onClick={() => saveEdit(mKey)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"><Check className="w-4 h-4" /></button>
                                                                             <button onClick={cancelEdit} className="p-1 text-gray-500 hover:bg-gray-50 rounded"><X className="w-4 h-4" /></button>
                                                                         </div>
@@ -455,7 +388,17 @@ export default function ProjectOverview() {
                                                     <td className="px-4 py-3">
                                                         {editingId === key ? (
                                                             <div className="flex items-center gap-2">
-                                                                <RoleMultiSelect roles={roles} value={editingRoleIds} onChange={setEditingRoleIds} />
+                                                                <Combobox
+                                                                    options={roles.map(r => ({ value: r.id, label: r.name }))}
+                                                                    value={Array.from(editingRoleIds)}
+                                                                    onChange={(vals: number[]) => setEditingRoleIds(new Set(vals))}
+                                                                    placeholder="ロールを選択..."
+                                                                    isMulti
+                                                                    isSearchable={false}
+                                                                    showFloatingLabel={false}
+                                                                    size="small"
+                                                                    className="w-52"
+                                                                />
                                                                 <button onClick={() => saveEdit(key)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"><Check className="w-4 h-4" /></button>
                                                                 <button onClick={cancelEdit} className="p-1 text-gray-500 hover:bg-gray-50 rounded"><X className="w-4 h-4" /></button>
                                                             </div>
@@ -544,22 +487,15 @@ export default function ProjectOverview() {
                             </div>
 
                             {/* Roles List */}
-                            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden flex flex-col mb-6 shadow-sm">
-                                <div className="px-3.5 py-2.5 border-b border-gray-100 bg-gray-50/80 flex items-center justify-between">
-                                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tight">ロールを選択</span>
-                                </div>
-                                <div className="p-2.5 space-y-1">
-                                    {roles.map(r => (
-                                        <label key={r.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer group transition-all ${selectedRoleIds.has(r.id) ? 'bg-sky-50/60' : 'hover:bg-gray-50'}`}>
-                                            <div className={`w-4.5 h-4.5 rounded-lg border flex items-center justify-center transition-all ${selectedRoleIds.has(r.id) ? 'bg-sky-500 border-sky-500 shadow-sm' : 'border-gray-200 bg-white group-hover:border-sky-300'}`}>
-                                                {selectedRoleIds.has(r.id) && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
-                                            </div>
-                                            <Shield className={`w-4 h-4 ${selectedRoleIds.has(r.id) ? 'text-sky-500' : 'text-gray-300 group-hover:text-sky-400'}`} />
-                                            <span className={`text-[13px] ${selectedRoleIds.has(r.id) ? 'text-sky-700 font-semibold' : 'text-gray-600 group-hover:text-gray-900'}`}>{r.name}</span>
-                                            <input type="checkbox" className="hidden" checked={selectedRoleIds.has(r.id)} onChange={() => toggleRole(r.id)} />
-                                        </label>
-                                    ))}
-                                </div>
+                            <div className="mb-6">
+                                <Combobox
+                                    options={roles.map(r => ({ value: r.id, label: r.name }))}
+                                    value={Array.from(selectedRoleIds)}
+                                    onChange={(vals: number[]) => setSelectedRoleIds(new Set(vals))}
+                                    label="ロールを選択"
+                                    isMulti
+                                    isSearchable={false}
+                                />
                             </div>
 
                             <button
