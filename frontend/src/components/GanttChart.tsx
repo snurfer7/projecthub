@@ -9,6 +9,7 @@ import IssueDetail from './IssueDetail';
 import MarkdownRenderer from './MarkdownRenderer';
 import { useAuth } from '../hooks/useAuth';
 import { formatEstimatedHours } from '../utils/format';
+import Combobox from './Combobox';
 
 interface GanttChartProps {
   issues: Issue[];
@@ -1076,13 +1077,23 @@ export default function GanttChart({ issues, projects = [], showProject, onUpdat
           <span className="text-xs text-gray-500">期間:</span>
           {zoom === 'year' ? (
             <div className="flex items-center gap-1">
-              <select value={startValue} onChange={(e) => setStartValue(e.target.value)} className="border rounded px-1 py-1 text-xs">
-                {years.map(y => <option key={y} value={y}>{y}年</option>)}
-              </select>
+              <Combobox
+                label="開始年"
+                value={startValue}
+                options={years.map(y => ({ value: y, label: `${y}年` }))}
+                onChange={(val) => setStartValue(val)}
+                size="small"
+                className="w-20"
+              />
               <span className="text-gray-400">〜</span>
-              <select value={endValue} onChange={(e) => setEndValue(e.target.value)} className="border rounded px-1 py-1 text-xs">
-                {years.map(y => <option key={y} value={y}>{y}年</option>)}
-              </select>
+              <Combobox
+                label="終了年"
+                value={endValue}
+                options={years.map(y => ({ value: y, label: `${y}年` }))}
+                onChange={(val) => setEndValue(val)}
+                size="small"
+                className="w-20"
+              />
             </div>
           ) : (
             <div className="flex items-center gap-1">
@@ -1098,23 +1109,35 @@ export default function GanttChart({ issues, projects = [], showProject, onUpdat
         <div className="w-px h-6 bg-gray-200" />
 
         {/* フィルター */}
-        <select value={filterTrackerId} onChange={(e) => setFilterTrackerId(e.target.value ? Number(e.target.value) : '')}
-          className="border rounded px-2 py-1 text-xs">
-          <option value="">全トラッカー</option>
-          {trackers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-        </select>
+        <Combobox
+          label="トラッカー"
+          value={filterTrackerId}
+          options={trackers.map((t) => ({ value: t.id.toString(), label: t.name }))}
 
-        <select value={filterStatusId} onChange={(e) => setFilterStatusId(e.target.value ? Number(e.target.value) : '')}
-          className="border rounded px-2 py-1 text-xs focus:outline-none">
-          <option value="">全ステータス</option>
-          {statuses.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
+          onChange={(val) => setFilterTrackerId(val ? Number(val) : '')}
+          size="small"
+          className="w-32"
+        />
 
-        <select value={filterAssignedToId} onChange={(e) => setFilterAssignedToId(e.target.value ? Number(e.target.value) : '')}
-          className="border rounded px-2 py-1 text-xs focus:outline-none">
-          <option value="">全担当者</option>
-          {assignees.map((a) => <option key={a.id} value={a.id}>{a.lastName} {a.firstName}</option>)}
-        </select>
+        <Combobox
+          label="ステータス"
+          value={filterStatusId}
+          options={statuses.map((s) => ({ value: s.id.toString(), label: s.name }))}
+
+          onChange={(val) => setFilterStatusId(val ? Number(val) : '')}
+          size="small"
+          className="w-32"
+        />
+
+        <Combobox
+          label="担当者"
+          value={filterAssignedToId}
+          options={assignees.map((a) => ({ value: a.id.toString(), label: `${a.lastName} ${a.firstName}` }))}
+
+          onChange={(val) => setFilterAssignedToId(val ? Number(val) : '')}
+          size="small"
+          className="w-40"
+        />
 
         <div className="ml-auto text-xs text-gray-400">{filteredIssues.length} 件</div>
       </div>

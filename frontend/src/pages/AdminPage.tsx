@@ -6,6 +6,9 @@ import { Pencil, Trash2, GripVertical, Clock, Plus } from 'lucide-react';
 import Modal from '../components/Modal';
 import AnalogTimePicker from '../components/AnalogTimePicker';
 import ConfirmationModal from '../components/ConfirmationModal';
+import TextInput from '../components/TextInput';
+import Combobox from '../components/Combobox';
+import NumberInput from '../components/NumberInput';
 
 
 interface Props {
@@ -732,15 +735,16 @@ export default function AdminPage({ user }: Props) {
                 {/* 換算時間[0] */}
                 <div className="py-2 px-3 bg-gray-50 rounded-md my-2 flex items-center gap-3">
                   <span className="text-xs text-gray-500 whitespace-nowrap">換算時間</span>
-                  <input
-                    type="number"
+                  <NumberInput
                     min="0"
                     step="1"
                     value={conversionTimes[0] ?? 0}
                     onChange={e => handleUpdateConversionTime(0, parseInt(e.target.value) || 0)}
-                    className="w-20 border rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+                    size="small"
+                    showFloatingLabel={false}
+                    endAdornment="時間"
+                    className="w-28"
                   />
-                  <span className="text-xs text-gray-500">時間</span>
                 </div>
 
                 {/* 管理時刻ループ */}
@@ -766,15 +770,16 @@ export default function AdminPage({ user }: Props) {
                     {/* 換算時間[index+1] */}
                     <div className="py-2 px-3 bg-gray-50 rounded-md my-2 flex items-center gap-3">
                       <span className="text-xs text-gray-500 whitespace-nowrap">換算時間</span>
-                      <input
-                        type="number"
+                      <NumberInput
                         min="0"
                         step="1"
                         value={conversionTimes[index + 1] ?? 0}
                         onChange={e => handleUpdateConversionTime(index + 1, parseInt(e.target.value) || 0)}
-                        className="w-20 border rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+                        size="small"
+                        showFloatingLabel={false}
+                        endAdornment="時間"
+                        className="w-28"
                       />
-                      <span className="text-xs text-gray-500">時間</span>
                     </div>
                   </div>
                 ))}
@@ -814,9 +819,12 @@ export default function AdminPage({ user }: Props) {
         {masterError && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{masterError}</div>}
         <form onSubmit={handleSubmitMaster}>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">名前 *</label>
-            <input type="text" value={masterName} onChange={(e) => setMasterName(e.target.value)} required
-              className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+            <TextInput
+              label="名前 *"
+              value={masterName}
+              onChange={(e) => setMasterName(e.target.value)}
+              required
+            />
           </div>
 
           {/* Role-specific isDefaultRole checkbox */}
@@ -986,9 +994,12 @@ export default function AdminPage({ user }: Props) {
         {groupError && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{groupError}</div>}
         <form onSubmit={handleSubmitGroup}>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">グループ名 *</label>
-            <input type="text" value={groupName} onChange={(e) => setGroupName(e.target.value)} required
-              className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+            <TextInput
+              label="グループ名 *"
+              value={groupName}
+              onChange={(e) => setGroupName(e.target.value)}
+              required
+            />
           </div>
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">メンバー</label>
@@ -1024,29 +1035,36 @@ export default function AdminPage({ user }: Props) {
         {userError && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{userError}</div>}
         <form onSubmit={handleSubmitUser}>
           <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">姓 *</label>
-              <input type="text" value={userLastName} onChange={(e) => setUserLastName(e.target.value)} required
-                className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">名 *</label>
-              <input type="text" value={userFirstName} onChange={(e) => setUserFirstName(e.target.value)} required
-                className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-            </div>
+            <TextInput
+              label="姓 *"
+              value={userLastName}
+              onChange={(e) => setUserLastName(e.target.value)}
+              required
+            />
+            <TextInput
+              label="名 *"
+              value={userFirstName}
+              onChange={(e) => setUserFirstName(e.target.value)}
+              required
+            />
           </div>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">メールアドレス *</label>
-            <input type="email" value={userEmail} onChange={(e) => setUserEmail(e.target.value)} required
-              className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+            <TextInput
+              label="メールアドレス *"
+              type="email"
+              value={userEmail}
+              onChange={(e) => setUserEmail(e.target.value)}
+              required
+            />
           </div>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              パスワード {editingUserId ? '（変更する場合のみ入力）' : '*'}
-            </label>
-            <input type="password" value={userPassword} onChange={(e) => setUserPassword(e.target.value)}
-              {...(!editingUserId ? { required: true } : {})}
-              className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+            <TextInput
+              label={`パスワード ${editingUserId ? '（変更する場合のみ入力）' : '*'}`}
+              type="password"
+              value={userPassword}
+              onChange={(e) => setUserPassword(e.target.value)}
+              required={!editingUserId}
+            />
           </div>
           <div className="mb-4">
             <label className="flex items-center cursor-pointer">
@@ -1056,21 +1074,14 @@ export default function AdminPage({ user }: Props) {
             </label>
           </div>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">グループ</label>
-            <div className="border rounded-md max-h-48 overflow-y-auto">
-              {groups.map((g) => (
-                <label key={g.id} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer border-b last:border-b-0">
-                  <input type="checkbox" checked={userGroupIds.includes(g.id)}
-                    onChange={() => toggleUserGroup(g.id)}
-                    className="mr-3 rounded border-gray-300 text-sky-600 focus:ring-sky-500" />
-                  <span className="text-sm">{g.name}</span>
-                </label>
-              ))}
-              {groups.length === 0 && (
-                <div className="px-3 py-2 text-sm text-gray-400">グループが登録されていません</div>
-              )}
-            </div>
-            <p className="text-xs text-gray-400 mt-1">{userGroupIds.length} グループ選択中</p>
+            <Combobox
+              options={groups.map((g) => ({ value: g.id, label: g.name }))}
+              value={userGroupIds}
+              onChange={(val: (string | number)[]) => setUserGroupIds(val.map(Number))}
+              label="グループ"
+              isMulti
+              showFloatingLabel
+            />
           </div>
           <div className="flex justify-end gap-3">
             <button type="button" onClick={closeUserModal}

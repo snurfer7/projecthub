@@ -1,8 +1,7 @@
 import { useState, useEffect, FormEvent } from 'react';
 import Modal from './Modal';
 import { Location } from '../types';
-import FloatingInput from './FloatingInput';
-import FloatingTextarea from './FloatingTextarea';
+import TextInput from './TextInput';
 
 interface LocationModalProps {
     isOpen: boolean;
@@ -63,49 +62,50 @@ export default function LocationModal({ isOpen, onClose, onSubmit, editingLocati
         >
             {error && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{error}</div>}
             <form onSubmit={handleSubmit}>
-                <FloatingInput
+                <TextInput
                     label="拠点名 *"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     required
                 />
                 <div className="grid grid-cols-2 gap-4 mb-4">
-                    <FloatingInput
+                    <TextInput
                         label="郵便番号"
                         value={formData.postalCode}
                         onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
                         placeholder="000-0000"
                     />
-                    <FloatingInput
+                    <TextInput
                         label="電話番号"
                         value={formData.phone}
                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     />
                 </div>
                 <div className="grid grid-cols-2 gap-4 mb-4">
-                    <FloatingInput
+                    <TextInput
                         label="都道府県"
                         value={formData.prefecture}
                         onChange={(e) => setFormData({ ...formData, prefecture: e.target.value })}
                     />
-                    <FloatingInput
+                    <TextInput
                         label="市区町村"
                         value={formData.city}
                         onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                     />
                 </div>
-                <FloatingInput
+                <TextInput
                     label="町域・番地"
                     value={formData.street}
                     onChange={(e) => setFormData({ ...formData, street: e.target.value })}
                 />
-                <FloatingInput
+                <TextInput
                     label="建物名・部屋番号"
                     value={formData.building}
                     onChange={(e) => setFormData({ ...formData, building: e.target.value })}
                 />
-                <FloatingTextarea
+                <TextInput
                     label="備考"
+                    isMultiline
                     value={formData.notes}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     rows={3}

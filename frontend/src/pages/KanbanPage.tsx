@@ -8,6 +8,7 @@ import IssueForm from '../components/IssueForm';
 import KanbanBoard from '../components/KanbanBoard';
 import IssueDetail from '../components/IssueDetail';
 import { useAuth } from '../hooks/useAuth';
+import Combobox from '../components/Combobox';
 
 export default function KanbanPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -86,17 +87,16 @@ export default function KanbanPage() {
         <h1 className="text-xl font-semibold text-slate-800">カンバンボード</h1>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-500">トラッカー</label>
-            <select
+            <Combobox
+              label="トラッカー"
+              options={[
+                { value: '', label: 'すべて' },
+                ...(meta?.trackers.map((t) => ({ value: String(t.id), label: t.name })) || [])
+              ]}
               value={filterTracker}
-              onChange={(e) => setFilterTracker(e.target.value)}
-              className="border-gray-300 rounded-md text-sm focus:ring-sky-500 focus:border-sky-500"
-            >
-              <option value="">すべて</option>
-              {meta?.trackers.map((t) => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
+              onChange={setFilterTracker}
+              size="small"
+            />
           </div>
           <button
             onClick={() => { setNewIssueStatusId(undefined); setIsNewIssueModalOpen(true); }}

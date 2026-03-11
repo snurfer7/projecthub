@@ -8,6 +8,7 @@ import IssueForm from '../components/IssueForm';
 import ConfirmationModal from '../components/ConfirmationModal';
 import IssueDetail from '../components/IssueDetail';
 import { useAuth } from '../hooks/useAuth';
+import Combobox from '../components/Combobox';
 
 export default function IssueListPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -66,20 +67,28 @@ export default function IssueListPage() {
 
       <div className="bg-white rounded-lg shadow p-4 mb-4 flex gap-4">
         <div>
-          <label className="block text-xs text-gray-500 mb-1">ステータス</label>
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-            className="border rounded px-2 py-1 text-sm">
-            <option value="">全て</option>
-            {meta?.statuses.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
+          <Combobox
+            label="ステータス"
+            options={[
+              { value: '', label: '全て' },
+              ...(meta?.statuses || []).map(s => ({ value: String(s.id), label: s.name }))
+            ]}
+            value={filterStatus}
+            onChange={setFilterStatus}
+            size="small"
+          />
         </div>
         <div>
-          <label className="block text-xs text-gray-500 mb-1">トラッカー</label>
-          <select value={filterTracker} onChange={(e) => setFilterTracker(e.target.value)}
-            className="border rounded px-2 py-1 text-sm">
-            <option value="">全て</option>
-            {meta?.trackers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
+          <Combobox
+            label="トラッカー"
+            options={[
+              { value: '', label: '全て' },
+              ...(meta?.trackers || []).map(t => ({ value: String(t.id), label: t.name }))
+            ]}
+            value={filterTracker}
+            onChange={setFilterTracker}
+            size="small"
+          />
         </div>
       </div>
 

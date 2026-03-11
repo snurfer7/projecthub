@@ -7,6 +7,7 @@ import { formatEstimatedHours } from '../utils/format';
 import MarkdownRenderer from './MarkdownRenderer';
 import MarkdownEditor from './MarkdownEditor';
 import ConfirmationModal from './ConfirmationModal';
+import Combobox from './Combobox';
 
 interface IssueDetailProps {
     issueId: string;
@@ -348,20 +349,16 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                 {showAddRelation && (
                     <form onSubmit={handleAddRelation} className="mb-4 space-y-2 bg-slate-50 p-3 rounded border border-slate-100">
                         <div className="flex items-center gap-2">
-                            <select
+                            <Combobox
+                                label="対象チケット"
+                                options={availableIssues.map((i) => ({
+                                    value: String(i.id),
+                                    label: `#${i.id} ${i.subject}`
+                                }))}
                                 value={relationIssueId}
-                                onChange={(e) => setRelationIssueId(e.target.value)}
-                                className="flex-1 text-sm border rounded px-2 py-1.5 focus:ring-1 focus:ring-sky-500 outline-none bg-white"
-                                autoFocus
-                                required
-                            >
-                                <option value="">チケットを選択してください...</option>
-                                {availableIssues.map((i) => (
-                                    <option key={i.id} value={i.id}>
-                                        #{i.id} {i.subject}
-                                    </option>
-                                ))}
-                            </select>
+                                onChange={setRelationIssueId}
+                                size="small"
+                            />
                             {availableIssues.length === 0 && (
                                 <p className="text-xs text-amber-600">他のチケットがありません</p>
                             )}

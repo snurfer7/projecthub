@@ -4,9 +4,7 @@ import api from '../api/client';
 import { Project, Company, ProjectRelatedCompany } from '../types';
 import Modal from './Modal';
 import Combobox from './Combobox';
-import FloatingInput from './FloatingInput';
-import FloatingSelect from './FloatingSelect';
-import FloatingTextarea from './FloatingTextarea';
+import TextInput from './TextInput';
 
 interface ProjectSettingsModalProps {
     projectId: number;
@@ -128,48 +126,48 @@ export default function ProjectSettingsModal({ projectId, isOpen, onClose, onUpd
                 <form id="project-form" onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
                     <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">基本情報</h3>
                     <div className="space-y-4">
-                        <FloatingInput
+                        <TextInput
                             label="プロジェクト名 *"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             required
                         />
 
-                        <FloatingInput
+                        <TextInput
                             label="識別子"
                             value={identifier}
                             disabled
                         />
 
-                        <FloatingSelect
+                        <Combobox
                             label="ステータス"
+                            options={[
+                                { value: 'active', label: '有効' },
+                                { value: 'closed', label: '終了' },
+                                { value: 'archived', label: 'アーカイブ' }
+                            ]}
                             value={status}
-                            onChange={(e) => setStatus(e.target.value)}
-                        >
-                            <option value="active">有効</option>
-                            <option value="closed">終了</option>
-                            <option value="archived">アーカイブ</option>
-                        </FloatingSelect>
+                            onChange={setStatus}
+                        />
 
                         <Combobox
                             label="親プロジェクト"
-                            options={[
-                                { id: '', name: 'なし' },
-                                ...allProjects.map((p) => ({ id: p.id, name: p.name }))
-                            ]}
+                            options={allProjects.map((p) => ({ value: String(p.id), label: p.name }))}
+
                             value={parentId}
                             onChange={setParentId}
                         />
 
-                        <FloatingInput
+                        <TextInput
                             label="期限日"
                             type="date"
                             value={dueDate}
                             onChange={(e) => setDueDate(e.target.value)}
                         />
 
-                        <FloatingTextarea
+                        <TextInput
                             label="説明"
+                            isMultiline
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                             rows={4}
@@ -181,35 +179,32 @@ export default function ProjectSettingsModal({ projectId, isOpen, onClose, onUpd
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <Combobox
                                 label="企業"
-                                options={[
-                                    { id: '', name: 'なし' },
-                                    ...companies.map((c) => ({ id: c.id, name: c.name }))
-                                ]}
+                                options={companies.map((c) => ({ value: String(c.id), label: c.name }))}
+
                                 value={companyId}
                                 onChange={handleCompanyChange}
                             />
-                            <FloatingSelect
+                            <Combobox
                                 label="拠点"
+                                options={availableLocations.map((l) => ({ value: String(l.id), label: l.name }))}
+
                                 value={locationId}
-                                onChange={(e) => setLocationId(e.target.value)}
+                                onChange={setLocationId}
                                 disabled={!companyId}
-                            >
-                                <option value="">なし</option>
-                                {availableLocations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-                            </FloatingSelect>
-                            <FloatingSelect
+                            />
+                            <Combobox
                                 label="担当者"
+                                options={availableContacts.map((c) => ({ value: String(c.id), label: `${c.lastName} ${c.firstName}` }))}
+
                                 value={contactId}
-                                onChange={(e) => setContactId(e.target.value)}
+                                onChange={setContactId}
                                 disabled={!companyId}
-                            >
-                                <option value="">なし</option>
-                                {availableContacts.map((c) => <option key={c.id} value={c.id}>{c.lastName} {c.firstName}</option>)}
-                            </FloatingSelect>
+                            />
                         </div>
 
-                        <FloatingTextarea
+                        <TextInput
                             label="備考"
+                            isMultiline
                             value={remarks}
                             onChange={(e) => setRemarks(e.target.value)}
                             rows={2}
@@ -243,39 +238,36 @@ export default function ProjectSettingsModal({ projectId, isOpen, onClose, onUpd
                                                     <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
                                                         <Combobox
                                                             label="企業"
-                                                            options={[
-                                                                { id: '', name: '未選択' },
-                                                                ...companies.map((c) => ({ id: c.id, name: c.name }))
-                                                            ]}
+                                                            options={companies.map((c) => ({ value: String(c.id), label: c.name }))}
+
                                                             value={rc.companyId || ''}
                                                             onChange={(val) => updateRelatedCompany(index, 'companyId', Number(val))}
                                                         />
-                                                        <FloatingSelect
+                                                        <Combobox
                                                             label="拠点"
-                                                            value={rc.locationId || ''}
-                                                            onChange={(e) => updateRelatedCompany(index, 'locationId', e.target.value ? Number(e.target.value) : null)}
+                                                            options={rclocations.map((l) => ({ value: String(l.id), label: l.name }))}
+
+                                                            value={rc.locationId ? String(rc.locationId) : ''}
+                                                            onChange={(val) => updateRelatedCompany(index, 'locationId', val ? Number(val) : null)}
                                                             disabled={!rc.companyId}
-                                                        >
-                                                            <option value="">なし</option>
-                                                            {rclocations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-                                                        </FloatingSelect>
-                                                        <FloatingSelect
+                                                        />
+                                                        <Combobox
                                                             label="担当者"
-                                                            value={rc.contactId || ''}
-                                                            onChange={(e) => updateRelatedCompany(index, 'contactId', e.target.value ? Number(e.target.value) : null)}
+                                                            options={rccontacts.map((contact) => ({ value: String(contact.id), label: `${contact.lastName} ${contact.firstName}` }))}
+
+                                                            value={rc.contactId ? String(rc.contactId) : ''}
+                                                            onChange={(val) => updateRelatedCompany(index, 'contactId', val ? Number(val) : null)}
                                                             disabled={!rc.companyId}
-                                                        >
-                                                            <option value="">なし</option>
-                                                            {rccontacts.map((contact) => <option key={contact.id} value={contact.id}>{contact.lastName} {contact.firstName}</option>)}
-                                                        </FloatingSelect>
+                                                        />
                                                     </div>
                                                     <button type="button" onClick={() => handleRemoveRelatedCompany(index)}
                                                         className="mt-5 p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" title="削除">
                                                         <Trash2 className="w-4 h-4" />
                                                     </button>
                                                 </div>
-                                                <FloatingTextarea
+                                                <TextInput
                                                     label="備考"
+                                                    isMultiline
                                                     value={rc.remarks || ''}
                                                     onChange={(e) => updateRelatedCompany(index, 'remarks', e.target.value)}
                                                     rows={2}

@@ -1,5 +1,6 @@
 import { useState, FormEvent } from 'react';
 import { Link } from 'react-router-dom';
+import TextInput from '../components/TextInput';
 
 interface Props {
   onLogin: (email: string, password: string) => Promise<any>;
@@ -32,14 +33,22 @@ export default function LoginPage({ onLogin }: Props) {
         {error && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{error}</div>}
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">メールアドレス</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
-              className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+            <TextInput
+              label="メールアドレス"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
           </div>
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-1">パスワード</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required
-              className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+            <TextInput
+              label="パスワード"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
           </div>
           <button type="submit" disabled={loading}
             className="w-full bg-sky-600 text-white py-2 rounded-md hover:bg-sky-700 disabled:opacity-50">

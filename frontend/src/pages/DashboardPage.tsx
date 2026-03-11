@@ -2,6 +2,8 @@ import { useState, useEffect, FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
 import { Project, Company } from '../types';
+import Combobox from '../components/Combobox';
+import TextInput from '../components/TextInput';
 
 export default function DashboardPage() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -61,45 +63,63 @@ export default function DashboardPage() {
           )}
           <form onSubmit={handleCreate}>
             <div className="grid grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">プロジェクト名</label>
-                <input type="text" value={name} onChange={(e) => setName(e.target.value)} required
-                  className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">識別子</label>
-                <input type="text" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required
-                  pattern="[a-z0-9-]+" title="小文字英数字とハイフンのみ"
-                  className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-              </div>
+              <TextInput
+                label="プロジェクト名"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+              <TextInput
+                label="識別子"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                required
+                pattern="[a-z0-9-]+"
+                title="小文字英数字とハイフンのみ"
+              />
             </div>
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">企業</label>
-                <select value={companyId} onChange={(e) => setCompanyId(e.target.value)}
-                  className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
-                  <option value="">なし</option>
-                  {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <Combobox
+                  label="企業"
+                  options={[
+                    { value: '', label: 'なし' },
+                    ...companies.map((c) => ({ value: String(c.id), label: c.name }))
+                  ]}
+                  value={companyId}
+                  onChange={setCompanyId}
+                  size="small"
+                />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">親プロジェクト</label>
-                <select value={parentId} onChange={(e) => setParentId(e.target.value)}
-                  className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
-                  <option value="">なし</option>
-                  {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
+                <Combobox
+                  label="親プロジェクト"
+                  options={[
+                    { value: '', label: 'なし' },
+                    ...projects.map((p) => ({ value: String(p.id), label: p.name }))
+                  ]}
+                  value={parentId}
+                  onChange={setParentId}
+                  size="small"
+                />
               </div>
             </div>
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">期限日</label>
-              <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)}
-                className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+              <TextInput
+                label="期限日"
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
             </div>
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">説明</label>
-              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
-                className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+              <TextInput
+                label="説明"
+                isMultiline
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+              />
             </div>
             <div className="flex gap-2">
               <button type="submit" className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">作成</button>

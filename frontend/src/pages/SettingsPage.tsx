@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { User } from '../types';
 import api from '../api/client';
+import Combobox from '../components/Combobox';
+import TextInput from '../components/TextInput';
 
 interface Props {
   user: User;
@@ -113,36 +115,27 @@ export default function SettingsPage({ user, refreshUser }: Props) {
         {message && <div className="mb-4 p-3 bg-green-50 text-green-700 rounded text-sm">{message}</div>}
         {error && <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">現在のパスワード</label>
-            <input
-              type="password"
-              value={currentPassword}
-              onChange={e => setCurrentPassword(e.target.value)}
-              required
-              className="w-full border rounded px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">新しいパスワード</label>
-            <input
-              type="password"
-              value={newPassword}
-              onChange={e => setNewPassword(e.target.value)}
-              required
-              className="w-full border rounded px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">新しいパスワード（確認）</label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={e => setConfirmPassword(e.target.value)}
-              required
-              className="w-full border rounded px-3 py-2 text-sm"
-            />
-          </div>
+          <TextInput
+            label="現在のパスワード"
+            type="password"
+            value={currentPassword}
+            onChange={e => setCurrentPassword(e.target.value)}
+            required
+          />
+          <TextInput
+            label="新しいパスワード"
+            type="password"
+            value={newPassword}
+            onChange={e => setNewPassword(e.target.value)}
+            required
+          />
+          <TextInput
+            label="新しいパスワード（確認）"
+            type="password"
+            value={confirmPassword}
+            onChange={e => setConfirmPassword(e.target.value)}
+            required
+          />
           <button
             type="submit"
             disabled={loading}
@@ -159,17 +152,18 @@ export default function SettingsPage({ user, refreshUser }: Props) {
         {landingError && <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">{landingError}</div>}
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">ログイン後の遷移先</label>
-            <select
+            <Combobox
+              label="ログイン後の遷移先"
+              options={[
+                { value: 'home', label: 'ホーム' },
+                { value: 'projects', label: 'プロジェクト' },
+                { value: 'gantt', label: 'ガントチャート' },
+                { value: 'companies', label: '企業' },
+              ]}
               value={landingPage}
-              onChange={(e) => setLandingPage(e.target.value)}
-              className="w-full border rounded px-3 py-2 text-sm bg-white"
-            >
-              <option value="home">ホーム</option>
-              <option value="projects">プロジェクト</option>
-              <option value="gantt">ガントチャート</option>
-              <option value="companies">企業</option>
-            </select>
+              onChange={setLandingPage}
+              size="small"
+            />
           </div>
           <button
             onClick={handleUpdateLandingPage}

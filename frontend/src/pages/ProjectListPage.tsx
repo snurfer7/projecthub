@@ -8,7 +8,8 @@ import GanttChart from '../components/GanttChart';
 import KanbanBoard from '../components/KanbanBoard';
 import IssueDetail from '../components/IssueDetail';
 import IssueForm from '../components/IssueForm';
-import MultiCombobox from '../components/MultiCombobox';
+import Combobox from '../components/Combobox';
+import TextInput from '../components/TextInput';
 import { useAuth } from '../hooks/useAuth';
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -298,33 +299,46 @@ export default function ProjectListPage() {
         viewMode === 'list' && (
           <div className="bg-white rounded-lg shadow p-3 mb-4 flex flex-wrap items-center gap-3">
             <span className="text-xs text-gray-500">検索:</span>
-            <input
-              type="text"
+            <TextInput
               placeholder="プロジェクト名、識別子、企業名..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="border rounded px-2 py-1 text-xs w-64 focus:outline-none focus:ring-1 focus:ring-sky-500"
+              size="small"
+              showFloatingLabel={false}
+              className="w-64"
             />
             <div className="w-px h-6 bg-gray-200" />
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500">期間:</span>
               <div className="flex items-center gap-1">
-                <input type="month" value={listFilterStartMonth} onChange={(e) => setListFilterStartMonth(e.target.value)}
-                  className="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500" />
+                <TextInput
+                  type="month"
+                  value={listFilterStartMonth}
+                  onChange={(e) => setListFilterStartMonth(e.target.value)}
+                  size="small"
+                  showFloatingLabel={false}
+                />
                 <span className="text-gray-400 text-xs">〜</span>
-                <input type="month" value={listFilterEndMonth} onChange={(e) => setListFilterEndMonth(e.target.value)}
-                  className="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500" />
+                <TextInput
+                  type="month"
+                  value={listFilterEndMonth}
+                  onChange={(e) => setListFilterEndMonth(e.target.value)}
+                  size="small"
+                  showFloatingLabel={false}
+                />
               </div>
             </div>
             <div className="w-px h-6 bg-gray-200" />
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500 font-medium">企業:</span>
-              <MultiCombobox
-                options={companies.map(c => ({ id: c.id, name: c.name }))}
-                values={listFilterCompanyIds}
+              <Combobox
+                label="企業"
+                options={companies.map(c => ({ value: c.id, label: c.name }))}
+                value={listFilterCompanyIds}
                 onChange={(values) => setListFilterCompanyIds(values)}
                 placeholder="全企業"
                 className="w-64"
+                isMulti={true}
+                size="small"
               />
             </div>
             <div className="ml-auto text-xs text-gray-400">{filteredProjects.length} 件</div>
@@ -339,38 +353,54 @@ export default function ProjectListPage() {
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500">期間:</span>
               <div className="flex items-center gap-1">
-                <input type="month" value={kanbanFilterStartMonth} onChange={(e) => setKanbanFilterStartMonth(e.target.value)}
-                  className="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500" />
+                <TextInput
+                  type="month"
+                  value={kanbanFilterStartMonth}
+                  onChange={(e) => setKanbanFilterStartMonth(e.target.value)}
+                  size="small"
+                  showFloatingLabel={false}
+                />
                 <span className="text-gray-400 text-xs">〜</span>
-                <input type="month" value={kanbanFilterEndMonth} onChange={(e) => setKanbanFilterEndMonth(e.target.value)}
-                  className="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500" />
+                <TextInput
+                  type="month"
+                  value={kanbanFilterEndMonth}
+                  onChange={(e) => setKanbanFilterEndMonth(e.target.value)}
+                  size="small"
+                  showFloatingLabel={false}
+                />
               </div>
             </div>
             <div className="w-px h-6 bg-gray-200" />
-            <select
-              value={kanbanFilterTrackerId}
-              onChange={(e) => setKanbanFilterTrackerId(e.target.value ? Number(e.target.value) : '')}
-              className="border rounded px-2 py-1 text-xs"
-            >
-              <option value="">全トラッカー</option>
-              {kanbanTrackers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
-            <select
-              value={kanbanFilterStatusId}
-              onChange={(e) => setKanbanFilterStatusId(e.target.value ? Number(e.target.value) : '')}
-              className="border rounded px-2 py-1 text-xs focus:outline-none"
-            >
-              <option value="">全ステータス</option>
-              {kanbanStatuses.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-            <select
-              value={kanbanFilterAssignedToId}
-              onChange={(e) => setKanbanFilterAssignedToId(e.target.value ? Number(e.target.value) : '')}
-              className="border rounded px-2 py-1 text-xs focus:outline-none"
-            >
-              <option value="">全担当者</option>
-              {kanbanAssignees.map((a) => <option key={a.id} value={a.id}>{a.lastName} {a.firstName}</option>)}
-            </select>
+            <Combobox
+              label="トラッカー"
+              options={[
+                { value: '', label: '全トラッカー' },
+                ...kanbanTrackers.map((t) => ({ value: String(t.id), label: t.name }))
+              ]}
+              value={String(kanbanFilterTrackerId)}
+              onChange={(val) => setKanbanFilterTrackerId(val ? Number(val) : '')}
+              size="small"
+            />
+            <Combobox
+              label="ステータス"
+              options={[
+                { value: '', label: '全ステータス' },
+                ...kanbanStatuses.map((s) => ({ value: String(s.id), label: s.name }))
+              ]}
+              value={String(kanbanFilterStatusId)}
+              onChange={(val) => setKanbanFilterStatusId(val ? Number(val) : '')}
+              size="small"
+            />
+            <Combobox
+              label="担当者"
+              options={[
+                { value: '', label: '全担当者' },
+                ...kanbanAssignees.map((a) => ({ value: String(a.id), label: `${a.lastName} ${a.firstName}` }))
+              ]}
+              value={String(kanbanFilterAssignedToId)}
+              onChange={(val) => setKanbanFilterAssignedToId(val ? Number(val) : '')}
+              size="small"
+            />
             <div className="ml-auto text-xs text-gray-400">{kanbanFilteredIssues.length} 件</div>
           </div>
         )
@@ -458,54 +488,71 @@ export default function ProjectListPage() {
         {projectError && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{projectError}</div>}
         <form onSubmit={handleSubmitProject}>
           <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">プロジェクト名 *</label>
-              <input type="text" value={projectName} onChange={(e) => setProjectName(e.target.value)} required
-                className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">識別子 *</label>
-              <input type="text" value={projectIdentifier} onChange={(e) => setProjectIdentifier(e.target.value)} required
-                pattern="[a-z0-9-]+" title="小文字英数字とハイフンのみ"
-                className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-            </div>
+            <TextInput
+              label="プロジェクト名 *"
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+              required
+            />
+            <TextInput
+              label="識別子 *"
+              value={projectIdentifier}
+              onChange={(e) => setProjectIdentifier(e.target.value)}
+              required
+              pattern="[a-z0-9-]+"
+              title="小文字英数字とハイフンのみ"
+            />
           </div>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">企業</label>
-              <select value={projectCompanyId} onChange={(e) => setProjectCompanyId(e.target.value)}
-                className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
-                <option value="">なし</option>
-                {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <Combobox
+                label="企業"
+                options={[
+                  { value: '', label: 'なし' },
+                  ...companies.map((c) => ({ value: String(c.id), label: c.name }))
+                ]}
+                value={projectCompanyId}
+                onChange={setProjectCompanyId}
+                size="small"
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">親プロジェクト</label>
-              <select value={projectParentId} onChange={(e) => {
-                const val = e.target.value;
-                setProjectParentId(val);
-                if (val) {
-                  const parent = projects.find((p) => String(p.id) === val);
-                  if (parent?.dueDate) {
-                    setProjectDueDate(parent.dueDate.slice(0, 10));
+              <Combobox
+                label="親プロジェクト"
+                options={[
+                  { value: '', label: 'なし' },
+                  ...projects.map((p) => ({ value: String(p.id), label: p.name }))
+                ]}
+                value={projectParentId}
+                onChange={(val) => {
+                  setProjectParentId(val);
+                  if (val) {
+                    const parent = projects.find((p) => String(p.id) === val);
+                    if (parent?.dueDate) {
+                      setProjectDueDate(parent.dueDate.slice(0, 10));
+                    }
                   }
-                }
-              }}
-                className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
-                <option value="">なし</option>
-                {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+                }}
+                size="small"
+              />
             </div>
           </div>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">期限日</label>
-            <input type="date" value={projectDueDate} onChange={(e) => setProjectDueDate(e.target.value)}
-              className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+            <TextInput
+              label="期限日"
+              type="date"
+              value={projectDueDate}
+              onChange={(e) => setProjectDueDate(e.target.value)}
+            />
           </div>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">説明</label>
-            <textarea value={projectDescription} onChange={(e) => setProjectDescription(e.target.value)} rows={3}
-              className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+            <TextInput
+              label="説明"
+              isMultiline
+              value={projectDescription}
+              onChange={(e) => setProjectDescription(e.target.value)}
+              rows={3}
+            />
           </div>
           <div className="flex justify-end gap-2">
             <button type="button" onClick={closeProjectModal}

@@ -79,6 +79,21 @@ async function main() {
     console.log('Seeded default priorities');
   }
 
+  // legal entity statuses
+  const legalEntityStatusCount = await prisma.legalEntityStatus.count();
+  if (legalEntityStatusCount === 0) {
+    await prisma.legalEntityStatus.createMany({
+      data: [
+        { name: '株式会社', position: 1 },
+        { name: '合同会社', position: 2 },
+        { name: '合名会社', position: 3 },
+        { name: '合資会社', position: 4 },
+        { name: '有限会社', position: 5 },
+      ],
+    });
+    console.log('Seeded default legal entity statuses');
+  }
+
   console.log('Seed data check complete');
 }
 

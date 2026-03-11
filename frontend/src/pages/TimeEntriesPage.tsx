@@ -2,6 +2,9 @@ import { useState, useEffect, FormEvent } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../api/client';
 import { TimeEntry, Issue } from '../types';
+import Combobox from '../components/Combobox';
+import NumberInput from '../components/NumberInput';
+import TextInput from '../components/TextInput';
 
 export default function TimeEntriesPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -55,22 +58,40 @@ export default function TimeEntriesPage() {
         <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-5 mb-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">チケット</label>
-              <select value={issueId} onChange={(e) => setIssueId(e.target.value)} className="w-full border rounded px-2 py-1.5 text-sm">
-                <option value="">なし</option>
-                {issues.map((i) => <option key={i.id} value={i.id}>#{i.id} {i.subject}</option>)}
-              </select>
+              <Combobox
+                label="チケット"
+                options={issues.map((i) => ({ value: String(i.id), label: `#${i.id} ${i.subject}` }))}
+                value={issueId}
+                onChange={setIssueId}
+                size="medium"
+              />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">時間 *</label>
-              <input type="number" value={hours} onChange={(e) => setHours(e.target.value)} required step="0.25" min="0.25"
-                className="w-full border rounded px-2 py-1.5 text-sm" />
+              <NumberInput
+                label="時間 *"
+                value={hours}
+                onChange={(e) => setHours(e.target.value)}
+                required
+                step="0.25"
+                min="0.25"
+                endAdornment="時間"
+              />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">活動</label>
-              <select value={activity} onChange={(e) => setActivity(e.target.value)} className="w-full border rounded px-2 py-1.5 text-sm">
-                <option>開発</option><option>設計</option><option>レビュー</option><option>テスト</option><option>ドキュメント</option><option>その他</option>
-              </select>
+              <Combobox
+                label="活動"
+                options={[
+                  { value: '開発', label: '開発' },
+                  { value: '設計', label: '設計' },
+                  { value: 'レビュー', label: 'レビュー' },
+                  { value: 'テスト', label: 'テスト' },
+                  { value: 'ドキュメント', label: 'ドキュメント' },
+                  { value: 'その他', label: 'その他' },
+                ]}
+                value={activity}
+                onChange={setActivity}
+                size="medium"
+              />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">日付 *</label>
@@ -79,9 +100,12 @@ export default function TimeEntriesPage() {
             </div>
           </div>
           <div className="mb-4">
-            <label className="block text-xs text-gray-500 mb-1">コメント</label>
-            <input type="text" value={comments} onChange={(e) => setComments(e.target.value)}
-              className="w-full border rounded px-2 py-1.5 text-sm" />
+            <TextInput
+              label="コメント"
+              value={comments}
+              onChange={(e) => setComments(e.target.value)}
+              size="medium"
+            />
           </div>
           <div className="flex gap-2">
             <button type="submit" className="bg-sky-600 text-white px-4 py-1.5 rounded text-sm hover:bg-sky-700">追加</button>

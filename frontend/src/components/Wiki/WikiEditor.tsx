@@ -1,6 +1,7 @@
 import React from 'react';
 import { Save, X } from 'lucide-react';
 import MarkdownEditor from '../MarkdownEditor';
+import Combobox from '../Combobox';
 
 interface WikiEditorProps {
     title: string;
@@ -71,17 +72,15 @@ const WikiEditor: React.FC<WikiEditorProps> = ({
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
-                    <label className="text-sm font-medium text-gray-600 w-24">親ページ:</label>
-                    <select
-                        value={parentId || ''}
-                        onChange={(e) => onParentIdChange(e.target.value ? Number(e.target.value) : null)}
-                        className="flex-1 text-sm bg-white border border-gray-300 rounded px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    >
-                        <option value="">(なし - トップレベル)</option>
-                        {availableParents.map(p => (
-                            <option key={p.id} value={p.id}>{p.title}</option>
-                        ))}
-                    </select>
+                    <Combobox
+                        label="親ページ"
+                        value={parentId?.toString() || ''}
+                        options={availableParents.map(p => ({ value: p.id.toString(), label: p.title }))}
+
+                        onChange={(val) => onParentIdChange(val ? Number(val) : null)}
+                        className="flex-1"
+                        size="small"
+                    />
                 </div>
             </div>
             <div className="p-0 flex-1 min-h-[400px]">

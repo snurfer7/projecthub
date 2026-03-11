@@ -4,9 +4,8 @@ import { Issue, IssueMetaOptions, SystemSetting } from '../types';
 import MarkdownEditor from './MarkdownEditor';
 import AnalogTimePicker from './AnalogTimePicker';
 import Combobox from './Combobox';
-import FloatingInput from './FloatingInput';
-import FloatingSelect from './FloatingSelect';
-import FloatingTextarea from './FloatingTextarea';
+import TextInput from './TextInput';
+import NumberInput from './NumberInput';
 import { formatEstimatedHours } from '../utils/format';
 
 function toLocalDatetimeString(dateString?: string | null) {
@@ -160,7 +159,7 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
             {error && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{error}</div>}
 
             <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6">
-                <FloatingInput
+                <TextInput
                     label="題名 *"
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
@@ -169,33 +168,29 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
 
                 <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
-                        <FloatingSelect
+                        <Combobox
                             label="トラッカー"
+                            options={meta.trackers.map((t) => ({ value: String(t.id), label: t.name }))}
                             value={trackerId}
-                            onChange={(e) => setTrackerId(e.target.value)}
-                        >
-                            {meta.trackers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                        </FloatingSelect>
-                        <FloatingSelect
+                            onChange={setTrackerId}
+                        />
+                        <Combobox
                             label="ステータス"
+                            options={meta.statuses.map((s) => ({ value: String(s.id), label: s.name }))}
                             value={statusId}
-                            onChange={(e) => setStatusId(e.target.value)}
-                        >
-                            {meta.statuses.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </FloatingSelect>
-                        <FloatingSelect
+                            onChange={setStatusId}
+                        />
+                        <Combobox
                             label="優先度"
+                            options={meta.priorities.map((p) => ({ value: String(p.id), label: p.name }))}
                             value={priorityId}
-                            onChange={(e) => setPriorityId(e.target.value)}
-                        >
-                            {meta.priorities.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </FloatingSelect>
+                            onChange={setPriorityId}
+                        />
                         <Combobox
                             label="担当者"
                             options={[
-                                { id: '', name: '未割当' },
-                                ...(meta.groups || []).map((g) => ({ id: `g:${g.id}`, name: `(グループ) ${g.name}` })),
-                                ...(meta.users || []).map((u) => ({ id: `u:${u.id}`, name: `${u.lastName} ${u.firstName}` }))
+                                ...(meta.groups || []).map((g) => ({ value: `g:${g.id}`, label: `(グループ) ${g.name}` })),
+                                ...(meta.users || []).map((u) => ({ value: `u:${u.id}`, label: `${u.lastName} ${u.firstName}` }))
                             ]}
                             value={assignedToPrincipal}
                             onChange={setAssignedToPrincipal}
@@ -228,30 +223,29 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
                             </div>
                             <label className="absolute left-3 top-1.5 text-xs text-gray-500 pointer-events-none">開始日時</label>
                         </div>
-                        <FloatingInput
-                            label={`予定工数 (時間)${totalDayConversion > 0 && estimatedHours ? ` (${formatEstimatedHours(Number(estimatedHours), totalDayConversion)})` : ''}`}
-                            type="number"
+                        <NumberInput
+                            label={`予定工数${totalDayConversion > 0 && estimatedHours ? ` (${formatEstimatedHours(Number(estimatedHours), totalDayConversion)})` : ''}`}
                             value={estimatedHours}
                             onChange={(e) => setEstimatedHours(e.target.value)}
                             step="1"
                             min="0"
+                            endAdornment="時間"
                         />
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                        <FloatingInput
+                        <TextInput
                             label="期日"
                             type="date"
                             value={dueDate}
                             onChange={(e) => setDueDate(e.target.value)}
                         />
-                        <FloatingSelect
-                            label="進捗 (%)"
+                        <Combobox
+                            label="進捗率 (%)"
+                            options={[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(v => ({ value: String(v), label: `${v}%` }))}
                             value={doneRatio}
-                            onChange={(e) => setDoneRatio(e.target.value)}
-                        >
-                            {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((v) => <option key={v} value={v}>{v}%</option>)}
-                        </FloatingSelect>
+                            onChange={setDoneRatio}
+                        />
                     </div>
                 </div>
 

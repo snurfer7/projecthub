@@ -10,6 +10,9 @@ import CompanyCommentsTab from '../components/CompanyCommentsTab';
 import ContactCommentsSection from '../components/ContactCommentsSection';
 import CompanyLocationsTab from '../components/CompanyLocationsTab';
 import ConfirmationModal from '../components/ConfirmationModal';
+import Combobox from '../components/Combobox';
+import TextInput from '../components/TextInput';
+import NumberInput from '../components/NumberInput';
 
 
 
@@ -698,16 +701,8 @@ export default function CompanyDetailPage() {
         {contactError && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{contactError}</div>}
         <form onSubmit={handleSubmitContact}>
           <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">姓 *</label>
-              <input type="text" value={contactForm.lastName} onChange={(e) => setContactForm({ ...contactForm, lastName: e.target.value })} required
-                className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">名 *</label>
-              <input type="text" value={contactForm.firstName} onChange={(e) => setContactForm({ ...contactForm, firstName: e.target.value })} required
-                className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-            </div>
+            <TextInput label="姓 *" required value={contactForm.lastName} onChange={(e) => setContactForm({ ...contactForm, lastName: e.target.value })} />
+            <TextInput label="名 *" required value={contactForm.firstName} onChange={(e) => setContactForm({ ...contactForm, firstName: e.target.value })} />
           </div>
           <div className="mb-4">
             <div className="flex justify-between items-center mb-2">
@@ -720,59 +715,49 @@ export default function CompanyDetailPage() {
                 <div key={index} className="border rounded-md p-3 bg-gray-50 relative">
                   <div className="grid grid-cols-2 gap-2 mb-2">
                     <div className="col-span-2">
-                      <label className="block text-xs font-medium text-gray-500 mb-1">拠点</label>
-                      <select value={detail.locationId}
-                        onChange={(e) => {
+                      <Combobox
+                        label="拠点"
+                        value={detail.locationId}
+                        options={locations.map((loc) => ({ value: loc.id.toString(), label: loc.name }))}
+                        onChange={(val) => {
                           const newDetails = [...contactDetails];
-                          newDetails[index] = { ...newDetails[index], locationId: e.target.value };
+                          newDetails[index] = { ...newDetails[index], locationId: val };
                           setContactDetails(newDetails);
                         }}
-                        className="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white">
-                        <option value="">未設定</option>
-                        {locations.map((loc) => (
-                          <option key={loc.id} value={loc.id.toString()}>{loc.name}</option>
-                        ))}
-                      </select>
+                        size="small"
+                      />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">所属</label>
-                      <input type="text" value={detail.department} placeholder="例: 営業部"
+                      <TextInput label="所属" size="small" value={detail.department} placeholder="例: 営業部"
                         onChange={(e) => {
                           const newDetails = [...contactDetails];
                           newDetails[index] = { ...newDetails[index], department: e.target.value };
                           setContactDetails(newDetails);
-                        }}
-                        className="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white" />
+                        }} />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">役職</label>
-                      <input type="text" value={detail.position} placeholder="例: 部長"
+                      <TextInput label="役職" size="small" value={detail.position} placeholder="例: 部長"
                         onChange={(e) => {
                           const newDetails = [...contactDetails];
                           newDetails[index] = { ...newDetails[index], position: e.target.value };
                           setContactDetails(newDetails);
-                        }}
-                        className="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white" />
+                        }} />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">電話</label>
-                      <input type="text" value={detail.phone} placeholder="例: 03-0000-0000"
+                      <TextInput label="電話" size="small" value={detail.phone} placeholder="例: 03-0000-0000"
                         onChange={(e) => {
                           const newDetails = [...contactDetails];
                           newDetails[index] = { ...newDetails[index], phone: e.target.value };
                           setContactDetails(newDetails);
-                        }}
-                        className="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white" />
+                        }} />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">メール</label>
-                      <input type="email" value={detail.email} placeholder="例: name@example.com"
+                      <TextInput type="email" label="メール" size="small" value={detail.email} placeholder="例: name@example.com"
                         onChange={(e) => {
                           const newDetails = [...contactDetails];
                           newDetails[index] = { ...newDetails[index], email: e.target.value };
                           setContactDetails(newDetails);
-                        }}
-                        className="w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white" />
+                        }} />
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
@@ -795,11 +780,7 @@ export default function CompanyDetailPage() {
               ))}
             </div>
           </div>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">備考</label>
-            <textarea value={contactForm.notes} onChange={(e) => setContactForm({ ...contactForm, notes: e.target.value })} rows={2}
-              className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-          </div>
+          <TextInput isMultiline label="備考" value={contactForm.notes} onChange={(e) => setContactForm({ ...contactForm, notes: e.target.value })} rows={2} className="mb-4" />
           <div className="flex justify-end gap-2">
             <button type="button" onClick={() => setShowContactModal(false)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm">キャンセル</button>
             <button type="submit" className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">{editingContact ? '更新' : '作成'}</button>
@@ -815,31 +796,31 @@ export default function CompanyDetailPage() {
       >
         {dealError && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{dealError}</div>}
         <form onSubmit={handleSubmitDeal}>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">商談名 *</label>
-            <input type="text" value={dealForm.name} onChange={(e) => setDealForm({ ...dealForm, name: e.target.value })} required
-              className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+          <TextInput label="商談名 *" required value={dealForm.name} onChange={(e) => setDealForm({ ...dealForm, name: e.target.value })} className="mb-4" />
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <NumberInput
+              label="金額"
+              value={dealForm.amount}
+              onChange={(e) => setDealForm({ ...dealForm, amount: e.target.value })}
+              startAdornment="¥"
+            />
+            <NumberInput
+              label="確度"
+              min="0"
+              max="100"
+              value={dealForm.probability}
+              onChange={(e) => setDealForm({ ...dealForm, probability: e.target.value })}
+              endAdornment="%"
+            />
           </div>
           <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">金額</label>
-              <input type="number" value={dealForm.amount} onChange={(e) => setDealForm({ ...dealForm, amount: e.target.value })}
-                className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" placeholder="¥" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">確度 (%)</label>
-              <input type="number" min="0" max="100" value={dealForm.probability} onChange={(e) => setDealForm({ ...dealForm, probability: e.target.value })}
-                className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">ステータス</label>
-              <select value={dealForm.status} onChange={(e) => setDealForm({ ...dealForm, status: e.target.value })}
-                className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
-                {DEAL_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-              </select>
-            </div>
+            <Combobox
+              label="ステータス"
+              value={dealForm.status}
+              options={DEAL_STATUSES.map(s => ({ value: s.value, label: s.label }))}
+              onChange={(val) => setDealForm({ ...dealForm, status: val })}
+              className="mb-4"
+            />
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">予定クローズ日</label>
               <input type="date" value={dealForm.expectedCloseDate} onChange={(e) => setDealForm({ ...dealForm, expectedCloseDate: e.target.value })}
@@ -847,28 +828,20 @@ export default function CompanyDetailPage() {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">連絡先</label>
-              <select value={dealForm.contactId} onChange={(e) => setDealForm({ ...dealForm, contactId: e.target.value })}
-                className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
-                <option value="">選択なし</option>
-                {contacts.map((c) => <option key={c.id} value={c.id}>{c.lastName} {c.firstName}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">担当者</label>
-              <select value={dealForm.assignedToId} onChange={(e) => setDealForm({ ...dealForm, assignedToId: e.target.value })}
-                className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
-                <option value="">選択なし</option>
-                {users.map((u) => <option key={u.id} value={u.id}>{u.lastName} {u.firstName}</option>)}
-              </select>
-            </div>
+            <Combobox
+              label="連絡先"
+              value={dealForm.contactId}
+              options={contacts.map(c => ({ value: c.id.toString(), label: `${c.lastName} ${c.firstName}` }))}
+              onChange={(val) => setDealForm({ ...dealForm, contactId: val })}
+            />
+            <Combobox
+              label="担当者"
+              value={dealForm.assignedToId}
+              options={users.map(u => ({ value: u.id.toString(), label: `${u.lastName} ${u.firstName}` }))}
+              onChange={(val) => setDealForm({ ...dealForm, assignedToId: val })}
+            />
           </div>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">備考</label>
-            <textarea value={dealForm.notes} onChange={(e) => setDealForm({ ...dealForm, notes: e.target.value })} rows={2}
-              className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-          </div>
+          <TextInput isMultiline label="備考" value={dealForm.notes} onChange={(e) => setDealForm({ ...dealForm, notes: e.target.value })} rows={2} className="mb-4" />
           <div className="flex justify-end gap-2">
             <button type="button" onClick={() => setShowDealModal(false)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm">キャンセル</button>
             <button type="submit" className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">{editingDeal ? '更新' : '作成'}</button>
@@ -884,46 +857,33 @@ export default function CompanyDetailPage() {
       >
         <form onSubmit={handleSubmitActivity}>
           <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">種類 *</label>
-              <select value={activityForm.type} onChange={(e) => setActivityForm({ ...activityForm, type: e.target.value })}
-                className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
-                {ACTIVITY_TYPES.map((t) => <option key={t.value} value={t.value}>{t.icon} {t.label}</option>)}
-              </select>
-            </div>
+            <Combobox
+              label="種類"
+              value={activityForm.type}
+              options={ACTIVITY_TYPES.map(t => ({ value: t.value, label: `${t.icon} ${t.label}` }))}
+              onChange={(val) => setActivityForm({ ...activityForm, type: val })}
+            />
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">期限日</label>
               <input type="date" value={activityForm.dueDate} onChange={(e) => setActivityForm({ ...activityForm, dueDate: e.target.value })}
                 className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
             </div>
           </div>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">件名 *</label>
-            <input type="text" value={activityForm.subject} onChange={(e) => setActivityForm({ ...activityForm, subject: e.target.value })} required
-              className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-          </div>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">詳細</label>
-            <textarea value={activityForm.description} onChange={(e) => setActivityForm({ ...activityForm, description: e.target.value })} rows={3}
-              className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
-          </div>
+          <TextInput label="件名 *" required value={activityForm.subject} onChange={(e) => setActivityForm({ ...activityForm, subject: e.target.value })} className="mb-4" />
+          <TextInput isMultiline label="詳細" value={activityForm.description} onChange={(e) => setActivityForm({ ...activityForm, description: e.target.value })} rows={3} className="mb-4" />
           <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">連絡先</label>
-              <select value={activityForm.contactId} onChange={(e) => setActivityForm({ ...activityForm, contactId: e.target.value })}
-                className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
-                <option value="">選択なし</option>
-                {contacts.map((c) => <option key={c.id} value={c.id}>{c.lastName} {c.firstName}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">商談</label>
-              <select value={activityForm.dealId} onChange={(e) => setActivityForm({ ...activityForm, dealId: e.target.value })}
-                className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500">
-                <option value="">選択なし</option>
-                {deals.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
-            </div>
+            <Combobox
+              label="連絡先"
+              value={activityForm.contactId}
+              options={contacts.map(c => ({ value: c.id.toString(), label: `${c.lastName} ${c.firstName}` }))}
+              onChange={(val) => setActivityForm({ ...activityForm, contactId: val })}
+            />
+            <Combobox
+              label="商談"
+              value={activityForm.dealId}
+              options={deals.map(d => ({ value: d.id.toString(), label: d.name }))}
+              onChange={(val) => setActivityForm({ ...activityForm, dealId: val })}
+            />
           </div>
           <div className="flex justify-end gap-2">
             <button type="button" onClick={() => setShowActivityModal(false)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm">キャンセル</button>
@@ -937,23 +897,12 @@ export default function CompanyDetailPage() {
         onClose={() => setShowAddAssociationModal(false)}
         title="協会を割り当て"
       >
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-1">協会</label>
-          <select
-            value={newAssociationId}
-            onChange={(e) => setNewAssociationId(e.target.value)}
-            className="w-full border rounded-md px-3 py-2 text-sm"
-          >
-            <option value="">-- 協会を選択 --</option>
-            {masterAssociations
-              .filter((ma) => !assignedAssociations.some((aa) => aa.association.id === ma.id))
-              .map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-          </select>
-        </div>
+        <Combobox
+          label="協会"
+          value={newAssociationId}
+          options={masterAssociations.filter((ma) => !assignedAssociations.some((aa) => aa.association.id === ma.id)).map((a) => ({ value: a.id.toString(), label: a.name }))}
+          onChange={(val) => setNewAssociationId(val)}
+        />
         <div className="flex justify-end gap-2">
           <button
             type="button"

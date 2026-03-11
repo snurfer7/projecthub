@@ -53,3 +53,23 @@ body.body-grabbing {
 .zoom-in-95 {
   animation-name: zoomIn;
 }
+
+/* Make number input spin buttons larger and easier to click */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: inner-spin-button !important;
+  appearance: inner-spin-button !important;
+  opacity: 0;
+  height: 2em;
+  width: 1.5em;
+  cursor: pointer;
+  background-color: transparent;
+  transition: opacity 0.2s;
+}
+
+input[type="number"]:hover::-webkit-inner-spin-button,
+input[type="number"]:focus::-webkit-inner-spin-button,
+input[type="number"]:hover::-webkit-outer-spin-button,
+input[type="number"]:focus::-webkit-outer-spin-button {
+  opacity: 1;
+}
