@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { List, BarChart2, Kanban } from 'lucide-react';
+import { List, BarChart2, Kanban, Clock } from 'lucide-react';
 import api from '../api/client';
-import { Project, Company, Issue, IssueStatus, Tracker } from '../types';
+import { Project, Company, Issue, IssueStatus, Tracker, TimeEntry } from '../types';
 import Modal from '../components/Modal';
 import GanttChart from '../components/GanttChart';
 import TicketSearchSection from '../components/TicketSearchSection';
@@ -13,13 +13,15 @@ import IssueForm from '../components/IssueForm';
 import Combobox from '../components/Combobox';
 import TextInput from '../components/TextInput';
 import DateInput from '../components/DateInput';
+import TimeRecordSearchSection from '../components/TimeRecordSearchSection';
+import TimeRecordTree from '../components/TimeRecordTree';
 import { useAuth } from '../hooks/useAuth';
 
 
 
 export default function ProjectListPage() {
   const navigate = useNavigate();
-  const [viewMode, setViewMode] = useState<'list' | 'gantt' | 'kanban'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'gantt' | 'kanban' | 'time'>('list');
   const [projects, setProjects] = useState<Project[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -54,6 +56,15 @@ export default function ProjectListPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const { user } = useAuth();
 
+  // Time-related state
+  const [timeIssues, setTimeIssues] = useState<Issue[]>([]);
+  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
+  const [timeFilterTrackerId, setTimeFilterTrackerId] = useState<number | ''>('');
+  const [timeFilterStatusId, setTimeFilterStatusId] = useState<number | ''>('');
+  const [timeFilterAssignedToId, setTimeFilterAssignedToId] = useState<number | ''>('');
+  const [timeRecordStartDate, setTimeRecordStartDate] = useState('');
+  const [timeRecordEndDate, setTimeRecordEndDate] = useState('');
+  const [timeRecordFilterUserId, setTimeRecordFilterUserId] = useState<number | ''>('');
 
   // Project modal states
   const [showProjectModal, setShowProjectModal] = useState(false);
@@ -96,6 +107,26 @@ export default function ProjectListPage() {
     });
   }, []);
 
+  const loadTimeData = useCallback(() => {
+    const issueParams: any = {};
+    if (timeFilterTrackerId) issueParams.trackerId = timeFilterTrackerId;
+    if (timeFilterStatusId) issueParams.statusId = timeFilterStatusId;
+    if (timeFilterAssignedToId) issueParams.assignedToId = timeFilterAssignedToId;
+
+    const entryParams: any = {};
+    if (timeRecordStartDate) entryParams.startDate = timeRecordStartDate;
+    if (timeRecordEndDate) entryParams.endDate = timeRecordEndDate;
+    if (timeRecordFilterUserId) entryParams.userId = timeRecordFilterUserId;
+
+    Promise.all([
+      api.get('/issues', { params: issueParams }),
+      api.get('/time-entries', { params: entryParams }),
+    ]).then(([issuesRes, entriesRes]) => {
+      setTimeIssues(issuesRes.data);
+      setTimeEntries(entriesRes.data);
+    });
+  }, [timeFilterTrackerId, timeFilterStatusId, timeFilterAssignedToId, timeRecordStartDate, timeRecordEndDate, timeRecordFilterUserId]);
+
   useEffect(() => {
     loadProjects();
     loadCompanies();
@@ -104,7 +135,8 @@ export default function ProjectListPage() {
   useEffect(() => {
     if (viewMode === 'gantt') loadGanttData();
     if (viewMode === 'kanban') loadKanbanData();
-  }, [viewMode, loadGanttData, loadKanbanData]);
+    if (viewMode === 'time') loadTimeData();
+  }, [viewMode, loadGanttData, loadKanbanData, loadTimeData]);
 
   const openCreateProjectModal = () => {
     setEditingProjectId(null);
@@ -282,6 +314,16 @@ export default function ProjectListPage() {
           >
             <Kanban size={15} />
             カンバン
+          </button>
+          <button
+            onClick={() => setViewMode('time')}
+            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-l border-gray-300 transition-colors ${viewMode === 'time'
+              ? 'bg-sky-600 text-white'
+              : 'bg-white text-gray-600 hover:bg-gray-50'
+              }`}
+          >
+            <Clock size={15} />
+            時間
           </button>
         </div>
       </div>
@@ -495,6 +537,53 @@ export default function ProjectListPage() {
           />
         )
       }
+
+      {/* Time view */}
+      {viewMode === 'time' && (
+        <>
+          <ProjectSearchSection
+            searchQuery={searchQuery}
+            onSearchQueryChange={setSearchQuery}
+            startMonth={listFilterStartMonth}
+            onStartMonthChange={setListFilterStartMonth}
+            endMonth={listFilterEndMonth}
+            onEndMonthChange={setListFilterEndMonth}
+            companyIds={listFilterCompanyIds}
+            onCompanyIdsChange={setListFilterCompanyIds}
+            companies={companies}
+            totalCount={filteredProjects.length}
+            onNewProjectClick={openCreateProjectModal}
+          />
+          <div className="mb-2">
+            <TicketSearchSection
+              filterTrackerId={timeFilterTrackerId}
+              onFilterTrackerIdChange={setTimeFilterTrackerId}
+              filterStatusId={timeFilterStatusId}
+              onFilterStatusIdChange={setTimeFilterStatusId}
+              filterAssignedToId={timeFilterAssignedToId}
+              onFilterAssignedToIdChange={setTimeFilterAssignedToId}
+              issueCount={timeIssues.filter((i) => filteredProjects.some((p) => p.id === i.projectId)).length}
+            />
+          </div>
+          <div className="mb-4">
+            <TimeRecordSearchSection
+              startDate={timeRecordStartDate}
+              onStartDateChange={setTimeRecordStartDate}
+              endDate={timeRecordEndDate}
+              onEndDateChange={setTimeRecordEndDate}
+              filterUserId={timeRecordFilterUserId}
+              onFilterUserIdChange={setTimeRecordFilterUserId}
+              entryCount={timeEntries.length}
+            />
+          </div>
+          <TimeRecordTree
+            projects={filteredProjects}
+            issues={timeIssues}
+            timeEntries={timeEntries}
+            onRefresh={loadTimeData}
+          />
+        </>
+      )}
 
       {/* Project create/edit modal */}
       <Modal

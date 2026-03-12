@@ -10,11 +10,20 @@ router.use(authenticateToken);
 // List time entries
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
-    const { projectId, issueId, userId } = req.query;
+    const { projectId, issueId, userId, startDate, endDate } = req.query;
     const where: any = {};
     if (projectId) where.projectId = Number(projectId);
     if (issueId) where.issueId = Number(issueId);
     if (userId) where.userId = Number(userId);
+    if (startDate || endDate) {
+      where.spentOn = {};
+      if (startDate) where.spentOn.gte = new Date(startDate as string);
+      if (endDate) {
+        const end = new Date(endDate as string);
+        end.setHours(23, 59, 59, 999);
+        where.spentOn.lte = end;
+      }
+    }
 
     const entries = await prisma.timeEntry.findMany({
       where,

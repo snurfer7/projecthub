@@ -1,16 +1,15 @@
 # AWS Lightsail へのデプロイガイド
 
-Frontend、Backend、PostgreSQL を同一サーバー内で動作させる場合の詳細なリリース手順
+ローカルでビルドした成果物をサーバーにアップロードして運用する手順
 
 ## 概要
 
-本ガイドは、AWS Lightsail インスタンス上に以下を構築する方法を説明します：
+本ガイドは、ローカルマシンでビルドした成果物を AWS Lightsail インスタンスにアップロードして動作させる方法を説明します：
 
-- **Frontend (React + Vite)**: ポート 5173→ Nginx で 80/443 で公開
-- **Backend (Node.js/Express)**: ポート 3000 (内部)
-- **PostgreSQL**: ポート 5432 (内部のみ)
-- **Nginx**: リバースプロキシ + SSL 終端
-- **S3 Storage**: AWS S3 インテグレーション
+- **Frontend (React + Vite)**: ローカルでビルド → `dist/` をアップロード → Nginx が静的ファイルとして配信
+- **Backend (Node.js/Express)**: ローカルでビルド → `dist/` をアップロード → PM2 で常駐起動
+- **PostgreSQL**: サーバーに直接インストール（ポート 5432、内部のみ）
+- **Nginx**: 静的ファイル配信 + API リバースプロキシ + SSL 終端
 
 ---
 
@@ -23,7 +22,7 @@ Frontend、Backend、PostgreSQL を同一サーバー内で動作させる場合
 3. 設定内容：
    - **ロケーション**: 適切なリージョン（例：東京 ap-northeast-1）
    - **イメージ**: `Ubuntu 22.04 LTS`
-   - **プラン**: `中` または `大` を推奨（CPUとメモリ）
+   - **プラン**: `中` または `大` を推奨（CPU とメモリ）
    - **インスタンス名**: `projecthub-prod` など
    - **Key ペア**: 新規作成またはダウンロード（*.pem ファイル）
 
@@ -46,237 +45,209 @@ ssh -i your_key.pem ubuntu@public-ip-address
 ```bash
 sudo apt update
 sudo apt upgrade -y
-sudo apt install -y curl wget git
+sudo apt install -y curl wget
 ```
 
-### 2.2 Docker & Docker Compose のインストール
-
-```bash
-# Docker リポジトリの追加
-sudo apt-get install -y ca-certificates curl gnupg lsb-release
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-# Docker のインストール
-sudo apt-get update
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-
-# Docker グループに ubuntu ユーザーを追加
-sudo usermod -aG docker ubuntu
-
-# 新しいセッションを開くか、以下を実行
-newgrp docker
-
-# 確認
-docker --version
-docker compose version
-```
-
-### 2.3 Node.js のインストール（オプション、直接実行時用）
+### 2.2 Node.js のインストール
 
 ```bash
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt-get install -y nodejs
+
+# バージョン確認
+node --version
+npm --version
+```
+
+### 2.3 PM2 のインストール
+
+```bash
+sudo npm install -g pm2
+```
+
+### 2.4 PostgreSQL のインストール
+
+```bash
+sudo apt-get install -y postgresql postgresql-contrib
+
+# 起動・自動起動設定
+sudo systemctl enable postgresql
+sudo systemctl start postgresql
+```
+
+### 2.5 PostgreSQL のセットアップ
+
+```bash
+sudo -u postgres psql << 'EOF'
+CREATE USER projecthub_user WITH PASSWORD 'secure_password_here';
+CREATE DATABASE projecthub_prod OWNER projecthub_user ENCODING 'UTF8' LC_COLLATE='C' LC_CTYPE='C' TEMPLATE template0;
+GRANT ALL PRIVILEGES ON DATABASE projecthub_prod TO projecthub_user;
+EOF
+```
+
+PostgreSQL が外部からアクセスできないよう確認（デフォルトで localhost のみ）：
+
+```bash
+# postgresql.conf の listen_addresses が localhost であることを確認
+sudo grep listen_addresses /etc/postgresql/*/main/postgresql.conf
+```
+
+### 2.6 Nginx のインストール
+
+```bash
+sudo apt-get install -y nginx
+sudo systemctl enable nginx
 ```
 
 ---
 
-## 3. リポジトリのクローン
+## 3. アップロード先ディレクトリの作成
 
 ```bash
-# ホームディレクトリで作業
-cd ~
-git clone https://github.com/your-username/projecthub.git
-cd projecthub
-```
-
-**または SSH キーを使用：**
-```bash
-git clone git@github.com:your-username/projecthub.git
+# アプリケーション配置先
+sudo mkdir -p /var/www/projecthub/frontend
+sudo mkdir -p /var/www/projecthub/backend
+sudo chown -R ubuntu:ubuntu /var/www/projecthub
 ```
 
 ---
 
-## 4. 環境変数ファイルの設定
-
-### 4.1 `.env` ファイルの作成
+## 4. 環境変数ファイルの設定（サーバー側）
 
 ```bash
-# プロジェクトルートディレクトリで
-cat > .env << 'EOF'
-# ========================================
-# Data リューション Database
-# ========================================
+cat > /var/www/projecthub/backend/.env << 'EOF'
+# Database
 DATABASE_URL=postgresql://projecthub_user:secure_password_here@localhost:5432/projecthub_prod
 
-# ========================================
-# JWT Configuration
-# ========================================
-JWT_SECRET=$(openssl rand -base64 32)
+# JWT
+JWT_SECRET=your_strong_random_secret_here
 
-# ========================================
-# AWS S3 Configuration
-# ========================================
+# AWS S3
 AWS_REGION=ap-northeast-1
 AWS_ACCESS_KEY_ID=your_aws_access_key_id
 AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
 S3_BUCKET_NAME=projecthub-production-uploads
-# AWS S3 を使用する場合は AWS_S3_ENDPOINT_URL は設定しない
 
-# ========================================
 # Application
-# ========================================
 NODE_ENV=production
-BACKEND_PORT=3000
-FRONTEND_PORT=5173
+PORT=3000
 EOF
-```
 
-**注意**: 実際のアクセスキーを設定してください。
-
-### 4.2 環境変数の確認
-
-```bash
-# セキュアな制限設定
-chmod 600 .env
-cat .env
+chmod 600 /var/www/projecthub/backend/.env
 ```
 
 ---
 
-## 5. PostgreSQL のセットアップ
+## 5. ローカルでのビルド
 
-### 5.1 Docker を使用したセットアップ
+ローカルマシン（開発環境）で実行します。
 
-`docker-compose.yml` をの設定を確認し、本番環境用に調整してください：
-
-```yaml
-services:
-  db:
-    image: postgres:16-alpine
-    container_name: projecthub-db
-    environment:
-      POSTGRES_USER: projecthub_user
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-secure_password_here}
-      POSTGRES_DB: projecthub_prod
-      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
-    restart: always
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U projecthub_user"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-volumes:
-  postgres_data:
-    driver: local
-```
-
-### 5.2 バックアップボリュームの設定
+### 5.1 Backend のビルド
 
 ```bash
-# ホストマシン上のバックアップディレクトリを作成
-mkdir -p ~/projecthub-backups
-chmod 700 ~/projecthub-backups
+# プロジェクトルートで実行
+cd backend
+npm install
+npm run build
+# dist/ ディレクトリにコンパイル済み JS が生成される
+```
+
+### 5.2 Frontend のビルド
+
+```bash
+cd frontend
+npm install
+
+# 本番環境の API URL を指定してビルド
+VITE_API_URL=https://your-domain.com/api npm run build
+# dist/ ディレクトリに静的ファイルが生成される
 ```
 
 ---
 
-## 6. Docker Compose の設定
+## 6. サーバーへのアップロード
 
-### 6.1 本番用 docker-compose.yml の確認
+ローカルマシンで実行します。
 
-プロジェクトのメインディレクトリの `docker-compose.yml` を調整してください。
-
-**重要な設定ポイント**:
-
-```yaml
-services:
-  db:
-    # ... PostgreSQL 設定 ...
-    restart: always
-
-  backend:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    container_name: projecthub-backend
-    environment:
-      DATABASE_URL: postgresql://projecthub_user:${DB_PASSWORD}@db:5432/projecthub_prod
-      JWT_SECRET: ${JWT_SECRET}
-      AWS_REGION: ${AWS_REGION}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      S3_BUCKET_NAME: ${S3_BUCKET_NAME}
-      NODE_ENV: production
-    ports:
-      - "3000:3000"
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: always
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        VITE_API_URL: https://yourdomain.com/api
-    container_name: projecthub-frontend
-    ports:
-      - "5173:5173"
-    depends_on:
-      - backend
-    restart: always
-
-volumes:
-  postgres_data:
-    driver: local
-```
-
-### 6.2 環境変数を .env ファイルで管理
+### 6.1 Backend のアップロード
 
 ```bash
-docker-compose --env-file .env up -d
+# ビルド成果物をアップロード
+rsync -avz --delete \
+  -e "ssh -i your_key.pem" \
+  backend/dist/ \
+  ubuntu@public-ip-address:/var/www/projecthub/backend/dist/
+
+# package.json と package-lock.json をアップロード
+scp -i your_key.pem \
+  backend/package.json backend/package-lock.json \
+  ubuntu@public-ip-address:/var/www/projecthub/backend/
+```
+
+### 6.2 Prisma スキーマのアップロード
+
+```bash
+rsync -avz \
+  -e "ssh -i your_key.pem" \
+  prisma/ \
+  ubuntu@public-ip-address:/var/www/projecthub/prisma/
+```
+
+### 6.3 Frontend のアップロード
+
+```bash
+rsync -avz --delete \
+  -e "ssh -i your_key.pem" \
+  frontend/dist/ \
+  ubuntu@public-ip-address:/var/www/projecthub/frontend/
 ```
 
 ---
 
-## 7. Nginx リバースプロキシの設定
+## 7. サーバーでの初回セットアップ
 
-### 7.1 Nginx のインストール
+SSH でサーバーに接続して実行します。
+
+### 7.1 Backend の依存パッケージインストール
 
 ```bash
-sudo apt-get install -y nginx
+cd /var/www/projecthub/backend
+npm install --omit=dev
 ```
 
-### 7.2 Nginx 設定ファイルの作成
+### 7.2 データベースマイグレーション
+
+```bash
+cd /var/www/projecthub/backend
+npx prisma db push
+```
+
+### 7.3 PM2 でバックエンドを起動
+
+```bash
+cd /var/www/projecthub/backend
+
+pm2 start dist/index.js \
+  --name projecthub-backend \
+  --env production
+
+# サーバー再起動時の自動起動設定
+pm2 save
+pm2 startup
+# 表示されたコマンドを実行する（sudo env PATH=... など）
+```
+
+---
+
+## 8. Nginx の設定
+
+### 8.1 Nginx 設定ファイルの作成
 
 ```bash
 sudo tee /etc/nginx/sites-available/projecthub << 'EOF'
-upstream backend {
-    server 127.0.0.1:3000;
-}
-
-upstream frontend {
-    server 127.0.0.1:5173;
-}
-
 server {
     listen 80;
     server_name your-domain.com www.your-domain.com;
-
-    # 本番環境での自動リダイレクト (HTTPS へ)
     return 301 https://$server_name$request_uri;
 }
 
@@ -288,7 +259,6 @@ server {
     ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
 
-    # SSL セッション設定
     ssl_session_cache shared:SSL:10m;
     ssl_session_timeout 10m;
     ssl_protocols TLSv1.2 TLSv1.3;
@@ -301,37 +271,28 @@ server {
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
-    # ログ設定
     access_log /var/log/nginx/projecthub_access.log;
     error_log /var/log/nginx/projecthub_error.log;
 
     # バックエンド API へのプロキシ
     location /api/ {
-        proxy_pass http://backend/api/;
+        proxy_pass http://127.0.0.1:3000/api/;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # フロントエンド
+    # フロントエンド静的ファイル
+    root /var/www/projecthub/frontend;
+    index index.html;
+
     location / {
-        proxy_pass http://frontend;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        try_files $uri $uri/ /index.html;
     }
 
-    # キャッシュ設定（静的ファイル）
+    # 静的ファイルのキャッシュ設定
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
         expires 30d;
         add_header Cache-Control "public, immutable";
@@ -340,42 +301,35 @@ server {
 EOF
 ```
 
-### 7.3 Nginx 設定を有効化
+### 8.2 Nginx 設定を有効化
 
 ```bash
 sudo ln -s /etc/nginx/sites-available/projecthub /etc/nginx/sites-enabled/projecthub
-
-# デフォルト設定を無効化
-sudo rm /etc/nginx/sites-enabled/default
-
-# 設定ファイルの構文確認
+sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t
-
-# Nginx を再起動
-sudo systemctl enable nginx
 sudo systemctl restart nginx
 ```
 
 ---
 
-## 8. SSL 証明書の設定（Let's Encrypt）
+## 9. SSL 証明書の設定（Let's Encrypt）
 
-### 8.1 Certbot のインストール
+### 9.1 Certbot のインストール
 
 ```bash
 sudo apt-get install -y certbot python3-certbot-nginx
 ```
 
-### 8.2 SSL 証明書の取得
+### 9.2 SSL 証明書の取得
 
 ```bash
+# Nginx を一時停止して証明書を取得
 sudo certbot certonly --nginx -d your-domain.com -d www.your-domain.com
 ```
 
-### 8.3 自動更新の設定
+### 9.3 自動更新の設定
 
 ```bash
-# Certbot は自動更新するように既に設定されています
 sudo systemctl enable certbot.timer
 sudo systemctl start certbot.timer
 
@@ -385,11 +339,9 @@ sudo certbot renew --dry-run
 
 ---
 
-## 9. Lightsail ファイアウォール設定
+## 10. Lightsail ファイアウォール設定
 
-### 9.1 インバウンドルールの設定
-
-AWS Lightsail コンソールでファイアウォール設定を以下のように変更：
+AWS Lightsail コンソールでファイアウォール設定を以下のように設定：
 
 | プロトコル | ポート | 送信元 |
 |----------|--------|--------|
@@ -397,34 +349,26 @@ AWS Lightsail コンソールでファイアウォール設定を以下のよう
 | TCP | 80 | すべて (`0.0.0.0/0`) |
 | TCP | 443 | すべて (`0.0.0.0/0`) |
 
-**入力不要**:
+**外部公開不要**:
 - ポート 3000 (バックエンド): Nginx 経由でのみアクセス
 - ポート 5432 (PostgreSQL): ローカルのみ
-- ポート 5173 (フロントエンド): Nginx 経由でのみアクセス
 
 ---
 
-## 10. S3 バケットの設定
+## 11. S3 バケットの設定
 
-### 10.1 AWS S3 バケットの作成
+### 11.1 AWS S3 バケットの作成
 
 ```bash
-# AWS CLI で作成
 aws s3 mb s3://projecthub-production-uploads --region ap-northeast-1
-```
 
-ブロックパブリックアクセス設定：
-
-```bash
 aws s3api put-public-access-block \
   --bucket projecthub-production-uploads \
   --public-access-block-configuration \
   "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
 ```
 
-### 10.2 バケットポリシー設定
-
-IAM ユーザーが必要な権限を持つことを確認：
+### 11.2 IAM ユーザーポリシー
 
 ```json
 {
@@ -432,18 +376,12 @@ IAM ユーザーが必要な権限を持つことを確認：
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": [
-        "s3:PutObject",
-        "s3:GetObject",
-        "s3:DeleteObject"
-      ],
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
       "Resource": "arn:aws:s3:::projecthub-production-uploads/*"
     },
     {
       "Effect": "Allow",
-      "Action": [
-        "s3:ListBucket"
-      ],
+      "Action": ["s3:ListBucket"],
       "Resource": "arn:aws:s3:::projecthub-production-uploads"
     }
   ]
@@ -452,205 +390,194 @@ IAM ユーザーが必要な権限を持つことを確認：
 
 ---
 
-## 11. アプリケーション起動
+## 12. 更新デプロイ手順
 
-### 11.1 初回デプロイ
+コードを修正した後の更新手順です。**ローカルマシンで実行**します。
+
+### 12.1 ビルドと一括デプロイ（スクリプト例）
 
 ```bash
-cd ~/projecthub
+#!/bin/bash
+# deploy.sh
 
-# Docker イメージのビルド
-docker-compose build
+SERVER="ubuntu@public-ip-address"
+KEY="your_key.pem"
+SSH="ssh -i $KEY"
+SCP_OPTS="-i $KEY"
 
-# サービスの起動（バックグラウンド）
-docker-compose up -d
+# Backend ビルド
+echo "=== Backend ビルド ==="
+cd backend
+npm install
+npm run build
+cd ..
 
-# ログ確認
-docker-compose logs -f backend
-docker-compose logs -f frontend
-docker-compose logs -f db
+# Frontend ビルド
+echo "=== Frontend ビルド ==="
+cd frontend
+VITE_API_URL=https://your-domain.com/api npm run build
+cd ..
+
+# Backend アップロード
+echo "=== Backend アップロード ==="
+rsync -avz --delete -e "ssh $SCP_OPTS" \
+  backend/dist/ $SERVER:/var/www/projecthub/backend/dist/
+scp $SCP_OPTS backend/package.json backend/package-lock.json \
+  $SERVER:/var/www/projecthub/backend/
+
+rsync -avz -e "ssh $SCP_OPTS" \
+  prisma/ $SERVER:/var/www/projecthub/prisma/
+
+# Frontend アップロード
+echo "=== Frontend アップロード ==="
+rsync -avz --delete -e "ssh $SCP_OPTS" \
+  frontend/dist/ $SERVER:/var/www/projecthub/frontend/
+
+# サーバーで依存関係インストール・マイグレーション・再起動
+echo "=== サーバー更新 ==="
+$SSH $SERVER << 'ENDSSH'
+  cd /var/www/projecthub/backend
+  npm install --omit=dev
+  npx prisma db push
+  pm2 restart projecthub-backend
+ENDSSH
+
+echo "=== デプロイ完了 ==="
 ```
 
-### 11.2 データベースマイグレーション実行
-
 ```bash
-# Prisma マイグレーション実行
-docker-compose exec backend npx prisma db push --accept-data-loss
-
-# データベースシーディング（初日）
-docker-compose exec backend npx tsx ../prisma/seed.ts
+chmod +x deploy.sh
+./deploy.sh
 ```
 
-### 11.3 ヘルスチェック
+### 12.2 個別に更新する場合
+
+**Backend のみ更新:**
 
 ```bash
-# バックエンド
-curl -I http://localhost:3000/
+# ローカル: ビルド & アップロード
+cd backend && npm run build && cd ..
+rsync -avz --delete -e "ssh -i your_key.pem" \
+  backend/dist/ ubuntu@public-ip-address:/var/www/projecthub/backend/dist/
 
-# フロントエンド経由（Nginx 経由）
-curl -I https://your-domain.com/
+# サーバー: 再起動
+ssh -i your_key.pem ubuntu@public-ip-address "pm2 restart projecthub-backend"
+```
 
-# Docker コンテナの状態確認
-docker-compose ps
+**Frontend のみ更新:**
+
+```bash
+# ローカル: ビルド & アップロード（Nginx の再起動不要）
+cd frontend && VITE_API_URL=https://your-domain.com/api npm run build && cd ..
+rsync -avz --delete -e "ssh -i your_key.pem" \
+  frontend/dist/ ubuntu@public-ip-address:/var/www/projecthub/frontend/
 ```
 
 ---
 
-## 12. 運用・メンテナンス
+## 13. 運用・メンテナンス
 
-### 12.1 ログの確認
+### 13.1 バックエンドの状態確認
 
 ```bash
-# Docker ログの確認
-docker-compose logs backend
-docker-compose logs frontend
-docker-compose logs db
+ssh -i your_key.pem ubuntu@public-ip-address
+pm2 status
+pm2 logs projecthub-backend
+```
 
-# Nginx ログの確認
+### 13.2 Nginx ログの確認
+
+```bash
 sudo tail -f /var/log/nginx/projecthub_access.log
 sudo tail -f /var/log/nginx/projecthub_error.log
-
-# システムログ
-sudo journalctl -u docker -f
 ```
 
-### 12.2 リソース使用状況の確認
-
-```bash
-docker stats
-```
-
-### 12.3 バックアップ
-
-**PostgreSQL バイナリバックアップ:**
+### 13.3 PostgreSQL バックアップ
 
 ```bash
 # 手動バックアップ
-docker-compose exec db pg_dump -U projecthub_user projecthub_prod > ~/projecthub-backups/backup-$(date +%Y%m%d-%H%M%S).sql
+pg_dump -U projecthub_user -h localhost projecthub_prod \
+  > ~/backups/backup-$(date +%Y%m%d-%H%M%S).sql
 
-# 自動バックアップスクリプト（cron で実行）
-# crontab -e で以下を追加（毎日 2:00 AM）
-# 0 2 * * * docker-compose -f ~/projecthub/docker-compose.yml exec -T db pg_dump -U projecthub_user projecthub_prod > ~/projecthub-backups/backup-$(date +\%Y\%m\%d-\%H\%M\%S).sql
+# 自動バックアップ（crontab -e で追加、毎日 2:00 AM）
+# 0 2 * * * pg_dump -U projecthub_user -h localhost projecthub_prod > ~/backups/backup-$(date +\%Y\%m\%d).sql
 ```
 
-**S3 バケットのバックアップ:**
+### 13.4 環境変数の更新
 
 ```bash
-# S3 データをローカルにダウンロード
-aws s3 sync s3://projecthub-production-uploads ~/projecthub-backups/s3-$(date +%Y%m%d)/
-```
-
-### 12.4 コンテナの更新
-
-```bash
-# 最新イメージをビルド
-git pull origin main
-docker-compose build
-
-# コンテナを停止・削除・再起動
-docker-compose down
-docker-compose up -d
-
-# ログ確認
-docker-compose logs -f backend
-```
-
-### 12.5 環境変数の更新
-
-```bash
-# .env ファイルを編集
-nano .env
-
-# コンテナを再起動
-docker-compose restart backend
-docker-compose restart frontend
+nano /var/www/projecthub/backend/.env
+pm2 restart projecthub-backend
 ```
 
 ---
 
-## 13. トラブルシューティング
+## 14. トラブルシューティング
 
-### 13.1 コンテナが起動しない
+### 14.1 バックエンドが起動しない
 
 ```bash
-# ログ確認
-docker-compose logs backend
-
-# コンテナの詳細情報
-docker-compose ps
-docker logs projecthub-backend
+pm2 logs projecthub-backend --lines 50
+pm2 show projecthub-backend
 ```
 
-### 13.2 データベース接続エラー
+### 14.2 データベース接続エラー
 
 ```bash
-# PostgreSQL への接続テスト
-docker-compose exec db psql -U projecthub_user -d projecthub_prod -c "SELECT 1;"
+# 接続テスト
+psql -U projecthub_user -h localhost -d projecthub_prod -c "SELECT 1;"
 
-# DATABASE_URL を確認
-grep DATABASE_URL .env
+# .env の DATABASE_URL を確認
+cat /var/www/projecthub/backend/.env | grep DATABASE_URL
 ```
 
-### 13.3 S3 アップロードエラー
+### 14.3 フロントエンドが表示されない
 
 ```bash
-# AWS 認証情報の確認
-grep AWS_ .env
+# ファイルが配置されているか確認
+ls /var/www/projecthub/frontend/
 
-# S3 バケットへのアクセステスト
-aws s3 ls s3://projecthub-production-uploads
-
-# IAM 権限の確認
-aws iam get-user
-aws iam list-user-policies --user-name your-username
-```
-
-### 13.4 Nginx エラー
-
-```bash
-# Nginx の構文チェック
+# Nginx の設定・エラーログを確認
 sudo nginx -t
-
-# Nginx を再読み込み
-sudo systemctl reload nginx
-
-# Nginx ログ確認
 sudo tail -f /var/log/nginx/projecthub_error.log
 ```
 
-### 13.5 SSL 証明書エラー
+### 14.4 Nginx エラー
 
 ```bash
-# 証明書の詳細確認
-openssl x509 -in /etc/letsencrypt/live/your-domain.com/fullchain.pem -text -noout
+sudo nginx -t
+sudo systemctl reload nginx
+```
 
-# 証明書の有効期限を確認
+### 14.5 SSL 証明書エラー
+
+```bash
 sudo certbot certificates
+sudo certbot renew --dry-run
 ```
 
 ---
 
-## 14. セキュリティチェックリスト
+## 15. セキュリティチェックリスト
 
 本番環境を公開する前に以下を確認してください：
 
 - [ ] **JWT_SECRET** が強力でランダムな値に変更されている
 - [ ] **DATABASE_URL** が本番環境のデータベースを指している
+- [ ] **.env ファイル** のパーミッションが `600` に設定されている
 - [ ] **AWS 認証情報** が最小限の権限を持つ IAM ユーザーのもの
 - [ ] **Lightsail ファイアウォール** で不要なポートが閉じている
 - [ ] **HTTPS/SSL** が有効で、HTTP は HTTPS にリダイレクト
-- [ ] **PostgreSQL** がローカルのみでリッスン中（外部アクセス禁止）
+- [ ] **PostgreSQL** が localhost のみでリッスン中（外部アクセス禁止）
 - [ ] **自動バックアップ** が設定されている
-- [ ] **ログ監視** が設定されている
-- [ ] **Docker イメージ** に不要な内容が含まれていない
 - [ ] **環境変数** が .gitignore に含まれている
 
 ---
 
-## 15. 参考資料
+## 16. 参考資料
 
 - [AWS Lightsail ドキュメント](https://docs.aws.amazon.com/lightsail/)
-- [Docker Compose リファレンス](https://docs.docker.com/compose/)
+- [PM2 ドキュメント](https://pm2.keymetrics.io/docs/)
 - [Nginx ドキュメント](https://nginx.org/)
 - [Let's Encrypt](https://letsencrypt.org/)
 - [Prisma マイグレーション](https://www.prisma.io/docs/concepts/components/prisma-migrate)
