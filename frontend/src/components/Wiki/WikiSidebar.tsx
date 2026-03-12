@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Plus, ChevronRight, ChevronDown, FileText, GripVertical } from 'lucide-react';
+import { Plus, ChevronDown, FileText, GripVertical } from 'lucide-react';
 
 interface WikiPageListItem {
     id: number;

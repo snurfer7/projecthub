@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { Company } from '../types';
 import CompanyModal from '../components/CompanyModal';
+import { formatCompanyName } from '../utils/format';
 
 export default function CompaniesPage() {
   const navigate = useNavigate();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showLegalEntity, setShowLegalEntity] = useState(true);
 
   // Company modal states
   const [showCompanyModal, setShowCompanyModal] = useState(false);
@@ -48,7 +50,21 @@ export default function CompaniesPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">企業名</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">
+                <div className="flex items-center gap-2">
+                  <span>企業名</span>
+                  <label className="flex items-center gap-1 font-normal text-xs text-gray-400 cursor-pointer select-none">
+                    (
+                    <input
+                      type="checkbox"
+                      checked={showLegalEntity}
+                      onChange={(e) => setShowLegalEntity(e.target.checked)}
+                      className="rounded border-gray-300 text-sky-600 focus:ring-sky-500 w-3.5 h-3.5"
+                    />
+                    法人格)
+                  </label>
+                </div>
+              </th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">電話番号</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">住所</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">プロジェクト数</th>
@@ -68,7 +84,9 @@ export default function CompaniesPage() {
             }).map((company) => (
               <tr key={company.id} className="border-t hover:bg-gray-50 cursor-pointer"
                 onClick={() => navigate(`/companies/${company.id}`)}>
-                <td className="px-4 py-3 text-sky-600 font-medium">{company.name}</td>
+                <td className="px-4 py-3 text-sky-600 font-medium">
+                  {showLegalEntity ? formatCompanyName(company) : company.name}
+                </td>
                 <td className="px-4 py-3 text-gray-600">{company.phone || '-'}</td>
                 <td className="px-4 py-3 text-gray-600">
                   {company.postalCode && `〒${company.postalCode} `}

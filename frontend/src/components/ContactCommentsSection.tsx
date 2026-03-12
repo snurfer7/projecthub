@@ -1,7 +1,7 @@
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../api/client';
 import { ContactComment } from '../types';
-import { Trash2, Send, Paperclip, X, Pencil, Check } from 'lucide-react';
+import { Trash2, Send, Pencil } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import MarkdownEditor from './MarkdownEditor';
 import MarkdownRenderer from './MarkdownRenderer';

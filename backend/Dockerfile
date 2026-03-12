@@ -1,6 +1,6 @@
 FROM node:20-alpine
 
-RUN apk add --no-cache netcat-openbsd
+RUN apk add --no-cache netcat-openbsd tzdata
 
 WORKDIR /app
 

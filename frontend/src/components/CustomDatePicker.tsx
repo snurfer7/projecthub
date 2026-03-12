@@ -366,7 +366,14 @@ export default function CustomDatePicker({
                                     </div>
                                 </div>
 
-                                <div className="bg-gray-50 p-2 flex justify-end gap-2 border-t text-right">
+                                <div className="bg-gray-50 p-2 flex justify-between gap-2 border-t text-right">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleYearSelect(new Date().getFullYear())}
+                                        className="px-3 py-1 text-xs font-medium text-sky-600 hover:bg-sky-50 rounded transition-colors"
+                                    >
+                                        当年
+                                    </button>
                                     <button
                                         type="button"
                                         onClick={() => setIsOpen(false)}
@@ -423,7 +430,14 @@ export default function CustomDatePicker({
                                     </div>
                                 </div>
 
-                                <div className="bg-gray-50 p-2 flex justify-end gap-2 border-t text-right">
+                                <div className="bg-gray-50 p-2 flex justify-between gap-2 border-t text-right">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleMonthSelect(new Date().getMonth() + 1)}
+                                        className="px-3 py-1 text-xs font-medium text-sky-600 hover:bg-sky-50 rounded transition-colors"
+                                    >
+                                        当月
+                                    </button>
                                     <button
                                         type="button"
                                         onClick={() => setIsOpen(false)}
@@ -483,7 +497,14 @@ export default function CustomDatePicker({
                                     </div>
                                 </div>
 
-                                <div className="bg-gray-50 p-2 flex justify-end gap-2 border-t text-right">
+                                <div className="bg-gray-50 p-2 flex justify-between gap-2 border-t text-right">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleDateSelect(new Date())}
+                                        className="px-3 py-1 text-xs font-medium text-sky-600 hover:bg-sky-50 rounded transition-colors"
+                                    >
+                                        当日
+                                    </button>
                                     <button
                                         type="button"
                                         onClick={() => setIsOpen(false)}

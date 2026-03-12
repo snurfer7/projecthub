@@ -2,6 +2,7 @@ import { useState, useEffect, FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
 import { Project, Company } from '../types';
+import { formatCompanyName } from '../utils/format';
 import Combobox from '../components/Combobox';
 import TextInput from '../components/TextInput';
 
@@ -139,7 +140,7 @@ export default function DashboardPage() {
                 <h3 className="text-lg font-semibold text-slate-800">{project.name}</h3>
                 <p className="text-sm text-gray-500 mt-1">
                   {project.identifier}
-                  {project.company && <span className="ml-2 text-sky-600">({project.company.name})</span>}
+                  {project.company && <span className="ml-2 text-sky-600">({formatCompanyName(project.company)})</span>}
                   {project.parent && <span className="ml-2 text-purple-600">親: {project.parent.name}</span>}
                   {project.dueDate && <span className="ml-2 text-orange-600">期限: {new Date(project.dueDate).toLocaleDateString()}</span>}
                 </p>

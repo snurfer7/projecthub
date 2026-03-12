@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Trash2, Send, Paperclip, X, Pencil, Check } from 'lucide-react';
+import { Trash2, Send, Pencil } from 'lucide-react';
 import api from '../api/client';
 import { Project, ProjectComment } from '../types';
 import { useAuth } from '../hooks/useAuth';

@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { Pencil, Trash2, Users } from 'lucide-react';
 import api from '../api/client';
 import { Issue, IssueMetaOptions } from '../types';
 import Modal from '../components/Modal';
 import IssueForm from '../components/IssueForm';
 import ConfirmationModal from '../components/ConfirmationModal';
-import IssueDetail from '../components/IssueDetail';
+import IssueDetailModal from '../components/IssueDetailModal';
 import { useAuth } from '../hooks/useAuth';
 import Combobox from '../components/Combobox';
 
@@ -188,24 +188,17 @@ export default function IssueListPage() {
           )}
         </Modal>
 
-        <Modal
+        <IssueDetailModal
           isOpen={!!selectedIssueId}
           onClose={() => setSelectedIssueId(null)}
-          title="チケット詳細"
-          size="lg"
-        >
-          {selectedIssueId && user && (
-            <IssueDetail
-              issueId={selectedIssueId}
-              user={user}
-              onEdit={() => {
-                setEditingIssueId(selectedIssueId);
-                setSelectedIssueId(null);
-              }}
-              onRefresh={fetchIssues}
-            />
-          )}
-        </Modal>
+          issueId={selectedIssueId}
+          user={user!}
+          onEdit={() => {
+            setEditingIssueId(String(selectedIssueId));
+            setSelectedIssueId(null);
+          }}
+          onRefresh={fetchIssues}
+        />
 
         <Modal
           isOpen={isNewIssueModalOpen}

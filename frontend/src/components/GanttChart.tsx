@@ -8,7 +8,7 @@ import IssueForm from './IssueForm';
 import IssueDetail from './IssueDetail';
 import MarkdownRenderer from './MarkdownRenderer';
 import { useAuth } from '../hooks/useAuth';
-import { formatEstimatedHours } from '../utils/format';
+import { formatEstimatedHours, formatDateToYYYYMMDD } from '../utils/format';
 import Combobox from './Combobox';
 import CustomDatePicker from './CustomDatePicker';
 
@@ -287,7 +287,73 @@ function calcConversionHours(startDate: Date, endDate: Date, settings?: SystemSe
   return Math.max(0, Math.round(totalHours));
 }
 
-export default function GanttChart({ 
+function convertRangeOnZoomChange(
+  fromZoom: ZoomLevel,
+  toZoom: ZoomLevel,
+  currentStart: string
+): { start: string; end: string } | null {
+  if (fromZoom === toZoom || !currentStart) return null;
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const lastDay = (year: number, month: number) =>
+    new Date(year, month, 0).getDate();
+
+  if (fromZoom === 'day') {
+    // currentStart: YYYY-MM-DD
+    const parts = currentStart.split('-');
+    const year = parseInt(parts[0]);
+    const month = parseInt(parts[1]); // 1-based
+
+    if (toZoom === 'month') {
+      const endMonthRaw = month - 1 + 11; // 0-based + 11
+      const endYear = year + Math.floor(endMonthRaw / 12);
+      const endMonth = (endMonthRaw % 12) + 1;
+      return {
+        start: `${year}-${pad(month)}`,
+        end: `${endYear}-${pad(endMonth)}`,
+      };
+    }
+    if (toZoom === 'year') {
+      return { start: `${year}`, end: `${year + 9}` };
+    }
+  }
+
+  if (fromZoom === 'month') {
+    // currentStart: YYYY-MM
+    const parts = currentStart.split('-');
+    const year = parseInt(parts[0]);
+    const month = parseInt(parts[1]); // 1-based
+
+    if (toZoom === 'day') {
+      const endMonthRaw = month - 1 + 5; // 0-based + 5
+      const endYear = year + Math.floor(endMonthRaw / 12);
+      const endMonth = (endMonthRaw % 12) + 1;
+      return {
+        start: `${year}-${pad(month)}-01`,
+        end: `${endYear}-${pad(endMonth)}-${pad(lastDay(endYear, endMonth))}`,
+      };
+    }
+    if (toZoom === 'year') {
+      return { start: `${year}`, end: `${year + 9}` };
+    }
+  }
+
+  if (fromZoom === 'year') {
+    // currentStart: YYYY
+    const year = parseInt(currentStart);
+
+    if (toZoom === 'day') {
+      return { start: `${year}-01-01`, end: `${year}-06-30` };
+    }
+    if (toZoom === 'month') {
+      return { start: `${year}-01`, end: `${year}-06` };
+    }
+  }
+
+  return null;
+}
+
+export default function GanttChart({
   issues, 
   projects = [], 
   showProject, 
@@ -326,6 +392,12 @@ export default function GanttChart({
   const setZoom = (z: ZoomLevel) => {
     setInternalZoom(z);
     onZoomChange?.(z);
+    // ズーム変更時に期間を変換
+    const newRange = convertRangeOnZoomChange(zoom, z, startValue);
+    if (newRange) {
+      setStartValue(newRange.start);
+      setEndValue(newRange.end);
+    }
   };
   
   const startValue = propsStartValue ?? internalStartValue;
@@ -467,8 +539,8 @@ export default function GanttChart({
     // 値がない場合は初期値をセット
     if (!propsStartValue && !propsEndValue) {
       if (zoom === 'day') {
-        setStartValue(new Date(currentYear, currentMonth, 1).toISOString().slice(0, 10));
-        setEndValue(new Date(currentYear, currentMonth + 6, 0).toISOString().slice(0, 10));
+        setStartValue(formatDateToYYYYMMDD(new Date(currentYear, currentMonth, 1)));
+        setEndValue(formatDateToYYYYMMDD(new Date(currentYear, currentMonth + 6, 0)));
       } else if (zoom === 'month') {
         const startMonthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
         const endMonth = currentMonth + 11;
@@ -820,7 +892,7 @@ export default function GanttChart({
       const children = (childrenMap[id] || []).sort((a, b) =>
         (groups[a]?.projectName || '').localeCompare(groups[b]?.projectName || '')
       );
-      const hasChildren = children.length > 0;
+      const hasChildren = children.length > 0 || group.issues.length > 0;
       if (!ancestorCollapsed) {
         result.push({ ...group, hasChildren });
       }
@@ -855,10 +927,10 @@ export default function GanttChart({
         const bar = getBarPosition(issue);
         if (bar) {
           // ヘッダーの高さを考慮
-          // 日表示: 24 (年) + 24 (月) + 24 (日) + 24 (曜日) = 96
-          // 月表示: 24 (年) + 24 (月) = 48
-          // 年表示: 24 (年) = 24
-          const headerHeight = zoom === 'day' ? 96 : zoom === 'month' ? 48 : 24;
+          // 日表示: 30 (年) + 24 (月) + 24 (日) + 24 (曜日) = 102
+          // 月表示: 30 (年) + 24 (月) = 54
+          // 年表示: 30 (年) = 30
+          const headerHeight = zoom === 'day' ? 102 : zoom === 'month' ? 54 : 30;
           pos[issue.id] = {
             left: bar.left,
             width: bar.width,
@@ -1202,22 +1274,53 @@ export default function GanttChart({
                 <div
                   style={{
                     width: leftColWidth,
-                    height: zoom === 'day' ? 96 : zoom === 'month' ? 48 : 24,
+                    height: zoom === 'day' ? 102 : zoom === 'month' ? 54 : 30,
                   }}
-                  className="flex-shrink-0 bg-gray-50 border-r sticky left-0 z-40"
+                  className="flex-shrink-0 bg-gray-50 border-r sticky left-0 z-40 flex flex-col justify-start items-start gap-1 pt-1 px-2"
                 >
                   {resizer}
+                  <div className="flex items-center gap-1">
+                    {(['day', 'month', 'year'] as ZoomLevel[]).map((z) => (
+                      <button
+                        key={z}
+                        onClick={() => setZoom(z)}
+                        className={`px-3 py-0 text-xs leading-5 rounded border ${zoom === z ? 'bg-sky-500 text-white border-sky-500' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100'}`}
+                      >
+                        {ZOOM_CONFIG[z].label}
+                      </button>
+                    ))}
+                    {showProject && (
+                      <>
+                        <button
+                          onClick={expandAll}
+                          className="flex items-center gap-0.5 px-3 py-0 text-xs leading-5 rounded border bg-white border-gray-300 hover:bg-gray-100 text-gray-600"
+                        >
+                          <UnfoldVertical size={11} />
+                          展開
+                        </button>
+                        <button
+                          onClick={collapseAll}
+                          className="flex items-center gap-0.5 px-3 py-0 text-xs leading-5 rounded border bg-white border-gray-300 hover:bg-gray-100 text-gray-600"
+                        >
+                          <FoldVertical size={11} />
+                          折りたたむ
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex-1">
                   {/* 1段目：年 */}
-                  <div className="flex h-6 items-center border-b">
+                  <div className="flex h-[30px] items-center border-b">
                     <div className="flex relative h-full items-center">
                       {months.map((m, i) => {
                         if (!m.isNewYear) return null;
                         return (
-                          <div key={`year-${i}`} style={{ width: m.yearSpan * dayWidth }} className="text-center text-xs h-full flex items-center justify-center border-l bg-gray-50 text-gray-500 font-medium whitespace-nowrap overflow-hidden">
-                            {m.year}
+                          <div key={`year-${i}`} style={{ width: m.yearSpan * dayWidth }} className="relative h-full flex items-center border-l bg-gray-50">
+                            <span style={{ position: 'sticky', left: leftColWidth + 4 }} className="text-sm text-gray-500 font-medium whitespace-nowrap">
+                              {m.year}
+                            </span>
                           </div>
                         );
                       })}
@@ -1231,8 +1334,10 @@ export default function GanttChart({
                         {months.map((m, i) => {
                           if (!m.isNewMonth) return null;
                           return (
-                            <div key={`month-${i}`} style={{ width: m.monthSpan * dayWidth }} className="text-center text-xs h-full flex items-center justify-center border-l bg-gray-50 text-gray-500 font-medium whitespace-nowrap overflow-hidden">
-                              {m.month}月
+                            <div key={`month-${i}`} style={{ width: m.monthSpan * dayWidth }} className="relative h-full flex items-center border-l bg-gray-50">
+                              <span style={{ position: 'sticky', left: leftColWidth + 4 }} className="text-xs text-gray-500 font-medium whitespace-nowrap">
+                                {m.month}月
+                              </span>
                             </div>
                           );
                         })}

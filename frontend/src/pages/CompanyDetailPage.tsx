@@ -2,6 +2,7 @@ import { useState, useEffect, FormEvent } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/client';
 import { Company, Contact, Deal, Activity, Association } from '../types';
+import { formatCompanyName } from '../utils/format';
 import { Pencil, Trash2, MessageSquare } from 'lucide-react';
 import CompanyModal from '../components/CompanyModal';
 import Modal from '../components/Modal';
@@ -332,7 +333,7 @@ export default function CompanyDetailPage() {
     <div>
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800 mt-2">{company.name}</h1>
+        <h1 className="text-2xl font-bold text-slate-800 mt-2">{formatCompanyName(company)}</h1>
       </div>
 
 

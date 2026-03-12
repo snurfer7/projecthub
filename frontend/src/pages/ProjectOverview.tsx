@@ -1,8 +1,9 @@
 import { useState, useEffect, Fragment } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
-import { Pencil, Trash2, Check, X, Shield, Users, ChevronRight } from 'lucide-react';
+import { Pencil, Trash2, Check, X, Users, ChevronRight } from 'lucide-react';
 import api from '../api/client';
-import { Project, ProjectMember, ProjectGroup, Role, Group, ProjectMemberRole } from '../types';
+import { Project, ProjectMember, ProjectGroup, Role, Group } from '../types';
+import { formatCompanyName } from '../utils/format';
 import ConfirmationModal from '../components/ConfirmationModal';
 import Combobox from '../components/Combobox';
 
@@ -203,7 +204,7 @@ export default function ProjectOverview() {
                     <div className="mt-8 pt-6 border-t border-gray-100">
                         <h3 className="text-md font-semibold text-slate-700 mb-4">企業</h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-                            <div><div className="text-gray-500 mb-1">企業</div><div className="text-slate-800 font-medium">{project.company ? <Link to={`/companies/${project.company.id}`} className="text-sky-600 hover:underline">{project.company.name}</Link> : '-'}</div></div>
+                            <div><div className="text-gray-500 mb-1">企業</div><div className="text-slate-800 font-medium">{project.company ? <Link to={`/companies/${project.company.id}`} className="text-sky-600 hover:underline">{formatCompanyName(project.company)}</Link> : '-'}</div></div>
                             <div><div className="text-gray-500 mb-1">拠点</div><div className="text-slate-800 font-medium">{project.location?.name || '-'}</div></div>
                             <div><div className="text-gray-500 mb-1">担当者</div><div className="text-slate-800 font-medium">
                                 {project.contact ? (
@@ -235,7 +236,7 @@ export default function ProjectOverview() {
                                 {project.relatedCompanies.map((rc, index) => (
                                     <div key={rc.id || index} className="bg-gray-50/50 rounded-lg p-4 border border-gray-100">
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-                                            <div><div className="text-gray-500 mb-1 text-[11px] uppercase tracking-wider">企業</div><div className="text-slate-800 font-medium">{rc.company ? <Link to={`/companies/${rc.company.id}`} className="text-sky-600 hover:underline">{rc.company.name}</Link> : '-'}</div></div>
+                                            <div><div className="text-gray-500 mb-1 text-[11px] uppercase tracking-wider">企業</div><div className="text-slate-800 font-medium">{rc.company ? <Link to={`/companies/${rc.company.id}`} className="text-sky-600 hover:underline">{formatCompanyName(rc.company as any)}</Link> : '-'}</div></div>
                                             <div><div className="text-gray-500 mb-1 text-[11px] uppercase tracking-wider">拠点</div><div className="text-slate-800 font-medium">{rc.location?.name || '-'}</div></div>
                                             <div><div className="text-gray-500 mb-1 text-[11px] uppercase tracking-wider">担当者</div><div className="text-slate-800 font-medium">
                                                 {rc.contact ? (

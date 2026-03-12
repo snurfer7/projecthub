@@ -59,7 +59,16 @@ router.get('/all', async (req: AuthRequest, res: Response) => {
     // Get all active projects
     const projects = await prisma.project.findMany({
       where: { status: 'active' },
-      select: { id: true, name: true, dueDate: true, parentId: true },
+      select: {
+        id: true,
+        name: true,
+        dueDate: true,
+        parentId: true,
+        companyId: true,
+        relatedCompanies: {
+          select: { companyId: true },
+        },
+      },
       orderBy: { name: 'asc' },
     });
 

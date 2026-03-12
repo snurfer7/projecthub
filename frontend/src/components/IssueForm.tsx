@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent, useRef } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import api from '../api/client';
 import { Issue, IssueMetaOptions, SystemSetting } from '../types';
 import MarkdownEditor from './MarkdownEditor';

@@ -161,7 +161,7 @@ export default function KanbanBoard({ statuses, issues, onDrop, onNewIssue, onIs
 
     return (
         <div className="flex-1 overflow-x-auto bg-slate-50 relative custom-scrollbar">
-            <div ref={containerRef} className="flex gap-6 p-6 h-full min-w-max relative" style={{ isolation: 'isolate' }}>
+            <div ref={containerRef} className="flex gap-6 h-full min-w-max relative" style={{ isolation: 'isolate' }}>
                 {statuses.map((status) => {
                     const columnIssues = issues.filter((i) => i.statusId === status.id);
                     return (

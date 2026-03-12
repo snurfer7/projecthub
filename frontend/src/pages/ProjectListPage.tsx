@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback, useMemo, useRef, FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { List, BarChart2, Kanban, Users } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo, FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { List, BarChart2, Kanban } from 'lucide-react';
 import api from '../api/client';
 import { Project, Company, Issue, IssueStatus, Tracker } from '../types';
 import Modal from '../components/Modal';
 import GanttChart from '../components/GanttChart';
-import ChartTicketSearchSection from '../components/ChartTicketSearchSection';
+import TicketSearchSection from '../components/TicketSearchSection';
+import ProjectSearchSection from '../components/ProjectSearchSection';
 import KanbanBoard from '../components/KanbanBoard';
 import IssueDetail from '../components/IssueDetail';
 import IssueForm from '../components/IssueForm';
@@ -13,31 +14,6 @@ import Combobox from '../components/Combobox';
 import TextInput from '../components/TextInput';
 import DateInput from '../components/DateInput';
 import { useAuth } from '../hooks/useAuth';
-
-const PRIORITY_COLORS: Record<string, string> = {
-  '今すぐ': 'bg-red-100 text-red-700 border-red-200',
-  '急いで': 'bg-red-100 text-red-700 border-red-200',
-  '高め': 'bg-orange-100 text-orange-700 border-orange-200',
-  '通常': 'bg-gray-100 text-gray-600 border-gray-200',
-  '低め': 'bg-blue-50 text-blue-500 border-blue-100',
-};
-
-const TRACKER_COLORS: Record<string, string> = {
-  'バグ': 'bg-red-500',
-  'Bug': 'bg-red-500',
-  '機能': 'bg-sky-500',
-  'Feature': 'bg-sky-500',
-  'サポート': 'bg-purple-500',
-  'Support': 'bg-purple-500',
-};
-
-function getTrackerColor(name: string) {
-  return TRACKER_COLORS[name] || 'bg-slate-400';
-}
-
-function getPriorityClass(name: string) {
-  return PRIORITY_COLORS[name] || 'bg-gray-100 text-gray-600 border-gray-200';
-}
 
 
 
@@ -223,27 +199,41 @@ export default function ProjectListPage() {
     setSelectedIssueId(null);
   };
 
-  const filteredProjects = useMemo(() => {
-    return projects.filter((p) => {
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase();
-        const matchText = p.name.toLowerCase().includes(q)
-          || p.identifier.toLowerCase().includes(q)
-          || (p.company && p.company.name.toLowerCase().includes(q));
-        if (!matchText) return false;
-      }
-      if (listFilterCompanyIds.length > 0 && (!p.companyId || !listFilterCompanyIds.some(id => String(id) === String(p.companyId)))) return false;
-      if (p.dueDate) {
-        const due = p.dueDate.slice(0, 10);
-        if (listFilterStartMonth && due < listFilterStartMonth) return false;
-        if (listFilterEndMonth && due > listFilterEndMonth) return false;
-      }
-      return true;
-    });
-  }, [projects, searchQuery, listFilterStartMonth, listFilterEndMonth, listFilterCompanyIds]);
+  const matchesProjectFilter = useCallback((p: Project) => {
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const matchText = p.name.toLowerCase().includes(q)
+        || (p.identifier?.toLowerCase() ?? '').includes(q)
+        || (p.company && p.company.name.toLowerCase().includes(q));
+      if (!matchText) return false;
+    }
+    if (listFilterCompanyIds.length > 0) {
+      const hasMatchingCompany =
+        (p.companyId && listFilterCompanyIds.some(id => String(id) === String(p.companyId))) ||
+        (p.relatedCompanies?.some(rc => listFilterCompanyIds.some(id => String(id) === String(rc.companyId))));
+      if (!hasMatchingCompany) return false;
+    }
+    if (p.dueDate) {
+      const due = p.dueDate.slice(0, 10);
+      if (listFilterStartMonth && due < listFilterStartMonth) return false;
+      if (listFilterEndMonth && due > listFilterEndMonth) return false;
+    }
+    return true;
+  }, [searchQuery, listFilterCompanyIds, listFilterStartMonth, listFilterEndMonth]);
+
+  const filteredProjects = useMemo(() => projects.filter(matchesProjectFilter), [projects, matchesProjectFilter]);
+
+  const filteredGanttProjects = useMemo(() => ganttProjects.filter(matchesProjectFilter), [ganttProjects, matchesProjectFilter]);
+
+  const filteredGanttIssues = useMemo(() => {
+    const projectIds = new Set(filteredGanttProjects.map((p) => p.id));
+    return ganttIssues.filter((issue) => projectIds.has(issue.projectId));
+  }, [ganttIssues, filteredGanttProjects]);
 
   const kanbanFilteredIssues = useMemo(() => {
+    const filteredProjectIds = new Set(projects.filter(matchesProjectFilter).map((p) => p.id));
     return kanbanIssues.filter((issue) => {
+      if (!filteredProjectIds.has(issue.projectId)) return false;
       if (kanbanFilterTrackerId && issue.trackerId !== kanbanFilterTrackerId) return false;
       if (kanbanFilterStatusId && issue.statusId !== kanbanFilterStatusId) return false;
       if (kanbanFilterAssignedToId && issue.assignedToId !== kanbanFilterAssignedToId) return false;
@@ -254,7 +244,7 @@ export default function ProjectListPage() {
       }
       return true;
     });
-  }, [kanbanIssues, kanbanFilterTrackerId, kanbanFilterStatusId, kanbanFilterAssignedToId, kanbanFilterStartMonth, kanbanFilterEndMonth]);
+  }, [kanbanIssues, projects, matchesProjectFilter, kanbanFilterTrackerId, kanbanFilterStatusId, kanbanFilterAssignedToId, kanbanFilterStartMonth, kanbanFilterEndMonth]);
 
   return (
     <div>
@@ -297,132 +287,96 @@ export default function ProjectListPage() {
       </div>
 
       {/* List toolbar (matches gantt toolbar style) */}
-      {
-        viewMode === 'list' && (
-          <div className="flex gap-3 mb-4 items-center">
-            <div className="bg-white rounded-lg shadow p-3 flex-1 flex flex-wrap items-center gap-3">
-              <span className="text-xs text-gray-500">検索:</span>
-              <TextInput
-                placeholder="プロジェクト名、識別子、企業名..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                size="small"
-                showFloatingLabel={false}
-                className="w-64"
-              />
-              <div className="w-px h-6 bg-gray-200" />
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500">期間:</span>
-                <div className="flex items-center gap-1">
-                  <DateInput
-                    value={listFilterStartMonth}
-                    onChange={setListFilterStartMonth}
-                    size="small"
-                    showFloatingLabel={false}
-                    placeholder="開始"
-                    className="w-32"
-                  />
-                  <span className="text-gray-400 text-xs">〜</span>
-                  <DateInput
-                    value={listFilterEndMonth}
-                    onChange={setListFilterEndMonth}
-                    size="small"
-                    showFloatingLabel={false}
-                    placeholder="終了"
-                    className="w-32"
-                  />
-                </div>
-              </div>
-              <div className="w-px h-6 bg-gray-200" />
-              <div className="flex items-center gap-2">
-                <Combobox
-                  label="企業"
-                  options={companies.map(c => ({ value: c.id, label: c.name }))}
-                  value={listFilterCompanyIds}
-                  onChange={(values) => setListFilterCompanyIds(values)}
-                  placeholder="全企業"
-                  className="w-64"
-                  isMulti={true}
-                  size="small"
-                />
-              </div>
-              <div className="ml-auto text-xs text-gray-400">{filteredProjects.length} 件</div>
-            </div>
-            <button onClick={openCreateProjectModal}
-              className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm shadow-sm transition-all whitespace-nowrap">
-              新規プロジェクト
-            </button>
-          </div>
-        )
-      }
+      {viewMode === 'list' && (
+        <ProjectSearchSection
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+          startMonth={listFilterStartMonth}
+          onStartMonthChange={setListFilterStartMonth}
+          endMonth={listFilterEndMonth}
+          onEndMonthChange={setListFilterEndMonth}
+          companyIds={listFilterCompanyIds}
+          onCompanyIdsChange={setListFilterCompanyIds}
+          companies={companies}
+          totalCount={filteredProjects.length}
+          onNewProjectClick={openCreateProjectModal}
+        />
+      )}
 
       {/* Kanban toolbar */}
-      {
-        viewMode === 'kanban' && (
-          <div className="flex gap-3 mb-4 items-center">
-            <div className="bg-white rounded-lg shadow p-3 flex-1 flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500">期間:</span>
-                <div className="flex items-center gap-1">
-                  <DateInput
-                    value={kanbanFilterStartMonth}
-                    onChange={setListFilterStartMonth}
-                    size="small"
-                    showFloatingLabel={false}
-                    placeholder="開始"
-                    className="w-32"
-                  />
-                  <span className="text-gray-400 text-xs">〜</span>
-                  <DateInput
-                    value={kanbanFilterEndMonth}
-                    onChange={setListFilterEndMonth}
-                    size="small"
-                    showFloatingLabel={false}
-                    placeholder="終了"
-                    className="w-32"
-                  />
-                </div>
+      {viewMode === 'kanban' && (
+        <>
+          <ProjectSearchSection
+            searchQuery={searchQuery}
+            onSearchQueryChange={setSearchQuery}
+            startMonth={listFilterStartMonth}
+            onStartMonthChange={setListFilterStartMonth}
+            endMonth={listFilterEndMonth}
+            onEndMonthChange={setListFilterEndMonth}
+            companyIds={listFilterCompanyIds}
+            onCompanyIdsChange={setListFilterCompanyIds}
+            companies={companies}
+            totalCount={filteredProjects.length}
+            onNewProjectClick={openCreateProjectModal}
+          />
+          <div className="bg-white rounded-lg shadow p-3 flex flex-wrap items-center gap-3 mb-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">期間:</span>
+              <div className="flex items-center gap-1">
+                <DateInput
+                  value={kanbanFilterStartMonth}
+                  onChange={setKanbanFilterStartMonth}
+                  size="small"
+                  showFloatingLabel={false}
+                  placeholder="開始"
+                  className="w-32"
+                />
+                <span className="text-gray-400 text-xs">〜</span>
+                <DateInput
+                  value={kanbanFilterEndMonth}
+                  onChange={setKanbanFilterEndMonth}
+                  size="small"
+                  showFloatingLabel={false}
+                  placeholder="終了"
+                  className="w-32"
+                />
               </div>
-              <div className="w-px h-6 bg-gray-200" />
-              <Combobox
-                label="トラッカー"
-                options={[
-                  { value: '', label: '全トラッカー' },
-                  ...kanbanTrackers.map((t) => ({ value: String(t.id), label: t.name }))
-                ]}
-                value={String(kanbanFilterTrackerId)}
-                onChange={(val) => setKanbanFilterTrackerId(val ? Number(val) : '')}
-                size="small"
-              />
-              <Combobox
-                label="ステータス"
-                options={[
-                  { value: '', label: '全ステータス' },
-                  ...kanbanStatuses.map((s) => ({ value: String(s.id), label: s.name }))
-                ]}
-                value={String(kanbanFilterStatusId)}
-                onChange={(val) => setKanbanFilterStatusId(val ? Number(val) : '')}
-                size="small"
-              />
-              <Combobox
-                label="担当者"
-                options={[
-                  { value: '', label: '全担当者' },
-                  ...kanbanAssignees.map((a) => ({ value: String(a.id), label: `${a.lastName} ${a.firstName}` }))
-                ]}
-                value={String(kanbanFilterAssignedToId)}
-                onChange={(val) => setKanbanFilterAssignedToId(val ? Number(val) : '')}
-                size="small"
-              />
-              <div className="ml-auto text-xs text-gray-400">{kanbanFilteredIssues.length} 件</div>
             </div>
-            <button onClick={openCreateProjectModal}
-              className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm shadow-sm transition-all whitespace-nowrap">
-              新規プロジェクト
-            </button>
+            <div className="w-px h-6 bg-gray-200" />
+            <Combobox
+              label="トラッカー"
+              options={[
+                { value: '', label: '全トラッカー' },
+                ...kanbanTrackers.map((t) => ({ value: String(t.id), label: t.name }))
+              ]}
+              value={String(kanbanFilterTrackerId)}
+              onChange={(val) => setKanbanFilterTrackerId(val ? Number(val) : '')}
+              size="small"
+            />
+            <Combobox
+              label="ステータス"
+              options={[
+                { value: '', label: '全ステータス' },
+                ...kanbanStatuses.map((s) => ({ value: String(s.id), label: s.name }))
+              ]}
+              value={String(kanbanFilterStatusId)}
+              onChange={(val) => setKanbanFilterStatusId(val ? Number(val) : '')}
+              size="small"
+            />
+            <Combobox
+              label="担当者"
+              options={[
+                { value: '', label: '全担当者' },
+                ...kanbanAssignees.map((a) => ({ value: String(a.id), label: `${a.lastName} ${a.firstName}` }))
+              ]}
+              value={String(kanbanFilterAssignedToId)}
+              onChange={(val) => setKanbanFilterAssignedToId(val ? Number(val) : '')}
+              size="small"
+            />
+            <div className="ml-auto text-xs text-gray-400">{kanbanFilteredIssues.length} 件</div>
           </div>
-        )
-      }
+        </>
+      )}
 
       {/* List view */}
       {
@@ -473,35 +427,38 @@ export default function ProjectListPage() {
       {
         viewMode === 'gantt' && (
           <>
-            <div className="flex gap-3 mb-4 items-center">
-              <div className="flex-1">
-                <ChartTicketSearchSection
-                  zoom={ganttZoom}
-                  onZoomChange={setGanttZoom}
-                  startValue={ganttStartValue}
-                  onStartValueChange={setGanttStartValue}
-                  endValue={ganttEndValue}
-                  onEndValueChange={setGanttEndValue}
-                  filterTrackerId={ganttFilterTrackerId}
-                  onFilterTrackerIdChange={setGanttFilterTrackerId}
-                  filterStatusId={ganttFilterStatusId}
-                  onFilterStatusIdChange={setGanttFilterStatusId}
-                  filterAssignedToId={ganttFilterAssignedToId}
-                  onFilterAssignedToIdChange={setGanttFilterAssignedToId}
-                  issueCount={ganttIssues.length}
-                  showProject={true}
-                  onCollapseAll={() => setGanttCollapsedProjects(new Set(ganttProjects.map(p => p.id)))}
-                  onExpandAll={() => setGanttCollapsedProjects(new Set())}
-                />
-              </div>
-              <button onClick={openCreateProjectModal}
-                className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm shadow-sm transition-all whitespace-nowrap flex-shrink-0">
-                新規プロジェクト
-              </button>
+            <ProjectSearchSection
+              searchQuery={searchQuery}
+              onSearchQueryChange={setSearchQuery}
+              startMonth={listFilterStartMonth}
+              onStartMonthChange={setListFilterStartMonth}
+              endMonth={listFilterEndMonth}
+              onEndMonthChange={setListFilterEndMonth}
+              companyIds={listFilterCompanyIds}
+              onCompanyIdsChange={setListFilterCompanyIds}
+              companies={companies}
+              totalCount={filteredGanttProjects.length}
+              onNewProjectClick={openCreateProjectModal}
+            />
+            <div className="mb-4">
+              <TicketSearchSection
+                zoom={ganttZoom}
+                startValue={ganttStartValue}
+                onStartValueChange={setGanttStartValue}
+                endValue={ganttEndValue}
+                onEndValueChange={setGanttEndValue}
+                filterTrackerId={ganttFilterTrackerId}
+                onFilterTrackerIdChange={setGanttFilterTrackerId}
+                filterStatusId={ganttFilterStatusId}
+                onFilterStatusIdChange={setGanttFilterStatusId}
+                filterAssignedToId={ganttFilterAssignedToId}
+                onFilterAssignedToIdChange={setGanttFilterAssignedToId}
+                issueCount={filteredGanttIssues.length}
+              />
             </div>
             <GanttChart
-              issues={ganttIssues}
-              projects={ganttProjects}
+              issues={filteredGanttIssues}
+              projects={filteredGanttProjects}
               showProject
               systemSettings={systemSettings}
               onUpdateIssue={handleUpdateIssue}

@@ -130,23 +130,6 @@ export default function Breadcrumb() {
     const rest = projectSubMatch.params['*'];
     items.push({ label: 'プロジェクト', path: '/projects' });
     items.push({ label: projectNames[pid] || '...', path: `/projects/${pid}` });
-
-    const sectionLabels: Record<string, string> = {
-      issues: 'チケット',
-      wiki: 'Wiki',
-      gantt: 'ガントチャート',
-      files: 'ファイル',
-      'time-entries': '時間記録',
-    };
-
-    if (section && sectionLabels[section]) {
-      if (rest === 'new') {
-        items.push({ label: sectionLabels[section], path: `/projects/${pid}/${section}` });
-        items.push({ label: '新規作成' });
-      } else {
-        items.push({ label: sectionLabels[section] });
-      }
-    }
   } else if (projectMatch) {
     const pid = projectMatch.params.id!;
     items.push({ label: 'プロジェクト', path: '/projects' });

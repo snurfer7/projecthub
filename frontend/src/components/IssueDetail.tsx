@@ -8,6 +8,8 @@ import MarkdownRenderer from './MarkdownRenderer';
 import MarkdownEditor from './MarkdownEditor';
 import ConfirmationModal from './ConfirmationModal';
 import Combobox from './Combobox';
+import TimeEntryModal from './TimeEntryModal';
+import { TimeEntry } from '../types';
 
 interface IssueDetailProps {
     issueId: string;
@@ -35,6 +37,10 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
     const [isFetchingIssues, setIsFetchingIssues] = useState(false);
     const [relationIssueId, setRelationIssueId] = useState('');
     const [isAddingRelation, setIsAddingRelation] = useState(false);
+
+    // Time entry state
+    const [isTimeEntryModalOpen, setIsTimeEntryModalOpen] = useState(false);
+    const [editingTimeEntry, setEditingTimeEntry] = useState<TimeEntry | undefined>(undefined);
 
     // Modal State
     const [modalConfig, setModalConfig] = useState<{
@@ -159,6 +165,29 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                     load();
                 } catch (err: any) {
                     alert('関連の削除に失敗しました: ' + (err.response?.data?.error || err.message));
+                }
+            }
+        });
+    };
+
+    const handleEditTimeEntry = (te: TimeEntry) => {
+        setEditingTimeEntry(te);
+        setIsTimeEntryModalOpen(true);
+    };
+
+    const handleDeleteTimeEntry = (teId: number) => {
+        setModalConfig({
+            isOpen: true,
+            title: '時間記録の削除',
+            message: 'この時間記録を削除しますか？この操作は取り消せません。',
+            variant: 'danger',
+            onConfirm: async () => {
+                try {
+                    await api.delete(`/time-entries/${teId}`);
+                    setModalConfig(prev => ({ ...prev, isOpen: false }));
+                    load();
+                } catch (err: any) {
+                    alert('削除に失敗しました: ' + (err.response?.data?.error || err.message));
                 }
             }
         });
@@ -309,12 +338,23 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
 
 
             {/* Time entries */}
-            {issue.timeEntries && issue.timeEntries.length > 0 && (
-                <div className="bg-white rounded-lg shadow p-5 mb-6">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3">時間記録</h3>
+            <div className="bg-white rounded-lg shadow p-5 mb-6">
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-gray-700">時間記録</h3>
+                    <button
+                        onClick={() => {
+                            setEditingTimeEntry(undefined);
+                            setIsTimeEntryModalOpen(true);
+                        }}
+                        className="text-xs text-sky-600 hover:text-sky-700 font-medium"
+                    >
+                        + 時間記録を追加
+                    </button>
+                </div>
+                {issue.timeEntries && issue.timeEntries.length > 0 ? (
                     <table className="w-full text-sm">
                         <thead><tr className="text-gray-500 text-left">
-                            <th className="pb-2">日付</th><th className="pb-2">ユーザー</th><th className="pb-2">活動</th><th className="pb-2">時間</th><th className="pb-2">コメント</th>
+                            <th className="pb-2">日付</th><th className="pb-2">ユーザー</th><th className="pb-2">活動</th><th className="pb-2">時間</th><th className="pb-2">コメント</th><th className="pb-2 text-right">アクション</th>
                         </tr></thead>
                         <tbody>
                             {issue.timeEntries.map((te) => (
@@ -324,12 +364,30 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                                     <td>{te.activity}</td>
                                     <td>{te.hours}h</td>
                                     <td className="text-gray-500">{te.comments || '-'}</td>
+                                    <td className="text-right whitespace-nowrap">
+                                        <button
+                                            onClick={() => handleEditTimeEntry(te)}
+                                            className="text-sky-600 hover:text-sky-800 mr-4 cursor-pointer"
+                                            title="編集"
+                                        >
+                                            <Pencil size={18} />
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteTimeEntry(te.id)}
+                                            className="text-red-500 hover:text-red-700 cursor-pointer"
+                                            title="削除"
+                                        >
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
-                </div>
-            )}
+                ) : (
+                    <p className="text-xs text-gray-400 italic">時間記録はありません</p>
+                )}
+            </div>
 
             {/* Relations */}
             <div className="bg-white rounded-lg shadow p-5 mb-6">
@@ -571,6 +629,17 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                 onConfirm={modalConfig.onConfirm}
                 onCancel={() => setModalConfig(prev => ({ ...prev, isOpen: false }))}
                 variant={modalConfig.variant}
+            />
+
+            <TimeEntryModal
+                isOpen={isTimeEntryModalOpen}
+                onClose={() => {
+                    setIsTimeEntryModalOpen(false);
+                    setEditingTimeEntry(undefined);
+                }}
+                onSuccess={load}
+                projectId={issue.projectId}
+                entry={editingTimeEntry}
             />
         </div>
     );

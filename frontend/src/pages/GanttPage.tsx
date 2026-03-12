@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import api from '../api/client';
 import { Issue, Project } from '../types';
 import GanttChart from '../components/GanttChart';
-import ChartTicketSearchSection from '../components/ChartTicketSearchSection';
+import TicketSearchSection from '../components/TicketSearchSection';
 
 type ZoomLevel = 'day' | 'month' | 'year';
 
@@ -47,7 +47,7 @@ export default function GanttPage() {
     }
   }, [loadIssues]);
 
-  const parentProjectIds = project ? new Set([project.id]) : new Set();
+  const parentProjectIds = project ? new Set([project.id]) : new Set<number>();
 
   const collapseAll = useCallback(() => {
     setCollapsedProjects(new Set(parentProjectIds));
@@ -64,9 +64,8 @@ export default function GanttPage() {
       </div>
       <div className="flex gap-3 mb-4 items-center">
         <div className="flex-1">
-          <ChartTicketSearchSection
+          <TicketSearchSection
             zoom={zoom}
-            onZoomChange={setZoom}
             startValue={startValue}
             onStartValueChange={setStartValue}
             endValue={endValue}
@@ -78,9 +77,6 @@ export default function GanttPage() {
             filterAssignedToId={filterAssignedToId}
             onFilterAssignedToIdChange={setFilterAssignedToId}
             issueCount={issues.length}
-            showProject={false}
-            onCollapseAll={collapseAll}
-            onExpandAll={expandAll}
           />
         </div>
       </div>
