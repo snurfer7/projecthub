@@ -105,9 +105,9 @@ export default function ProjectCommentsPage() {
     };
 
     return (
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden relative">
-            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-slate-700">コメント ({comments.length})</h2>
+        <div>
+            <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-semibold text-slate-700">コメント ({comments.length})</h2>
                 <button
                     onClick={handleOpenCreateModal}
                     className="flex items-center gap-1.5 bg-sky-600 text-white px-3 py-1.5 rounded text-xs font-medium hover:bg-sky-700 transition-colors shadow-sm"
@@ -116,6 +116,7 @@ export default function ProjectCommentsPage() {
                     コメントを追加
                 </button>
             </div>
+            <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden relative">
             <div className="p-6 space-y-6">
                 {comments.length === 0 ? (
                     <p className="text-sm text-gray-400 text-center py-8 italic">
@@ -184,6 +185,7 @@ export default function ProjectCommentsPage() {
                         ))}
                     </div>
                 )}
+            </div>
             </div>
 
             <CommentModal

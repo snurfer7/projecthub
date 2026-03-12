@@ -126,7 +126,11 @@ export default function WikiListPage() {
   if (error) return <div className="bg-red-50 text-red-600 p-4 rounded-md mb-4">{error}</div>;
 
   return (
-    <div className="flex flex-col md:flex-row gap-6 min-h-[500px]">
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-lg font-semibold text-slate-700">Wiki</h2>
+      </div>
+      <div className="flex flex-col md:flex-row gap-6 min-h-[500px]">
       <WikiSidebar
         pages={pages}
         selectedPageId={selectedPage?.id || null}
@@ -196,6 +200,7 @@ export default function WikiListPage() {
         onCancel={() => setIsDeleting(false)}
         variant="danger"
       />
+    </div>
     </div>
   );
 }

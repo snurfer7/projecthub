@@ -6,7 +6,7 @@ import { TimeEntry, Issue } from '../types';
 import Combobox from '../components/Combobox';
 import NumberInput from '../components/NumberInput';
 import TextInput from '../components/TextInput';
-import CustomDatePicker from '../components/CustomDatePicker';
+import DateInput from '../components/DateInput';
 import Modal from '../components/Modal';
 
 export default function TimeEntriesPage() {
@@ -85,8 +85,8 @@ export default function TimeEntriesPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">時間記録</h1>
-          <p className="text-sm text-gray-500 mt-1">合計: {totalHours.toFixed(1)} 時間</p>
+          <h2 className="text-lg font-semibold text-slate-700">時間記録</h2>
+          <p className="text-sm text-gray-500 mt-2">合計: {totalHours.toFixed(1)} 時間</p>
         </div>
         <button onClick={() => setShowForm(true)}
           className="bg-sky-600 text-white px-4 py-2 rounded-md text-sm hover:bg-sky-700">記録を追加</button>
@@ -140,7 +140,7 @@ export default function TimeEntriesPage() {
                 />
               </div>
               <div>
-                <CustomDatePicker
+                <DateInput
                   label="日付"
                   value={spentOn}
                   onChange={setSpentOn}

@@ -162,7 +162,7 @@ export default function SettingsPage({ user, refreshUser }: Props) {
               ]}
               value={landingPage}
               onChange={setLandingPage}
-              size="small"
+              size="medium"
             />
           </div>
           <button

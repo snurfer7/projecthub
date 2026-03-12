@@ -88,7 +88,7 @@ export default function DashboardPage() {
                   ]}
                   value={companyId}
                   onChange={setCompanyId}
-                  size="small"
+                  size="medium"
                 />
               </div>
               <div>
@@ -100,7 +100,7 @@ export default function DashboardPage() {
                   ]}
                   value={parentId}
                   onChange={setParentId}
-                  size="small"
+                  size="medium"
                 />
               </div>
             </div>

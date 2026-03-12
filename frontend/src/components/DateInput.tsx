@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 're
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import Portal from './Portal';
 
-interface CustomDatePickerProps {
-    value: string; // YYYY-MM-DD or YYYY-MM or YYYY
+interface DateInputProps {
+    value: string; // YYYY-MM-DD or YYYY-MM
     onChange: (value: string) => void;
     label?: string;
     placeholder?: string;
@@ -14,10 +14,10 @@ interface CustomDatePickerProps {
     className?: string;
     size?: 'small' | 'medium' | 'large';
     showFloatingLabel?: boolean;
-    selectMode?: 'date' | 'month' | 'year'; // Add year selection mode
+    selectMode?: 'date' | 'month'; // Add month selection mode
 }
 
-export default function CustomDatePicker({ 
+export default function DateInput({ 
     value, 
     onChange, 
     label, 
@@ -30,7 +30,7 @@ export default function CustomDatePicker({
     size = 'medium',
     showFloatingLabel = true,
     selectMode = 'date'
-}: CustomDatePickerProps) {
+}: DateInputProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [isFocused, setIsFocused] = useState(false);
     const [viewDate, setViewDate] = useState(value ? new Date(value) : new Date());
@@ -40,33 +40,14 @@ export default function CustomDatePicker({
 
     const inputId = id || (label ? label.replace(/\s+/g, '-').toLowerCase() : undefined);
 
-    const actualPlaceholder = placeholder || (selectMode === 'year' ? '年' : selectMode === 'month' ? '年/月' : '年/月/日');
+    const actualPlaceholder = placeholder || (selectMode === 'month' ? '年/月' : '年/月/日');
 
     // Update view date when prop changes
     useEffect(() => {
         if (value) {
-            if (selectMode === 'year') {
-                // For year mode, parse YYYY format
-                const year = parseInt(value, 10);
-                if (!isNaN(year)) {
-                    setViewDate(new Date(year, 0, 1));
-                }
-            } else if (selectMode === 'month') {
-                // For month mode, parse YYYY-MM format
-                const parts = value.split('-');
-                if (parts.length >= 2) {
-                    const year = parseInt(parts[0], 10);
-                    const month = parseInt(parts[1], 10) - 1;
-                    if (!isNaN(year) && !isNaN(month)) {
-                        setViewDate(new Date(year, month, 1));
-                    }
-                }
-            } else {
-                // For date mode, parse YYYY-MM-DD format
-                const date = new Date(value);
-                if (!isNaN(date.getTime())) {
-                    setViewDate(date);
-                }
+            const date = new Date(value);
+            if (!isNaN(date.getTime())) {
+                setViewDate(date);
             }
         }
     }, [value]);
@@ -74,7 +55,7 @@ export default function CustomDatePicker({
     const updatePosition = () => {
         if (containerRef.current && isOpen) {
             const rect = containerRef.current.getBoundingClientRect();
-            const pickerHeight = selectMode === 'year' ? 320 : selectMode === 'month' ? 280 : 380; // Approximate height
+            const pickerHeight = selectMode === 'month' ? 280 : 380; // Approximate height - shorter for month picker
             const spaceBelow = window.innerHeight - rect.bottom;
             const spaceAbove = rect.top;
             
@@ -154,12 +135,6 @@ export default function CustomDatePicker({
         setIsFocused(false);
     };
 
-    const handleYearSelect = (year: number) => {
-        onChange(`${year}`);
-        setIsOpen(false);
-        setIsFocused(false);
-    };
-
     const changeMonth = (offset: number) => {
         const newDate = new Date(viewDate);
         newDate.setMonth(viewDate.getMonth() + offset);
@@ -194,9 +169,7 @@ export default function CustomDatePicker({
         large: 'py-3'
     };
 
-    const displayText = selectMode === 'year' 
-        ? (value ? value : '')
-        : selectMode === 'month'
+    const displayText = selectMode === 'month' 
         ? (value ? value.replace(/-/g, '/') : '')
         : (value ? value.replace(/-/g, '/') : '');
 
@@ -231,11 +204,7 @@ export default function CustomDatePicker({
 
     const isSelected = (date: Date) => {
         if (!value) return false;
-        if (selectMode === 'year') {
-            // Extract year from value (YYYY format)
-            const year = parseInt(value, 10);
-            return date.getFullYear() === year;
-        } else if (selectMode === 'month') {
+        if (selectMode === 'month') {
             // Extract year and month from value (YYYY-MM format)
             const parts = value.split('-');
             if (parts.length < 2) return false;
@@ -319,64 +288,7 @@ export default function CustomDatePicker({
                         style={dropdownStyle}
                         className="bg-white border border-gray-200 rounded-lg shadow-xl w-64 animate-in fade-in zoom-in-95 overflow-hidden drop-shadow-2xl"
                     >
-                        {selectMode === 'year' ? (
-                            // Year Selection UI
-                            <>
-                                <div className="bg-sky-500 p-4 text-white">
-                                    <div className="text-xs font-medium opacity-80 mb-1">年を選択</div>
-                                    <div className="text-xl font-semibold">{viewYear}年</div>
-                                </div>
-
-                                <div className="p-3">
-                                    <div className="flex justify-between items-center mb-4 px-1">
-                                        <span className="text-sm font-bold text-slate-800">
-                                            {viewYear - 4}年 ～ {viewYear + 5}年
-                                        </span>
-                                        <div className="flex items-center">
-                                            <button type="button" onClick={() => setViewDate(new Date(viewYear - 10, 0))} className="p-1.5 hover:bg-gray-100 rounded-full transition-colors">
-                                                <ChevronLeft className="w-4 h-4 text-gray-600" />
-                                            </button>
-                                            <button type="button" onClick={() => setViewDate(new Date(viewYear + 10, 0))} className="p-1.5 hover:bg-gray-100 rounded-full transition-colors">
-                                                <ChevronRight className="w-4 h-4 text-gray-600" />
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-3 gap-2">
-                                        {Array.from({ length: 10 }, (_, i) => {
-                                            const year = viewYear - 4 + i;
-                                            const isYearSelected = isSelected(new Date(year, 0, 1));
-                                            return (
-                                                <button
-                                                    type="button"
-                                                    key={i}
-                                                    onClick={() => handleYearSelect(year)}
-                                                    className={`
-                                                        h-10 rounded-md flex items-center justify-center text-sm font-medium transition-all
-                                                        ${isYearSelected 
-                                                            ? 'bg-sky-500 text-white hover:bg-sky-600 shadow-md' 
-                                                            : 'text-slate-700 hover:bg-sky-50 hover:text-sky-600'
-                                                        }
-                                                    `}
-                                                >
-                                                    {year}年
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-
-                                <div className="bg-gray-50 p-2 flex justify-end gap-2 border-t text-right">
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsOpen(false)}
-                                        className="px-3 py-1 text-xs font-medium text-gray-500 hover:bg-gray-200 rounded transition-colors"
-                                    >
-                                        キャンセル
-                                    </button>
-                                </div>
-                            </>
-                        ) : selectMode === 'month' ? (
+                        {selectMode === 'month' ? (
                             // Month Selection UI
                             <>
                                 <div className="bg-sky-500 p-4 text-white">

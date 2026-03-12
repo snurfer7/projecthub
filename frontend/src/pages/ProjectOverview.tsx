@@ -178,7 +178,7 @@ export default function ProjectOverview() {
         <>
             {/* Project Info Section */}
             <div className="mb-6">
-                <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center justify-between mb-6">
                     <h2 className="text-lg font-semibold text-slate-700">プロジェクト情報</h2>
                     <button onClick={openSettings} className="text-sky-600 hover:text-sky-700 text-sm font-medium flex items-center gap-1">
                         <Pencil className="w-4 h-4" />設定

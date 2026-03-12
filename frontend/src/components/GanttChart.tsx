@@ -20,6 +20,20 @@ interface GanttChartProps {
   onIssueCreated?: () => void;
   onRelationCreated?: (fromId: number, toId: number) => Promise<void>;
   systemSettings?: SystemSetting;
+  zoom?: ZoomLevel;
+  onZoomChange?: (zoom: ZoomLevel) => void;
+  startValue?: string;
+  onStartValueChange?: (value: string) => void;
+  endValue?: string;
+  onEndValueChange?: (value: string) => void;
+  filterTrackerId?: number | '';
+  onFilterTrackerIdChange?: (value: number | '') => void;
+  filterStatusId?: number | '';
+  onFilterStatusIdChange?: (value: number | '') => void;
+  filterAssignedToId?: number | '';
+  onFilterAssignedToIdChange?: (value: number | '') => void;
+  collapsedProjects?: Set<number>;
+  onCollapsedProjectsChange?: (collapsed: Set<number>) => void;
 }
 
 type ZoomLevel = 'day' | 'month' | 'year';
@@ -273,16 +287,83 @@ function calcConversionHours(startDate: Date, endDate: Date, settings?: SystemSe
   return Math.max(0, Math.round(totalHours));
 }
 
-export default function GanttChart({ issues, projects = [], showProject, onUpdateIssue, onIssueCreated, onRelationCreated, systemSettings }: GanttChartProps) {
+export default function GanttChart({ 
+  issues, 
+  projects = [], 
+  showProject, 
+  onUpdateIssue, 
+  onIssueCreated, 
+  onRelationCreated, 
+  systemSettings,
+  zoom: propsZoom = 'day',
+  onZoomChange,
+  startValue: propsStartValue = '',
+  onStartValueChange,
+  endValue: propsEndValue = '',
+  onEndValueChange,
+  filterTrackerId: propsFilterTrackerId = '',
+  onFilterTrackerIdChange,
+  filterStatusId: propsFilterStatusId = '',
+  onFilterStatusIdChange,
+  filterAssignedToId: propsFilterAssignedToId = '',
+  onFilterAssignedToIdChange,
+  collapsedProjects: propsCollapsedProjects = new Set(),
+  onCollapsedProjectsChange,
+}: GanttChartProps) {
   const { user } = useAuth();
-  const [zoom, setZoom] = useState<ZoomLevel>('day');
-  const [startValue, setStartValue] = useState<string>('');
-  const [endValue, setEndValue] = useState<string>('');
+  const [internalZoom, setInternalZoom] = useState<ZoomLevel>('day');
+  const [internalStartValue, setInternalStartValue] = useState<string>('');
+  const [internalEndValue, setInternalEndValue] = useState<string>('');
   const [customLeftColWidth, setCustomLeftColWidth] = useState<number | null>(null);
 
-  const [filterTrackerId, setFilterTrackerId] = useState<number | ''>('');
-  const [filterAssignedToId, setFilterAssignedToId] = useState<number | ''>('');
-  const [filterStatusId, setFilterStatusId] = useState<number | ''>('');
+  const [internalFilterTrackerId, setInternalFilterTrackerId] = useState<number | ''>('');
+  const [internalFilterAssignedToId, setInternalFilterAssignedToId] = useState<number | ''>('');
+  const [internalFilterStatusId, setInternalFilterStatusId] = useState<number | ''>('');
+  const [internalCollapsedProjects, setInternalCollapsedProjects] = useState<Set<number>>(new Set());
+  
+  // 外部propsを優先、なければ内部状態を使用
+  const zoom = propsZoom ?? internalZoom;
+  const setZoom = (z: ZoomLevel) => {
+    setInternalZoom(z);
+    onZoomChange?.(z);
+  };
+  
+  const startValue = propsStartValue ?? internalStartValue;
+  const setStartValue = (v: string) => {
+    setInternalStartValue(v);
+    onStartValueChange?.(v);
+  };
+  
+  const endValue = propsEndValue ?? internalEndValue;
+  const setEndValue = (v: string) => {
+    setInternalEndValue(v);
+    onEndValueChange?.(v);
+  };
+  
+  const filterTrackerId = propsFilterTrackerId ?? internalFilterTrackerId;
+  const setFilterTrackerId = (v: number | '') => {
+    setInternalFilterTrackerId(v);
+    onFilterTrackerIdChange?.(v);
+  };
+  
+  const filterStatusId = propsFilterStatusId ?? internalFilterStatusId;
+  const setFilterStatusId = (v: number | '') => {
+    setInternalFilterStatusId(v);
+    onFilterStatusIdChange?.(v);
+  };
+  
+  const filterAssignedToId = propsFilterAssignedToId ?? internalFilterAssignedToId;
+  const setFilterAssignedToId = (v: number | '') => {
+    setInternalFilterAssignedToId(v);
+    onFilterAssignedToIdChange?.(v);
+  };
+  
+  const collapsedProjects = propsCollapsedProjects ?? internalCollapsedProjects;
+  const setCollapsedProjects = (c: Set<number>) => {
+    setInternalCollapsedProjects(c);
+    onCollapsedProjectsChange?.(c);
+  };
+
   const [trackers, setTrackers] = useState<Tracker[]>([]);
   const [statuses, setStatuses] = useState<IssueStatus[]>([]);
   const [assignees, setAssignees] = useState<{ id: number; firstName: string; lastName: string }[]>([]);
@@ -367,46 +448,105 @@ export default function GanttChart({ issues, projects = [], showProject, onUpdat
     }
   }, []);
 
-  // 折りたたまれたプロジェクトID
-  const [collapsedProjects, setCollapsedProjects] = useState<Set<number>>(new Set());
-
   const toggleCollapse = useCallback((projectId: number) => {
-    setCollapsedProjects((prev) => {
-      const next = new Set(prev);
-      if (next.has(projectId)) {
-        next.delete(projectId);
-      } else {
-        next.add(projectId);
-      }
-      return next;
-    });
-  }, []);
+    const next = new Set(collapsedProjects);
+    if (next.has(projectId)) {
+      next.delete(projectId);
+    } else {
+      next.add(projectId);
+    }
+    setCollapsedProjects(next);
+  }, [collapsedProjects, setCollapsedProjects]);
 
-  // ズーム変更時の初期値設定
+  // ズーム変更時の初期値設定（ユーザーが未設定の場合のみ）
   useEffect(() => {
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth();
 
-    const formatMonth = (y: number, m: number) => {
-      const d = new Date(y, m, 1);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    // 値がない場合は初期値をセット
+    if (!propsStartValue && !propsEndValue) {
+      if (zoom === 'day') {
+        setStartValue(new Date(currentYear, currentMonth, 1).toISOString().slice(0, 10));
+        setEndValue(new Date(currentYear, currentMonth + 6, 0).toISOString().slice(0, 10));
+      } else if (zoom === 'month') {
+        const startMonthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+        const endMonth = currentMonth + 11;
+        const endYear = currentYear + Math.floor(endMonth / 12);
+        const endMonthNum = ((endMonth % 12) + 1);
+        const endMonthStr = `${endYear}-${String(endMonthNum).padStart(2, '0')}`;
+        setStartValue(startMonthStr);
+        setEndValue(endMonthStr);
+      } else if (zoom === 'year') {
+        setStartValue(`${currentYear}`);
+        setEndValue(`${currentYear + 9}`);
+      }
+      return;
+    }
+
+    // 値がある場合は、ズームレベルに合わせて変換
+    const startStr = propsStartValue || '';
+    const endStr = propsEndValue || '';
+
+    // 現在のズームレベルを判定（値のフォーマットから）
+    const getCurrentZoom = (value: string): 'day' | 'month' | 'year' | null => {
+      if (!value) return null;
+      const parts = value.split('-');
+      if (parts.length === 3 && parts[0].length === 4) return 'day';
+      if (parts.length === 2 && parts[0].length === 4) return 'month';
+      if (parts.length === 1 && parts[0].length === 4) return 'year';
+      return null;
     };
 
-    if (zoom === 'day') {
-      // 日表示: 当月～5ヶ月後
-      setStartValue(new Date(currentYear, currentMonth, 1).toISOString().slice(0, 10));
-      setEndValue(new Date(currentYear, currentMonth + 6, 0).toISOString().slice(0, 10));
-    } else if (zoom === 'month') {
-      // 月表示: 当月～11ヶ月後
-      setStartValue(new Date(currentYear, currentMonth, 1).toISOString().slice(0, 10));
-      setEndValue(new Date(currentYear, currentMonth + 12, 0).toISOString().slice(0, 10));
-    } else if (zoom === 'year') {
-      // 年表示: 当年～4年後
-      setStartValue(`${currentYear}-01-01`);
-      setEndValue(`${currentYear + 4}-12-31`);
+    const prevZoom = getCurrentZoom(startStr);
+
+    // ズーム変換処理
+    let newStart = startStr;
+    let newEnd = endStr;
+
+    if (prevZoom === 'day') {
+      if (zoom === 'month') {
+        // 日 → 月: YYYY-MM-DD → YYYY-MM
+        newStart = startStr.slice(0, 7);
+        newEnd = endStr.slice(0, 7);
+      } else if (zoom === 'year') {
+        // 日 → 年: YYYY-MM-DD → YYYY
+        newStart = startStr.slice(0, 4);
+        newEnd = endStr.slice(0, 4);
+      }
+    } else if (prevZoom === 'month') {
+      if (zoom === 'day') {
+        // 月 → 日: YYYY-MM → YYYY-MM-01 と YYYY-MM-末日
+        const startDate = new Date(startStr + '-01');
+        const endDate = new Date(endStr + '-01');
+        endDate.setMonth(endDate.getMonth() + 1);
+        endDate.setDate(0); // 月の最後の日
+        newStart = startDate.toISOString().slice(0, 10);
+        newEnd = endDate.toISOString().slice(0, 10);
+      } else if (zoom === 'year') {
+        // 月 → 年: YYYY-MM → YYYY
+        newStart = startStr.slice(0, 4);
+        newEnd = endStr.slice(0, 4);
+      }
+    } else if (prevZoom === 'year') {
+      if (zoom === 'day') {
+        // 年 → 日: YYYY → YYYY-01-01 と YYYY-12-31
+        const startYear = startStr;
+        const endYear = endStr;
+        newStart = `${startYear}-01-01`;
+        newEnd = `${endYear}-12-31`;
+      } else if (zoom === 'month') {
+        // 年 → 月: YYYY → YYYY-01 と YYYY-12
+        const startYear = startStr;
+        const endYear = endStr;
+        newStart = `${startYear}-01`;
+        newEnd = `${endYear}-12`;
+      }
     }
-  }, [zoom]);
+
+    setStartValue(newStart);
+    setEndValue(newEnd);
+  }, [zoom, propsStartValue, propsEndValue, setStartValue, setEndValue]);
 
   useEffect(() => {
     api.get('/issues/meta/options').then((res) => {
@@ -1043,128 +1183,6 @@ export default function GanttChart({ issues, projects = [], showProject, onUpdat
 
   return (
     <div className="relative">
-      {/* ツールバー */}
-      <div className="bg-white rounded-lg shadow p-3 mb-4 flex flex-wrap items-center gap-3">
-        {/* ズーム */}
-        <div className="flex items-center gap-1">
-          <span className="text-xs text-gray-500 mr-1">ズーム:</span>
-          {(['day', 'month', 'year'] as ZoomLevel[]).map((z) => (
-            <button key={z} onClick={() => setZoom(z)}
-              className={`px-2 py-1 rounded text-xs font-medium ${zoom === z ? 'bg-sky-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-              {ZOOM_CONFIG[z].label}
-            </button>
-          ))}
-        </div>
-
-        <div className="w-px h-6 bg-gray-200" />
-
-        {/* 折りたたみ操作（プロジェクトモード時のみ） */}
-        {showProject && (
-          <>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={collapseAll}
-                className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200"
-                title="すべて折りたたむ"
-              >
-                <FoldVertical size={13} />
-                <span>すべて折りたたむ</span>
-              </button>
-              <button
-                onClick={expandAll}
-                className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200"
-                title="すべて展開"
-              >
-                <UnfoldVertical size={13} />
-                <span>すべて展開</span>
-              </button>
-            </div>
-            <div className="w-px h-6 bg-gray-200" />
-          </>
-        )}
-
-        {/* 期間指定 */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500">期間:</span>
-          {zoom === 'year' ? (
-            <div className="flex items-center gap-1">
-              <Combobox
-                label="開始年"
-                value={startValue}
-                options={years.map(y => ({ value: y, label: `${y}年` }))}
-                onChange={(val) => setStartValue(val)}
-                size="small"
-                className="w-20"
-              />
-              <span className="text-gray-400">〜</span>
-              <Combobox
-                label="終了年"
-                value={endValue}
-                options={years.map(y => ({ value: y, label: `${y}年` }))}
-                onChange={(val) => setEndValue(val)}
-                size="small"
-                className="w-20"
-              />
-            </div>
-          ) : (
-            <div className="flex items-center gap-1">
-              <CustomDatePicker
-                value={startValue}
-                onChange={setStartValue}
-                size="small"
-                showFloatingLabel={false}
-                placeholder="開始"
-                className="w-32"
-              />
-              <span className="text-gray-400">〜</span>
-              <CustomDatePicker
-                value={endValue}
-                onChange={setEndValue}
-                size="small"
-                showFloatingLabel={false}
-                placeholder="終了"
-                className="w-32"
-              />
-            </div>
-          )}
-        </div>
-
-        <div className="w-px h-6 bg-gray-200" />
-
-        {/* フィルター */}
-        <Combobox
-          label="トラッカー"
-          value={filterTrackerId}
-          options={trackers.map((t) => ({ value: t.id.toString(), label: t.name }))}
-
-          onChange={(val) => setFilterTrackerId(val ? Number(val) : '')}
-          size="small"
-          className="w-32"
-        />
-
-        <Combobox
-          label="ステータス"
-          value={filterStatusId}
-          options={statuses.map((s) => ({ value: s.id.toString(), label: s.name }))}
-
-          onChange={(val) => setFilterStatusId(val ? Number(val) : '')}
-          size="small"
-          className="w-32"
-        />
-
-        <Combobox
-          label="担当者"
-          value={filterAssignedToId}
-          options={assignees.map((a) => ({ value: a.id.toString(), label: `${a.lastName} ${a.firstName}` }))}
-
-          onChange={(val) => setFilterAssignedToId(val ? Number(val) : '')}
-          size="small"
-          className="w-40"
-        />
-
-        <div className="ml-auto text-xs text-gray-400">{filteredIssues.length} 件</div>
-      </div>
-
       {/* チャート */}
       {!showProject && filteredIssues.length === 0 ? (
         <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">

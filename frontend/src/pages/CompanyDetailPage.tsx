@@ -13,7 +13,7 @@ import ConfirmationModal from '../components/ConfirmationModal';
 import Combobox from '../components/Combobox';
 import TextInput from '../components/TextInput';
 import NumberInput from '../components/NumberInput';
-import CustomDatePicker from '../components/CustomDatePicker';
+import DateInput from '../components/DateInput';
 
 
 
@@ -848,7 +848,7 @@ export default function CompanyDetailPage() {
               className="mb-0"
             />
             <div>
-              <CustomDatePicker
+              <DateInput
                 label="予定クローズ日"
                 id="expected-close-date"
                 value={dealForm.expectedCloseDate}
@@ -894,7 +894,7 @@ export default function CompanyDetailPage() {
               onChange={(val) => setActivityForm({ ...activityForm, type: val })}
             />
             <div>
-              <CustomDatePicker
+              <DateInput
                 label="期限日"
                 id="activity-due-date"
                 value={activityForm.dueDate}

@@ -159,7 +159,7 @@ export default function Layout({ user, onLogout, children }: Props) {
             w-64 bg-white border-r border-gray-200
             transform transition-transform duration-300 ease-in-out
             ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-            flex flex-col h-full
+            flex flex-col overflow-hidden
           `}
         >
           <nav className="flex-1 py-4 px-3 overflow-y-auto">
@@ -241,7 +241,7 @@ export default function Layout({ user, onLogout, children }: Props) {
             })}
           </nav>
 
-          <footer className="p-4 border-t border-gray-200 bg-gray-50 space-y-1">
+          <footer className="shrink-0 p-4 border-t border-gray-200 bg-gray-50 space-y-1">
             <button
               onClick={onLogout}
               className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"

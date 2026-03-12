@@ -5,12 +5,13 @@ import api from '../api/client';
 import { Project, Company, Issue, IssueStatus, Tracker } from '../types';
 import Modal from '../components/Modal';
 import GanttChart from '../components/GanttChart';
+import ChartTicketSearchSection from '../components/ChartTicketSearchSection';
 import KanbanBoard from '../components/KanbanBoard';
 import IssueDetail from '../components/IssueDetail';
 import IssueForm from '../components/IssueForm';
 import Combobox from '../components/Combobox';
 import TextInput from '../components/TextInput';
-import CustomDatePicker from '../components/CustomDatePicker';
+import DateInput from '../components/DateInput';
 import { useAuth } from '../hooks/useAuth';
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -54,6 +55,13 @@ export default function ProjectListPage() {
   const [ganttIssues, setGanttIssues] = useState<Issue[]>([]);
   const [ganttProjects, setGanttProjects] = useState<Project[]>([]);
   const [systemSettings, setSystemSettings] = useState<any>(null);
+  const [ganttZoom, setGanttZoom] = useState<'day' | 'month' | 'year'>('day');
+  const [ganttStartValue, setGanttStartValue] = useState('');
+  const [ganttEndValue, setGanttEndValue] = useState('');
+  const [ganttFilterTrackerId, setGanttFilterTrackerId] = useState<number | ''>('');
+  const [ganttFilterStatusId, setGanttFilterStatusId] = useState<number | ''>('');
+  const [ganttFilterAssignedToId, setGanttFilterAssignedToId] = useState<number | ''>('');
+  const [ganttCollapsedProjects, setGanttCollapsedProjects] = useState<Set<number>>(new Set());
 
   // Kanban-related state
   const [kanbanIssues, setKanbanIssues] = useState<Issue[]>([]);
@@ -288,63 +296,62 @@ export default function ProjectListPage() {
         </div>
       </div>
 
-      <div className="flex justify-end mb-4">
-        <button onClick={openCreateProjectModal}
-          className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm shadow-sm transition-all">
-          新規プロジェクト
-        </button>
-      </div>
-
       {/* List toolbar (matches gantt toolbar style) */}
       {
         viewMode === 'list' && (
-          <div className="bg-white rounded-lg shadow p-3 mb-4 flex flex-wrap items-center gap-3">
-            <span className="text-xs text-gray-500">検索:</span>
-            <TextInput
-              placeholder="プロジェクト名、識別子、企業名..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              size="small"
-              showFloatingLabel={false}
-              className="w-64"
-            />
-            <div className="w-px h-6 bg-gray-200" />
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">期間:</span>
-              <div className="flex items-center gap-1">
-                <CustomDatePicker
-                  value={listFilterStartMonth}
-                  onChange={setListFilterStartMonth}
+          <div className="flex gap-3 mb-4 items-center">
+            <div className="bg-white rounded-lg shadow p-3 flex-1 flex flex-wrap items-center gap-3">
+              <span className="text-xs text-gray-500">検索:</span>
+              <TextInput
+                placeholder="プロジェクト名、識別子、企業名..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                size="small"
+                showFloatingLabel={false}
+                className="w-64"
+              />
+              <div className="w-px h-6 bg-gray-200" />
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">期間:</span>
+                <div className="flex items-center gap-1">
+                  <DateInput
+                    value={listFilterStartMonth}
+                    onChange={setListFilterStartMonth}
+                    size="small"
+                    showFloatingLabel={false}
+                    placeholder="開始"
+                    className="w-32"
+                  />
+                  <span className="text-gray-400 text-xs">〜</span>
+                  <DateInput
+                    value={listFilterEndMonth}
+                    onChange={setListFilterEndMonth}
+                    size="small"
+                    showFloatingLabel={false}
+                    placeholder="終了"
+                    className="w-32"
+                  />
+                </div>
+              </div>
+              <div className="w-px h-6 bg-gray-200" />
+              <div className="flex items-center gap-2">
+                <Combobox
+                  label="企業"
+                  options={companies.map(c => ({ value: c.id, label: c.name }))}
+                  value={listFilterCompanyIds}
+                  onChange={(values) => setListFilterCompanyIds(values)}
+                  placeholder="全企業"
+                  className="w-64"
+                  isMulti={true}
                   size="small"
-                  showFloatingLabel={false}
-                  placeholder="開始"
-                  className="w-32"
-                />
-                <span className="text-gray-400 text-xs">〜</span>
-                <CustomDatePicker
-                  value={listFilterEndMonth}
-                  onChange={setListFilterEndMonth}
-                  size="small"
-                  showFloatingLabel={false}
-                  placeholder="終了"
-                  className="w-32"
                 />
               </div>
+              <div className="ml-auto text-xs text-gray-400">{filteredProjects.length} 件</div>
             </div>
-            <div className="w-px h-6 bg-gray-200" />
-            <div className="flex items-center gap-2">
-              <Combobox
-                label="企業"
-                options={companies.map(c => ({ value: c.id, label: c.name }))}
-                value={listFilterCompanyIds}
-                onChange={(values) => setListFilterCompanyIds(values)}
-                placeholder="全企業"
-                className="w-64"
-                isMulti={true}
-                size="small"
-              />
-            </div>
-            <div className="ml-auto text-xs text-gray-400">{filteredProjects.length} 件</div>
+            <button onClick={openCreateProjectModal}
+              className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm shadow-sm transition-all whitespace-nowrap">
+              新規プロジェクト
+            </button>
           </div>
         )
       }
@@ -352,61 +359,67 @@ export default function ProjectListPage() {
       {/* Kanban toolbar */}
       {
         viewMode === 'kanban' && (
-          <div className="bg-white rounded-lg shadow p-3 mb-4 flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">期間:</span>
-              <div className="flex items-center gap-1">
-                <CustomDatePicker
-                  value={kanbanFilterStartMonth}
-                  onChange={setListFilterStartMonth}
-                  size="small"
-                  showFloatingLabel={false}
-                  placeholder="開始"
-                  className="w-32"
-                />
-                <span className="text-gray-400 text-xs">〜</span>
-                <CustomDatePicker
-                  value={kanbanFilterEndMonth}
-                  onChange={setListFilterEndMonth}
-                  size="small"
-                  showFloatingLabel={false}
-                  placeholder="終了"
-                  className="w-32"
-                />
+          <div className="flex gap-3 mb-4 items-center">
+            <div className="bg-white rounded-lg shadow p-3 flex-1 flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">期間:</span>
+                <div className="flex items-center gap-1">
+                  <DateInput
+                    value={kanbanFilterStartMonth}
+                    onChange={setListFilterStartMonth}
+                    size="small"
+                    showFloatingLabel={false}
+                    placeholder="開始"
+                    className="w-32"
+                  />
+                  <span className="text-gray-400 text-xs">〜</span>
+                  <DateInput
+                    value={kanbanFilterEndMonth}
+                    onChange={setListFilterEndMonth}
+                    size="small"
+                    showFloatingLabel={false}
+                    placeholder="終了"
+                    className="w-32"
+                  />
+                </div>
               </div>
+              <div className="w-px h-6 bg-gray-200" />
+              <Combobox
+                label="トラッカー"
+                options={[
+                  { value: '', label: '全トラッカー' },
+                  ...kanbanTrackers.map((t) => ({ value: String(t.id), label: t.name }))
+                ]}
+                value={String(kanbanFilterTrackerId)}
+                onChange={(val) => setKanbanFilterTrackerId(val ? Number(val) : '')}
+                size="small"
+              />
+              <Combobox
+                label="ステータス"
+                options={[
+                  { value: '', label: '全ステータス' },
+                  ...kanbanStatuses.map((s) => ({ value: String(s.id), label: s.name }))
+                ]}
+                value={String(kanbanFilterStatusId)}
+                onChange={(val) => setKanbanFilterStatusId(val ? Number(val) : '')}
+                size="small"
+              />
+              <Combobox
+                label="担当者"
+                options={[
+                  { value: '', label: '全担当者' },
+                  ...kanbanAssignees.map((a) => ({ value: String(a.id), label: `${a.lastName} ${a.firstName}` }))
+                ]}
+                value={String(kanbanFilterAssignedToId)}
+                onChange={(val) => setKanbanFilterAssignedToId(val ? Number(val) : '')}
+                size="small"
+              />
+              <div className="ml-auto text-xs text-gray-400">{kanbanFilteredIssues.length} 件</div>
             </div>
-            <div className="w-px h-6 bg-gray-200" />
-            <Combobox
-              label="トラッカー"
-              options={[
-                { value: '', label: '全トラッカー' },
-                ...kanbanTrackers.map((t) => ({ value: String(t.id), label: t.name }))
-              ]}
-              value={String(kanbanFilterTrackerId)}
-              onChange={(val) => setKanbanFilterTrackerId(val ? Number(val) : '')}
-              size="small"
-            />
-            <Combobox
-              label="ステータス"
-              options={[
-                { value: '', label: '全ステータス' },
-                ...kanbanStatuses.map((s) => ({ value: String(s.id), label: s.name }))
-              ]}
-              value={String(kanbanFilterStatusId)}
-              onChange={(val) => setKanbanFilterStatusId(val ? Number(val) : '')}
-              size="small"
-            />
-            <Combobox
-              label="担当者"
-              options={[
-                { value: '', label: '全担当者' },
-                ...kanbanAssignees.map((a) => ({ value: String(a.id), label: `${a.lastName} ${a.firstName}` }))
-              ]}
-              value={String(kanbanFilterAssignedToId)}
-              onChange={(val) => setKanbanFilterAssignedToId(val ? Number(val) : '')}
-              size="small"
-            />
-            <div className="ml-auto text-xs text-gray-400">{kanbanFilteredIssues.length} 件</div>
+            <button onClick={openCreateProjectModal}
+              className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm shadow-sm transition-all whitespace-nowrap">
+              新規プロジェクト
+            </button>
           </div>
         )
       }
@@ -459,15 +472,57 @@ export default function ProjectListPage() {
       {/* Gantt chart view */}
       {
         viewMode === 'gantt' && (
-          <GanttChart
-            issues={ganttIssues}
-            projects={ganttProjects}
-            showProject
-            systemSettings={systemSettings}
-            onUpdateIssue={handleUpdateIssue}
-            onIssueCreated={loadGanttData}
-            onRelationCreated={handleCreateRelation}
-          />
+          <>
+            <div className="flex gap-3 mb-4 items-center">
+              <div className="flex-1">
+                <ChartTicketSearchSection
+                  zoom={ganttZoom}
+                  onZoomChange={setGanttZoom}
+                  startValue={ganttStartValue}
+                  onStartValueChange={setGanttStartValue}
+                  endValue={ganttEndValue}
+                  onEndValueChange={setGanttEndValue}
+                  filterTrackerId={ganttFilterTrackerId}
+                  onFilterTrackerIdChange={setGanttFilterTrackerId}
+                  filterStatusId={ganttFilterStatusId}
+                  onFilterStatusIdChange={setGanttFilterStatusId}
+                  filterAssignedToId={ganttFilterAssignedToId}
+                  onFilterAssignedToIdChange={setGanttFilterAssignedToId}
+                  issueCount={ganttIssues.length}
+                  showProject={true}
+                  onCollapseAll={() => setGanttCollapsedProjects(new Set(ganttProjects.map(p => p.id)))}
+                  onExpandAll={() => setGanttCollapsedProjects(new Set())}
+                />
+              </div>
+              <button onClick={openCreateProjectModal}
+                className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm shadow-sm transition-all whitespace-nowrap flex-shrink-0">
+                新規プロジェクト
+              </button>
+            </div>
+            <GanttChart
+              issues={ganttIssues}
+              projects={ganttProjects}
+              showProject
+              systemSettings={systemSettings}
+              onUpdateIssue={handleUpdateIssue}
+              onIssueCreated={loadGanttData}
+              onRelationCreated={handleCreateRelation}
+              zoom={ganttZoom}
+              onZoomChange={setGanttZoom}
+              startValue={ganttStartValue}
+              onStartValueChange={setGanttStartValue}
+              endValue={ganttEndValue}
+              onEndValueChange={setGanttEndValue}
+              filterTrackerId={ganttFilterTrackerId}
+              onFilterTrackerIdChange={setGanttFilterTrackerId}
+              filterStatusId={ganttFilterStatusId}
+              onFilterStatusIdChange={setGanttFilterStatusId}
+              filterAssignedToId={ganttFilterAssignedToId}
+              onFilterAssignedToIdChange={setGanttFilterAssignedToId}
+              collapsedProjects={ganttCollapsedProjects}
+              onCollapsedProjectsChange={setGanttCollapsedProjects}
+            />
+          </>
         )
       }
 
@@ -518,7 +573,7 @@ export default function ProjectListPage() {
                 ]}
                 value={projectCompanyId}
                 onChange={setProjectCompanyId}
-                size="small"
+                size="medium"
               />
             </div>
             <div>
@@ -538,12 +593,12 @@ export default function ProjectListPage() {
                     }
                   }
                 }}
-                size="small"
+                size="medium"
               />
             </div>
           </div>
           <div className="mb-4">
-            <CustomDatePicker
+            <DateInput
               label="期限日"
               id="project-due-date"
               value={projectDueDate}

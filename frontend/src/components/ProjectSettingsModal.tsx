@@ -5,7 +5,7 @@ import { Project, Company, ProjectRelatedCompany } from '../types';
 import Modal from './Modal';
 import Combobox from './Combobox';
 import TextInput from './TextInput';
-import CustomDatePicker from './CustomDatePicker';
+import DateInput from './DateInput';
 
 interface ProjectSettingsModalProps {
     projectId: number;
@@ -159,7 +159,7 @@ export default function ProjectSettingsModal({ projectId, isOpen, onClose, onUpd
                             onChange={setParentId}
                         />
 
-                        <CustomDatePicker
+                        <DateInput
                             label="期限日"
                             id="project-due-date"
                             value={dueDate}

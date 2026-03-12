@@ -7,7 +7,7 @@ import CustomTimePicker from './CustomTimePicker';
 import Combobox from './Combobox';
 import TextInput from './TextInput';
 import NumberInput from './NumberInput';
-import CustomDatePicker from './CustomDatePicker';
+import DateInput from './DateInput';
 import { formatEstimatedHours } from '../utils/format';
 
 function toLocalDatetimeString(dateString?: string | null) {
@@ -206,7 +206,7 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="grid grid-cols-[1fr_100px] gap-2">
-                            <CustomDatePicker
+                            <DateInput
                                 label="開始日"
                                 id="start-date"
                                 value={startDate ? startDate.slice(0, 10) : ''}
@@ -236,7 +236,7 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                        <CustomDatePicker
+                        <DateInput
                             label="期日"
                             id="due-date"
                             value={dueDate}

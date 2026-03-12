@@ -83,8 +83,8 @@ export default function KanbanPage() {
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between flex-shrink-0">
-        <h1 className="text-xl font-semibold text-slate-800">カンバンボード</h1>
+      <div className="px-6 pb-6 flex items-center justify-between mb-0 flex-shrink-0">
+        <h2 className="text-lg font-semibold text-slate-700">カンバンボード</h2>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <Combobox
