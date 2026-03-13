@@ -156,10 +156,11 @@ npm run build
 
 ```bash
 cd frontend
+source ~/.bashrc  #シェルの設定を反映
 npm install
 
 # 本番環境の API URL を指定してビルド
-VITE_API_URL=https://your-domain.com/api npm run build
+VITE_API_URL=https://projecthub.nippoh.work/api npm run build
 # dist/ ディレクトリに静的ファイルが生成される
 ```
 

@@ -94,6 +94,7 @@ export default function TicketSearchSection({
 
   // クリア時のハンドラー
   const handleStartValueChange = (value: string) => {
+    if (!onStartValueChange) return;
     if (value === '') {
       // クリア時は現在のズームレベルに応じた初期値をセット
       const defaults = getDefaultValues();
@@ -104,6 +105,7 @@ export default function TicketSearchSection({
   };
 
   const handleEndValueChange = (value: string) => {
+    if (!onEndValueChange) return;
     if (value === '') {
       const defaults = getDefaultValues();
       onEndValueChange(defaults.end);
@@ -120,7 +122,7 @@ export default function TicketSearchSection({
         {zoom === 'year' ? (
           <div className="flex items-center gap-1">
             <CustomDatePicker
-              value={startValue}
+              value={startValue || ''}
               onChange={handleStartValueChange}
               size="small"
               showFloatingLabel={false}
@@ -130,7 +132,7 @@ export default function TicketSearchSection({
             />
             <span className="text-gray-400">〜</span>
             <CustomDatePicker
-              value={endValue}
+              value={endValue || ''}
               onChange={handleEndValueChange}
               size="small"
               showFloatingLabel={false}
@@ -142,7 +144,7 @@ export default function TicketSearchSection({
         ) : zoom === 'month' ? (
           <div className="flex items-center gap-1">
             <CustomDatePicker
-              value={startValue}
+              value={startValue || ''}
               onChange={handleStartValueChange}
               size="small"
               showFloatingLabel={false}
@@ -152,7 +154,7 @@ export default function TicketSearchSection({
             />
             <span className="text-gray-400">〜</span>
             <CustomDatePicker
-              value={endValue}
+              value={endValue || ''}
               onChange={handleEndValueChange}
               size="small"
               showFloatingLabel={false}
@@ -164,7 +166,7 @@ export default function TicketSearchSection({
         ) : (
           <div className="flex items-center gap-1">
             <CustomDatePicker
-              value={startValue}
+              value={startValue || ''}
               onChange={handleStartValueChange}
               size="small"
               showFloatingLabel={false}
@@ -173,7 +175,7 @@ export default function TicketSearchSection({
             />
             <span className="text-gray-400">〜</span>
             <CustomDatePicker
-              value={endValue}
+              value={endValue || ''}
               onChange={handleEndValueChange}
               size="small"
               showFloatingLabel={false}

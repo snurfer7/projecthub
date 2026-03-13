@@ -1,6 +1,6 @@
-FROM node:20-alpine
+FROM node:20.20.1-slim
 
-RUN apk add --no-cache netcat-openbsd tzdata
+RUN apt-get update && apt-get install -y --no-install-recommends netcat-traditional tzdata && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

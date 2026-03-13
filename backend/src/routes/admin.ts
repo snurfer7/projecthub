@@ -564,7 +564,7 @@ router.post('/companies', async (req: AuthRequest, res: Response) => {
         phone,
         website,
         notes
-      },
+      } as any,
     });
     res.status(201).json(company);
   } catch (e) {
@@ -591,7 +591,7 @@ router.put('/companies/:id', async (req: AuthRequest, res: Response) => {
         phone,
         website,
         notes
-      },
+      } as any,
     });
     res.json(company);
   } catch (e) {

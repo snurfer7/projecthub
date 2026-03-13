@@ -1,6 +1,9 @@
 {
   "name": "redmine-backend",
   "version": "1.0.0",
+  "engines": {
+    "node": ">=20.20.1"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
