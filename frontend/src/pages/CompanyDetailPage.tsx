@@ -15,7 +15,8 @@ import Combobox from '../components/Combobox';
 import TextInput from '../components/TextInput';
 import NumberInput from '../components/NumberInput';
 import DateInput from '../components/DateInput';
-
+import Tabs from '../components/Tabs';
+import { Project } from '../types';
 
 
 const DEAL_STATUSES: { value: string; label: string; color: string }[] = [
@@ -319,14 +320,14 @@ export default function CompanyDetailPage() {
   if (!company) return <div className="text-center py-8 text-gray-500">読み込み中...</div>;
 
   const tabs = [
-    { key: 'overview' as const, label: '概要', count: undefined },
-    { key: 'contacts' as const, label: '連絡先', count: contacts.length },
-    { key: 'deals' as const, label: '商談', count: deals.length },
-    { key: 'activities' as const, label: '活動履歴', count: activities.length },
-    { key: 'wiki' as const, label: 'Wiki', count: company._count?.wikiPages || 0 },
-    { key: 'comments' as const, label: 'コメント', count: company._count?.comments || 0 },
-    { key: 'locations' as const, label: '拠点', count: company._count?.locations || 0 },
-    { key: 'projects' as const, label: 'プロジェクト', count: company.projects?.length || 0 },
+    { key: 'overview', label: '概要', count: undefined },
+    { key: 'contacts', label: '連絡先', count: contacts.length },
+    { key: 'deals', label: '商談', count: deals.length },
+    { key: 'activities', label: '活動履歴', count: activities.length },
+    { key: 'wiki', label: 'Wiki', count: company._count?.wikiPages || 0 },
+    { key: 'comments', label: 'コメント', count: company._count?.comments || 0 },
+    { key: 'locations', label: '拠点', count: company._count?.locations || 0 },
+    { key: 'projects', label: 'プロジェクト', count: company.projects?.length || 0 },
   ];
 
   return (
@@ -338,16 +339,7 @@ export default function CompanyDetailPage() {
 
 
       {/* Tabs */}
-      <div className="border-b mb-4">
-        <div className="flex gap-0">
-          {tabs.map((tab) => (
-            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${activeTab === tab.key ? 'border-sky-600 text-sky-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-              {tab.label} {tab.count !== undefined && <span className="text-xs text-gray-400 ml-1">({tab.count})</span>}
-            </button>
-          ))}
-        </div>
-      </div>
+      <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
 
       {/* Contacts Tab */}
       {activeTab === 'contacts' && (

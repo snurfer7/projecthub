@@ -10,6 +10,7 @@ import ConfirmationModal from '../components/ConfirmationModal';
 import TextInput from '../components/TextInput';
 import Combobox from '../components/Combobox';
 import NumberInput from '../components/NumberInput';
+import Tabs from '../components/Tabs';
 
 
 interface Props {
@@ -474,14 +475,16 @@ export default function AdminPage({ user }: Props) {
     <div>
       <h1 className="text-2xl font-bold text-slate-800 mb-6">管理</h1>
 
-      <div className="flex gap-1 mb-6">
-        {tabs.map((t) => (
-          <button key={t.key} onClick={() => { setTab(t.key); setSelectedGroup(null); }}
-            className={`px-4 py-2 rounded-t text-sm font-medium ${tab === t.key ? 'bg-white text-sky-600 shadow' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {/* Tabs */}
+      <Tabs
+        tabs={tabs}
+        activeTab={tab}
+        onTabChange={(key) => {
+          setTab(key as any);
+          setSelectedGroup(null);
+        }}
+        className="mb-6"
+      />
 
       {tab === 'users' && (
         <div>

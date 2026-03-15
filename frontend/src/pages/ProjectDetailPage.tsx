@@ -3,6 +3,7 @@ import { useParams, Link, Outlet, useLocation } from 'react-router-dom';
 import api from '../api/client';
 import { Project } from '../types';
 import ProjectSettingsModal from '../components/ProjectSettingsModal';
+import Tabs from '../components/Tabs';
 
 export default function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -47,26 +48,7 @@ export default function ProjectDetailPage() {
 
 
       {/* Tabs */}
-      <div className="border-b mb-4">
-        <div className="flex gap-0">
-          {tabs.map((tab) => {
-            // Exactly match /projects/:projectId for Overview tab
-            const isActive = tab.label === '概要'
-              ? location.pathname === tab.path || location.pathname === `${tab.path}/`
-              : location.pathname.startsWith(tab.path);
-
-            return (
-              <Link key={tab.path} to={tab.path}
-                className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${isActive
-                  ? 'border-sky-600 text-sky-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}>
-                {tab.label} {tab.count !== undefined && <span className="text-xs text-gray-400 ml-1">({tab.count})</span>}
-              </Link>
-            );
-          })}
-        </div>
-      </div>
+      <Tabs tabs={tabs} currentPath={location.pathname} />
 
       <div>
         <Outlet context={{ project, loadProject, openSettings: () => setIsSettingsModalOpen(true) }} />
