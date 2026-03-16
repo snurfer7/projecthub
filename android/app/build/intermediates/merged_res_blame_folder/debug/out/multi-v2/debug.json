@@ -5876,6 +5876,23 @@
                     }
                 },
                 {
+                    "source": "/home/hidenori/develop/projecthub/android/app/src/main/res/values/strings.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "47",
+                        "endOffsets": "98"
+                    },
+                    "to": {
+                        "startLines": "103",
+                        "startColumns": "4",
+                        "startOffsets": "6259",
+                        "endColumns": "47",
+                        "endOffsets": "6302"
+                    }
+                },
+                {
                     "source": "/home/hidenori/.gradle/caches/8.10.2/transforms/d1efc21aa4f4634e58d20be36981eb91/transformed/startup-runtime-1.1.1/res/values/values.xml",
                     "from": {
                         "startLines": "2",
@@ -5890,6 +5907,23 @@
                         "startOffsets": "6176",
                         "endColumns": "82",
                         "endOffsets": "6254"
+                    }
+                },
+                {
+                    "source": "/home/hidenori/develop/projecthub/android/app/src/main/res/values/themes.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "87",
+                        "endOffsets": "138"
+                    },
+                    "to": {
+                        "startLines": "212",
+                        "startColumns": "4",
+                        "startOffsets": "13508",
+                        "endColumns": "86",
+                        "endOffsets": "13590"
                     }
                 },
                 {
@@ -5996,40 +6030,6 @@
                         "startOffsets": "4816,5825",
                         "endColumns": "41,59",
                         "endOffsets": "4853,5880"
-                    }
-                },
-                {
-                    "source": "/home/hidenori/work/projecthub/android/app/src/main/res/values/strings.xml",
-                    "from": {
-                        "startLines": "2",
-                        "startColumns": "4",
-                        "startOffsets": "55",
-                        "endColumns": "47",
-                        "endOffsets": "98"
-                    },
-                    "to": {
-                        "startLines": "103",
-                        "startColumns": "4",
-                        "startOffsets": "6259",
-                        "endColumns": "47",
-                        "endOffsets": "6302"
-                    }
-                },
-                {
-                    "source": "/home/hidenori/work/projecthub/android/app/src/main/res/values/themes.xml",
-                    "from": {
-                        "startLines": "2",
-                        "startColumns": "4",
-                        "startOffsets": "55",
-                        "endColumns": "87",
-                        "endOffsets": "138"
-                    },
-                    "to": {
-                        "startLines": "212",
-                        "startColumns": "4",
-                        "startOffsets": "13508",
-                        "endColumns": "86",
-                        "endOffsets": "13590"
                     }
                 },
                 {

@@ -5,9 +5,10 @@
 1. [前提条件](#前提条件)
 2. [開発環境のセットアップ](#開発環境のセットアップ)
 3. [プロジェクトのビルド](#プロジェクトのビルド)
-4. [ワイヤレスデバッグ（実機）](#ワイヤレスデバッグ実機)
-5. [バックエンドへの接続設定](#バックエンドへの接続設定)
-6. [トラブルシューティング](#トラブルシューティング)
+4. [WSL2からWindowsエミュレーターを使う](#wsl2からwindowsエミュレーターを使う)
+5. [ワイヤレスデバッグ（実機）](#ワイヤレスデバッグ実機)
+6. [バックエンドへの接続設定](#バックエンドへの接続設定)
+7. [トラブルシューティング](#トラブルシューティング)
 
 ---
 
@@ -92,6 +93,60 @@ app/build/outputs/apk/debug/app-debug.apk
 ./gradlew clean
 ./gradlew assembleDebug
 ```
+
+---
+
+## WSL2からWindowsエミュレーターを使う
+
+WSL2でビルドし、Windowsホスト側のAndroid Studioエミュレーターにデプロイする方法です。
+`debug.sh` スクリプトで一連の操作をまとめています。
+
+### 事前準備（初回のみ）
+
+#### 1. Windows側でADBをTCP接続待受に設定
+
+エミュレーターを起動した状態で、Windowsのコマンドプロンプト（またはPowerShell）で実行:
+
+```powershell
+adb tcpip 5555
+adb connect localhost:5555
+```
+
+#### 2. Windowsファイアウォールでポート5555を許可
+
+PowerShellを管理者権限で実行:
+
+```powershell
+New-NetFirewallRule -DisplayName "ADB WSL2" -Direction Inbound -Protocol TCP -LocalPort 5555 -Action Allow
+```
+
+### debug.sh の使い方
+
+`android/` ディレクトリで実行します。
+
+```bash
+# 接続状態・デバイス情報の確認
+./debug.sh status
+
+# WindowsエミュレーターにADB接続
+./debug.sh connect
+
+# ビルド → インストール → アプリ起動（デフォルト動作）
+./debug.sh run
+
+# その他のコマンド
+./debug.sh build       # デバッグビルドのみ
+./debug.sh install     # ビルド & インストール
+./debug.sh logcat      # アプリのLogcatを表示（Ctrl+C で終了）
+./debug.sh clear-log   # Logcatをクリア
+./debug.sh uninstall   # アプリをアンインストール
+./debug.sh disconnect  # ADB接続を切断
+
+# ヘルプ
+./debug.sh help
+```
+
+> **仕組み**: WSL2はWindowsホストのIPを `/etc/resolv.conf` の nameserver から取得し、そのIP:5555 に ADB 接続します。Windows側の `adb.exe` を直接呼び出すため、ADBサーバーの二重起動を避けられます。
 
 ---
 
@@ -353,28 +408,47 @@ adb logcat -s ProjectHub:D OkHttp:D
 
 ## よく使う開発コマンド一覧
 
+### WSL2 + Windowsエミュレーター（debug.sh）
+
+`debug.sh` を使うと一連の操作をワンコマンドで実行できます（→ [WSL2からWindowsエミュレーターを使う](#wsl2からwindowsエミュレーターを使う)）。
+
 ```bash
-# ビルド
+./debug.sh run         # ビルド → インストール → 起動
+./debug.sh logcat      # ログ表示
+./debug.sh status      # 接続確認
+```
+
+### Gradleコマンド（直接実行）
+
+```bash
+# デバッグビルド
 ./gradlew assembleDebug
 
-# インストール
+# ビルド & インストール
 ./gradlew installDebug
 
-# アンインストール
-adb uninstall com.projecthub.android
+# クリーンビルド
+./gradlew clean assembleDebug
+```
 
-# ログ表示
-adb logcat -s ProjectHub:D
+### ADBコマンド（直接実行）
 
-# スクリーンショット
-adb exec-out screencap -p > screenshot.png
-
+```bash
 # 接続デバイス確認
 adb devices
+
+# アプリをアンインストール
+adb uninstall com.projecthub.android
 
 # アプリ強制停止
 adb shell am force-stop com.projecthub.android
 
 # アプリデータ消去（ログアウト状態にリセット）
 adb shell pm clear com.projecthub.android
+
+# ログ表示
+adb logcat --pid=$(adb shell pidof -s com.projecthub.android)
+
+# スクリーンショット
+adb exec-out screencap -p > screenshot.png
 ```
