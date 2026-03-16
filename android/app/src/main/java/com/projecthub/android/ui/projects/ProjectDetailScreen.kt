@@ -179,7 +179,7 @@ private fun ProjectDetailContent(
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
                 Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                    InfoRow("会社", project.company?.name)
+                    InfoRow("企業", project.company?.name)
                     InfoRow("親プロジェクト", project.parent?.name)
                     InfoRow("期限", project.dueDate?.take(10))
                     InfoRow("備考", project.remarks)

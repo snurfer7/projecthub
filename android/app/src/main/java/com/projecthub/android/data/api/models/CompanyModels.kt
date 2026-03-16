@@ -55,3 +55,119 @@ data class ContactDto(
 ) {
     val fullName: String get() = "$firstName $lastName"
 }
+
+data class DealDto(
+    val id: Int,
+    @SerializedName("companyId") val companyId: Int,
+    val name: String,
+    val amount: Double?,
+    val status: String,
+    val probability: Int?,
+    @SerializedName("expectedCloseDate") val expectedCloseDate: String?,
+    @SerializedName("contactId") val contactId: Int?,
+    @SerializedName("assignedToId") val assignedToId: Int?,
+    val notes: String?,
+    @SerializedName("createdAt") val createdAt: String?
+)
+
+data class ActivityDto(
+    val id: Int,
+    @SerializedName("companyId") val companyId: Int,
+    val type: String,
+    val subject: String,
+    val description: String?,
+    @SerializedName("contactId") val contactId: Int?,
+    @SerializedName("dealId") val dealId: Int?,
+    @SerializedName("dueDate") val dueDate: String?,
+    val completed: Boolean,
+    @SerializedName("createdAt") val createdAt: String?
+)
+
+// --- Create/Update Request models ---
+
+data class CreateCompanyRequest(
+    val name: String,
+    @SerializedName("legalEntityStatusId") val legalEntityStatusId: Int? = null,
+    @SerializedName("legalEntityPosition") val legalEntityPosition: String? = null,
+    @SerializedName("postalCode") val postalCode: String? = null,
+    val prefecture: String? = null,
+    val city: String? = null,
+    val street: String? = null,
+    val building: String? = null,
+    val phone: String? = null,
+    val website: String? = null,
+    val notes: String? = null
+)
+
+data class CreateContactRequest(
+    @SerializedName("firstName") val firstName: String,
+    @SerializedName("lastName") val lastName: String,
+    @SerializedName("companyId") val companyId: Int,
+    val notes: String? = null,
+    val details: List<ContactDetailRequest> = emptyList()
+)
+
+data class ContactDetailRequest(
+    val department: String? = null,
+    val position: String? = null,
+    val phone: String? = null,
+    val email: String? = null,
+    @SerializedName("locationId") val locationId: Int? = null,
+    @SerializedName("isPrimary") val isPrimary: Boolean = false
+)
+
+data class CreateDealRequest(
+    val name: String,
+    @SerializedName("companyId") val companyId: Int,
+    val amount: Double? = null,
+    val status: String = "prospecting",
+    val probability: Int? = null,
+    @SerializedName("expectedCloseDate") val expectedCloseDate: String? = null,
+    @SerializedName("contactId") val contactId: Int? = null,
+    val notes: String? = null
+)
+
+data class CreateActivityRequest(
+    @SerializedName("companyId") val companyId: Int,
+    val type: String,
+    val subject: String,
+    val description: String? = null,
+    @SerializedName("contactId") val contactId: Int? = null,
+    @SerializedName("dealId") val dealId: Int? = null,
+    @SerializedName("dueDate") val dueDate: String? = null,
+    val completed: Boolean = false
+)
+
+data class CreateLocationRequest(
+    val name: String,
+    val phone: String? = null,
+    @SerializedName("postalCode") val postalCode: String? = null,
+    val prefecture: String? = null,
+    val city: String? = null,
+    val street: String? = null,
+    val building: String? = null,
+    val notes: String? = null
+)
+
+data class CompanyWikiPageDto(
+    val id: Int,
+    @SerializedName("companyId") val companyId: Int,
+    val title: String,
+    val content: String,
+    @SerializedName("authorId") val authorId: Int?,
+    val author: UserRefDto?,
+    @SerializedName("createdAt") val createdAt: String?,
+    @SerializedName("updatedAt") val updatedAt: String?,
+    @SerializedName("parentId") val parentId: Int?,
+    val position: Int,
+    val children: List<CompanyWikiPageDto>?
+)
+
+data class CompanyCommentDto(
+    val id: Int,
+    @SerializedName("companyId") val companyId: Int,
+    val content: String,
+    val author: UserRefDto?,
+    @SerializedName("createdAt") val createdAt: String?,
+    @SerializedName("updatedAt") val updatedAt: String?
+)

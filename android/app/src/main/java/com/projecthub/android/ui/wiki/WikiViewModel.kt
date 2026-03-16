@@ -51,7 +51,7 @@ class WikiViewModel @Inject constructor(
     fun loadWikiPage(projectId: Int, pageId: Int) {
         viewModelScope.launch {
             _detailUiState.update { it.copy(isLoading = true, error = null) }
-            when (val result = projectRepository.getWikiPage(projectId, pageId)) {
+            when (val result = projectRepository.getWikiPage(pageId)) {
                 is Result.Success -> {
                     _detailUiState.update { it.copy(isLoading = false, page = result.data) }
                 }

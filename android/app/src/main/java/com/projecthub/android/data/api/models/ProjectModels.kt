@@ -106,6 +106,15 @@ data class ContactRefDto(
     val fullName: String get() = "$firstName $lastName"
 }
 
+data class CreateProjectRequest(
+    val name: String,
+    val identifier: String,
+    val description: String? = null,
+    @SerializedName("companyId") val companyId: Int? = null,
+    @SerializedName("parentId") val parentId: Int? = null,
+    @SerializedName("dueDate") val dueDate: String? = null
+)
+
 data class ProjectCountDto(
     val issues: Int = 0,
     @SerializedName("wikiPages") val wikiPages: Int = 0,

@@ -1,17 +1,14 @@
 package com.projecthub.android.ui.navigation
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.*
 import androidx.navigation.compose.*
+import com.projecthub.android.ui.components.MainScaffold
 import com.projecthub.android.ui.auth.AuthViewModel
 import com.projecthub.android.ui.auth.LoginScreen
 import com.projecthub.android.ui.auth.RegisterScreen
@@ -77,20 +74,6 @@ sealed class Screen(val route: String) {
     }
     object Settings : Screen("settings")
 }
-
-data class BottomNavItem(
-    val screen: Screen,
-    val icon: ImageVector,
-    val label: String
-)
-
-val bottomNavItems = listOf(
-    BottomNavItem(Screen.Home, Icons.Default.Home, "ホーム"),
-    BottomNavItem(Screen.Projects, Icons.Default.FolderOpen, "プロジェクト"),
-    BottomNavItem(Screen.Issues, Icons.Default.BugReport, "チケット"),
-    BottomNavItem(Screen.Time, Icons.Default.Timer, "作業時間"),
-    BottomNavItem(Screen.Companies, Icons.Default.Business, "会社")
-)
 
 @Composable
 fun ProjectHubNavGraph() {
@@ -187,13 +170,15 @@ fun ProjectHubNavGraph() {
 
         // Settings
         composable(Screen.Settings.route) {
-            SettingsScreen(
-                onLogout = {
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(0) { inclusive = true }
+            MainScaffold(navController = navController, currentRoute = Screen.Settings.route) {
+                SettingsScreen(
+                    onLogout = {
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
                     }
-                }
-            )
+                )
+            }
         }
 
         // Project detail
@@ -202,13 +187,15 @@ fun ProjectHubNavGraph() {
             arguments = listOf(navArgument("projectId") { type = NavType.IntType })
         ) { backStack ->
             val projectId = backStack.arguments?.getInt("projectId") ?: return@composable
-            ProjectDetailScreen(
-                projectId = projectId,
-                onNavigateBack = { navController.popBackStack() },
-                onNavigateToIssues = { navController.navigate(Screen.ProjectIssues.createRoute(it)) },
-                onNavigateToKanban = { navController.navigate(Screen.Kanban.createRoute(it)) },
-                onNavigateToWiki = { navController.navigate(Screen.WikiList.createRoute(it)) }
-            )
+            MainScaffold(navController = navController, currentRoute = Screen.Projects.route) {
+                ProjectDetailScreen(
+                    projectId = projectId,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToIssues = { navController.navigate(Screen.ProjectIssues.createRoute(it)) },
+                    onNavigateToKanban = { navController.navigate(Screen.Kanban.createRoute(it)) },
+                    onNavigateToWiki = { navController.navigate(Screen.WikiList.createRoute(it)) }
+                )
+            }
         }
 
         // Project issues
@@ -217,11 +204,13 @@ fun ProjectHubNavGraph() {
             arguments = listOf(navArgument("projectId") { type = NavType.IntType })
         ) { backStack ->
             val projectId = backStack.arguments?.getInt("projectId") ?: return@composable
-            IssueListScreen(
-                projectId = projectId,
-                onNavigateToIssue = { navController.navigate(Screen.IssueDetail.createRoute(it)) },
-                onNavigateToCreateIssue = { navController.navigate(Screen.IssueCreate.createRoute(it)) }
-            )
+            MainScaffold(navController = navController, currentRoute = Screen.Projects.route) {
+                IssueListScreen(
+                    projectId = projectId,
+                    onNavigateToIssue = { navController.navigate(Screen.IssueDetail.createRoute(it)) },
+                    onNavigateToCreateIssue = { navController.navigate(Screen.IssueCreate.createRoute(it)) }
+                )
+            }
         }
 
         // Issue detail
@@ -230,11 +219,13 @@ fun ProjectHubNavGraph() {
             arguments = listOf(navArgument("issueId") { type = NavType.IntType })
         ) { backStack ->
             val issueId = backStack.arguments?.getInt("issueId") ?: return@composable
-            IssueDetailScreen(
-                issueId = issueId,
-                onNavigateBack = { navController.popBackStack() },
-                onNavigateToEdit = { navController.navigate(Screen.IssueEdit.createRoute(it)) }
-            )
+            MainScaffold(navController = navController, currentRoute = "") {
+                IssueDetailScreen(
+                    issueId = issueId,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToEdit = { navController.navigate(Screen.IssueEdit.createRoute(it)) }
+                )
+            }
         }
 
         // Issue create
@@ -246,16 +237,18 @@ fun ProjectHubNavGraph() {
             })
         ) { backStack ->
             val projectId = backStack.arguments?.getInt("projectId")?.takeIf { it >= 0 }
-            IssueFormScreen(
-                projectId = projectId,
-                issueId = null,
-                onNavigateBack = { navController.popBackStack() },
-                onSaveSuccess = { issueId ->
-                    navController.navigate(Screen.IssueDetail.createRoute(issueId)) {
-                        popUpTo("issue/create?projectId={projectId}") { inclusive = true }
+            MainScaffold(navController = navController, currentRoute = "") {
+                IssueFormScreen(
+                    projectId = projectId,
+                    issueId = null,
+                    onNavigateBack = { navController.popBackStack() },
+                    onSaveSuccess = { issueId ->
+                        navController.navigate(Screen.IssueDetail.createRoute(issueId)) {
+                            popUpTo("issue/create?projectId={projectId}") { inclusive = true }
+                        }
                     }
-                }
-            )
+                )
+            }
         }
 
         // Issue edit
@@ -264,14 +257,16 @@ fun ProjectHubNavGraph() {
             arguments = listOf(navArgument("issueId") { type = NavType.IntType })
         ) { backStack ->
             val issueId = backStack.arguments?.getInt("issueId") ?: return@composable
-            IssueFormScreen(
-                projectId = null,
-                issueId = issueId,
-                onNavigateBack = { navController.popBackStack() },
-                onSaveSuccess = { _ ->
-                    navController.popBackStack()
-                }
-            )
+            MainScaffold(navController = navController, currentRoute = "") {
+                IssueFormScreen(
+                    projectId = null,
+                    issueId = issueId,
+                    onNavigateBack = { navController.popBackStack() },
+                    onSaveSuccess = { _ ->
+                        navController.popBackStack()
+                    }
+                )
+            }
         }
 
         // Kanban
@@ -280,11 +275,13 @@ fun ProjectHubNavGraph() {
             arguments = listOf(navArgument("projectId") { type = NavType.IntType })
         ) { backStack ->
             val projectId = backStack.arguments?.getInt("projectId") ?: return@composable
-            KanbanScreen(
-                projectId = projectId,
-                onNavigateBack = { navController.popBackStack() },
-                onNavigateToIssue = { navController.navigate(Screen.IssueDetail.createRoute(it)) }
-            )
+            MainScaffold(navController = navController, currentRoute = Screen.Projects.route) {
+                KanbanScreen(
+                    projectId = projectId,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToIssue = { navController.navigate(Screen.IssueDetail.createRoute(it)) }
+                )
+            }
         }
 
         // Wiki list
@@ -293,11 +290,13 @@ fun ProjectHubNavGraph() {
             arguments = listOf(navArgument("projectId") { type = NavType.IntType })
         ) { backStack ->
             val projectId = backStack.arguments?.getInt("projectId") ?: return@composable
-            WikiListScreen(
-                projectId = projectId,
-                onNavigateBack = { navController.popBackStack() },
-                onNavigateToPage = { pId, pgId -> navController.navigate(Screen.WikiDetail.createRoute(pId, pgId)) }
-            )
+            MainScaffold(navController = navController, currentRoute = Screen.Projects.route) {
+                WikiListScreen(
+                    projectId = projectId,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToPage = { pId, pgId -> navController.navigate(Screen.WikiDetail.createRoute(pId, pgId)) }
+                )
+            }
         }
 
         // Wiki detail
@@ -310,11 +309,13 @@ fun ProjectHubNavGraph() {
         ) { backStack ->
             val projectId = backStack.arguments?.getInt("projectId") ?: return@composable
             val pageId = backStack.arguments?.getInt("pageId") ?: return@composable
-            WikiDetailScreen(
-                projectId = projectId,
-                pageId = pageId,
-                onNavigateBack = { navController.popBackStack() }
-            )
+            MainScaffold(navController = navController, currentRoute = Screen.Projects.route) {
+                WikiDetailScreen(
+                    projectId = projectId,
+                    pageId = pageId,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
         }
 
         // Company detail
@@ -323,10 +324,12 @@ fun ProjectHubNavGraph() {
             arguments = listOf(navArgument("companyId") { type = NavType.IntType })
         ) { backStack ->
             val companyId = backStack.arguments?.getInt("companyId") ?: return@composable
-            CompanyDetailScreen(
-                companyId = companyId,
-                onNavigateBack = { navController.popBackStack() }
-            )
+            MainScaffold(navController = navController, currentRoute = Screen.Companies.route) {
+                CompanyDetailScreen(
+                    companyId = companyId,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
         }
 
         // Time entry create
@@ -338,57 +341,14 @@ fun ProjectHubNavGraph() {
             })
         ) { backStack ->
             val projectId = backStack.arguments?.getInt("projectId")?.takeIf { it >= 0 }
-            TimeEntryFormScreen(
-                projectId = projectId,
-                onNavigateBack = { navController.popBackStack() },
-                onSaveSuccess = { navController.popBackStack() }
-            )
+            MainScaffold(navController = navController, currentRoute = "") {
+                TimeEntryFormScreen(
+                    projectId = projectId,
+                    onNavigateBack = { navController.popBackStack() },
+                    onSaveSuccess = { navController.popBackStack() }
+                )
+            }
         }
     }
 }
 
-@Composable
-fun MainScaffold(
-    navController: NavController,
-    currentRoute: String,
-    content: @Composable () -> Unit
-) {
-    Scaffold(
-        bottomBar = {
-            NavigationBar {
-                bottomNavItems.forEach { item ->
-                    NavigationBarItem(
-                        icon = { Icon(item.icon, contentDescription = item.label) },
-                        label = { Text(item.label) },
-                        selected = currentRoute == item.screen.route,
-                        onClick = {
-                            if (currentRoute != item.screen.route) {
-                                navController.navigate(item.screen.route) {
-                                    popUpTo(navController.graph.startDestinationId) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            }
-                        }
-                    )
-                }
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "設定") },
-                    label = { Text("設定") },
-                    selected = currentRoute == Screen.Settings.route,
-                    onClick = {
-                        navController.navigate(Screen.Settings.route)
-                    }
-                )
-            }
-        }
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier.padding(paddingValues)
-        ) {
-            content()
-        }
-    }
-}

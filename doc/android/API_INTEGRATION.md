@@ -9,13 +9,13 @@
 ## エンドポイント対応（現在実装分）
 
 - **Auth**: `POST api/auth/login`, `POST api/auth/register`, `GET api/auth/me`
-- **Projects**: `GET api/projects`, `GET api/projects/{id}`
+- **Projects**: `GET api/projects`, `GET api/projects/{id}`, `POST api/projects`
 - **Issues**: `GET api/issues`（Query: projectId, statusId, trackerId, priorityId, assignedToId）, `GET api/issues/{id}`, `POST api/issues`, `PUT api/issues/{id}`, `DELETE api/issues/{id}`, `GET api/issues/meta/options`, `POST api/issues/{id}/comments`
 - **Time Entries**: `GET api/time-entries`（Query: projectId, userId）, `POST api/time-entries`, `DELETE api/time-entries/{id}`
-- **Companies**: `GET api/companies`, `GET api/companies/{id}`
-- **Wiki**: `GET api/wiki/{projectId}`（一覧）, `GET api/wiki/{projectId}/{pageId}`（ページ取得）
-
-※ 会社のコメント・Wiki・拠点、CRM（contacts/deals/activities）、添付・ガント・管理系などは ApiService に未定義の場合は必要に応じて追加する。
+- **Companies**: `GET api/companies`, `GET api/companies/{id}`, `GET api/companies/{companyId}/locations`, `POST api/companies/{companyId}/locations`, `GET api/companies/{companyId}/wiki`（会社 Wiki 一覧）, `GET api/companies/{companyId}/comments`（会社コメント一覧）, `POST api/companies/{companyId}/comments`（コメント追加）
+- **Admin**: `GET api/admin/legal-entity-statuses`, `POST api/admin/companies`
+- **CRM**: `GET api/crm/contacts`（Query: companyId）, `POST api/crm/contacts`, `GET api/crm/deals`（Query: companyId）, `POST api/crm/deals`, `GET api/crm/activities`（Query: companyId）, `POST api/crm/activities`
+- **Wiki（プロジェクト）**: `GET api/wiki/project/{projectId}`（一覧）, `GET api/wiki/{pageId}`（ページ取得）
 
 ## 認証ヘッダー
 

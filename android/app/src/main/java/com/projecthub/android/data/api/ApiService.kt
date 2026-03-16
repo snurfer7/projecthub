@@ -23,6 +23,9 @@ interface ApiService {
     @GET("api/projects/{id}")
     suspend fun getProject(@Path("id") id: Int): Response<ProjectDto>
 
+    @POST("api/projects")
+    suspend fun createProject(@Body request: CreateProjectRequest): Response<ProjectDto>
+
     // Issues
     @GET("api/issues")
     suspend fun getIssues(
@@ -79,13 +82,61 @@ interface ApiService {
     @GET("api/companies/{id}")
     suspend fun getCompany(@Path("id") id: Int): Response<CompanyDto>
 
+    @GET("api/companies/{companyId}/locations")
+    suspend fun getLocations(@Path("companyId") companyId: Int): Response<List<LocationDto>>
+
+    @POST("api/companies/{companyId}/locations")
+    suspend fun createLocation(
+        @Path("companyId") companyId: Int,
+        @Body request: CreateLocationRequest
+    ): Response<LocationDto>
+
+    @GET("api/companies/{companyId}/wiki")
+    suspend fun getCompanyWikiPages(@Path("companyId") companyId: Int): Response<List<CompanyWikiPageDto>>
+
+    @GET("api/companies/{companyId}/comments")
+    suspend fun getCompanyComments(@Path("companyId") companyId: Int): Response<List<CompanyCommentDto>>
+
+    @POST("api/companies/{companyId}/comments")
+    suspend fun addCompanyComment(
+        @Path("companyId") companyId: Int,
+        @Body request: AddCommentRequest
+    ): Response<CompanyCommentDto>
+
+    // Admin
+    @GET("api/admin/legal-entity-statuses")
+    suspend fun getLegalEntityStatuses(): Response<List<LegalEntityStatusDto>>
+
+    @POST("api/admin/companies")
+    suspend fun createCompany(@Body request: CreateCompanyRequest): Response<CompanyDto>
+
+    // CRM - Contacts
+    @GET("api/crm/contacts")
+    suspend fun getContacts(@Query("companyId") companyId: Int? = null): Response<List<ContactDto>>
+
+    @POST("api/crm/contacts")
+    suspend fun createContact(@Body request: CreateContactRequest): Response<ContactDto>
+
+    // CRM - Deals
+    @GET("api/crm/deals")
+    suspend fun getDeals(@Query("companyId") companyId: Int? = null): Response<List<DealDto>>
+
+    @POST("api/crm/deals")
+    suspend fun createDeal(@Body request: CreateDealRequest): Response<DealDto>
+
+    // CRM - Activities
+    @GET("api/crm/activities")
+    suspend fun getActivities(@Query("companyId") companyId: Int? = null): Response<List<ActivityDto>>
+
+    @POST("api/crm/activities")
+    suspend fun createActivity(@Body request: CreateActivityRequest): Response<ActivityDto>
+
     // Wiki
-    @GET("api/wiki/{projectId}")
+    @GET("api/wiki/project/{projectId}")
     suspend fun getWikiPages(@Path("projectId") projectId: Int): Response<List<WikiPageDto>>
 
-    @GET("api/wiki/{projectId}/{pageId}")
+    @GET("api/wiki/{pageId}")
     suspend fun getWikiPage(
-        @Path("projectId") projectId: Int,
         @Path("pageId") pageId: Int
     ): Response<WikiPageDto>
 }

@@ -1,5 +1,6 @@
 package com.projecthub.android.data.repository
 
+import com.projecthub.android.data.api.models.CreateProjectRequest
 import com.projecthub.android.data.api.models.ProjectDto
 import com.projecthub.android.data.api.models.WikiPageDto
 import javax.inject.Inject
@@ -35,6 +36,19 @@ class ProjectRepository @Inject constructor(
         }
     }
 
+    suspend fun createProject(request: CreateProjectRequest): Result<ProjectDto> {
+        return try {
+            val response = apiServiceProvider.get().createProject(request)
+            if (response.isSuccessful) {
+                Result.Success(response.body()!!)
+            } else {
+                Result.Error("プロジェクトの作成に失敗しました")
+            }
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "ネットワークエラーが発生しました")
+        }
+    }
+
     suspend fun getWikiPages(projectId: Int): Result<List<WikiPageDto>> {
         return try {
             val response = apiServiceProvider.get().getWikiPages(projectId)
@@ -48,9 +62,9 @@ class ProjectRepository @Inject constructor(
         }
     }
 
-    suspend fun getWikiPage(projectId: Int, pageId: Int): Result<WikiPageDto> {
+    suspend fun getWikiPage(pageId: Int): Result<WikiPageDto> {
         return try {
-            val response = apiServiceProvider.get().getWikiPage(projectId, pageId)
+            val response = apiServiceProvider.get().getWikiPage(pageId)
             if (response.isSuccessful) {
                 Result.Success(response.body()!!)
             } else {
