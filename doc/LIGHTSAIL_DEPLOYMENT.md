@@ -248,17 +248,17 @@ pm2 startup
 sudo tee /etc/nginx/sites-available/projecthub << 'EOF'
 server {
     listen 80;
-    server_name your-domain.com www.your-domain.com;
+    server_name projecthub.nippoh.work www.projecthub.nippoh.work;
     return 301 https://$server_name$request_uri;
 }
 
 server {
     listen 443 ssl http2;
-    server_name your-domain.com www.your-domain.com;
+    server_name projecthub.nippoh.work www.projecthub.nippoh.work;
 
     # SSL 証明書設定
-    ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/projecthub.nippoh.work/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/projecthub.nippoh.work/privkey.pem;
 
     ssl_session_cache shared:SSL:10m;
     ssl_session_timeout 10m;
@@ -324,8 +324,17 @@ sudo apt-get install -y certbot python3-certbot-nginx
 ### 9.2 SSL 証明書の取得
 
 ```bash
+# Nginxを完全に止める（ポート80を空ける）
+sudo systemctl stop nginx
+
+# スタンドアロンモードで取得する
+sudo certbot certonly --standalone -d projecthub.nippoh.work
+
+# nginxを再起動する
+sudo systemctl restart nginx
+
 # Nginx を一時停止して証明書を取得
-sudo certbot certonly --nginx -d your-domain.com -d www.your-domain.com
+sudo certbot certonly --nginx -d projecthub.nippoh.work -d www.projecthub.nippoh.work
 ```
 
 ### 9.3 自動更新の設定
@@ -416,7 +425,7 @@ cd ..
 # Frontend ビルド
 echo "=== Frontend ビルド ==="
 cd frontend
-VITE_API_URL=https://your-domain.com/api npm run build
+VITE_API_URL=https://projecthub.nippoh.work/api npm run build
 cd ..
 
 # Backend アップロード
@@ -469,7 +478,7 @@ ssh -i your_key.pem ubuntu@public-ip-address "pm2 restart projecthub-backend"
 
 ```bash
 # ローカル: ビルド & アップロード（Nginx の再起動不要）
-cd frontend && VITE_API_URL=https://your-domain.com/api npm run build && cd ..
+cd frontend && VITE_API_URL=https://projecthub.nippoh.work/api npm run build && cd ..
 rsync -avz --delete -e "ssh -i your_key.pem" \
   frontend/dist/ ubuntu@public-ip-address:/var/www/projecthub/frontend/
 ```
