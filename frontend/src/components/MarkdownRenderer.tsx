@@ -1,10 +1,16 @@
+import { lazy, Suspense } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import Mermaid from './Mermaid';
+
+const Mermaid = lazy(() => import('./Mermaid'));
 
 interface MarkdownRendererProps {
     content: string;
 }
+
+const MermaidFallback = () => (
+    <div className="flex justify-center my-4 text-slate-500 text-sm">図を読み込み中...</div>
+);
 
 const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) => {
     return (
@@ -45,7 +51,11 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) => {
                 code: ({ className, children }) => {
                     const match = /language-(\w+)/.exec(className || '');
                     if (match && match[1] === 'mermaid') {
-                        return <Mermaid chart={String(children).replace(/\n$/, '')} />;
+                        return (
+                            <Suspense fallback={<MermaidFallback />}>
+                                <Mermaid chart={String(children).replace(/\n$/, '')} />
+                            </Suspense>
+                        );
                     }
                     const isInline = !className;
                     return isInline ? (

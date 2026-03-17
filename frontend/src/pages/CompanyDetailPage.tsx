@@ -736,7 +736,7 @@ export default function CompanyDetailPage() {
                       <Combobox
                         label="拠点"
                         value={detail.locationId}
-                        options={locations.map((loc) => ({ value: loc.id.toString(), label: loc.name }))}
+                        options={(company?.locations ?? locations).map((loc) => ({ value: loc.id.toString(), label: loc.name }))}
                         onChange={(val) => {
                           const newDetails = [...contactDetails];
                           newDetails[index] = { ...newDetails[index], locationId: val };

@@ -59,16 +59,18 @@ export default function LoginPage({ onLogin }: Props) {
           アカウントをお持ちでない方は <Link to="/register" className="text-sky-600 hover:underline">新規登録</Link>
         </p>
 
-        <div className="mt-6 border-t pt-4">
-          <p className="text-xs text-gray-400 text-center mb-3">テストユーザーでログイン</p>
-          <button
-            onClick={() => { setError(''); setLoading(true); onLogin('admin@example.com', 'admin123').catch((err: any) => { setError(err.response?.data?.error || 'ログインに失敗しました'); }).finally(() => setLoading(false)); }}
-            disabled={loading}
-            className="w-full bg-slate-700 text-white py-2 rounded-md hover:bg-slate-800 disabled:opacity-50 text-sm"
-          >
-            管理者 (admin@example.com)
-          </button>
-        </div>
+        {!import.meta.env.PROD && (
+          <div className="mt-6 border-t pt-4">
+            <p className="text-xs text-gray-400 text-center mb-3">テストユーザーでログイン</p>
+            <button
+              onClick={() => { setError(''); setLoading(true); onLogin('admin@example.com', 'admin123').catch((err: any) => { setError(err.response?.data?.error || 'ログインに失敗しました'); }).finally(() => setLoading(false)); }}
+              disabled={loading}
+              className="w-full bg-slate-700 text-white py-2 rounded-md hover:bg-slate-800 disabled:opacity-50 text-sm"
+            >
+              管理者 (admin@example.com)
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

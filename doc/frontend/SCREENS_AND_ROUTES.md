@@ -4,7 +4,7 @@
 
 | パス | コンポーネント | 概要 |
 |------|----------------|------|
-| `/login` | LoginPage | ログイン |
+| `/login` | LoginPage | ログイン（本番では「テストユーザーでログイン」は非表示） |
 | `/register` | RegisterPage | 新規登録 |
 | 上記以外 | Navigate to `/login` | 未認証時はログインへ |
 

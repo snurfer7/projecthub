@@ -216,14 +216,27 @@ cd /var/www/projecthub/backend
 npm install --omit=dev
 ```
 
-### 7.2 データベースマイグレーション
+### 7.2 Prisma Client の生成
+
+`prisma` は devDependency のため `npm install --omit=dev` ではインストールされず、Prisma Client（`.prisma/client`）が生成されません。**必ずサーバーで以下を実行してください。**
+
+```bash
+cd /var/www/projecthub/backend
+npx prisma generate
+```
+
+スキーマ（`prisma/schema.prisma`）の generator で `output = "../backend/node_modules/.prisma/client"` を指定しているため、`backend` から実行するとアプリが参照する正しい場所に生成されます。指定がないとルートの `node_modules` に生成され、`Cannot find module '.prisma/client/default'` になります。
+
+> プロジェクトの Prisma バージョンに合わせる場合は `npx prisma@6.4.1 generate` のようにバージョン指定できます。
+
+### 7.3 データベースマイグレーション
 
 ```bash
 cd /var/www/projecthub/backend
 npx prisma db push
 ```
 
-### 7.3 PM2 でバックエンドを起動
+### 7.4 PM2 でバックエンドを起動
 
 ```bash
 cd /var/www/projecthub/backend
@@ -237,6 +250,17 @@ pm2 save
 pm2 startup
 # 表示されたコマンドを実行する（sudo env PATH=... など）
 ```
+
+### 7.5 管理者アカウント（初回ログイン情報）
+
+`prisma/seed.ts` を実行してシード済みの場合、以下の管理者アカウントでログインできます。**本番ではログイン画面に「テストユーザーでログイン」は表示されないため、この情報を手元に控えておいてください。**
+
+| 項目 | 値 |
+|------|-----|
+| メールアドレス | `admin@example.com` |
+| パスワード | `admin123` |
+
+初回ログイン後、設定画面からパスワードの変更を推奨します。
 
 ---
 
@@ -288,6 +312,13 @@ server {
     # フロントエンド静的ファイル
     root /var/www/projecthub/frontend;
     index index.html;
+
+    # favicon が無い場合はエラーログを出さず 204 を返す（未配置時によくある 404 を抑制）
+    location = /favicon.ico {
+        access_log off;
+        log_not_found off;
+        return 204;
+    }
 
     location / {
         try_files $uri $uri/ /index.html;
@@ -443,11 +474,12 @@ echo "=== Frontend アップロード ==="
 rsync -avz --delete -e "ssh $SCP_OPTS" \
   frontend/dist/ $SERVER:/var/www/projecthub/frontend/
 
-# サーバーで依存関係インストール・マイグレーション・再起動
+# サーバーで依存関係インストール・Prisma 生成・マイグレーション・再起動
 echo "=== サーバー更新 ==="
 $SSH $SERVER << 'ENDSSH'
   cd /var/www/projecthub/backend
   npm install --omit=dev
+  npx prisma generate
   npx prisma db push
   pm2 restart projecthub-backend
 ENDSSH
@@ -565,6 +597,22 @@ sudo systemctl reload nginx
 sudo certbot certificates
 sudo certbot renew --dry-run
 ```
+
+### 14.6 502 Bad Gateway または `Cannot find module '.prisma/client/default'`
+
+**502 の原因**: Nginx がバックエンド（127.0.0.1:3000）に接続できない、またはバックエンドが起動直後にクラッシュしています。
+
+**ログに `Cannot find module '.prisma/client/default'` が出る場合**: サーバーで Prisma Client が生成されていません。`prisma` は devDependency のため `npm install --omit=dev` では入らず、`prisma generate` も実行されません。
+
+**対処（サーバーで実行）:**
+
+```bash
+cd /var/www/projecthub/backend
+npx prisma generate
+pm2 restart projecthub-backend
+```
+
+初回セットアップ時はセクション 7.2 の「Prisma Client の生成」を必ず実行してください。
 
 ---
 

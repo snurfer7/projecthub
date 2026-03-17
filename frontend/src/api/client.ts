@@ -16,9 +16,14 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+      const requestUrl = error.config?.url ?? '';
+      // ログイン・登録の 401 は認証エラーとして画面に表示するためリダイレクトしない
+      const isAuthAttempt = /^\/?auth\/(login|register)/.test(requestUrl);
+      if (!isAuthAttempt) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
