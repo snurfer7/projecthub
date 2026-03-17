@@ -20,7 +20,6 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var baseUrlInput by remember(uiState.baseUrl) { mutableStateOf(uiState.baseUrl) }
     var showLogoutDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.isLoggedOut) {
@@ -91,65 +90,6 @@ fun SettingsScreen(
                                 )
                             }
                         }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // API Settings
-            SectionCard(title = "API設定") {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "APIベースURL",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = baseUrlInput,
-                        onValueChange = { baseUrlInput = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("http://10.0.2.2:3000") },
-                        singleLine = true,
-                        label = { Text("Base URL") }
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "※ エミュレーター用デフォルト: http://10.0.2.2:3000",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    if (uiState.isSaved) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "保存しました",
-                                color = MaterialTheme.colorScheme.secondary,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
-
-                    Button(
-                        onClick = { viewModel.saveBaseUrl(baseUrlInput) },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = baseUrlInput.isNotBlank()
-                    ) {
-                        Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("URLを保存")
                     }
                 }
             }

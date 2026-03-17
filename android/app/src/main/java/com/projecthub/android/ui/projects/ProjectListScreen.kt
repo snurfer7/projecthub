@@ -4,8 +4,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -28,10 +26,10 @@ import com.projecthub.android.ui.theme.StatusOpen
 @Composable
 fun ProjectListScreen(
     onNavigateToProject: (Int) -> Unit,
+    onNavigateToCreate: () -> Unit = {},
     viewModel: ProjectViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.listUiState.collectAsState()
-    var showCreateDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -45,7 +43,7 @@ fun ProjectListScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showCreateDialog = true }) {
+            FloatingActionButton(onClick = onNavigateToCreate) {
                 Icon(Icons.Default.Add, contentDescription = "新規プロジェクト")
             }
         }
@@ -99,176 +97,6 @@ fun ProjectListScreen(
         }
     }
 
-    if (showCreateDialog) {
-        ProjectCreateDialog(
-            projects = uiState.projects,
-            companies = uiState.companies,
-            isCreating = uiState.isCreating,
-            onDismiss = { showCreateDialog = false },
-            onSubmit = { name, identifier, description, companyId, parentId, dueDate ->
-                viewModel.createProject(
-                    name = name,
-                    identifier = identifier,
-                    description = description,
-                    companyId = companyId,
-                    parentId = parentId,
-                    dueDate = dueDate,
-                    onSuccess = { showCreateDialog = false },
-                    onError = {}
-                )
-            }
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ProjectCreateDialog(
-    projects: List<ProjectDto>,
-    companies: List<com.projecthub.android.data.api.models.CompanyDto>,
-    isCreating: Boolean,
-    onDismiss: () -> Unit,
-    onSubmit: (name: String, identifier: String, description: String?, companyId: Int?, parentId: Int?, dueDate: String?) -> Unit
-) {
-    var name by remember { mutableStateOf("") }
-    var identifier by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var dueDate by remember { mutableStateOf("") }
-    var selectedCompanyId by remember { mutableStateOf<Int?>(null) }
-    var selectedParentId by remember { mutableStateOf<Int?>(null) }
-    var companyExpanded by remember { mutableStateOf(false) }
-    var parentExpanded by remember { mutableStateOf(false) }
-    var nameError by remember { mutableStateOf(false) }
-    var identifierError by remember { mutableStateOf(false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("プロジェクト登録") },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it; nameError = false },
-                    label = { Text("プロジェクト名 *") },
-                    modifier = Modifier.fillMaxWidth(),
-                    isError = nameError,
-                    supportingText = if (nameError) { { Text("必須項目です") } } else null,
-                    singleLine = true
-                )
-                OutlinedTextField(
-                    value = identifier,
-                    onValueChange = { identifier = it; identifierError = false },
-                    label = { Text("識別子 *") },
-                    modifier = Modifier.fillMaxWidth(),
-                    isError = identifierError,
-                    supportingText = if (identifierError) { { Text("必須（小文字英数字とハイフン）") } } else null,
-                    singleLine = true,
-                    placeholder = { Text("例: my-project") }
-                )
-
-                // 企業選択
-                ExposedDropdownMenuBox(
-                    expanded = companyExpanded,
-                    onExpandedChange = { companyExpanded = it }
-                ) {
-                    OutlinedTextField(
-                        value = companies.find { it.id == selectedCompanyId }?.name ?: "なし",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("企業") },
-                        modifier = Modifier.fillMaxWidth().menuAnchor(),
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = companyExpanded) }
-                    )
-                    ExposedDropdownMenu(
-                        expanded = companyExpanded,
-                        onDismissRequest = { companyExpanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("なし") },
-                            onClick = { selectedCompanyId = null; companyExpanded = false }
-                        )
-                        companies.forEach { company ->
-                            DropdownMenuItem(
-                                text = { Text(company.name) },
-                                onClick = { selectedCompanyId = company.id; companyExpanded = false }
-                            )
-                        }
-                    }
-                }
-
-                // 親プロジェクト選択
-                ExposedDropdownMenuBox(
-                    expanded = parentExpanded,
-                    onExpandedChange = { parentExpanded = it }
-                ) {
-                    OutlinedTextField(
-                        value = projects.find { it.id == selectedParentId }?.name ?: "なし",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("親プロジェクト") },
-                        modifier = Modifier.fillMaxWidth().menuAnchor(),
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = parentExpanded) }
-                    )
-                    ExposedDropdownMenu(
-                        expanded = parentExpanded,
-                        onDismissRequest = { parentExpanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("なし") },
-                            onClick = { selectedParentId = null; parentExpanded = false }
-                        )
-                        projects.forEach { project ->
-                            DropdownMenuItem(
-                                text = { Text(project.name) },
-                                onClick = { selectedParentId = project.id; parentExpanded = false }
-                            )
-                        }
-                    }
-                }
-
-                OutlinedTextField(
-                    value = dueDate,
-                    onValueChange = { dueDate = it },
-                    label = { Text("期限日") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    placeholder = { Text("YYYY-MM-DD") }
-                )
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("説明") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 3,
-                    maxLines = 5
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (name.isBlank()) { nameError = true; return@Button }
-                    if (identifier.isBlank()) { identifierError = true; return@Button }
-                    onSubmit(name, identifier, description.ifBlank { null }, selectedCompanyId, selectedParentId, dueDate.ifBlank { null })
-                },
-                enabled = !isCreating
-            ) {
-                if (isCreating) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                } else {
-                    Text("作成")
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("キャンセル") }
-        }
-    )
 }
 
 @Composable

@@ -4,8 +4,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -22,10 +20,10 @@ import com.projecthub.android.ui.components.*
 @Composable
 fun CompanyListScreen(
     onNavigateToCompany: (Int) -> Unit,
+    onNavigateToCreate: () -> Unit = {},
     viewModel: CompanyViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.listUiState.collectAsState()
-    var showCreateDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -39,7 +37,7 @@ fun CompanyListScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showCreateDialog = true }) {
+            FloatingActionButton(onClick = onNavigateToCreate) {
                 Icon(Icons.Default.Add, contentDescription = "新規企業")
             }
         }
@@ -89,162 +87,6 @@ fun CompanyListScreen(
             }
         }
     }
-
-    if (showCreateDialog) {
-        CompanyCreateDialog(
-            isCreating = uiState.isCreating,
-            onDismiss = { showCreateDialog = false },
-            onSubmit = { name, phone, postalCode, prefecture, city, street, building, website, notes ->
-                viewModel.createCompany(
-                    name = name,
-                    phone = phone,
-                    postalCode = postalCode,
-                    prefecture = prefecture,
-                    city = city,
-                    street = street,
-                    building = building,
-                    website = website,
-                    notes = notes,
-                    onSuccess = { showCreateDialog = false },
-                    onError = {}
-                )
-            }
-        )
-    }
-}
-
-@Composable
-private fun CompanyCreateDialog(
-    isCreating: Boolean,
-    onDismiss: () -> Unit,
-    onSubmit: (name: String, phone: String?, postalCode: String?, prefecture: String?, city: String?, street: String?, building: String?, website: String?, notes: String?) -> Unit
-) {
-    var name by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
-    var postalCode by remember { mutableStateOf("") }
-    var prefecture by remember { mutableStateOf("") }
-    var city by remember { mutableStateOf("") }
-    var street by remember { mutableStateOf("") }
-    var building by remember { mutableStateOf("") }
-    var website by remember { mutableStateOf("") }
-    var notes by remember { mutableStateOf("") }
-    var nameError by remember { mutableStateOf(false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("企業登録") },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it; nameError = false },
-                    label = { Text("企業名 *") },
-                    modifier = Modifier.fillMaxWidth(),
-                    isError = nameError,
-                    supportingText = if (nameError) { { Text("必須項目です") } } else null,
-                    singleLine = true
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = postalCode,
-                        onValueChange = { postalCode = it },
-                        label = { Text("郵便番号") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        placeholder = { Text("000-0000") }
-                    )
-                    OutlinedTextField(
-                        value = prefecture,
-                        onValueChange = { prefecture = it },
-                        label = { Text("都道府県") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        placeholder = { Text("東京都") }
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = city,
-                        onValueChange = { city = it },
-                        label = { Text("市区町村") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
-                    OutlinedTextField(
-                        value = street,
-                        onValueChange = { street = it },
-                        label = { Text("番地") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
-                }
-                OutlinedTextField(
-                    value = building,
-                    onValueChange = { building = it },
-                    label = { Text("建物名・部屋番号") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = phone,
-                        onValueChange = { phone = it },
-                        label = { Text("電話番号") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
-                    OutlinedTextField(
-                        value = website,
-                        onValueChange = { website = it },
-                        label = { Text("Webサイト") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
-                }
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it },
-                    label = { Text("備考") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2,
-                    maxLines = 4
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (name.isBlank()) { nameError = true; return@Button }
-                    onSubmit(
-                        name,
-                        phone.ifBlank { null },
-                        postalCode.ifBlank { null },
-                        prefecture.ifBlank { null },
-                        city.ifBlank { null },
-                        street.ifBlank { null },
-                        building.ifBlank { null },
-                        website.ifBlank { null },
-                        notes.ifBlank { null }
-                    )
-                },
-                enabled = !isCreating
-            ) {
-                if (isCreating) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                } else {
-                    Text("作成")
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("キャンセル") }
-        }
-    )
 }
 
 @Composable

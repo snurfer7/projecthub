@@ -4,7 +4,7 @@
 
 - **認証**: `Login` (`login`), `Register` (`register`)
 - **メイン（BottomNav）**: `Home` (`home`), `Projects` (`projects`), `Issues` (`issues`), `Time` (`time`), `Companies` (`companies`)
-- **設定**: `Settings` (`settings`)
+- **設定**: `Settings` (`settings`), `ApiSettings` (`api_settings`)
 - **詳細・子画面**:
   - `ProjectDetail` — `project/{projectId}`
   - `ProjectIssues` — `project/{projectId}/issues`
@@ -24,10 +24,10 @@
 | 画面 | ダイアログ | フィールド |
 |------|-----------|-----------|
 | ProjectListScreen | プロジェクト登録 | 名前*, 識別子*, 企業, 親プロジェクト, 期限日, 説明 |
-| CompanyListScreen | 会社登録 | 会社名*, 電話番号, 都道府県, 市区町村, 番地, 建物名, Webサイト, 備考 |
+| CompanyListScreen | 会社登録 | 会社名*, 法人格, 法人格前後（前/後）, 郵便番号, 電話番号, 都道府県, 市区町村, 番地, 建物名, Webサイト, 備考 |
 | CompanyDetailScreen（連絡先タブ） | 連絡先登録 | 姓*, 名*, 部署, 役職, 電話, メール, メモ |
 | CompanyDetailScreen（商談タブ） | 商談登録 | 商談名*, ステータス, 金額, 確度, 見込み日, メモ |
-| CompanyDetailScreen（活動履歴タブ） | 活動登録 | 種別*, 件名*, 内容, 関連連絡先, 期日 |
+| CompanyDetailScreen（活動履歴タブ） | 活動登録 | 種別*（電話/メール/訪問/会議/メモ）, 件名*, 内容, 関連連絡先, 期日 |
 | CompanyDetailScreen（拠点タブ） | 拠点登録 | 拠点名*, 郵便番号, 電話番号, 都道府県, 市区町村, 番地, 建物名, 備考 |
 
 ## Bottom ナビゲーション
@@ -39,7 +39,8 @@
 
 ## 遷移フロー（代表例）
 
-1. **ログイン成功** → `Screen.Home` へ `popUpTo(Login) { inclusive = true }`
+1. **ログイン画面（右上歯車アイコン）** → `Screen.ApiSettings` へ遷移。戻る時は `popBackStack()`
+2. **ログイン成功** → `Screen.Home` へ `popUpTo(Login) { inclusive = true }`
 2. **ホーム** → プロジェクトタップ → `ProjectDetail.createRoute(id)`  
    → チケット一覧 → `ProjectIssues.createRoute(projectId)`  
    → チケットタップ → `IssueDetail.createRoute(issueId)`  
@@ -60,7 +61,8 @@
 
 | Screen | コンポーネント | 概要 |
 |--------|----------------|------|
-| Login | LoginScreen | ログイン。成功時 onLoginSuccess |
+| Login | LoginScreen | ログイン。成功時 onLoginSuccess。右上歯車アイコンで ApiSettings へ遷移 |
+| ApiSettings | ApiSettingsScreen | API URL 設定のみ。ログイン前から利用可 |
 | Register | RegisterScreen | 登録。成功時 onRegisterSuccess、戻る onNavigateBack |
 | Home | HomeScreen | ホーム。プロジェクト/チケットへの導線 |
 | Projects | ProjectListScreen | プロジェクト一覧。タップで ProjectDetail |

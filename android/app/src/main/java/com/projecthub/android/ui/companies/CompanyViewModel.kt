@@ -107,6 +107,8 @@ class CompanyViewModel @Inject constructor(
 
     fun createCompany(
         name: String,
+        legalEntityStatusId: Int?,
+        legalEntityPosition: String?,
         phone: String?,
         postalCode: String?,
         prefecture: String?,
@@ -122,6 +124,8 @@ class CompanyViewModel @Inject constructor(
             _listUiState.update { it.copy(isCreating = true, createError = null) }
             val request = CreateCompanyRequest(
                 name = name,
+                legalEntityStatusId = legalEntityStatusId,
+                legalEntityPosition = legalEntityPosition,
                 phone = phone?.ifBlank { null },
                 postalCode = postalCode?.ifBlank { null },
                 prefecture = prefecture?.ifBlank { null },

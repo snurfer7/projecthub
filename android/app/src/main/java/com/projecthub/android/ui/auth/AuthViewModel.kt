@@ -8,6 +8,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -27,16 +28,13 @@ class AuthViewModel @Inject constructor(
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
     init {
-        checkAuthStatus()
-    }
-
-    private fun checkAuthStatus() {
         viewModelScope.launch {
-            val isLoggedIn = authRepository.isLoggedIn()
-            _uiState.value = _uiState.value.copy(
-                isLoggedIn = isLoggedIn,
-                isCheckingAuth = false
-            )
+            authRepository.authToken.collect { token ->
+                _uiState.update { it.copy(
+                    isLoggedIn = token != null,
+                    isCheckingAuth = false
+                )}
+            }
         }
     }
 

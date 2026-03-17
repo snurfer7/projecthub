@@ -24,6 +24,7 @@ import com.projecthub.android.ui.theme.*
 @Composable
 fun IssueListScreen(
     projectId: Int? = null,
+    onNavigateBack: (() -> Unit)? = null,
     onNavigateToIssue: (Int) -> Unit,
     onNavigateToCreateIssue: (Int?) -> Unit,
     viewModel: IssueViewModel = hiltViewModel()
@@ -45,6 +46,13 @@ fun IssueListScreen(
         topBar = {
             TopAppBar(
                 title = { Text(if (projectId != null) "チケット" else "すべてのチケット") },
+                navigationIcon = {
+                    if (onNavigateBack != null) {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "戻る")
+                        }
+                    }
+                },
                 actions = {
                     IconButton(onClick = { showFilterSheet = true }) {
                         Icon(Icons.Default.FilterList, contentDescription = "フィルター")
