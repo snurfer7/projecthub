@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.projecthub.android.app-mergeDebugResources-63:/values-da/values-da.xml",
+            "outputFile": "com.projecthub.android.app-mergeDebugResources-68:/values-da/values-da.xml",
             "map": [
                 {
                     "source": "/home/hidenori/.gradle/caches/8.10.2/transforms/e4588010378ffedd4c34da313023437c/transformed/ui-release/res/values-da/values-da.xml",

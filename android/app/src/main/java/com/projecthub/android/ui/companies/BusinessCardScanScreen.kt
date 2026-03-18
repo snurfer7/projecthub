@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Business
+import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
@@ -37,6 +38,7 @@ import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions.RESULT_
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions.SCANNER_MODE_FULL
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
+import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
 
@@ -44,7 +46,7 @@ import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
 
 private data class ScannedPage(
     val imageUri: Uri,
-    val cardInfo: BusinessCardInfo? = null,
+    val cardInfoList: List<BusinessCardInfo> = emptyList(),
     val isProcessing: Boolean = true,
 )
 
@@ -58,7 +60,7 @@ fun BusinessCardScanScreen(
 ) {
     val context = LocalContext.current
     val scannedPages = remember { mutableStateListOf<ScannedPage>() }
-    var scanLaunched by remember { mutableStateOf(false) }
+    var showGuide by remember { mutableStateOf(true) }
     var scannerError by remember { mutableStateOf<String?>(null) }
 
     // ── Document Scanner クライアント ─────────────────────────────────────────
@@ -88,11 +90,11 @@ fun BusinessCardScanScreen(
             }
             // 各ページの OCR を非同期で実行
             pages.forEach { page ->
-                runOcr(context, page.imageUri, legalEntityNames) { cardInfo ->
+                runOcr(context, page.imageUri, legalEntityNames) { cardInfoList ->
                     val idx = scannedPages.indexOfFirst { it.imageUri == page.imageUri }
                     if (idx >= 0) {
                         scannedPages[idx] = scannedPages[idx].copy(
-                            cardInfo = cardInfo,
+                            cardInfoList = cardInfoList,
                             isProcessing = false,
                         )
                     }
@@ -104,15 +106,12 @@ fun BusinessCardScanScreen(
         }
     }
 
-    // ── 画面表示時にスキャナーを自動起動 ─────────────────────────────────────
-    LaunchedEffect(Unit) {
-        if (!scanLaunched) {
-            scanLaunched = true
-            val activity = context as? Activity
-            if (activity == null) {
-                scannerError = "スキャナーを起動できませんでした"
-                return@LaunchedEffect
-            }
+    // ── スキャナー起動ヘルパー ────────────────────────────────────────────────
+    val launchScanner: () -> Unit = {
+        val activity = context as? Activity
+        if (activity == null) {
+            scannerError = "スキャナーを起動できませんでした"
+        } else {
             scanner.getStartScanIntent(activity)
                 .addOnSuccessListener { intentSender ->
                     scannerLauncher.launch(
@@ -123,6 +122,18 @@ fun BusinessCardScanScreen(
                     scannerError = "スキャナーの起動に失敗しました: ${e.localizedMessage}"
                 }
         }
+    }
+
+    // ── プレスキャンガイド画面（初回スキャン前に表示） ──────────────────────
+    if (showGuide) {
+        BusinessCardGuideScreen(
+            onStartScan = {
+                showGuide = false
+                launchScanner()
+            },
+            onNavigateBack = onNavigateBack,
+        )
+        return
     }
 
     // ── UI ──────────────────────────────────────────────────────────────────
@@ -136,6 +147,16 @@ fun BusinessCardScanScreen(
                     }
                 },
             )
+        },
+        floatingActionButton = {
+            if (scannedPages.isNotEmpty()) {
+                FloatingActionButton(onClick = launchScanner) {
+                    Icon(
+                        Icons.Default.DocumentScanner,
+                        contentDescription = "スキャン追加",
+                    )
+                }
+            }
         },
     ) { paddingValues ->
         when {
@@ -195,7 +216,7 @@ fun BusinessCardScanScreen(
 private fun ScannedPageItem(index: Int, page: ScannedPage) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            text = "書類 $index",
+            text = "名刺 $index",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold,
         )
@@ -228,16 +249,32 @@ private fun ScannedPageItem(index: Int, page: ScannedPage) {
                 }
             }
 
-            page.cardInfo != null -> {
-                BusinessCardInfoCard(cardInfo = page.cardInfo)
-            }
-
-            else -> {
+            page.cardInfoList.isEmpty() -> {
                 Text(
                     text = "名刺情報を取得できませんでした",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+
+            page.cardInfoList.size == 1 -> {
+                BusinessCardInfoCard(cardInfo = page.cardInfoList[0])
+            }
+
+            else -> {
+                // 複数名刺検出時はサブラベル付きで並べて表示
+                val total = page.cardInfoList.size
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    page.cardInfoList.forEachIndexed { i, cardInfo ->
+                        Text(
+                            text = "検出 ${i + 1} / $total",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        BusinessCardInfoCard(cardInfo = cardInfo)
+                    }
+                }
             }
         }
 
@@ -297,9 +334,20 @@ private fun BusinessCardInfoCard(cardInfo: BusinessCardInfo) {
                 CardInfoRow(icon = Icons.Default.Email, label = "メール", value = it)
             }
 
+            // 郵便番号
+            cardInfo.postalCode?.let {
+                CardInfoRow(icon = Icons.Default.LocationOn, label = "郵便番号", value = "〒$it")
+            }
+
+            // 住所
+            cardInfo.address?.let {
+                CardInfoRow(icon = Icons.Default.LocationOn, label = "住所", value = it)
+            }
+
             if (fullName == null && cardInfo.jobTitle == null && companyFull == null &&
                 cardInfo.officeName == null && cardInfo.phoneNumber == null &&
-                cardInfo.faxNumber == null && cardInfo.email == null
+                cardInfo.faxNumber == null && cardInfo.email == null &&
+                cardInfo.postalCode == null && cardInfo.address == null
             ) {
                 Text(
                     text = "名刺情報を抽出できませんでした",
@@ -351,8 +399,64 @@ private fun buildCompanyFullName(cardInfo: BusinessCardInfo): String? {
 }
 
 /**
+ * OCR 結果の TextBlock を空間クラスタリングして名刺ごとのブロック群に分割する。
+ *
+ * 手順:
+ * 1. Y座標でソートし、連続するブロック間の縦ギャップがしきい値を超えたら別カードとして分割
+ * 2. 各縦クラスタ内でさらに X 方向のギャップが大きければ左右に分割
+ *
+ * しきい値はブロック高さ中央値の 3 倍（最低 80px）とする。
+ */
+private fun clusterBlocks(blocks: List<Text.TextBlock>): List<List<Text.TextBlock>> {
+    if (blocks.size <= 1) return if (blocks.isEmpty()) emptyList() else listOf(blocks)
+
+    // ── 1. 縦方向クラスタリング ────────────────────────────────────────────
+    val sortedByY = blocks.sortedBy { it.boundingBox?.top ?: 0 }
+    val heights = sortedByY.mapNotNull { it.boundingBox?.height() }
+    val medianHeight = if (heights.isNotEmpty()) heights.sorted()[heights.size / 2] else 0
+    val vGapThreshold = maxOf(medianHeight * 3, 80)
+
+    val vClusters = mutableListOf<MutableList<Text.TextBlock>>()
+    var current = mutableListOf(sortedByY[0])
+    for (i in 1 until sortedByY.size) {
+        val prevBottom = sortedByY[i - 1].boundingBox?.bottom ?: 0
+        val currTop = sortedByY[i].boundingBox?.top ?: 0
+        if (currTop - prevBottom > vGapThreshold) {
+            vClusters.add(current)
+            current = mutableListOf()
+        }
+        current.add(sortedByY[i])
+    }
+    vClusters.add(current)
+
+    // ── 2. 横方向クラスタリング（縦クラスタ内をさらに分割） ─────────────────
+    val result = mutableListOf<List<Text.TextBlock>>()
+    for (vCluster in vClusters) {
+        val sortedByX = vCluster.sortedBy { it.boundingBox?.left ?: 0 }
+        val widths = sortedByX.mapNotNull { it.boundingBox?.width() }
+        val medianWidth = if (widths.isNotEmpty()) widths.sorted()[widths.size / 2] else 0
+        val hGapThreshold = maxOf(medianWidth * 3, 80)
+
+        var hCluster = mutableListOf(sortedByX[0])
+        for (i in 1 until sortedByX.size) {
+            val prevRight = sortedByX[i - 1].boundingBox?.right ?: 0
+            val currLeft = sortedByX[i].boundingBox?.left ?: 0
+            if (currLeft - prevRight > hGapThreshold) {
+                result.add(hCluster)
+                hCluster = mutableListOf()
+            }
+            hCluster.add(sortedByX[i])
+        }
+        result.add(hCluster)
+    }
+
+    return result.filter { it.isNotEmpty() }
+}
+
+/**
  * 指定 URI の画像に対して ML Kit Japanese OCR を実行し、
- * [BusinessCardParser] で解析した結果をコールバックで返す。
+ * クラスタリングで名刺ごとに分割したうえで [BusinessCardParser] で解析した結果を
+ * リストとしてコールバックで返す。
  * コールバックは ML Kit のスレッドから呼ばれるが、UI 更新は Compose の
  * [SnapshotStateList] 経由でスレッドセーフに反映される。
  */
@@ -360,7 +464,7 @@ private fun runOcr(
     context: Context,
     imageUri: Uri,
     legalEntityNames: List<String>,
-    onResult: (BusinessCardInfo?) -> Unit,
+    onResult: (List<BusinessCardInfo>) -> Unit,
 ) {
     try {
         val recognizer = TextRecognition.getClient(
@@ -369,12 +473,16 @@ private fun runOcr(
         val inputImage = InputImage.fromFilePath(context, imageUri)
         recognizer.process(inputImage)
             .addOnSuccessListener { text ->
-                onResult(BusinessCardParser.parse(text, legalEntityNames))
+                val clusters = clusterBlocks(text.textBlocks)
+                val cardInfoList = clusters.map { blocks ->
+                    BusinessCardParser.parseBlocks(blocks, legalEntityNames)
+                }
+                onResult(cardInfoList)
             }
             .addOnFailureListener {
-                onResult(null)
+                onResult(emptyList())
             }
     } catch (e: Exception) {
-        onResult(null)
+        onResult(emptyList())
     }
 }

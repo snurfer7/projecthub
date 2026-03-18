@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.projecthub.android.app-mergeDebugResources-63:/values-b+sr+Latn/values-b+sr+Latn.xml",
+            "outputFile": "com.projecthub.android.app-mergeDebugResources-68:/values-b+sr+Latn/values-b+sr+Latn.xml",
             "map": [
                 {
                     "source": "/home/hidenori/.gradle/caches/8.10.2/transforms/6ab1524fb0a583a4960f73587d1b172d/transformed/foundation-release/res/values-b+sr+Latn/values-b+sr+Latn.xml",

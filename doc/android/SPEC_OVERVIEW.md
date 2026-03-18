@@ -36,11 +36,22 @@ ProjectHub のネイティブ Android クライアント。Web フロントエ�
 
 ## 名刺スキャン機能
 
+- **プレスキャンガイド**: `BusinessCardGuideScreen` を起動直後に表示。CameraX（`camera-core`, `camera-camera2`, `camera-lifecycle`, `camera-view`）でライブプレビューを映しながら 2 種類のリアルタイム解析を行い、案内メッセージをオーバーレイ表示する。
+  - **輝度チェック（毎フレーム）**: YUV_420_888 の Y プレーン平均が 70 未満 → 「明るい場所で撮影してください」（赤）
+  - **距離チェック（800ms スロットリング、ML Kit テキスト検出）**: テキストブロックが未検出 → 「名刺をフレーム内に合わせてください」（白）。すべてのブロック高さが画像高さの 3% 未満 → 「もう少し近づけてください」（橙）。適切な大きさのブロックを検出 → 「この状態でスキャンできます」（緑）。
+  - 状態列挙: `ScanGuideState`（`CHECKING` / `TOO_DARK` / `TOO_FAR` / `READY`）
+  - カメラ権限（`android.permission.CAMERA`）を `ActivityResultContracts.RequestPermission()` で動的にリクエスト。未許可時は許可要求 UI を表示。
+  - 「スキャン開始」ボタンをタップすると GmsDocumentScanning を起動し、結果一覧表示に切り替わる。2 枚目以降の追加スキャン（FAB）はガイド画面をスキップして直接スキャナーを起動。
 - **スキャン**: `GmsDocumentScanningOptions` でマルチページ (SCANNER_MODE_FULL, RESULT_FORMAT_JPEG, pageLimit=20) を設定し、`GmsDocumentScanning.getClient()` でスキャナーを起動。
+- **複数枚対応（1画像内）**: OCR 結果の `TextBlock` を座標ベースでクラスタリングし、1 枚のスキャン画像から複数名刺を自動検出して個別にパースする。クラスタリングは縦方向・横方向の大きな空白（テキストブロック高さ中央値の 3 倍以上のギャップ）を境界として分割する。
+- **スキャン追加**: スキャン結果一覧画面の右下に「スキャン追加」FAB（DocumentScanner アイコン）を表示し、タップで再度スキャナーを起動して結果を既存リストに追記できる。
 - **OCR**: スキャン済み画像 URI ごとに `InputImage.fromFilePath()` で入力し、`TextRecognition.getClient(JapaneseTextRecognizerOptions)` で文字認識。
-- **パース**: `BusinessCardParser.parse(text, legalEntityNames)` で `BusinessCardInfo` へ変換。法人格リストは `CompanyViewModel.listUiState.legalEntityStatuses` から取得。
+- **パース**: `BusinessCardParser.parseBlocks(blocks, legalEntityNames)` でクラスタごとに `BusinessCardInfo` へ変換。法人格リストは `CompanyViewModel.listUiState.legalEntityStatuses` から取得。
   - FAX 番号: `FAX`/`ファックス`/`ファクス` キーワードを含む行から抽出。`TEL/FAX` 兼用行は電話番号として扱いFAXは抽出しない。
-- **配置**: `ui/companies/BusinessCardScanScreen.kt`, `ui/companies/BusinessCardParser.kt`, `ui/companies/BusinessCardInfo.kt`
+  - 郵便番号: `〒XXX-XXXX` または `XXX-XXXX` 形式（全角数字を許容）の行から抽出。
+  - 住所: 郵便番号行の後続テキストまたは次の行、あるいは都道府県キーワード（都/道/府/県）を含む行を住所として抽出。
+- **表示**: スキャン画像 1 枚から複数名刺が検出された場合、画像の下に「検出 1 / N」「検出 2 / N」のようにサブラベル付きで並べて表示する。
+- **配置**: `ui/companies/BusinessCardScanScreen.kt`, `ui/companies/BusinessCardGuideScreen.kt`, `ui/companies/BusinessCardParser.kt`, `ui/companies/BusinessCardInfo.kt`
 
 ## 関連パス
 

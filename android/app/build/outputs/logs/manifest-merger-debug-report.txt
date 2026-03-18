@@ -1,9 +1,14 @@
 -- Merging decision tree log ---
 manifest
-ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:2:1-28:12
-INJECTED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:2:1-28:12
-INJECTED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:2:1-28:12
-INJECTED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:2:1-28:12
+ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:2:1-30:12
+INJECTED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:2:1-30:12
+INJECTED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:2:1-30:12
+INJECTED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:2:1-30:12
+MERGED from [androidx.camera:camera-video:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/e4ec3a6578977c0b9ea54f05774b8349/transformed/camera-video-1.3.1/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.camera:camera-view:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/b675b166138a6ea1f102581e931f74d0/transformed/camera-view-1.3.1/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.camera:camera-lifecycle:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/5c5d4f6a675241993e9fa45391763f5b/transformed/camera-lifecycle-1.3.1/AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.camera:camera-camera2:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/115c424216f52a592a188671acc2ffd8/transformed/camera-camera2-1.3.1/AndroidManifest.xml:17:1-36:12
+MERGED from [androidx.camera:camera-core:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/2707e748dae0ef28509eb858f70e0b95/transformed/camera-core-1.3.1/AndroidManifest.xml:17:1-36:12
 MERGED from [com.google.android.gms:play-services-mlkit-document-scanner:16.0.0-beta1] /home/hidenori/.gradle/caches/8.10.2/transforms/9e65a17905b3e8f7466c49e4cf1d7756/transformed/play-services-mlkit-document-scanner-16.0.0-beta1/AndroidManifest.xml:2:1-24:12
 MERGED from [com.google.mlkit:text-recognition-japanese:16.0.0] /home/hidenori/.gradle/caches/8.10.2/transforms/9bceb288e576c5b52cd35a018006e1ef/transformed/text-recognition-japanese-16.0.0/AndroidManifest.xml:2:1-7:12
 MERGED from [com.google.android.gms:play-services-mlkit-text-recognition-japanese:16.0.0] /home/hidenori/.gradle/caches/8.10.2/transforms/98ab792dcb97882c97ff2426e4c484da/transformed/play-services-mlkit-text-recognition-japanese-16.0.0/AndroidManifest.xml:2:1-8:12
@@ -51,15 +56,15 @@ MERGED from [androidx.fragment:fragment:1.5.1] /home/hidenori/.gradle/caches/8.1
 MERGED from [androidx.activity:activity:1.8.2] /home/hidenori/.gradle/caches/8.10.2/transforms/3fabf2ebc98cd6edbe7a5eb4988c2051/transformed/activity-1.8.2/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.activity:activity-ktx:1.8.2] /home/hidenori/.gradle/caches/8.10.2/transforms/0a037d9e3a30ec5bb389686ffb3d324b/transformed/activity-ktx-1.8.2/AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.activity:activity-compose:1.8.2] /home/hidenori/.gradle/caches/8.10.2/transforms/cf91f0e4171209308caeccd939d5e4e2/transformed/activity-compose-1.8.2/AndroidManifest.xml:2:1-7:12
-MERGED from [androidx.savedstate:savedstate-ktx:1.2.1] /home/hidenori/.gradle/caches/8.10.2/transforms/61e5a7f7dcd85e9936f074ab740d72aa/transformed/savedstate-ktx-1.2.1/AndroidManifest.xml:17:1-22:12
-MERGED from [androidx.savedstate:savedstate:1.2.1] /home/hidenori/.gradle/caches/8.10.2/transforms/782c5d422d6cc5441b89f7be6e19126a/transformed/savedstate-1.2.1/AndroidManifest.xml:17:1-22:12
-MERGED from [androidx.loader:loader:1.0.0] /home/hidenori/.gradle/caches/8.10.2/transforms/82f046ef2f133103bdd3313a1c0b8172/transformed/loader-1.0.0/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.emoji2:emoji2-views-helper:1.3.0] /home/hidenori/.gradle/caches/8.10.2/transforms/066cc2d1734879c233d8102d9eb046c8/transformed/emoji2-views-helper-1.3.0/AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.emoji2:emoji2:1.3.0] /home/hidenori/.gradle/caches/8.10.2/transforms/3a266950aa634f0cdbe4d1e45abc9c0a/transformed/emoji2-1.3.0/AndroidManifest.xml:17:1-35:12
 MERGED from [androidx.lifecycle:lifecycle-process:2.7.0] /home/hidenori/.gradle/caches/8.10.2/transforms/dc5f34a7fa70879d3639b962b56bd907/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:17:1-35:12
 MERGED from [androidx.lifecycle:lifecycle-livedata-core-ktx:2.7.0] /home/hidenori/.gradle/caches/8.10.2/transforms/a9fb78b06f9b78c713de01f322001398/transformed/lifecycle-livedata-core-ktx-2.7.0/AndroidManifest.xml:2:1-7:12
-MERGED from [androidx.lifecycle:lifecycle-livedata:2.7.0] /home/hidenori/.gradle/caches/8.10.2/transforms/ab8e5f6dadb60c861c7b9ec96b83ad8b/transformed/lifecycle-livedata-2.7.0/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.lifecycle:lifecycle-livedata-core:2.7.0] /home/hidenori/.gradle/caches/8.10.2/transforms/720645a4927891123ca7fe037b36f12c/transformed/lifecycle-livedata-core-2.7.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.loader:loader:1.0.0] /home/hidenori/.gradle/caches/8.10.2/transforms/82f046ef2f133103bdd3313a1c0b8172/transformed/loader-1.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.lifecycle:lifecycle-livedata:2.7.0] /home/hidenori/.gradle/caches/8.10.2/transforms/ab8e5f6dadb60c861c7b9ec96b83ad8b/transformed/lifecycle-livedata-2.7.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.savedstate:savedstate-ktx:1.2.1] /home/hidenori/.gradle/caches/8.10.2/transforms/61e5a7f7dcd85e9936f074ab740d72aa/transformed/savedstate-ktx-1.2.1/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.savedstate:savedstate:1.2.1] /home/hidenori/.gradle/caches/8.10.2/transforms/782c5d422d6cc5441b89f7be6e19126a/transformed/savedstate-1.2.1/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.lifecycle:lifecycle-viewmodel:2.7.0] /home/hidenori/.gradle/caches/8.10.2/transforms/50485e0af3693a5caeacee6d4f9d452d/transformed/lifecycle-viewmodel-2.7.0/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.lifecycle:lifecycle-viewmodel-savedstate:2.7.0] /home/hidenori/.gradle/caches/8.10.2/transforms/bbc791b869502f77931fb928f5d87efd/transformed/lifecycle-viewmodel-savedstate-2.7.0/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0] /home/hidenori/.gradle/caches/8.10.2/transforms/5472a651428c03c637277bd1b675a042/transformed/lifecycle-viewmodel-ktx-2.7.0/AndroidManifest.xml:2:1-7:12
@@ -120,9 +125,23 @@ MERGED from [com.google.android.datatransport:transport-runtime:2.2.6] /home/hid
 MERGED from [com.google.android.datatransport:transport-runtime:2.2.6] /home/hidenori/.gradle/caches/8.10.2/transforms/4e3aa64df0f89ac55ec04ad118526889/transformed/transport-runtime-2.2.6/AndroidManifest.xml:22:5-79
 	android:name
 		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:5:22-76
+uses-permission#android.permission.CAMERA
+ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:6:5-65
+	android:name
+		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:6:22-62
+uses-feature#android.hardware.camera
+ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:7:5-85
+	android:required
+		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:7:58-82
+	android:name
+		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:7:19-57
 application
-ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:7:5-26:19
-INJECTED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:7:5-26:19
+ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:9:5-28:19
+INJECTED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:9:5-28:19
+MERGED from [androidx.camera:camera-camera2:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/115c424216f52a592a188671acc2ffd8/transformed/camera-camera2-1.3.1/AndroidManifest.xml:23:5-34:19
+MERGED from [androidx.camera:camera-camera2:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/115c424216f52a592a188671acc2ffd8/transformed/camera-camera2-1.3.1/AndroidManifest.xml:23:5-34:19
+MERGED from [androidx.camera:camera-core:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/2707e748dae0ef28509eb858f70e0b95/transformed/camera-core-1.3.1/AndroidManifest.xml:23:5-34:19
+MERGED from [androidx.camera:camera-core:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/2707e748dae0ef28509eb858f70e0b95/transformed/camera-core-1.3.1/AndroidManifest.xml:23:5-34:19
 MERGED from [com.google.android.gms:play-services-mlkit-document-scanner:16.0.0-beta1] /home/hidenori/.gradle/caches/8.10.2/transforms/9e65a17905b3e8f7466c49e4cf1d7756/transformed/play-services-mlkit-document-scanner-16.0.0-beta1/AndroidManifest.xml:8:5-22:19
 MERGED from [com.google.android.gms:play-services-mlkit-document-scanner:16.0.0-beta1] /home/hidenori/.gradle/caches/8.10.2/transforms/9e65a17905b3e8f7466c49e4cf1d7756/transformed/play-services-mlkit-document-scanner-16.0.0-beta1/AndroidManifest.xml:8:5-22:19
 MERGED from [com.google.android.gms:play-services-mlkit-text-recognition-common:19.0.0] /home/hidenori/.gradle/caches/8.10.2/transforms/c242fb8c514f4a41c188f87ba3b874af/transformed/play-services-mlkit-text-recognition-common-19.0.0/AndroidManifest.xml:8:5-16:19
@@ -164,43 +183,53 @@ MERGED from [com.google.android.odml:image:1.0.0-beta1] /home/hidenori/.gradle/c
 	android:appComponentFactory
 		ADDED from [androidx.core:core:1.12.0] /home/hidenori/.gradle/caches/8.10.2/transforms/308b7c94ac7bbedd9aec45a8588abd49/transformed/core-1.12.0/AndroidManifest.xml:28:18-86
 	android:supportsRtl
-		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:13:9-35
+		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:15:9-35
 	android:label
-		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:11:9-41
+		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:13:9-41
 	android:roundIcon
-		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:12:9-54
+		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:14:9-54
 	android:icon
-		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:10:9-43
+		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:12:9-43
 	android:allowBackup
-		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:9:9-35
+		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:11:9-35
 	android:theme
-		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:14:9-48
+		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:16:9-48
 	android:usesCleartextTraffic
-		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:15:9-44
+		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:17:9-44
 	android:name
-		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:8:9-38
+		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:10:9-38
 activity#com.projecthub.android.MainActivity
-ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:17:9-25:20
+ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:19:9-27:20
 	android:exported
-		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:19:13-36
+		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:21:13-36
 	android:theme
-		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:20:13-52
+		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:22:13-52
 	android:name
-		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:18:13-41
+		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:20:13-41
 intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
-ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:21:13-24:29
+ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:23:13-26:29
 action#android.intent.action.MAIN
-ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:22:17-69
+ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:24:17-69
 	android:name
-		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:22:25-66
+		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:24:25-66
 category#android.intent.category.LAUNCHER
-ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:23:17-77
+ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:25:17-77
 	android:name
-		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:23:27-74
+		ADDED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml:25:27-74
 uses-sdk
 INJECTED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml
 INJECTED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml
+MERGED from [androidx.camera:camera-video:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/e4ec3a6578977c0b9ea54f05774b8349/transformed/camera-video-1.3.1/AndroidManifest.xml:5:5-44
+MERGED from [androidx.camera:camera-video:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/e4ec3a6578977c0b9ea54f05774b8349/transformed/camera-video-1.3.1/AndroidManifest.xml:5:5-44
+MERGED from [androidx.camera:camera-view:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/b675b166138a6ea1f102581e931f74d0/transformed/camera-view-1.3.1/AndroidManifest.xml:5:5-44
+MERGED from [androidx.camera:camera-view:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/b675b166138a6ea1f102581e931f74d0/transformed/camera-view-1.3.1/AndroidManifest.xml:5:5-44
+MERGED from [androidx.camera:camera-lifecycle:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/5c5d4f6a675241993e9fa45391763f5b/transformed/camera-lifecycle-1.3.1/AndroidManifest.xml:5:5-44
+MERGED from [androidx.camera:camera-lifecycle:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/5c5d4f6a675241993e9fa45391763f5b/transformed/camera-lifecycle-1.3.1/AndroidManifest.xml:5:5-44
+MERGED from [androidx.camera:camera-camera2:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/115c424216f52a592a188671acc2ffd8/transformed/camera-camera2-1.3.1/AndroidManifest.xml:21:5-44
+MERGED from [androidx.camera:camera-camera2:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/115c424216f52a592a188671acc2ffd8/transformed/camera-camera2-1.3.1/AndroidManifest.xml:21:5-44
+MERGED from [androidx.camera:camera-core:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/2707e748dae0ef28509eb858f70e0b95/transformed/camera-core-1.3.1/AndroidManifest.xml:21:5-44
+MERGED from [androidx.camera:camera-core:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/2707e748dae0ef28509eb858f70e0b95/transformed/camera-core-1.3.1/AndroidManifest.xml:21:5-44
 MERGED from [com.google.android.gms:play-services-mlkit-document-scanner:16.0.0-beta1] /home/hidenori/.gradle/caches/8.10.2/transforms/9e65a17905b3e8f7466c49e4cf1d7756/transformed/play-services-mlkit-document-scanner-16.0.0-beta1/AndroidManifest.xml:6:5-44
 MERGED from [com.google.android.gms:play-services-mlkit-document-scanner:16.0.0-beta1] /home/hidenori/.gradle/caches/8.10.2/transforms/9e65a17905b3e8f7466c49e4cf1d7756/transformed/play-services-mlkit-document-scanner-16.0.0-beta1/AndroidManifest.xml:6:5-44
 MERGED from [com.google.mlkit:text-recognition-japanese:16.0.0] /home/hidenori/.gradle/caches/8.10.2/transforms/9bceb288e576c5b52cd35a018006e1ef/transformed/text-recognition-japanese-16.0.0/AndroidManifest.xml:5:5-44
@@ -295,12 +324,6 @@ MERGED from [androidx.activity:activity-ktx:1.8.2] /home/hidenori/.gradle/caches
 MERGED from [androidx.activity:activity-ktx:1.8.2] /home/hidenori/.gradle/caches/8.10.2/transforms/0a037d9e3a30ec5bb389686ffb3d324b/transformed/activity-ktx-1.8.2/AndroidManifest.xml:5:5-44
 MERGED from [androidx.activity:activity-compose:1.8.2] /home/hidenori/.gradle/caches/8.10.2/transforms/cf91f0e4171209308caeccd939d5e4e2/transformed/activity-compose-1.8.2/AndroidManifest.xml:5:5-44
 MERGED from [androidx.activity:activity-compose:1.8.2] /home/hidenori/.gradle/caches/8.10.2/transforms/cf91f0e4171209308caeccd939d5e4e2/transformed/activity-compose-1.8.2/AndroidManifest.xml:5:5-44
-MERGED from [androidx.savedstate:savedstate-ktx:1.2.1] /home/hidenori/.gradle/caches/8.10.2/transforms/61e5a7f7dcd85e9936f074ab740d72aa/transformed/savedstate-ktx-1.2.1/AndroidManifest.xml:20:5-44
-MERGED from [androidx.savedstate:savedstate-ktx:1.2.1] /home/hidenori/.gradle/caches/8.10.2/transforms/61e5a7f7dcd85e9936f074ab740d72aa/transformed/savedstate-ktx-1.2.1/AndroidManifest.xml:20:5-44
-MERGED from [androidx.savedstate:savedstate:1.2.1] /home/hidenori/.gradle/caches/8.10.2/transforms/782c5d422d6cc5441b89f7be6e19126a/transformed/savedstate-1.2.1/AndroidManifest.xml:20:5-44
-MERGED from [androidx.savedstate:savedstate:1.2.1] /home/hidenori/.gradle/caches/8.10.2/transforms/782c5d422d6cc5441b89f7be6e19126a/transformed/savedstate-1.2.1/AndroidManifest.xml:20:5-44
-MERGED from [androidx.loader:loader:1.0.0] /home/hidenori/.gradle/caches/8.10.2/transforms/82f046ef2f133103bdd3313a1c0b8172/transformed/loader-1.0.0/AndroidManifest.xml:20:5-44
-MERGED from [androidx.loader:loader:1.0.0] /home/hidenori/.gradle/caches/8.10.2/transforms/82f046ef2f133103bdd3313a1c0b8172/transformed/loader-1.0.0/AndroidManifest.xml:20:5-44
 MERGED from [androidx.emoji2:emoji2-views-helper:1.3.0] /home/hidenori/.gradle/caches/8.10.2/transforms/066cc2d1734879c233d8102d9eb046c8/transformed/emoji2-views-helper-1.3.0/AndroidManifest.xml:5:5-44
 MERGED from [androidx.emoji2:emoji2-views-helper:1.3.0] /home/hidenori/.gradle/caches/8.10.2/transforms/066cc2d1734879c233d8102d9eb046c8/transformed/emoji2-views-helper-1.3.0/AndroidManifest.xml:5:5-44
 MERGED from [androidx.emoji2:emoji2:1.3.0] /home/hidenori/.gradle/caches/8.10.2/transforms/3a266950aa634f0cdbe4d1e45abc9c0a/transformed/emoji2-1.3.0/AndroidManifest.xml:21:5-44
@@ -309,10 +332,16 @@ MERGED from [androidx.lifecycle:lifecycle-process:2.7.0] /home/hidenori/.gradle/
 MERGED from [androidx.lifecycle:lifecycle-process:2.7.0] /home/hidenori/.gradle/caches/8.10.2/transforms/dc5f34a7fa70879d3639b962b56bd907/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:21:5-44
 MERGED from [androidx.lifecycle:lifecycle-livedata-core-ktx:2.7.0] /home/hidenori/.gradle/caches/8.10.2/transforms/a9fb78b06f9b78c713de01f322001398/transformed/lifecycle-livedata-core-ktx-2.7.0/AndroidManifest.xml:5:5-44
 MERGED from [androidx.lifecycle:lifecycle-livedata-core-ktx:2.7.0] /home/hidenori/.gradle/caches/8.10.2/transforms/a9fb78b06f9b78c713de01f322001398/transformed/lifecycle-livedata-core-ktx-2.7.0/AndroidManifest.xml:5:5-44
-MERGED from [androidx.lifecycle:lifecycle-livedata:2.7.0] /home/hidenori/.gradle/caches/8.10.2/transforms/ab8e5f6dadb60c861c7b9ec96b83ad8b/transformed/lifecycle-livedata-2.7.0/AndroidManifest.xml:20:5-44
-MERGED from [androidx.lifecycle:lifecycle-livedata:2.7.0] /home/hidenori/.gradle/caches/8.10.2/transforms/ab8e5f6dadb60c861c7b9ec96b83ad8b/transformed/lifecycle-livedata-2.7.0/AndroidManifest.xml:20:5-44
 MERGED from [androidx.lifecycle:lifecycle-livedata-core:2.7.0] /home/hidenori/.gradle/caches/8.10.2/transforms/720645a4927891123ca7fe037b36f12c/transformed/lifecycle-livedata-core-2.7.0/AndroidManifest.xml:20:5-44
 MERGED from [androidx.lifecycle:lifecycle-livedata-core:2.7.0] /home/hidenori/.gradle/caches/8.10.2/transforms/720645a4927891123ca7fe037b36f12c/transformed/lifecycle-livedata-core-2.7.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.loader:loader:1.0.0] /home/hidenori/.gradle/caches/8.10.2/transforms/82f046ef2f133103bdd3313a1c0b8172/transformed/loader-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.loader:loader:1.0.0] /home/hidenori/.gradle/caches/8.10.2/transforms/82f046ef2f133103bdd3313a1c0b8172/transformed/loader-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-livedata:2.7.0] /home/hidenori/.gradle/caches/8.10.2/transforms/ab8e5f6dadb60c861c7b9ec96b83ad8b/transformed/lifecycle-livedata-2.7.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-livedata:2.7.0] /home/hidenori/.gradle/caches/8.10.2/transforms/ab8e5f6dadb60c861c7b9ec96b83ad8b/transformed/lifecycle-livedata-2.7.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.savedstate:savedstate-ktx:1.2.1] /home/hidenori/.gradle/caches/8.10.2/transforms/61e5a7f7dcd85e9936f074ab740d72aa/transformed/savedstate-ktx-1.2.1/AndroidManifest.xml:20:5-44
+MERGED from [androidx.savedstate:savedstate-ktx:1.2.1] /home/hidenori/.gradle/caches/8.10.2/transforms/61e5a7f7dcd85e9936f074ab740d72aa/transformed/savedstate-ktx-1.2.1/AndroidManifest.xml:20:5-44
+MERGED from [androidx.savedstate:savedstate:1.2.1] /home/hidenori/.gradle/caches/8.10.2/transforms/782c5d422d6cc5441b89f7be6e19126a/transformed/savedstate-1.2.1/AndroidManifest.xml:20:5-44
+MERGED from [androidx.savedstate:savedstate:1.2.1] /home/hidenori/.gradle/caches/8.10.2/transforms/782c5d422d6cc5441b89f7be6e19126a/transformed/savedstate-1.2.1/AndroidManifest.xml:20:5-44
 MERGED from [androidx.lifecycle:lifecycle-viewmodel:2.7.0] /home/hidenori/.gradle/caches/8.10.2/transforms/50485e0af3693a5caeacee6d4f9d452d/transformed/lifecycle-viewmodel-2.7.0/AndroidManifest.xml:20:5-44
 MERGED from [androidx.lifecycle:lifecycle-viewmodel:2.7.0] /home/hidenori/.gradle/caches/8.10.2/transforms/50485e0af3693a5caeacee6d4f9d452d/transformed/lifecycle-viewmodel-2.7.0/AndroidManifest.xml:20:5-44
 MERGED from [androidx.lifecycle:lifecycle-viewmodel-savedstate:2.7.0] /home/hidenori/.gradle/caches/8.10.2/transforms/bbc791b869502f77931fb928f5d87efd/transformed/lifecycle-viewmodel-savedstate-2.7.0/AndroidManifest.xml:20:5-44
@@ -393,6 +422,26 @@ MERGED from [com.google.android.odml:image:1.0.0-beta1] /home/hidenori/.gradle/c
 		INJECTED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml
 	android:minSdkVersion
 		INJECTED from /home/hidenori/develop/projecthub/android/app/src/main/AndroidManifest.xml
+service#androidx.camera.core.impl.MetadataHolderService
+ADDED from [androidx.camera:camera-camera2:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/115c424216f52a592a188671acc2ffd8/transformed/camera-camera2-1.3.1/AndroidManifest.xml:24:9-33:19
+MERGED from [androidx.camera:camera-core:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/2707e748dae0ef28509eb858f70e0b95/transformed/camera-core-1.3.1/AndroidManifest.xml:29:9-33:78
+MERGED from [androidx.camera:camera-core:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/2707e748dae0ef28509eb858f70e0b95/transformed/camera-core-1.3.1/AndroidManifest.xml:29:9-33:78
+	tools:node
+		ADDED from [androidx.camera:camera-camera2:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/115c424216f52a592a188671acc2ffd8/transformed/camera-camera2-1.3.1/AndroidManifest.xml:29:13-31
+	android:enabled
+		ADDED from [androidx.camera:camera-camera2:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/115c424216f52a592a188671acc2ffd8/transformed/camera-camera2-1.3.1/AndroidManifest.xml:26:13-36
+	android:exported
+		ADDED from [androidx.camera:camera-camera2:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/115c424216f52a592a188671acc2ffd8/transformed/camera-camera2-1.3.1/AndroidManifest.xml:27:13-37
+	tools:ignore
+		ADDED from [androidx.camera:camera-camera2:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/115c424216f52a592a188671acc2ffd8/transformed/camera-camera2-1.3.1/AndroidManifest.xml:28:13-75
+	android:name
+		ADDED from [androidx.camera:camera-camera2:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/115c424216f52a592a188671acc2ffd8/transformed/camera-camera2-1.3.1/AndroidManifest.xml:25:13-75
+meta-data#androidx.camera.core.impl.MetadataHolderService.DEFAULT_CONFIG_PROVIDER
+ADDED from [androidx.camera:camera-camera2:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/115c424216f52a592a188671acc2ffd8/transformed/camera-camera2-1.3.1/AndroidManifest.xml:30:13-32:89
+	android:value
+		ADDED from [androidx.camera:camera-camera2:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/115c424216f52a592a188671acc2ffd8/transformed/camera-camera2-1.3.1/AndroidManifest.xml:32:17-86
+	android:name
+		ADDED from [androidx.camera:camera-camera2:1.3.1] /home/hidenori/.gradle/caches/8.10.2/transforms/115c424216f52a592a188671acc2ffd8/transformed/camera-camera2-1.3.1/AndroidManifest.xml:31:17-103
 activity#com.google.mlkit.vision.documentscanner.internal.GmsDocumentScanningDelegateActivity
 ADDED from [com.google.android.gms:play-services-mlkit-document-scanner:16.0.0-beta1] /home/hidenori/.gradle/caches/8.10.2/transforms/9e65a17905b3e8f7466c49e4cf1d7756/transformed/play-services-mlkit-document-scanner-16.0.0-beta1/AndroidManifest.xml:15:9-21:20
 	android:screenOrientation

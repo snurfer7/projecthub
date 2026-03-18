@@ -1,50 +1,50 @@
 [
     {
-        "merged": "com.projecthub.android.app-merged_res-65:/mipmap-xxhdpi_ic_launcher.xml.flat",
-        "source": "com.projecthub.android.app-main-67:/mipmap-xxhdpi/ic_launcher.xml"
+        "merged": "com.projecthub.android.app-merged_res-70:/mipmap-xhdpi_ic_launcher.xml.flat",
+        "source": "com.projecthub.android.app-main-72:/mipmap-xhdpi/ic_launcher.xml"
     },
     {
-        "merged": "com.projecthub.android.app-merged_res-65:/mipmap-xxxhdpi_ic_launcher_round.xml.flat",
-        "source": "com.projecthub.android.app-main-67:/mipmap-xxxhdpi/ic_launcher_round.xml"
+        "merged": "com.projecthub.android.app-merged_res-70:/mipmap-xxhdpi_ic_launcher_round.xml.flat",
+        "source": "com.projecthub.android.app-main-72:/mipmap-xxhdpi/ic_launcher_round.xml"
     },
     {
-        "merged": "com.projecthub.android.app-merged_res-65:/mipmap-mdpi_ic_launcher_round.xml.flat",
-        "source": "com.projecthub.android.app-main-67:/mipmap-mdpi/ic_launcher_round.xml"
+        "merged": "com.projecthub.android.app-merged_res-70:/mipmap-mdpi_ic_launcher_round.xml.flat",
+        "source": "com.projecthub.android.app-main-72:/mipmap-mdpi/ic_launcher_round.xml"
     },
     {
-        "merged": "com.projecthub.android.app-merged_res-65:/mipmap-xhdpi_ic_launcher_round.xml.flat",
-        "source": "com.projecthub.android.app-main-67:/mipmap-xhdpi/ic_launcher_round.xml"
+        "merged": "com.projecthub.android.app-merged_res-70:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.projecthub.android.app-main-72:/drawable/ic_launcher_foreground.xml"
     },
     {
-        "merged": "com.projecthub.android.app-merged_res-65:/mipmap-xxxhdpi_ic_launcher.xml.flat",
-        "source": "com.projecthub.android.app-main-67:/mipmap-xxxhdpi/ic_launcher.xml"
+        "merged": "com.projecthub.android.app-merged_res-70:/mipmap-hdpi_ic_launcher_round.xml.flat",
+        "source": "com.projecthub.android.app-main-72:/mipmap-hdpi/ic_launcher_round.xml"
     },
     {
-        "merged": "com.projecthub.android.app-merged_res-65:/drawable_ic_launcher_background.xml.flat",
-        "source": "com.projecthub.android.app-main-67:/drawable/ic_launcher_background.xml"
+        "merged": "com.projecthub.android.app-merged_res-70:/mipmap-xhdpi_ic_launcher_round.xml.flat",
+        "source": "com.projecthub.android.app-main-72:/mipmap-xhdpi/ic_launcher_round.xml"
     },
     {
-        "merged": "com.projecthub.android.app-merged_res-65:/mipmap-xhdpi_ic_launcher.xml.flat",
-        "source": "com.projecthub.android.app-main-67:/mipmap-xhdpi/ic_launcher.xml"
+        "merged": "com.projecthub.android.app-merged_res-70:/drawable_ic_launcher_background.xml.flat",
+        "source": "com.projecthub.android.app-main-72:/drawable/ic_launcher_background.xml"
     },
     {
-        "merged": "com.projecthub.android.app-merged_res-65:/mipmap-hdpi_ic_launcher.xml.flat",
-        "source": "com.projecthub.android.app-main-67:/mipmap-hdpi/ic_launcher.xml"
+        "merged": "com.projecthub.android.app-merged_res-70:/mipmap-hdpi_ic_launcher.xml.flat",
+        "source": "com.projecthub.android.app-main-72:/mipmap-hdpi/ic_launcher.xml"
     },
     {
-        "merged": "com.projecthub.android.app-merged_res-65:/drawable_ic_launcher_foreground.xml.flat",
-        "source": "com.projecthub.android.app-main-67:/drawable/ic_launcher_foreground.xml"
+        "merged": "com.projecthub.android.app-merged_res-70:/mipmap-mdpi_ic_launcher.xml.flat",
+        "source": "com.projecthub.android.app-main-72:/mipmap-mdpi/ic_launcher.xml"
     },
     {
-        "merged": "com.projecthub.android.app-merged_res-65:/mipmap-xxhdpi_ic_launcher_round.xml.flat",
-        "source": "com.projecthub.android.app-main-67:/mipmap-xxhdpi/ic_launcher_round.xml"
+        "merged": "com.projecthub.android.app-merged_res-70:/mipmap-xxhdpi_ic_launcher.xml.flat",
+        "source": "com.projecthub.android.app-main-72:/mipmap-xxhdpi/ic_launcher.xml"
     },
     {
-        "merged": "com.projecthub.android.app-merged_res-65:/mipmap-mdpi_ic_launcher.xml.flat",
-        "source": "com.projecthub.android.app-main-67:/mipmap-mdpi/ic_launcher.xml"
+        "merged": "com.projecthub.android.app-merged_res-70:/mipmap-xxxhdpi_ic_launcher.xml.flat",
+        "source": "com.projecthub.android.app-main-72:/mipmap-xxxhdpi/ic_launcher.xml"
     },
     {
-        "merged": "com.projecthub.android.app-merged_res-65:/mipmap-hdpi_ic_launcher_round.xml.flat",
-        "source": "com.projecthub.android.app-main-67:/mipmap-hdpi/ic_launcher_round.xml"
+        "merged": "com.projecthub.android.app-merged_res-70:/mipmap-xxxhdpi_ic_launcher_round.xml.flat",
+        "source": "com.projecthub.android.app-main-72:/mipmap-xxxhdpi/ic_launcher_round.xml"
     }
 ]

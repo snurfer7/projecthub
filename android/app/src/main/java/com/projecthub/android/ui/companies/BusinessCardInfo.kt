@@ -24,4 +24,8 @@ data class BusinessCardInfo(
     val officeName: String? = null,
     /** 役職 */
     val jobTitle: String? = null,
+    /** 郵便番号（例: "123-4567"） */
+    val postalCode: String? = null,
+    /** 住所 */
+    val address: String? = null,
 )

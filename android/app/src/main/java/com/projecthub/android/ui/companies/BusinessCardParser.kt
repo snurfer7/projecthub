@@ -77,11 +77,24 @@ object BusinessCardParser {
      * @param text ML Kit が返す OCR 結果
      * @param legalEntityNames システムに登録されている法人格名リスト（空の場合はデフォルト値を使用）
      */
-    fun parse(text: Text, legalEntityNames: List<String> = emptyList()): BusinessCardInfo {
+    fun parse(text: Text, legalEntityNames: List<String> = emptyList()): BusinessCardInfo =
+        parseBlocks(text.textBlocks, legalEntityNames)
+
+    /**
+     * [Text.TextBlock] のリストを解析し、[BusinessCardInfo] を返す。
+     * 1 枚の画像から名刺クラスタを分割した後、クラスタごとに呼び出す用途を想定。
+     *
+     * @param blocks 解析対象の TextBlock リスト（1 名刺分）
+     * @param legalEntityNames システムに登録されている法人格名リスト（空の場合はデフォルト値を使用）
+     */
+    fun parseBlocks(
+        blocks: List<Text.TextBlock>,
+        legalEntityNames: List<String> = emptyList(),
+    ): BusinessCardInfo {
         val entityList = legalEntityNames.ifEmpty { DEFAULT_LEGAL_ENTITIES }
             .sortedByDescending { it.length } // 長い法人格を優先マッチ
 
-        val allLines = text.textBlocks.flatMap { it.lines }
+        val allLines = blocks.flatMap { it.lines }
         val lineTexts = allLines.map { it.text.trim() }.filter { it.isNotBlank() }
 
         // ── 各フィールドを抽出 ───────────────────────────────────────────────
@@ -89,9 +102,11 @@ object BusinessCardParser {
         val phone = extractPhone(lineTexts)
         val fax = extractFax(lineTexts)
         val (companyName, legalEntityName, legalEntityPosition) = extractCompany(lineTexts, entityList)
-        val (lastName, firstName) = extractName(text, entityList)
-        val jobTitle = extractJobTitle(lineTexts, text, lastName, firstName)
+        val (lastName, firstName) = extractName(blocks, entityList)
+        val jobTitle = extractJobTitle(lineTexts, blocks, lastName, firstName)
         val officeName = extractOfficeName(lineTexts)
+        val postalCode = extractPostalCode(lineTexts)
+        val address = extractAddress(lineTexts)
 
         return BusinessCardInfo(
             companyName = companyName,
@@ -104,6 +119,8 @@ object BusinessCardParser {
             lastName = lastName,
             officeName = officeName,
             jobTitle = jobTitle,
+            postalCode = postalCode,
+            address = address,
         )
     }
 
@@ -183,8 +200,11 @@ object BusinessCardParser {
      *
      * @return Pair(姓, 名)
      */
-    private fun extractName(text: Text, entityList: List<String>): Pair<String?, String?> {
-        val nameBlock = text.textBlocks
+    private fun extractName(
+        blocks: List<Text.TextBlock>,
+        entityList: List<String>,
+    ): Pair<String?, String?> {
+        val nameBlock = blocks
             .filter { block ->
                 val t = block.text.trim()
                 // 除外条件: メール・電話・URL・法人格・住所・空白多め・短すぎ/長すぎ
@@ -224,7 +244,7 @@ object BusinessCardParser {
      */
     private fun extractJobTitle(
         lines: List<String>,
-        text: Text,
+        blocks: List<Text.TextBlock>,
         lastName: String?,
         firstName: String?,
     ): String? {
@@ -238,11 +258,11 @@ object BusinessCardParser {
         // 2. 姓名の直上ブロックを候補とする（座標ベース）
         if (lastName != null) {
             val fullName = if (firstName != null) "$lastName $firstName" else lastName
-            val nameBlock = text.textBlocks.firstOrNull { it.text.contains(lastName) }
+            val nameBlock = blocks.firstOrNull { it.text.contains(lastName) }
             val nameTop = nameBlock?.boundingBox?.top ?: return null
 
             // 姓名ブロックの上方向で最も近いブロック
-            val candidate = text.textBlocks
+            val candidate = blocks
                 .filter { block ->
                     val bottom = block.boundingBox?.bottom ?: Int.MAX_VALUE
                     bottom < nameTop && !block.text.contains(fullName)
@@ -278,6 +298,64 @@ object BusinessCardParser {
                 ) {
                     return prev.trim()
                 }
+            }
+        }
+        return null
+    }
+
+    private fun extractPostalCode(lines: List<String>): String? {
+        for (line in lines) {
+            val normalized = normalizeDigits(line)
+            val match = POSTAL_REGEX.find(normalized) ?: continue
+            return match.value
+                .trimStart('〒')
+                .replace(Regex("[ー\u2013\u2014－]"), "-")
+        }
+        return null
+    }
+
+    /**
+     * 住所を抽出する。
+     * 1. 郵便番号行の後続テキストまたは次の行を住所として採用。
+     * 2. 郵便番号がない場合は都/道/府/県を含む行（都道府県名の後ろにキーワードが続く行）を採用。
+     */
+    private fun extractAddress(lines: List<String>): String? {
+        // 1. 郵便番号行から住所を探す
+        for (i in lines.indices) {
+            val normalized = normalizeDigits(lines[i])
+            if (!POSTAL_REGEX.containsMatchIn(normalized)) continue
+            val postalMatch = POSTAL_REGEX.find(normalized)!!
+            // 郵便番号の後ろに住所が続く場合（同一行）
+            val afterPostal = lines[i].substring(
+                minOf(postalMatch.range.last + 1, lines[i].length),
+            ).trim()
+            if (afterPostal.isNotBlank() && ADDRESS_KEYWORDS.any { afterPostal.contains(it) }) {
+                return afterPostal
+            }
+            // 次の行が住所の場合
+            if (i + 1 < lines.size) {
+                val nextLine = lines[i + 1].trim()
+                val nextNormalized = normalizeDigits(nextLine)
+                if (ADDRESS_KEYWORDS.any { nextLine.contains(it) } &&
+                    !EMAIL_REGEX.containsMatchIn(nextLine) &&
+                    !PHONE_REGEX.containsMatchIn(nextNormalized)
+                ) {
+                    return nextLine
+                }
+            }
+        }
+        // 2. 都道府県を含む行を探す（郵便番号なしの場合）
+        for (i in lines.indices) {
+            val line = lines[i].trim()
+            val normalized = normalizeDigits(line)
+            if (line.length < 4 ||
+                EMAIL_REGEX.containsMatchIn(line) ||
+                PHONE_REGEX.containsMatchIn(normalized) ||
+                POSTAL_REGEX.containsMatchIn(normalized)
+            ) continue
+            val prefKeywords = listOf("都", "道", "府", "県")
+            if (prefKeywords.any { kw -> line.indexOf(kw) >= 2 }) {
+                return line
             }
         }
         return null

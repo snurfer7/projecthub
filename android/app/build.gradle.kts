@@ -97,6 +97,13 @@ dependencies {
     // ML Kit - Text Recognition v2 (Japanese)
     implementation("com.google.mlkit:text-recognition-japanese:16.0.0")
 
+    // CameraX (リアルタイムガイド用)
+    val cameraVersion = "1.3.1"
+    implementation("androidx.camera:camera-core:$cameraVersion")
+    implementation("androidx.camera:camera-camera2:$cameraVersion")
+    implementation("androidx.camera:camera-lifecycle:$cameraVersion")
+    implementation("androidx.camera:camera-view:$cameraVersion")
+
     // Coil for image loading
     implementation("io.coil-kt:coil-compose:2.6.0")
 

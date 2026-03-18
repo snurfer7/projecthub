@@ -82,7 +82,7 @@
 | WikiDetail | WikiDetailScreen | Wiki ページ表示 |
 | CompanyDetail | CompanyDetailScreen | 企業詳細（タブ: 概要 / 連絡先 / 商談 / 活動履歴 / Wiki / コメント / 拠点） |
 | TimeCreate | TimeEntryFormScreen | 工数登録 |
-| BusinessCardScan | BusinessCardScanScreen | 名刺スキャン。ML Kit Document Scanner でスキャン後、各ページを一覧表示し ML Kit Text Recognition (Japanese) で OCR → BusinessCardParser で名刺情報を抽出して表示 |
+| BusinessCardScan | BusinessCardScanScreen | 名刺スキャン。起動直後は BusinessCardGuideScreen（CameraX ライブプレビュー＋輝度・距離リアルタイムガイド）を表示し、「スキャン開始」タップ後に ML Kit Document Scanner でスキャン。各ページを一覧表示し ML Kit Text Recognition (Japanese) で OCR → BusinessCardParser で名刺情報を抽出して表示。右下「スキャン追加」FAB でさらに名刺を追記可能（FAB はガイド画面をスキップして直接スキャン） |
 
 ## 認証待ち
 

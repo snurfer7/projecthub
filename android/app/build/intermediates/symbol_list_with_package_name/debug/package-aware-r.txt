@@ -195,6 +195,7 @@ attr iconifiedByDefault
 attr imageAspectRatio
 attr imageAspectRatioAdjust
 attr imageButtonStyle
+attr implementationMode
 attr indeterminateProgressStyle
 attr initialActivityCount
 attr isLightTheme
@@ -261,6 +262,7 @@ attr ratingBarStyleIndicator
 attr ratingBarStyleSmall
 attr restoreState
 attr route
+attr scaleType
 attr scopeUris
 attr searchHintIcon
 attr searchIcon
@@ -779,6 +781,7 @@ id checked
 id chronometer
 id coil_request_manager
 id collapseActionView
+id compatible
 id compose_view_saveable_id_tag
 id consume_window_insets_tag
 id content
@@ -795,6 +798,12 @@ id edit_text_id
 id end
 id expand_activities_button
 id expanded_menu
+id fillCenter
+id fillEnd
+id fillStart
+id fitCenter
+id fitEnd
+id fitStart
 id forever
 id fragment_container_view_tag
 id group_divider
@@ -829,6 +838,7 @@ id notification_main_column_container
 id off
 id on
 id parentPanel
+id performance
 id pooling_container_listener_holder_tag
 id progress_circular
 id progress_horizontal
@@ -1487,6 +1497,7 @@ styleable NavInclude graph
 styleable Navigator android_label android_id route
 styleable PopupWindow android_popupBackground android_popupAnimationStyle overlapAnchor
 styleable PopupWindowBackgroundState state_above_anchor
+styleable PreviewView implementationMode scaleType
 styleable RecycleListView paddingBottomNoButtons paddingTopNoTitle
 styleable SearchView android_focusable android_maxWidth android_inputType android_imeOptions closeIcon commitIcon defaultQueryHint goIcon iconifiedByDefault layout queryBackground queryHint searchHintIcon searchIcon submitBackground suggestionRowLayout voiceIcon
 styleable SignInButton buttonSize colorScheme scopeUris
