@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.projecthub.android.ui.components.DatePickerField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -111,13 +112,12 @@ fun ProjectCreateScreen(
                 }
             }
 
-            OutlinedTextField(
+            DatePickerField(
                 value = dueDate,
                 onValueChange = { dueDate = it },
-                label = { Text("期限日") },
+                label = "期限日",
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                placeholder = { Text("YYYY-MM-DD") }
+                placeholder = "YYYY-MM-DD"
             )
             OutlinedTextField(
                 value = description,

@@ -12,6 +12,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.projecthub.android.data.api.models.CreateTimeEntryRequest
+import com.projecthub.android.ui.components.DatePickerField
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -124,13 +125,12 @@ fun TimeEntryFormScreen(
             }
 
             // Date
-            OutlinedTextField(
+            DatePickerField(
                 value = spentOn,
                 onValueChange = { spentOn = it },
-                label = { Text("作業日 *") },
-                placeholder = { Text("YYYY-MM-DD") },
+                label = "作業日 *",
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                placeholder = "YYYY-MM-DD"
             )
 
             // Comments

@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.projecthub.android.data.api.models.CreateIssueRequest
 import com.projecthub.android.data.api.models.UpdateIssueRequest
+import com.projecthub.android.ui.components.DatePickerField
 import com.projecthub.android.ui.components.LoadingScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -143,21 +144,19 @@ fun IssueFormScreen(
 
                 // Dates
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
+                    DatePickerField(
                         value = startDate,
                         onValueChange = { startDate = it },
-                        label = { Text("開始日") },
-                        placeholder = { Text("YYYY-MM-DD") },
+                        label = "開始日",
                         modifier = Modifier.weight(1f),
-                        singleLine = true
+                        placeholder = "YYYY-MM-DD"
                     )
-                    OutlinedTextField(
+                    DatePickerField(
                         value = dueDate,
                         onValueChange = { dueDate = it },
-                        label = { Text("期限日") },
-                        placeholder = { Text("YYYY-MM-DD") },
+                        label = "期限日",
                         modifier = Modifier.weight(1f),
-                        singleLine = true
+                        placeholder = "YYYY-MM-DD"
                     )
                 }
 

@@ -27,9 +27,14 @@ ProjectHub のネイティブ Android クライアント。Web フロントエ�
 - ログイン/登録: ApiService の `login` / `register` を呼び、レスポンスの token を保存。以降の API は Retrofit の Interceptor で `Authorization: Bearer <token>` を付与。
 - 設定画面で API Base URL の変更・ログアウトを実行。ログアウト時はトークン削除し、NavGraph の startDestination を Login に切り替える。
 
+## UI・フォーム
+
+- **日付項目**: 期限日・開始日・作業日・見込み日・期日などは、タップでシステム標準の DatePicker ダイアログ（Material3）を表示して選択する。値は API 用に "yyyy-MM-dd" 形式で保持。
+
 ## 関連パス
 
 - ナビ: `ui/navigation/NavGraph.kt`
 - 画面: `ui/auth/`, `ui/home/`, `ui/projects/`, `ui/issues/`, `ui/kanban/`, `ui/wiki/`, `ui/timeentries/`, `ui/companies/`, `ui/settings/`
+- 共通コンポーネント: `ui/components/`（日付選択は `DatePickerField.kt`）
 - データ: `data/api/ApiService.kt`, `data/api/models/*.kt`, `data/repository/*.kt`, `data/local/PreferencesManager.kt`
 - DI: `di/AppModule.kt`

@@ -14,6 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.projecthub.android.data.api.models.ContactDetailRequest
+import com.projecthub.android.ui.components.DatePickerField
 
 private data class ContactDetailState(
     val locationId: Int? = null,
@@ -350,13 +351,12 @@ fun DealCreateScreen(
                     placeholder = { Text("0-100") }
                 )
             }
-            OutlinedTextField(
+            DatePickerField(
                 value = expectedCloseDate,
                 onValueChange = { expectedCloseDate = it },
-                label = { Text("見込み日") },
+                label = "見込み日",
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                placeholder = { Text("YYYY-MM-DD") }
+                placeholder = "YYYY-MM-DD"
             )
             OutlinedTextField(
                 value = notes,
@@ -500,13 +500,12 @@ fun ActivityCreateScreen(
                     }
                 }
             }
-            OutlinedTextField(
+            DatePickerField(
                 value = dueDate,
                 onValueChange = { dueDate = it },
-                label = { Text("期日") },
+                label = "期日",
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                placeholder = { Text("YYYY-MM-DD") }
+                placeholder = "YYYY-MM-DD"
             )
 
             Spacer(modifier = Modifier.height(8.dp))
