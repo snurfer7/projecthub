@@ -58,7 +58,7 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
 // Create company
 router.post('/', async (req: AuthRequest, res: Response) => {
   try {
-    const { name, legalEntityStatusId, legalEntityPosition, postalCode, prefecture, city, street, building, phone, website, notes } = req.body;
+    const { name, legalEntityStatusId, legalEntityPosition, postalCode, prefecture, city, street, building, phone, fax, website, notes } = req.body;
     const company = await prisma.company.create({
       data: {
         name,
@@ -70,6 +70,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
         street,
         building,
         phone,
+        fax,
         website,
         notes,
       } as any,
@@ -83,7 +84,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 // Update company
 router.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const { name, legalEntityStatusId, legalEntityPosition, postalCode, prefecture, city, street, building, phone, website, notes } = req.body;
+    const { name, legalEntityStatusId, legalEntityPosition, postalCode, prefecture, city, street, building, phone, fax, website, notes } = req.body;
     const companyId = Number(req.params.id);
     const company = await prisma.company.update({
       where: { id: companyId },
@@ -97,6 +98,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
         street,
         building,
         phone,
+        fax,
         website,
         notes,
       } as any,

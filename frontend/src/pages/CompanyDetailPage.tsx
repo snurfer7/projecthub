@@ -576,6 +576,10 @@ export default function CompanyDetailPage() {
                     <div className="text-slate-800 font-medium">{company.phone || '-'}</div>
                   </div>
                   <div>
+                    <div className="text-gray-500 mb-1">FAX</div>
+                    <div className="text-slate-800 font-medium">{company.fax || '-'}</div>
+                  </div>
+                  <div>
                     <div className="text-gray-500 mb-1">ウェブサイト</div>
                     <div className="text-slate-800 font-medium">
                       {company.website ? (

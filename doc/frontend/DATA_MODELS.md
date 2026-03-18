@@ -9,7 +9,7 @@
 
 ## 会社・CRM
 
-- **Company** — id, name, 住所系（postalCode, prefecture, city, street, building）, phone, website, notes, legalEntityStatusId, legalEntityStatus, legalEntityPosition, createdAt, _count, projects, locations, contacts, associations, comments, wikiPages。
+- **Company** — id, name, 住所系（postalCode, prefecture, city, street, building）, phone, fax, website, notes, legalEntityStatusId, legalEntityStatus, legalEntityPosition, createdAt, _count, projects, locations, contacts, associations, comments, wikiPages。
 - **Association**, **LegalEntityStatus**, **Location** — 会社・団体・法人区分・拠点。
 - **Contact** — id, companyId, firstName, lastName, notes, company, details, deals, _count。
 - **ContactDetail** — 担当者詳細（department, position, phone, email, locationId, isPrimary）。

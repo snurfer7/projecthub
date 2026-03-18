@@ -70,6 +70,7 @@ model Company {
   legalEntityStatusId Int?                    @map("legal_entity_status_id")
   legalEntityStatus   LegalEntityStatus?      @relation(fields: [legalEntityStatusId], references: [id], onDelete: SetNull)
   phone               String?
+  fax                        String?
   website                    String?
   notes                      String?
   createdAt                  DateTime                @default(now()) @map("created_at")

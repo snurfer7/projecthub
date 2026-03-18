@@ -633,7 +633,7 @@ public final class DaggerProjectHubApp_HiltComponents_SingletonC {
     }
 
     @Override
-    public void injectProjectHubApp(ProjectHubApp arg0) {
+    public void injectProjectHubApp(ProjectHubApp projectHubApp) {
     }
 
     @Override

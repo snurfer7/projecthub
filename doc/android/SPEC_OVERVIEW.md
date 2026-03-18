@@ -39,6 +39,7 @@ ProjectHub のネイティブ Android クライアント。Web フロントエ�
 - **スキャン**: `GmsDocumentScanningOptions` でマルチページ (SCANNER_MODE_FULL, RESULT_FORMAT_JPEG, pageLimit=20) を設定し、`GmsDocumentScanning.getClient()` でスキャナーを起動。
 - **OCR**: スキャン済み画像 URI ごとに `InputImage.fromFilePath()` で入力し、`TextRecognition.getClient(JapaneseTextRecognizerOptions)` で文字認識。
 - **パース**: `BusinessCardParser.parse(text, legalEntityNames)` で `BusinessCardInfo` へ変換。法人格リストは `CompanyViewModel.listUiState.legalEntityStatuses` から取得。
+  - FAX 番号: `FAX`/`ファックス`/`ファクス` キーワードを含む行から抽出。`TEL/FAX` 兼用行は電話番号として扱いFAXは抽出しない。
 - **配置**: `ui/companies/BusinessCardScanScreen.kt`, `ui/companies/BusinessCardParser.kt`, `ui/companies/BusinessCardInfo.kt`
 
 ## 関連パス

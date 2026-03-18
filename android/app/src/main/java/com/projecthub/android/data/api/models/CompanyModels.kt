@@ -7,6 +7,7 @@ data class CompanyDto(
     val name: String,
     @SerializedName("legalEntityStatusId") val legalEntityStatusId: Int?,
     val phone: String?,
+    val fax: String?,
     val website: String?,
     val notes: String?,
     @SerializedName("createdAt") val createdAt: String?,
@@ -95,6 +96,7 @@ data class CreateCompanyRequest(
     val street: String? = null,
     val building: String? = null,
     val phone: String? = null,
+    val fax: String? = null,
     val website: String? = null,
     val notes: String? = null
 )
@@ -110,6 +112,7 @@ data class UpdateCompanyRequest(
     val street: String? = null,
     val building: String? = null,
     val phone: String? = null,
+    val fax: String? = null,
     val website: String? = null,
     val notes: String? = null
 )

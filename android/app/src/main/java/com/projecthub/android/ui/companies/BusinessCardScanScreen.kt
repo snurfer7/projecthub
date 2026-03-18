@@ -287,13 +287,19 @@ private fun BusinessCardInfoCard(cardInfo: BusinessCardInfo) {
                 CardInfoRow(icon = Icons.Default.Phone, label = "電話", value = it)
             }
 
+            // FAX 番号
+            cardInfo.faxNumber?.let {
+                CardInfoRow(icon = Icons.Default.Phone, label = "FAX", value = it)
+            }
+
             // メールアドレス
             cardInfo.email?.let {
                 CardInfoRow(icon = Icons.Default.Email, label = "メール", value = it)
             }
 
             if (fullName == null && cardInfo.jobTitle == null && companyFull == null &&
-                cardInfo.officeName == null && cardInfo.phoneNumber == null && cardInfo.email == null
+                cardInfo.officeName == null && cardInfo.phoneNumber == null &&
+                cardInfo.faxNumber == null && cardInfo.email == null
             ) {
                 Text(
                     text = "名刺情報を抽出できませんでした",

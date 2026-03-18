@@ -12,6 +12,8 @@ data class BusinessCardInfo(
     val legalEntityPosition: String? = null,
     /** 電話番号 */
     val phoneNumber: String? = null,
+    /** FAX 番号 */
+    val faxNumber: String? = null,
     /** メールアドレス */
     val email: String? = null,
     /** 名（First Name） */

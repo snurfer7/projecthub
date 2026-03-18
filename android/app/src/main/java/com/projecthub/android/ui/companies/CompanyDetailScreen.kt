@@ -235,6 +235,7 @@ private fun HomeTabContent(company: CompanyDto) {
                     ).joinToString(" ")
                     InfoRow("住所", address.ifBlank { null })
                     InfoRow("電話番号", company.phone)
+                    InfoRow("FAX", company.fax)
                     InfoRow("Webサイト", company.website)
                 }
             }

@@ -33,6 +33,7 @@ Backend の [API_SPEC.md](../backend/API_SPEC.md) に合わせた対応一覧。
 
 - **ファイル**: `data/api/models/*.kt`（AuthModels, ProjectModels, IssueModels, TimeModels, CompanyModels 等）
 - Backend のレスポンス形状および [DATA_MODEL.md](../backend/DATA_MODEL.md) に合わせて定義。日付は String（ISO 8601）で受け取り、画面でフォーマットする。
+- **CompanyDto / CreateCompanyRequest / UpdateCompanyRequest** には `fax: String?` フィールドが含まれる。
 
 ## Base URL 設定
 

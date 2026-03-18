@@ -25,6 +25,7 @@ fun CompanyCreateScreen(
     var selectedLegalEntityStatus by remember { mutableStateOf<com.projecthub.android.data.api.models.LegalEntityStatusDto?>(null) }
     var legalEntityPosition by remember { mutableStateOf("before") }
     var phone by remember { mutableStateOf("") }
+    var fax by remember { mutableStateOf("") }
     var postalCode by remember { mutableStateOf("") }
     var prefecture by remember { mutableStateOf("") }
     var city by remember { mutableStateOf("") }
@@ -153,13 +154,22 @@ fun CompanyCreateScreen(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
-            OutlinedTextField(
-                value = phone,
-                onValueChange = { phone = it },
-                label = { Text("電話番号") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = { Text("電話番号") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = fax,
+                    onValueChange = { fax = it },
+                    label = { Text("FAX") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+            }
             OutlinedTextField(
                 value = website,
                 onValueChange = { website = it },
@@ -186,6 +196,7 @@ fun CompanyCreateScreen(
                         legalEntityStatusId = selectedLegalEntityStatus?.id,
                         legalEntityPosition = if (selectedLegalEntityStatus != null) legalEntityPosition else null,
                         phone = phone.ifBlank { null },
+                        fax = fax.ifBlank { null },
                         postalCode = postalCode.ifBlank { null },
                         prefecture = prefecture.ifBlank { null },
                         city = city.ifBlank { null },

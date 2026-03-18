@@ -19,7 +19,7 @@
 
 ## 会社・CRM
 
-- **Company** — 会社。LegalEntityStatus, Location, Contact, Deal, CompanyComment, CompanyWikiPage, Project（主契約）, ProjectRelatedCompany と関連。
+- **Company** — 会社。name, 住所系（postalCode, prefecture, city, street, building）, phone, fax, website, notes, legalEntityStatusId, legalEntityPosition。LegalEntityStatus, Location, Contact, Deal, CompanyComment, CompanyWikiPage, Project（主契約）, ProjectRelatedCompany と関連。
 - **LegalEntityStatus** — 法人区分（マスタ）。
 - **Location** — 会社の拠点。ContactDetail, ProjectRelatedCompany, Project と関連。
 - **Contact** — 担当者。Company に属す。ContactDetail, Deal, Activity, ContactComment, Project, ProjectRelatedCompany と関連。

@@ -37,6 +37,12 @@ object BusinessCardParser {
         "0[0-9０-９]{1,4}[ー\u2013\u2014\\-－ \u3000]{0,2}[0-9０-９]{1,4}[ー\u2013\u2014\\-－ \u3000]{0,2}[0-9０-９]{4}",
     )
 
+    /** FAX ラベルキーワード（大文字小文字不問） */
+    private val FAX_PREFIX_REGEX = Regex("(?i)f\\.?a\\.?x\\.?|ファックス|ファクス")
+
+    /** TEL ラベルキーワード（大文字小文字不問） */
+    private val TEL_PREFIX_REGEX = Regex("(?i)t\\.?e\\.?l\\.?|電話")
+
     /** 郵便番号（住所ブロック判定に使用） */
     private val POSTAL_REGEX = Regex("[〒]?[0-9０-９]{3}[ー\\-－][0-9０-９]{4}")
 
@@ -81,6 +87,7 @@ object BusinessCardParser {
         // ── 各フィールドを抽出 ───────────────────────────────────────────────
         val email = extractEmail(lineTexts)
         val phone = extractPhone(lineTexts)
+        val fax = extractFax(lineTexts)
         val (companyName, legalEntityName, legalEntityPosition) = extractCompany(lineTexts, entityList)
         val (lastName, firstName) = extractName(text, entityList)
         val jobTitle = extractJobTitle(lineTexts, text, lastName, firstName)
@@ -91,6 +98,7 @@ object BusinessCardParser {
             legalEntityName = legalEntityName,
             legalEntityPosition = legalEntityPosition,
             phoneNumber = phone,
+            faxNumber = fax,
             email = email,
             firstName = firstName,
             lastName = lastName,
@@ -107,11 +115,30 @@ object BusinessCardParser {
         lines.firstNotNullOfOrNull { EMAIL_REGEX.find(it)?.value }
 
     private fun extractPhone(lines: List<String>): String? {
+        // 1. TEL キーワードを含む行を優先
         for (line in lines) {
-            // 全角数字を半角に正規化してからマッチ
+            if (!TEL_PREFIX_REGEX.containsMatchIn(line)) continue
             val normalized = normalizeDigits(line)
             val match = PHONE_REGEX.find(normalized) ?: continue
-            // ハイフン代用文字を半角ハイフンに統一して返す
+            return match.value.replace(Regex("[ー\u2013\u2014－]"), "-").replace("　", "-")
+        }
+        // 2. FAX キーワードを含まない行から最初の番号
+        for (line in lines) {
+            if (FAX_PREFIX_REGEX.containsMatchIn(line)) continue
+            val normalized = normalizeDigits(line)
+            val match = PHONE_REGEX.find(normalized) ?: continue
+            return match.value.replace(Regex("[ー\u2013\u2014－]"), "-").replace("　", "-")
+        }
+        return null
+    }
+
+    private fun extractFax(lines: List<String>): String? {
+        for (line in lines) {
+            if (!FAX_PREFIX_REGEX.containsMatchIn(line)) continue
+            // TEL/FAX 兼用行は電話番号として扱うためスキップ
+            if (TEL_PREFIX_REGEX.containsMatchIn(line)) continue
+            val normalized = normalizeDigits(line)
+            val match = PHONE_REGEX.find(normalized) ?: continue
             return match.value.replace(Regex("[ー\u2013\u2014－]"), "-").replace("　", "-")
         }
         return null

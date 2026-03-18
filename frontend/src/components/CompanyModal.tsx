@@ -23,6 +23,7 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
     const [companyStreet, setCompanyStreet] = useState('');
     const [companyBuilding, setCompanyBuilding] = useState('');
     const [companyPhone, setCompanyPhone] = useState('');
+    const [companyFax, setCompanyFax] = useState('');
     const [companyWebsite, setCompanyWebsite] = useState('');
     const [companyNotes, setCompanyNotes] = useState('');
     const [companyError, setCompanyError] = useState('');
@@ -45,6 +46,7 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
                 setCompanyStreet(editingCompany.street || '');
                 setCompanyBuilding(editingCompany.building || '');
                 setCompanyPhone(editingCompany.phone || '');
+                setCompanyFax(editingCompany.fax || '');
                 setCompanyWebsite(editingCompany.website || '');
                 setCompanyNotes(editingCompany.notes || '');
             } else {
@@ -57,6 +59,7 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
                 setCompanyStreet('');
                 setCompanyBuilding('');
                 setCompanyPhone('');
+                setCompanyFax('');
                 setCompanyWebsite('');
                 setCompanyNotes('');
             }
@@ -78,6 +81,7 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
                 street: companyStreet || null,
                 building: companyBuilding || null,
                 phone: companyPhone || null,
+                fax: companyFax || null,
                 website: companyWebsite || null,
                 notes: companyNotes || null,
             };
@@ -169,18 +173,23 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
                     onChange={(e) => setCompanyBuilding(e.target.value)}
                 />
 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-2 gap-4">
                     <TextInput
                         label="電話番号"
                         value={companyPhone}
                         onChange={(e) => setCompanyPhone(e.target.value)}
                     />
                     <TextInput
-                        label="Webサイト"
-                        value={companyWebsite}
-                        onChange={(e) => setCompanyWebsite(e.target.value)}
+                        label="FAX"
+                        value={companyFax}
+                        onChange={(e) => setCompanyFax(e.target.value)}
                     />
                 </div>
+                <TextInput
+                    label="Webサイト"
+                    value={companyWebsite}
+                    onChange={(e) => setCompanyWebsite(e.target.value)}
+                />
 
                 <TextInput
                     label="備考"

@@ -23,6 +23,7 @@ export interface Company {
   street?: string;
   building?: string;
   phone?: string;
+  fax?: string;
   website?: string;
   notes?: string;
   legalEntityStatusId?: number;
