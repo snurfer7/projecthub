@@ -1,5 +1,7 @@
 generator client {
   provider = "prisma-client-js"
+  // サーバーで backend から prisma generate したときに backend/node_modules/.prisma/client に生成するため（schema は prisma/ にある）
+  output   = "../backend/node_modules/.prisma/client"
 }
 
 datasource db {

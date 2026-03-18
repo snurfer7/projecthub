@@ -528,6 +528,7 @@ router.get('/companies/:id', async (req: AuthRequest, res: Response) => {
       include: {
         projects: { select: { id: true, name: true, identifier: true, status: true } },
         legalEntityStatus: true,
+        locations: true,
         associations: {
           include: { association: true },
           orderBy: { createdAt: 'desc' },
