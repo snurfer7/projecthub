@@ -15,7 +15,7 @@ export default function CompaniesPage() {
   const [showCompanyModal, setShowCompanyModal] = useState(false);
 
   const loadCompanies = () => {
-    api.get('/admin/companies').then((res) => setCompanies(res.data));
+    api.get('/companies').then((res) => setCompanies(res.data));
   };
 
   useEffect(() => { loadCompanies(); }, []);

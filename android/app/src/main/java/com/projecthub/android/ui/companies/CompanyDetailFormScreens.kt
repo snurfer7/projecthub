@@ -44,7 +44,7 @@ fun ContactCreateScreen(
     var firstName by remember { mutableStateOf("") }
     var lastName by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
-    var details by remember { mutableStateOf(listOf(ContactDetailState())) }
+    var details by remember { mutableStateOf(listOf(ContactDetailState(isPrimary = true))) }
     var firstNameError by remember { mutableStateOf(false) }
     var lastNameError by remember { mutableStateOf(false) }
 

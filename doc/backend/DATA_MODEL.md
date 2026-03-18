@@ -4,7 +4,7 @@
 
 ## 認証・ユーザー
 
-- **User** — ユーザー。email, passwordHash, firstName, lastName, role, isAdmin, landingPage, show*Menu。GroupMember, ProjectMember, Issue（author/assignedTo）, TimeEntry, WikiPage, 各種 Comment 等と関連。
+- **User** — ユーザー。email, passwordHash, firstName, lastName, role, isAdmin（システム管理者フラグ）, landingPage, show*Menu。GroupMember, ProjectMember, Issue（author/assignedTo）, TimeEntry, WikiPage, 各種 Comment 等と関連。管理機能（`/api/admin`）へのアクセスは、role が admin であるか、isAdmin が true のいずれかで許可する。
 - **Group** — グループ。GroupMember で User と多対多。Issue の担当グループ、ProjectGroup、ProjectMemberRole の sourceGroup として使用。
 - **GroupMember** — Group と User の多対多中間。
 

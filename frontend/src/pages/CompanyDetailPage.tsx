@@ -103,7 +103,7 @@ export default function CompanyDetailPage() {
   const companyId = Number(id);
 
 
-  const loadCompany = () => api.get(`/admin/companies/${id}`).then((res) => {
+  const loadCompany = () => api.get(`/companies/${id}`).then((res) => {
     setCompany(res.data);
     setAssignedAssociations(res.data.associations || []);
   });
@@ -111,7 +111,7 @@ export default function CompanyDetailPage() {
   const loadDeals = () => api.get(`/crm/deals?companyId=${id}`).then((res) => setDeals(res.data));
   const loadActivities = () => api.get(`/crm/activities?companyId=${id}`).then((res) => setActivities(res.data));
   const loadMasterAssociations = () => api.get('/admin/associations').then((res) => setMasterAssociations(res.data));
-  const loadUsers = () => api.get('/admin/users').then((res) => setUsers(res.data.map((u: any) => ({ id: u.id, firstName: u.firstName, lastName: u.lastName }))));
+  const loadUsers = () => api.get('/admin/users').then((res) => setUsers(res.data.map((u: { id: number; firstName: string; lastName: string }) => ({ id: u.id, firstName: u.firstName, lastName: u.lastName }))));
   const loadLocations = () => api.get(`/companies/${id}/locations`).then((res) => setLocations(res.data));
 
   useEffect(() => {
@@ -126,7 +126,7 @@ export default function CompanyDetailPage() {
 
   const handleDeleteCompany = async () => {
     try {
-      await api.delete(`/admin/companies/${id}`);
+      await api.delete(`/companies/${id}`);
       setConfirmDelete(null);
       navigate('/companies');
     } catch (err: any) {
@@ -138,7 +138,7 @@ export default function CompanyDetailPage() {
   const openCreateContact = () => {
     setEditingContact(null);
     setContactForm({ firstName: '', lastName: '', notes: '' });
-    setContactDetails([{ department: '', position: '', phone: '', email: '', locationId: '', isPrimary: false }]);
+    setContactDetails([{ department: '', position: '', phone: '', email: '', locationId: '', isPrimary: true }]);
     setContactError('');
     setShowContactModal(true);
   };
@@ -153,7 +153,7 @@ export default function CompanyDetailPage() {
       email: d.email || '',
       locationId: d.locationId?.toString() || '',
       isPrimary: d.isPrimary || false
-    })) : [{ department: '', position: '', phone: '', email: '', locationId: '', isPrimary: false }]);
+    })) : [{ department: '', position: '', phone: '', email: '', locationId: '', isPrimary: true }]);
     setContactError('');
     setShowContactModal(true);
   };
@@ -300,7 +300,7 @@ export default function CompanyDetailPage() {
   // ========== Association handlers ==========
   const handleAssignAssociation = async (associationId: number) => {
     try {
-      await api.post(`/admin/companies/${id}/associations/${associationId}`, {});
+      await api.post(`/companies/${id}/associations/${associationId}`, {});
       loadCompany();
     } catch (err: any) {
       alert(err.response?.data?.error || '協会の割り当てに失敗しました');
@@ -309,7 +309,7 @@ export default function CompanyDetailPage() {
 
   const handleRemoveAssociation = async (associationId: number) => {
     try {
-      await api.delete(`/admin/companies/${id}/associations/${associationId}`);
+      await api.delete(`/companies/${id}/associations/${associationId}`);
       setConfirmDelete(null);
       loadCompany();
     } catch (err: any) {

@@ -30,3 +30,13 @@ data class CreateTimeEntryRequest(
     @SerializedName("spentOn") val spentOn: String,
     val comments: String?
 )
+
+/** 工数更新。Backend PUT /api/time-entries/:id の Body と同じ。 */
+data class UpdateTimeEntryRequest(
+    @SerializedName("projectId") val projectId: Int,
+    @SerializedName("issueId") val issueId: Int?,
+    val hours: Double,
+    val activity: String,
+    @SerializedName("spentOn") val spentOn: String,
+    val comments: String?
+)

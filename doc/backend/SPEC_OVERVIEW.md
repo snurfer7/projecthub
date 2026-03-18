@@ -33,9 +33,9 @@ PostgreSQL + Prisma で永続化し、JWT で認証する。
 | `/api/wiki` | wiki.ts | プロジェクト Wiki の CRUD・移動 |
 | `/api/attachments` | attachments.ts | アップロード・ダウンロード・削除 |
 | `/api/time-entries` | timeEntries.ts | 工数 CRUD |
-| `/api/admin` | admin.ts | ユーザー・tracker/status/priority/group/role・会社・法人区分・団体・設定（管理者向け） |
+| `/api/admin` | admin.ts | ユーザー・tracker/status/priority/group/role・設定は管理者のみ。会社・法人区分・団体の CRUD および GET /users は認証済みユーザーで利用可能 |
 | `/api/gantt` | gantt.ts | ガント用データ（プロジェクト単位・全体） |
-| `/api/companies` | companies.ts | 会社のコメント・Wiki・拠点・団体紐付け |
+| `/api/companies` | companies.ts | 会社の CRUD・コメント・Wiki・拠点・団体紐付け（認証済みユーザーで利用可能） |
 | `/api/crm` | crm.ts | コンタクト・ Deal・Activity CRUD、コメント |
 | `/api/home` | home.ts | ホームページコンテンツ |
 
@@ -44,7 +44,7 @@ PostgreSQL + Prisma で永続化し、JWT で認証する。
 - **ログイン**: `POST /api/auth/login` — `email`, `password` → `token`, `user`
 - **登録**: `POST /api/auth/register` — `email`, `password`, `firstName`, `lastName` → `token`, `user`
 - **認証が必要なリクエスト**: ヘッダー `Authorization: Bearer <token>`
-- **トークン取得**: `auth.ts` 内の `generateToken(userId, role, isAdmin)`（JWT、要 `JWT_SECRET` 環境変数）
+- **トークン取得**: `auth.ts` 内の `generateToken(userId, role, isAdmin)`（JWT、要 `JWT_SECRET` 環境変数）。管理画面・ユーザー/マスタ/設定の操作は、JWT の `isAdmin === true` または `role === 'admin'` のいずれかで許可する。プロジェクト・チケット・企業・協会・法人格・連絡先・商談・活動履歴・Wiki・コメント・拠点の新規登録・編集は認証済みユーザーであれば可能。
 
 ## 環境変数（代表）
 

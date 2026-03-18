@@ -7,9 +7,11 @@ const router = Router();
 const prisma = new PrismaClient();
 
 router.use(authenticateToken);
-router.use(requireAdmin);
 
-// Users
+// 管理者のみ: ユーザー・トラッカー・ステータス・優先度・グループ・ロール・設定
+// 企業・法人格・協会は認証済みユーザーで利用可能
+
+// Users（一覧は担当者選択等で利用するため認証のみ。作成・更新・削除は管理者のみ）
 router.get('/users', async (_req: AuthRequest, res: Response) => {
   try {
     const users = await prisma.user.findMany({
@@ -25,7 +27,7 @@ router.get('/users', async (_req: AuthRequest, res: Response) => {
   }
 });
 
-router.post('/users', async (req: AuthRequest, res: Response) => {
+router.post('/users', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { email, password, firstName, lastName, isAdmin, groupIds } = req.body;
     const passwordHash = await bcrypt.hash(password, 10);
@@ -48,7 +50,7 @@ router.post('/users', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.put('/users/:id', async (req: AuthRequest, res: Response) => {
+router.put('/users/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { email, firstName, lastName, isAdmin, password, groupIds } = req.body;
     const userId = Number(req.params.id);
@@ -77,7 +79,7 @@ router.put('/users/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.delete('/users/:id', async (req: AuthRequest, res: Response) => {
+router.delete('/users/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     await prisma.user.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: 'ユーザーを削除しました' });
@@ -87,7 +89,7 @@ router.delete('/users/:id', async (req: AuthRequest, res: Response) => {
 });
 
 // Trackers
-router.get('/trackers', async (_req: AuthRequest, res: Response) => {
+router.get('/trackers', requireAdmin, async (_req: AuthRequest, res: Response) => {
   try {
     // the generated client in this workspace may be out-of-date so we cast
     let trackers = await prisma.tracker.findMany({ orderBy: { position: 'asc' } as any });
@@ -108,7 +110,7 @@ router.get('/trackers', async (_req: AuthRequest, res: Response) => {
   }
 });
 
-router.post('/trackers', async (req: AuthRequest, res: Response) => {
+router.post('/trackers', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     // place new tracker at end of list
     const max: any = await prisma.tracker.aggregate({ _max: { position: true } } as any);
@@ -121,7 +123,7 @@ router.post('/trackers', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.put('/trackers/:id', async (req: AuthRequest, res: Response) => {
+router.put('/trackers/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
     const { name, position } = req.body;
@@ -135,7 +137,7 @@ router.put('/trackers/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.post('/trackers/reorder', async (req: AuthRequest, res: Response) => {
+router.post('/trackers/reorder', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { ids } = req.body;
     if (!Array.isArray(ids)) {
@@ -152,7 +154,7 @@ router.post('/trackers/reorder', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.delete('/trackers/:id', async (req: AuthRequest, res: Response) => {
+router.delete('/trackers/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     await prisma.tracker.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: '削除しました' });
@@ -162,7 +164,7 @@ router.delete('/trackers/:id', async (req: AuthRequest, res: Response) => {
 });
 
 // Statuses
-router.get('/statuses', async (_req: AuthRequest, res: Response) => {
+router.get('/statuses', requireAdmin, async (_req: AuthRequest, res: Response) => {
   try {
     res.json(await prisma.issueStatus.findMany({ orderBy: { position: 'asc' } }));
   } catch (e) {
@@ -170,7 +172,7 @@ router.get('/statuses', async (_req: AuthRequest, res: Response) => {
   }
 });
 
-router.post('/statuses', async (req: AuthRequest, res: Response) => {
+router.post('/statuses', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { name, isClosed, position } = req.body;
     // when creating new status default to end
@@ -184,7 +186,7 @@ router.post('/statuses', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.put('/statuses/:id', async (req: AuthRequest, res: Response) => {
+router.put('/statuses/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
     const { name, isClosed, position } = req.body;
@@ -199,7 +201,7 @@ router.put('/statuses/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.post('/statuses/reorder', async (req: AuthRequest, res: Response) => {
+router.post('/statuses/reorder', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { ids } = req.body;
     if (!Array.isArray(ids)) {
@@ -216,7 +218,7 @@ router.post('/statuses/reorder', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.delete('/statuses/:id', async (req: AuthRequest, res: Response) => {
+router.delete('/statuses/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     await prisma.issueStatus.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: '削除しました' });
@@ -226,7 +228,7 @@ router.delete('/statuses/:id', async (req: AuthRequest, res: Response) => {
 });
 
 // Priorities
-router.get('/priorities', async (_req: AuthRequest, res: Response) => {
+router.get('/priorities', requireAdmin, async (_req: AuthRequest, res: Response) => {
   try {
     res.json(await prisma.issuePriority.findMany({ orderBy: { position: 'asc' } }));
   } catch (e) {
@@ -234,7 +236,7 @@ router.get('/priorities', async (_req: AuthRequest, res: Response) => {
   }
 });
 
-router.post('/priorities', async (req: AuthRequest, res: Response) => {
+router.post('/priorities', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { name, position } = req.body;
     const max = await prisma.issuePriority.aggregate({ _max: { position: true } });
@@ -247,7 +249,7 @@ router.post('/priorities', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.put('/priorities/:id', async (req: AuthRequest, res: Response) => {
+router.put('/priorities/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
     const { name, position } = req.body;
@@ -261,7 +263,7 @@ router.put('/priorities/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.post('/priorities/reorder', async (req: AuthRequest, res: Response) => {
+router.post('/priorities/reorder', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { ids } = req.body;
     if (!Array.isArray(ids)) {
@@ -278,7 +280,7 @@ router.post('/priorities/reorder', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.delete('/priorities/:id', async (req: AuthRequest, res: Response) => {
+router.delete('/priorities/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     await prisma.issuePriority.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: '削除しました' });
@@ -288,7 +290,7 @@ router.delete('/priorities/:id', async (req: AuthRequest, res: Response) => {
 });
 
 // Groups
-router.get('/groups', async (_req: AuthRequest, res: Response) => {
+router.get('/groups', requireAdmin, async (_req: AuthRequest, res: Response) => {
   try {
     const groups = await prisma.group.findMany({
       include: { _count: { select: { members: true } } },
@@ -300,7 +302,7 @@ router.get('/groups', async (_req: AuthRequest, res: Response) => {
   }
 });
 
-router.get('/groups/:id', async (req: AuthRequest, res: Response) => {
+router.get('/groups/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const group = await prisma.group.findUnique({
       where: { id: Number(req.params.id) },
@@ -320,7 +322,7 @@ router.get('/groups/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.post('/groups', async (req: AuthRequest, res: Response) => {
+router.post('/groups', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { name, memberIds } = req.body;
     const group = await prisma.group.create({
@@ -338,7 +340,7 @@ router.post('/groups', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.put('/groups/:id', async (req: AuthRequest, res: Response) => {
+router.put('/groups/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { name, memberIds } = req.body;
     const groupId = Number(req.params.id);
@@ -359,7 +361,7 @@ router.put('/groups/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.delete('/groups/:id', async (req: AuthRequest, res: Response) => {
+router.delete('/groups/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     await prisma.group.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: 'グループを削除しました' });
@@ -369,7 +371,7 @@ router.delete('/groups/:id', async (req: AuthRequest, res: Response) => {
 });
 
 // Roles
-router.get('/roles', async (_req: AuthRequest, res: Response) => {
+router.get('/roles', requireAdmin, async (_req: AuthRequest, res: Response) => {
   try {
     console.log('ロール取得リクエスト');
     const roles = await prisma.role.findMany({
@@ -388,7 +390,7 @@ router.get('/roles', async (_req: AuthRequest, res: Response) => {
   }
 });
 
-router.post('/roles', async (req: AuthRequest, res: Response) => {
+router.post('/roles', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { name, position, isDefaultRole } = req.body;
     const max = await prisma.role.aggregate({ _max: { position: true } });
@@ -404,7 +406,7 @@ router.post('/roles', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.put('/roles/:id', async (req: AuthRequest, res: Response) => {
+router.put('/roles/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
     const { name, position, statusIds, isDefaultRole } = req.body;
@@ -436,7 +438,7 @@ router.put('/roles/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.post('/roles/reorder', async (req: AuthRequest, res: Response) => {
+router.post('/roles/reorder', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { ids } = req.body;
     if (!Array.isArray(ids)) {
@@ -453,7 +455,7 @@ router.post('/roles/reorder', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.delete('/roles/:id', async (req: AuthRequest, res: Response) => {
+router.delete('/roles/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     await prisma.role.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: '削除しました' });
@@ -463,7 +465,7 @@ router.delete('/roles/:id', async (req: AuthRequest, res: Response) => {
 });
 
 // Workflow transitions for a role
-router.get('/roles/:id/transitions', async (req: AuthRequest, res: Response) => {
+router.get('/roles/:id/transitions', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const roleId = Number(req.params.id);
     const transitions = await prisma.workflowTransition.findMany({
@@ -476,7 +478,7 @@ router.get('/roles/:id/transitions', async (req: AuthRequest, res: Response) => 
   }
 });
 
-router.put('/roles/:id/transitions', async (req: AuthRequest, res: Response) => {
+router.put('/roles/:id/transitions', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const roleId = Number(req.params.id);
     const { transitions } = req.body;
@@ -798,7 +800,7 @@ router.delete('/companies/:id/associations/:associationId', async (req: AuthRequ
 });
 
 // System Settings
-router.get('/settings/time', async (_req: AuthRequest, res: Response) => {
+router.get('/settings/time', requireAdmin, async (_req: AuthRequest, res: Response) => {
   try {
     let setting = await prisma.systemSetting.findUnique({ where: { id: 'default' } });
     if (!setting) {
@@ -813,7 +815,7 @@ router.get('/settings/time', async (_req: AuthRequest, res: Response) => {
   }
 });
 
-router.put('/settings/time', async (req: AuthRequest, res: Response) => {
+router.put('/settings/time', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { startTime, endTime, managementTimes, conversionTimes } = req.body;
 

@@ -95,7 +95,7 @@ export default function Breadcrumb() {
 
   useEffect(() => {
     if (companyId && !companyCache[companyId]) {
-      api.get(`/admin/companies/${companyId}`).then((res) => {
+      api.get(`/companies/${companyId}`).then((res) => {
         setCompanyCache((prev) => ({ ...prev, [companyId]: res.data.name }));
       }).catch(() => { });
     }

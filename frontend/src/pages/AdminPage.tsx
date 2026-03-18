@@ -71,7 +71,8 @@ export default function AdminPage({ user }: Props) {
   // 削除用ステート
   const [confirmDelete, setConfirmDelete] = useState<{ type: string; id: number; name: string } | null>(null);
 
-  if (user.role !== 'admin') return <Navigate to="/" />;
+  // 管理者ロールまたはシステム管理者（isAdmin）のいずれかでアクセス許可
+  if (user.role !== 'admin' && user.isAdmin !== true) return <Navigate to="/" />;
 
   const loadAll = () => {
     api.get('/admin/users').then((res) => {

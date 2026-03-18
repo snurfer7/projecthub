@@ -82,9 +82,9 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
                 notes: companyNotes || null,
             };
             if (editingCompany) {
-                await api.put(`/admin/companies/${editingCompany.id}`, data);
+                await api.put(`/companies/${editingCompany.id}`, data);
             } else {
-                await api.post('/admin/companies', data);
+                await api.post('/companies', data);
             }
             onSuccess();
             onClose();

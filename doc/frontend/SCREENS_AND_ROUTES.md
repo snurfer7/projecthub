@@ -37,8 +37,8 @@
 | `/gantt` | GanttAllPage | ガント（全体） |
 | `/companies` | CompaniesPage | 会社一覧 |
 | `/companies/:id` | CompanyDetailPage | 会社詳細 |
-| `/associations` | AssociationsPage | 団体マスタ（管理者向け） |
-| `/legal-entity-statuses` | LegalEntityStatusesPage | 法人区分マスタ（管理者向け） |
+| `/associations` | AssociationsPage | 団体マスタ |
+| `/legal-entity-statuses` | LegalEntityStatusesPage | 法人区分マスタ |
 | `/settings` | SettingsPage | 設定（パスワード・ランディング・メニュー表示） |
 | `/admin` | AdminPage | 管理（ユーザー・トラッカー・ステータス・優先度・グループ・ロール・会社・法人区分・団体・時間設定等） |
 
@@ -51,7 +51,10 @@
 ## 表示条件（メニュー）
 
 - サイドメニューは `user.show*Menu` に従い、プロジェクト・ガント・会社・管理 の各項目を出し分け。
-- `/admin` は管理者・または showAdminMenu が true のユーザー向け。
+- **管理機能**（`/admin` および管理メニュー項目）は、次のいずれかを満たすユーザーに表示・アクセス可能とする。
+  - `user.role === 'admin'`（管理者ロール）
+  - `user.isAdmin === true`（システム管理者にチェックが入っているユーザー）
+- 上記のうち、`showAdminMenu` が false の場合は管理メニュー項目を非表示にする（アクセス権限は上記のまま）。
 
 ## データの取得方針
 

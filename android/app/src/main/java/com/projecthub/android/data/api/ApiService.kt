@@ -33,7 +33,8 @@ interface ApiService {
         @Query("statusId") statusId: Int? = null,
         @Query("trackerId") trackerId: Int? = null,
         @Query("priorityId") priorityId: Int? = null,
-        @Query("assignedToId") assignedToId: Int? = null
+        @Query("assignedToId") assignedToId: Int? = null,
+        @Query("assignedToGroupId") assignedToGroupId: Int? = null
     ): Response<List<IssueDto>>
 
     @GET("api/issues/{id}")
@@ -72,6 +73,12 @@ interface ApiService {
     @POST("api/time-entries")
     suspend fun createTimeEntry(@Body request: CreateTimeEntryRequest): Response<TimeEntryDto>
 
+    @PUT("api/time-entries/{id}")
+    suspend fun updateTimeEntry(
+        @Path("id") id: Int,
+        @Body request: UpdateTimeEntryRequest
+    ): Response<TimeEntryDto>
+
     @DELETE("api/time-entries/{id}")
     suspend fun deleteTimeEntry(@Path("id") id: Int): Response<Unit>
 
@@ -81,6 +88,18 @@ interface ApiService {
 
     @GET("api/companies/{id}")
     suspend fun getCompany(@Path("id") id: Int): Response<CompanyDto>
+
+    @POST("api/companies")
+    suspend fun createCompany(@Body request: CreateCompanyRequest): Response<CompanyDto>
+
+    @PUT("api/companies/{id}")
+    suspend fun updateCompany(
+        @Path("id") id: Int,
+        @Body request: UpdateCompanyRequest
+    ): Response<CompanyDto>
+
+    @DELETE("api/companies/{id}")
+    suspend fun deleteCompany(@Path("id") id: Int): Response<Unit>
 
     @GET("api/companies/{companyId}/locations")
     suspend fun getLocations(@Path("companyId") companyId: Int): Response<List<LocationDto>>
@@ -106,9 +125,6 @@ interface ApiService {
     // Admin
     @GET("api/admin/legal-entity-statuses")
     suspend fun getLegalEntityStatuses(): Response<List<LegalEntityStatusDto>>
-
-    @POST("api/admin/companies")
-    suspend fun createCompany(@Body request: CreateCompanyRequest): Response<CompanyDto>
 
     // CRM - Contacts
     @GET("api/crm/contacts")

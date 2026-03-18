@@ -47,6 +47,32 @@ class CompanyRepository @Inject constructor(
         }
     }
 
+    suspend fun updateCompany(id: Int, request: UpdateCompanyRequest): Result<CompanyDto> {
+        return try {
+            val response = apiServiceProvider.get().updateCompany(id, request)
+            if (response.isSuccessful) {
+                Result.Success(response.body()!!)
+            } else {
+                Result.Error("企業の更新に失敗しました")
+            }
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "ネットワークエラーが発生しました")
+        }
+    }
+
+    suspend fun deleteCompany(id: Int): Result<Unit> {
+        return try {
+            val response = apiServiceProvider.get().deleteCompany(id)
+            if (response.isSuccessful) {
+                Result.Success(Unit)
+            } else {
+                Result.Error("企業の削除に失敗しました")
+            }
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "ネットワークエラーが発生しました")
+        }
+    }
+
     suspend fun getLegalEntityStatuses(): Result<List<LegalEntityStatusDto>> {
         return try {
             val response = apiServiceProvider.get().getLegalEntityStatuses()

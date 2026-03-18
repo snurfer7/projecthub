@@ -7,11 +7,12 @@ const prisma = new PrismaClient();
 
 router.use(authenticateToken);
 
-// List companies (used by project creation dropdown)
+// List companies (used by company list page and project creation dropdown)
 router.get('/', async (_req: AuthRequest, res: Response) => {
   try {
     const companies = await prisma.company.findMany({
       include: {
+        legalEntityStatus: true,
         locations: true,
         contacts: true,
         _count: { select: { projects: true, wikiPages: true, comments: true, locations: true } }
@@ -31,6 +32,7 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
     const company = await prisma.company.findUnique({
       where: { id: Number(req.params.id) },
       include: {
+        legalEntityStatus: true,
         projects: { select: { id: true, name: true, identifier: true, status: true } },
         associations: {
           include: { association: true },
@@ -50,6 +52,68 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
   } catch (e) {
     console.error('companies.getCompanyDetail error:', e);
     res.status(500).json({ error: '企業の取得に失敗しました' });
+  }
+});
+
+// Create company
+router.post('/', async (req: AuthRequest, res: Response) => {
+  try {
+    const { name, legalEntityStatusId, legalEntityPosition, postalCode, prefecture, city, street, building, phone, website, notes } = req.body;
+    const company = await prisma.company.create({
+      data: {
+        name,
+        legalEntityStatusId: legalEntityStatusId ? Number(legalEntityStatusId) : null,
+        legalEntityPosition,
+        postalCode,
+        prefecture,
+        city,
+        street,
+        building,
+        phone,
+        website,
+        notes,
+      } as any,
+    });
+    res.status(201).json(company);
+  } catch (e) {
+    res.status(500).json({ error: '企業の作成に失敗しました' });
+  }
+});
+
+// Update company
+router.put('/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const { name, legalEntityStatusId, legalEntityPosition, postalCode, prefecture, city, street, building, phone, website, notes } = req.body;
+    const companyId = Number(req.params.id);
+    const company = await prisma.company.update({
+      where: { id: companyId },
+      data: {
+        name,
+        legalEntityStatusId: legalEntityStatusId ? Number(legalEntityStatusId) : null,
+        legalEntityPosition,
+        postalCode,
+        prefecture,
+        city,
+        street,
+        building,
+        phone,
+        website,
+        notes,
+      } as any,
+    });
+    res.json(company);
+  } catch (e) {
+    res.status(500).json({ error: '企業の更新に失敗しました' });
+  }
+});
+
+// Delete company
+router.delete('/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    await prisma.company.delete({ where: { id: Number(req.params.id) } });
+    res.json({ message: '企業を削除しました' });
+  } catch (e) {
+    res.status(500).json({ error: '企業の削除に失敗しました' });
   }
 });
 

@@ -97,21 +97,22 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 ## Admin — `/api/admin`
 
-管理者向け。ユーザー・マスタ・会社・団体・法人区分・設定の CRUD および並び替え。
+認証必須。以下のうち **ユーザー・トラッカー・ステータス・優先度・グループ・ロール・設定** は管理者（`isAdmin === true` または `role === 'admin'`）のみ。**会社・法人区分・団体** および **GET /users**（担当者一覧）は認証済みユーザーで利用可能。
 
-| メソッド | パス | 概要 |
-|----------|------|------|
-| GET/POST/PUT/DELETE | `/users` | ユーザー |
-| GET/POST/PUT/DELETE, POST reorder | `/trackers` | トラッカー |
-| GET/POST/PUT/DELETE, POST reorder | `/statuses` | チケットステータス |
-| GET/POST/PUT/DELETE, POST reorder | `/priorities` | 優先度 |
-| GET/GET:id/POST/PUT/DELETE | `/groups` | グループ |
-| GET/POST/PUT/DELETE, POST reorder, GET/PUT transitions | `/roles` | ロール・ワークフロー遷移 |
-| GET/GET:id/POST/PUT/DELETE | `/companies` | 会社（管理者用一覧） |
-| GET/POST/PUT/DELETE, POST reorder | `/legal-entity-statuses` | 法人区分 |
-| GET/POST/PUT/DELETE | `/associations` | 団体 |
-| POST/DELETE | `/companies/:id/associations/:associationId` | 会社-団体紐付け |
-| GET/PUT | `/settings/time` | 時間設定（管理時間・換算時間） |
+| メソッド | パス | 概要 | 権限 |
+|----------|------|------|------|
+| GET | `/users` | ユーザー一覧（担当者選択等） | 認証 |
+| POST/PUT/DELETE | `/users`, `/users/:id` | ユーザー作成・更新・削除 | 管理者 |
+| GET/POST/PUT/DELETE, POST reorder | `/trackers` | トラッカー | 管理者 |
+| GET/POST/PUT/DELETE, POST reorder | `/statuses` | チケットステータス | 管理者 |
+| GET/POST/PUT/DELETE, POST reorder | `/priorities` | 優先度 | 管理者 |
+| GET/GET:id/POST/PUT/DELETE | `/groups` | グループ | 管理者 |
+| GET/POST/PUT/DELETE, POST reorder, GET/PUT transitions | `/roles` | ロール・ワークフロー遷移 | 管理者 |
+| GET/GET:id/POST/PUT/DELETE | `/companies` | 会社（一覧・詳細・作成・更新・削除） | 認証 |
+| GET/POST/PUT/DELETE, POST reorder | `/legal-entity-statuses` | 法人区分 | 認証 |
+| GET/POST/PUT/DELETE | `/associations` | 団体 | 認証 |
+| POST/DELETE | `/companies/:id/associations/:associationId` | 会社-団体紐付け | 認証 |
+| GET/PUT | `/settings/time` | 時間設定（管理時間・換算時間） | 管理者 |
 
 ---
 
@@ -126,10 +127,15 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 ## Companies — `/api/companies`
 
+認証必須。会社の CRUD およびコメント・Wiki・拠点・団体紐付けは認証済みユーザーで利用可能。
+
 | メソッド | パス | 概要 |
 |----------|------|------|
 | GET | `/` | 会社一覧 |
 | GET | `/:id` | 会社詳細 |
+| POST | `/` | 会社作成 |
+| PUT | `/:id` | 会社更新 |
+| DELETE | `/:id` | 会社削除 |
 | POST | `/:companyId/associations/:associationId` | 団体紐付け |
 | DELETE | `/:companyId/associations/:associationId` | 団体紐付け解除 |
 | GET/POST/PUT | `/:companyId/comments`, `/:companyId/comments/:commentId` | コメント |

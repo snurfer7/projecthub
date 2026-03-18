@@ -99,6 +99,21 @@ data class CreateCompanyRequest(
     val notes: String? = null
 )
 
+/** 会社更新。Backend PUT /api/companies/:id の Body と同じ。 */
+data class UpdateCompanyRequest(
+    val name: String,
+    @SerializedName("legalEntityStatusId") val legalEntityStatusId: Int? = null,
+    @SerializedName("legalEntityPosition") val legalEntityPosition: String? = null,
+    @SerializedName("postalCode") val postalCode: String? = null,
+    val prefecture: String? = null,
+    val city: String? = null,
+    val street: String? = null,
+    val building: String? = null,
+    val phone: String? = null,
+    val website: String? = null,
+    val notes: String? = null
+)
+
 data class CreateContactRequest(
     @SerializedName("firstName") val firstName: String,
     @SerializedName("lastName") val lastName: String,

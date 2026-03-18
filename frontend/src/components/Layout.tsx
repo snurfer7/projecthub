@@ -90,10 +90,12 @@ export default function Layout({ user, onLogout, children }: Props) {
     return true;
   });
 
-  // サイドバーに表示するツリーメニュー（adminOnly はフィルタリング）
-  const sideTreeItems = TREE_MENU.filter(
-    (item) => !item.adminOnly || user.role === 'admin'
-  );
+  // サイドバーに表示するツリーメニュー（管理は role=admin または isAdmin かつ showAdminMenu）
+  const canAccessAdmin = user.role === 'admin' || user.isAdmin === true;
+  const sideTreeItems = TREE_MENU.filter((item) => {
+    if (!item.adminOnly) return true;
+    return canAccessAdmin && user.showAdminMenu !== false;
+  });
 
   const isActive = (path: string) => location.pathname.startsWith(path);
 
