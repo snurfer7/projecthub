@@ -14,6 +14,9 @@ ProjectHub のネイティブ Android クライアント。Web フロントエ�
 | ナビゲーション | Navigation Compose |
 | HTTP | Retrofit + OkHttp |
 | 認証 | JWT（Bearer）。トークンは PreferencesManager 等で保持 |
+| ドキュメントスキャン | ML Kit Document Scanner (`play-services-mlkit-document-scanner`) |
+| 文字認識 | ML Kit Text Recognition v2 Japanese (`text-recognition-japanese`) |
+| 画像表示 | Coil (`coil-compose`) |
 
 ## アーキテクチャ
 
@@ -30,6 +33,13 @@ ProjectHub のネイティブ Android クライアント。Web フロントエ�
 ## UI・フォーム
 
 - **日付項目**: 期限日・開始日・作業日・見込み日・期日などは、タップでシステム標準の DatePicker ダイアログ（Material3）を表示して選択する。値は API 用に "yyyy-MM-dd" 形式で保持。
+
+## 名刺スキャン機能
+
+- **スキャン**: `GmsDocumentScanningOptions` でマルチページ (SCANNER_MODE_FULL, RESULT_FORMAT_JPEG, pageLimit=20) を設定し、`GmsDocumentScanning.getClient()` でスキャナーを起動。
+- **OCR**: スキャン済み画像 URI ごとに `InputImage.fromFilePath()` で入力し、`TextRecognition.getClient(JapaneseTextRecognizerOptions)` で文字認識。
+- **パース**: `BusinessCardParser.parse(text, legalEntityNames)` で `BusinessCardInfo` へ変換。法人格リストは `CompanyViewModel.listUiState.legalEntityStatuses` から取得。
+- **配置**: `ui/companies/BusinessCardScanScreen.kt`, `ui/companies/BusinessCardParser.kt`, `ui/companies/BusinessCardInfo.kt`
 
 ## 関連パス
 

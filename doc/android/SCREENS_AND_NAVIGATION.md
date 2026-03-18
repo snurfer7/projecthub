@@ -16,6 +16,7 @@
   - `WikiDetail` — `project/{projectId}/wiki/{pageId}`
   - `CompanyDetail` — `company/{companyId}`
   - `TimeCreate` — `time/create?projectId={projectId}`（projectId は任意）
+  - `BusinessCardScan` — `company/business_card_scan`（名刺スキャン画面）
 
 ## 新規作成ダイアログ（FAB）
 
@@ -24,7 +25,8 @@
 | 画面 | ダイアログ | フィールド |
 |------|-----------|-----------|
 | ProjectListScreen | プロジェクト登録 | 名前*, 識別子*, 企業, 親プロジェクト, 期限日, 説明 |
-| CompanyListScreen | 会社登録 | 会社名*, 法人格, 法人格前後（前/後）, 郵便番号, 電話番号, 都道府県, 市区町村, 番地, 建物名, Webサイト, 備考 |
+| CompanyListScreen | 会社登録（右下 FAB: Add） | 会社名*, 法人格, 法人格前後（前/後）, 郵便番号, 電話番号, 都道府県, 市区町村, 番地, 建物名, Webサイト, 備考 |
+| CompanyListScreen | 名刺スキャン（左下 FAB: DocumentScanner） | ML Kit Document Scanner を起動（マルチページ）→ BusinessCardScanScreen へ遷移 |
 | CompanyDetailScreen（連絡先タブ） | 連絡先登録 | 姓*, 名*, 部署, 役職, 電話, メール, メモ |
 | CompanyDetailScreen（商談タブ） | 商談登録 | 商談名*, ステータス, 金額, 確度, 見込み日, メモ |
 | CompanyDetailScreen（活動履歴タブ） | 活動登録 | 種別*（電話/メール/訪問/会議/メモ）, 件名*, 内容, 関連連絡先, 期日 |
@@ -55,6 +57,7 @@
    → 保存後 → `popBackStack()`
 6. **企業一覧** → 企業タップ → `CompanyDetail.createRoute(companyId)`
    → 企業詳細内のタブ（横スクロール可能）: 概要 / 連絡先 / 商談 / 活動履歴 / Wiki / コメント / 拠点
+   → 左下 FAB（名刺スキャン）タップ → `BusinessCardScan.route` → スキャン結果一覧 + 名刺情報表示
 7. **設定** → ログアウト → `Screen.Login` へ `popUpTo(0) { inclusive = true }`
 
 ## 画面一覧（コンポーネント対応）
@@ -79,6 +82,7 @@
 | WikiDetail | WikiDetailScreen | Wiki ページ表示 |
 | CompanyDetail | CompanyDetailScreen | 企業詳細（タブ: 概要 / 連絡先 / 商談 / 活動履歴 / Wiki / コメント / 拠点） |
 | TimeCreate | TimeEntryFormScreen | 工数登録 |
+| BusinessCardScan | BusinessCardScanScreen | 名刺スキャン。ML Kit Document Scanner でスキャン後、各ページを一覧表示し ML Kit Text Recognition (Japanese) で OCR → BusinessCardParser で名刺情報を抽出して表示 |
 
 ## 認証待ち
 

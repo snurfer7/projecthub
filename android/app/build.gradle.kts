@@ -92,6 +92,14 @@ dependencies {
     // Gson
     implementation("com.google.code.gson:gson:2.10.1")
 
+    // ML Kit - Document Scanner
+    implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0-beta1")
+    // ML Kit - Text Recognition v2 (Japanese)
+    implementation("com.google.mlkit:text-recognition-japanese:16.0.0")
+
+    // Coil for image loading
+    implementation("io.coil-kt:coil-compose:2.6.0")
+
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

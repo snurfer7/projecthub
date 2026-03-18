@@ -21,6 +21,7 @@ import com.projecthub.android.ui.components.*
 fun CompanyListScreen(
     onNavigateToCompany: (Int) -> Unit,
     onNavigateToCreate: () -> Unit = {},
+    onNavigateToBusinessCardScan: () -> Unit = {},
     viewModel: CompanyViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.listUiState.collectAsState()
@@ -42,48 +43,62 @@ fun CompanyListScreen(
             }
         }
     ) { paddingValues ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            OutlinedTextField(
-                value = uiState.searchQuery,
-                onValueChange = { viewModel.updateSearchQuery(it) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text("企業を検索...") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "検索") },
-                trailingIcon = {
-                    if (uiState.searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { viewModel.updateSearchQuery("") }) {
-                            Icon(Icons.Default.Clear, contentDescription = "クリア")
+            Column(modifier = Modifier.fillMaxSize()) {
+                OutlinedTextField(
+                    value = uiState.searchQuery,
+                    onValueChange = { viewModel.updateSearchQuery(it) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    placeholder = { Text("企業を検索...") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "検索") },
+                    trailingIcon = {
+                        if (uiState.searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.updateSearchQuery("") }) {
+                                Icon(Icons.Default.Clear, contentDescription = "クリア")
+                            }
                         }
-                    }
-                },
-                singleLine = true
-            )
+                    },
+                    singleLine = true
+                )
 
-            when {
-                uiState.isLoading -> LoadingScreen()
-                uiState.error != null -> ErrorScreen(
-                    message = uiState.error!!,
-                    onRetry = { viewModel.loadCompanies() }
-                )
-                uiState.filteredCompanies.isEmpty() -> EmptyScreen(
-                    if (uiState.searchQuery.isNotBlank()) "検索結果がありません" else "企業がありません"
-                )
-                else -> {
-                    LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
-                        items(uiState.filteredCompanies) { company ->
-                            CompanyListItem(
-                                company = company,
-                                onClick = { onNavigateToCompany(company.id) }
-                            )
+                when {
+                    uiState.isLoading -> LoadingScreen()
+                    uiState.error != null -> ErrorScreen(
+                        message = uiState.error!!,
+                        onRetry = { viewModel.loadCompanies() }
+                    )
+                    uiState.filteredCompanies.isEmpty() -> EmptyScreen(
+                        if (uiState.searchQuery.isNotBlank()) "検索結果がありません" else "企業がありません"
+                    )
+                    else -> {
+                        LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
+                            items(uiState.filteredCompanies) { company ->
+                                CompanyListItem(
+                                    company = company,
+                                    onClick = { onNavigateToCompany(company.id) }
+                                )
+                            }
                         }
                     }
                 }
+            }
+
+            // 名刺スキャン FAB（左下・企業追加ボタンと同じ高さ）
+            FloatingActionButton(
+                onClick = onNavigateToBusinessCardScan,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 16.dp, bottom = 16.dp),
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            ) {
+                Icon(Icons.Default.DocumentScanner, contentDescription = "名刺スキャン")
             }
         }
     }

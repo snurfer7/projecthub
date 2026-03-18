@@ -19,6 +19,7 @@ import com.projecthub.android.ui.auth.AuthViewModel
 import com.projecthub.android.ui.auth.LoginScreen
 import com.projecthub.android.ui.auth.RegisterScreen
 import com.projecthub.android.ui.companies.ActivityCreateScreen
+import com.projecthub.android.ui.companies.BusinessCardScanScreen
 import com.projecthub.android.ui.companies.CompanyCommentCreateScreen
 import com.projecthub.android.ui.companies.CompanyCreateScreen
 import com.projecthub.android.ui.companies.CompanyDetailScreen
@@ -103,6 +104,7 @@ sealed class Screen(val route: String) {
     object CompanyLocationCreate : Screen("company/{companyId}/location/create") {
         fun createRoute(id: Int) = "company/$id/location/create"
     }
+    object BusinessCardScan : Screen("company/business_card_scan")
     object Settings : Screen("settings")
     object ApiSettings : Screen("api_settings")
 }
@@ -254,7 +256,8 @@ fun ProjectHubNavGraph() {
             composable(Screen.Companies.route) {
                 CompanyListScreen(
                     onNavigateToCompany = { navController.navigate(Screen.CompanyDetail.createRoute(it)) },
-                    onNavigateToCreate = { navController.navigate(Screen.CompanyCreate.route) }
+                    onNavigateToCreate = { navController.navigate(Screen.CompanyCreate.route) },
+                    onNavigateToBusinessCardScan = { navController.navigate(Screen.BusinessCardScan.route) }
                 )
             }
 
@@ -489,6 +492,20 @@ fun ProjectHubNavGraph() {
                     companyId = companyId,
                     onNavigateBack = { navController.popBackStack() },
                     viewModel = viewModel
+                )
+            }
+
+            // Business card scan
+            composable(Screen.BusinessCardScan.route) { backStack ->
+                val parentEntry = remember(backStack) {
+                    navController.getBackStackEntry(Screen.Companies.route)
+                }
+                val viewModel: com.projecthub.android.ui.companies.CompanyViewModel =
+                    androidx.hilt.navigation.compose.hiltViewModel(parentEntry)
+                val listState by viewModel.listUiState.collectAsState()
+                BusinessCardScanScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    legalEntityNames = listState.legalEntityStatuses.map { it.name },
                 )
             }
 
