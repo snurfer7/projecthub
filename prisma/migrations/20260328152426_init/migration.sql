@@ -1,6 +1,3 @@
--- CreateSchema
-CREATE SCHEMA IF NOT EXISTS "public";
-
 -- CreateTable
 CREATE TABLE "users" (
     "id" SERIAL NOT NULL,
@@ -42,15 +39,11 @@ CREATE TABLE "group_members" (
 CREATE TABLE "companies" (
     "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
-    "phone" TEXT,
+    "legal_entity_status_id" INTEGER,
     "website" TEXT,
     "notes" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "building" TEXT,
-    "city" TEXT,
-    "postal_code" TEXT,
-    "prefecture" TEXT,
-    "street" TEXT,
+    "legal_entity_position" TEXT,
 
     CONSTRAINT "companies_pkey" PRIMARY KEY ("id")
 );
@@ -61,6 +54,7 @@ CREATE TABLE "locations" (
     "company_id" INTEGER NOT NULL,
     "name" TEXT NOT NULL,
     "phone" TEXT,
+    "fax" TEXT,
     "postal_code" TEXT,
     "prefecture" TEXT,
     "city" TEXT,
@@ -68,6 +62,8 @@ CREATE TABLE "locations" (
     "building" TEXT,
     "notes" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "latitude" DOUBLE PRECISION,
+    "longitude" DOUBLE PRECISION,
 
     CONSTRAINT "locations_pkey" PRIMARY KEY ("id")
 );
@@ -85,6 +81,8 @@ CREATE TABLE "associations" (
     "postal_code" TEXT,
     "prefecture" TEXT,
     "street" TEXT,
+    "latitude" DOUBLE PRECISION,
+    "longitude" DOUBLE PRECISION,
 
     CONSTRAINT "associations_pkey" PRIMARY KEY ("id")
 );
@@ -100,6 +98,16 @@ CREATE TABLE "company_associations" (
 );
 
 -- CreateTable
+CREATE TABLE "legal_entity_statuses" (
+    "id" SERIAL NOT NULL,
+    "name" TEXT NOT NULL,
+    "position" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "legal_entity_statuses_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "projects" (
     "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
@@ -110,6 +118,9 @@ CREATE TABLE "projects" (
     "company_id" INTEGER,
     "parent_id" INTEGER,
     "due_date" TIMESTAMP(3),
+    "contact_id" INTEGER,
+    "location_id" INTEGER,
+    "remarks" TEXT,
 
     CONSTRAINT "projects_pkey" PRIMARY KEY ("id")
 );
@@ -143,11 +154,25 @@ CREATE TABLE "project_member_roles" (
 );
 
 -- CreateTable
+CREATE TABLE "project_related_companies" (
+    "id" SERIAL NOT NULL,
+    "project_id" INTEGER NOT NULL,
+    "company_id" INTEGER NOT NULL,
+    "location_id" INTEGER,
+    "contact_id" INTEGER,
+    "remarks" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "project_related_companies_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "roles" (
     "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
     "position" INTEGER NOT NULL DEFAULT 0,
     "description" TEXT,
+    "is_default_role" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "roles_pkey" PRIMARY KEY ("id")
 );
@@ -230,6 +255,7 @@ CREATE TABLE "issue_comments" (
     "user_id" INTEGER NOT NULL,
     "content" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3),
 
     CONSTRAINT "issue_comments_pkey" PRIMARY KEY ("id")
 );
@@ -260,6 +286,10 @@ CREATE TABLE "attachments" (
     "issue_id" INTEGER,
     "author_id" INTEGER NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "company_comment_id" INTEGER,
+    "contact_comment_id" INTEGER,
+    "issue_comment_id" INTEGER,
+    "project_comment_id" INTEGER,
 
     CONSTRAINT "attachments_pkey" PRIMARY KEY ("id")
 );
@@ -305,6 +335,7 @@ CREATE TABLE "contact_details" (
     "email" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "is_primary" BOOLEAN NOT NULL DEFAULT false,
+    "location_id" INTEGER,
 
     CONSTRAINT "contact_details_pkey" PRIMARY KEY ("id")
 );
@@ -370,6 +401,7 @@ CREATE TABLE "project_comments" (
     "user_id" INTEGER NOT NULL,
     "content" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3),
 
     CONSTRAINT "project_comments_pkey" PRIMARY KEY ("id")
 );
@@ -381,6 +413,7 @@ CREATE TABLE "company_comments" (
     "user_id" INTEGER NOT NULL,
     "content" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3),
 
     CONSTRAINT "company_comments_pkey" PRIMARY KEY ("id")
 );
@@ -392,6 +425,7 @@ CREATE TABLE "contact_comments" (
     "user_id" INTEGER NOT NULL,
     "content" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3),
 
     CONSTRAINT "contact_comments_pkey" PRIMARY KEY ("id")
 );
@@ -441,6 +475,9 @@ CREATE UNIQUE INDEX "associations_name_key" ON "associations"("name");
 CREATE UNIQUE INDEX "company_associations_company_id_association_id_key" ON "company_associations"("company_id", "association_id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "legal_entity_statuses_name_key" ON "legal_entity_statuses"("name");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "projects_identifier_key" ON "projects"("identifier");
 
 -- CreateIndex
@@ -483,6 +520,9 @@ ALTER TABLE "group_members" ADD CONSTRAINT "group_members_group_id_fkey" FOREIGN
 ALTER TABLE "group_members" ADD CONSTRAINT "group_members_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "companies" ADD CONSTRAINT "companies_legal_entity_status_id_fkey" FOREIGN KEY ("legal_entity_status_id") REFERENCES "legal_entity_statuses"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "locations" ADD CONSTRAINT "locations_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -493,6 +533,12 @@ ALTER TABLE "company_associations" ADD CONSTRAINT "company_associations_company_
 
 -- AddForeignKey
 ALTER TABLE "projects" ADD CONSTRAINT "projects_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "projects" ADD CONSTRAINT "projects_contact_id_fkey" FOREIGN KEY ("contact_id") REFERENCES "contacts"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "projects" ADD CONSTRAINT "projects_location_id_fkey" FOREIGN KEY ("location_id") REFERENCES "locations"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "projects" ADD CONSTRAINT "projects_parent_id_fkey" FOREIGN KEY ("parent_id") REFERENCES "projects"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -519,6 +565,18 @@ ALTER TABLE "project_member_roles" ADD CONSTRAINT "project_member_roles_role_id_
 ALTER TABLE "project_member_roles" ADD CONSTRAINT "project_member_roles_source_group_id_fkey" FOREIGN KEY ("source_group_id") REFERENCES "groups"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "project_related_companies" ADD CONSTRAINT "project_related_companies_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_related_companies" ADD CONSTRAINT "project_related_companies_contact_id_fkey" FOREIGN KEY ("contact_id") REFERENCES "contacts"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_related_companies" ADD CONSTRAINT "project_related_companies_location_id_fkey" FOREIGN KEY ("location_id") REFERENCES "locations"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_related_companies" ADD CONSTRAINT "project_related_companies_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "role_statuses" ADD CONSTRAINT "role_statuses_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -531,19 +589,19 @@ ALTER TABLE "issues" ADD CONSTRAINT "issues_assigned_to_group_id_fkey" FOREIGN K
 ALTER TABLE "issues" ADD CONSTRAINT "issues_assigned_to_id_fkey" FOREIGN KEY ("assigned_to_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "issues" ADD CONSTRAINT "issues_author_id_fkey" FOREIGN KEY ("author_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "issues" ADD CONSTRAINT "issues_author_id_fkey" FOREIGN KEY ("author_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "issues" ADD CONSTRAINT "issues_priority_id_fkey" FOREIGN KEY ("priority_id") REFERENCES "issue_priorities"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "issues" ADD CONSTRAINT "issues_priority_id_fkey" FOREIGN KEY ("priority_id") REFERENCES "issue_priorities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "issues" ADD CONSTRAINT "issues_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "issues" ADD CONSTRAINT "issues_status_id_fkey" FOREIGN KEY ("status_id") REFERENCES "issue_statuses"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "issues" ADD CONSTRAINT "issues_status_id_fkey" FOREIGN KEY ("status_id") REFERENCES "issue_statuses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "issues" ADD CONSTRAINT "issues_tracker_id_fkey" FOREIGN KEY ("tracker_id") REFERENCES "trackers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "issues" ADD CONSTRAINT "issues_tracker_id_fkey" FOREIGN KEY ("tracker_id") REFERENCES "trackers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "issue_relations" ADD CONSTRAINT "issue_relations_issue_from_id_fkey" FOREIGN KEY ("issue_from_id") REFERENCES "issues"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -555,10 +613,10 @@ ALTER TABLE "issue_relations" ADD CONSTRAINT "issue_relations_issue_to_id_fkey" 
 ALTER TABLE "issue_comments" ADD CONSTRAINT "issue_comments_issue_id_fkey" FOREIGN KEY ("issue_id") REFERENCES "issues"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "issue_comments" ADD CONSTRAINT "issue_comments_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "issue_comments" ADD CONSTRAINT "issue_comments_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "wiki_pages" ADD CONSTRAINT "wiki_pages_author_id_fkey" FOREIGN KEY ("author_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "wiki_pages" ADD CONSTRAINT "wiki_pages_author_id_fkey" FOREIGN KEY ("author_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "wiki_pages" ADD CONSTRAINT "wiki_pages_parent_id_fkey" FOREIGN KEY ("parent_id") REFERENCES "wiki_pages"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -567,28 +625,43 @@ ALTER TABLE "wiki_pages" ADD CONSTRAINT "wiki_pages_parent_id_fkey" FOREIGN KEY 
 ALTER TABLE "wiki_pages" ADD CONSTRAINT "wiki_pages_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "attachments" ADD CONSTRAINT "attachments_author_id_fkey" FOREIGN KEY ("author_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "attachments" ADD CONSTRAINT "attachments_author_id_fkey" FOREIGN KEY ("author_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "attachments" ADD CONSTRAINT "attachments_company_comment_id_fkey" FOREIGN KEY ("company_comment_id") REFERENCES "company_comments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "attachments" ADD CONSTRAINT "attachments_contact_comment_id_fkey" FOREIGN KEY ("contact_comment_id") REFERENCES "contact_comments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "attachments" ADD CONSTRAINT "attachments_issue_comment_id_fkey" FOREIGN KEY ("issue_comment_id") REFERENCES "issue_comments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "attachments" ADD CONSTRAINT "attachments_issue_id_fkey" FOREIGN KEY ("issue_id") REFERENCES "issues"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "attachments" ADD CONSTRAINT "attachments_project_comment_id_fkey" FOREIGN KEY ("project_comment_id") REFERENCES "project_comments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "attachments" ADD CONSTRAINT "attachments_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "time_entries" ADD CONSTRAINT "time_entries_issue_id_fkey" FOREIGN KEY ("issue_id") REFERENCES "issues"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "time_entries" ADD CONSTRAINT "time_entries_issue_id_fkey" FOREIGN KEY ("issue_id") REFERENCES "issues"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "time_entries" ADD CONSTRAINT "time_entries_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "time_entries" ADD CONSTRAINT "time_entries_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "time_entries" ADD CONSTRAINT "time_entries_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "contacts" ADD CONSTRAINT "contacts_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "contact_details" ADD CONSTRAINT "contact_details_contact_id_fkey" FOREIGN KEY ("contact_id") REFERENCES "contacts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "contact_details" ADD CONSTRAINT "contact_details_location_id_fkey" FOREIGN KEY ("location_id") REFERENCES "locations"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "deals" ADD CONSTRAINT "deals_assigned_to_id_fkey" FOREIGN KEY ("assigned_to_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -603,13 +676,13 @@ ALTER TABLE "deals" ADD CONSTRAINT "deals_contact_id_fkey" FOREIGN KEY ("contact
 ALTER TABLE "activities" ADD CONSTRAINT "activities_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "activities" ADD CONSTRAINT "activities_contact_id_fkey" FOREIGN KEY ("contact_id") REFERENCES "contacts"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "activities" ADD CONSTRAINT "activities_contact_id_fkey" FOREIGN KEY ("contact_id") REFERENCES "contacts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "activities" ADD CONSTRAINT "activities_deal_id_fkey" FOREIGN KEY ("deal_id") REFERENCES "deals"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "activities" ADD CONSTRAINT "activities_deal_id_fkey" FOREIGN KEY ("deal_id") REFERENCES "deals"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "activities" ADD CONSTRAINT "activities_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "activities" ADD CONSTRAINT "activities_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "workflow_transitions" ADD CONSTRAINT "workflow_transitions_new_status_id_fkey" FOREIGN KEY ("new_status_id") REFERENCES "issue_statuses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -624,26 +697,25 @@ ALTER TABLE "workflow_transitions" ADD CONSTRAINT "workflow_transitions_role_id_
 ALTER TABLE "project_comments" ADD CONSTRAINT "project_comments_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "project_comments" ADD CONSTRAINT "project_comments_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "project_comments" ADD CONSTRAINT "project_comments_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "company_comments" ADD CONSTRAINT "company_comments_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "company_comments" ADD CONSTRAINT "company_comments_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "company_comments" ADD CONSTRAINT "company_comments_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "contact_comments" ADD CONSTRAINT "contact_comments_contact_id_fkey" FOREIGN KEY ("contact_id") REFERENCES "contacts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "contact_comments" ADD CONSTRAINT "contact_comments_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "contact_comments" ADD CONSTRAINT "contact_comments_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "company_wiki_pages" ADD CONSTRAINT "company_wiki_pages_author_id_fkey" FOREIGN KEY ("author_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "company_wiki_pages" ADD CONSTRAINT "company_wiki_pages_author_id_fkey" FOREIGN KEY ("author_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "company_wiki_pages" ADD CONSTRAINT "company_wiki_pages_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "company_wiki_pages" ADD CONSTRAINT "company_wiki_pages_parent_id_fkey" FOREIGN KEY ("parent_id") REFERENCES "company_wiki_pages"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-

@@ -25,12 +25,12 @@
 | 画面 | ダイアログ | フィールド |
 |------|-----------|-----------|
 | ProjectListScreen | プロジェクト登録 | 名前*, 識別子*, 企業, 親プロジェクト, 期限日, 説明 |
-| CompanyListScreen | 会社登録（右下 FAB: Add） | 会社名*, 法人格, 法人格前後（前/後）, 郵便番号, 電話番号, 都道府県, 市区町村, 番地, 建物名, Webサイト, 備考 |
+| CompanyListScreen | 会社登録（右下 FAB: Add） | 会社名*, 法人格, 法人格前後（前/後）, 郵便番号, 電話番号, 都道府県, 市区町村, 町域・番地, 建物名, Webサイト, 備考 |
 | CompanyListScreen | 名刺スキャン（左下 FAB: DocumentScanner） | ML Kit Document Scanner を起動（マルチページ）→ BusinessCardScanScreen へ遷移 |
 | CompanyDetailScreen（連絡先タブ） | 連絡先登録 | 姓*, 名*, 部署, 役職, 電話, メール, メモ |
 | CompanyDetailScreen（商談タブ） | 商談登録 | 商談名*, ステータス, 金額, 確度, 見込み日, メモ |
 | CompanyDetailScreen（活動履歴タブ） | 活動登録 | 種別*（電話/メール/訪問/会議/メモ）, 件名*, 内容, 関連連絡先, 期日 |
-| CompanyDetailScreen（拠点タブ） | 拠点登録 | 拠点名*, 郵便番号, 電話番号, 都道府県, 市区町村, 番地, 建物名, 備考 |
+| CompanyDetailScreen（拠点タブ） | 拠点登録 | 拠点名*, 郵便番号, 電話番号, 都道府県, 市区町村, 町域・番地, 建物名, 備考 |
 
 ## Bottom ナビゲーション
 

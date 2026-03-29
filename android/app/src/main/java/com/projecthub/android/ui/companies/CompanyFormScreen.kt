@@ -12,6 +12,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.projecthub.android.ui.constants.PREFECTURES
+import com.projecthub.android.ui.utils.formatPostalCode
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,6 +31,7 @@ fun CompanyCreateScreen(
     var fax by remember { mutableStateOf("") }
     var postalCode by remember { mutableStateOf("") }
     var prefecture by remember { mutableStateOf("") }
+    var prefectureExpanded by remember { mutableStateOf(false) }
     var city by remember { mutableStateOf("") }
     var street by remember { mutableStateOf("") }
     var building by remember { mutableStateOf("") }
@@ -119,20 +123,42 @@ fun CompanyCreateScreen(
             }
             OutlinedTextField(
                 value = postalCode,
-                onValueChange = { postalCode = it },
+                onValueChange = { postalCode = formatPostalCode(it) },
                 label = { Text("郵便番号") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 placeholder = { Text("000-0000") }
             )
-            OutlinedTextField(
-                value = prefecture,
-                onValueChange = { prefecture = it },
-                label = { Text("都道府県") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                placeholder = { Text("東京都") }
-            )
+
+            ExposedDropdownMenuBox(
+                expanded = prefectureExpanded,
+                onExpandedChange = { prefectureExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = prefecture,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("都道府県") },
+                    modifier = Modifier.fillMaxWidth().menuAnchor(),
+                    placeholder = { Text("東京都") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = prefectureExpanded) }
+                )
+                ExposedDropdownMenu(
+                    expanded = prefectureExpanded,
+                    onDismissRequest = { prefectureExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("なし") },
+                        onClick = { prefecture = ""; prefectureExpanded = false }
+                    )
+                    PREFECTURES.forEach { pref ->
+                        DropdownMenuItem(
+                            text = { Text(pref) },
+                            onClick = { prefecture = pref; prefectureExpanded = false }
+                        )
+                    }
+                }
+            }
             OutlinedTextField(
                 value = city,
                 onValueChange = { city = it },
@@ -143,7 +169,7 @@ fun CompanyCreateScreen(
             OutlinedTextField(
                 value = street,
                 onValueChange = { street = it },
-                label = { Text("番地") },
+                label = { Text("町域・番地") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )

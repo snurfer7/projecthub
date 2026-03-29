@@ -74,28 +74,38 @@ export default function CompaniesPage() {
             {companies.filter((c) => {
               if (!searchQuery) return true;
               const q = searchQuery.toLowerCase();
+              const mainLocation = c.locations && c.locations.length > 0 ? c.locations[0] : null;
+              
+              const addressMatch = mainLocation ? (
+                   (mainLocation.postalCode && mainLocation.postalCode.toLowerCase().includes(q))
+                || (mainLocation.prefecture && mainLocation.prefecture.toLowerCase().includes(q))
+                || (mainLocation.city && mainLocation.city.toLowerCase().includes(q))
+                || (mainLocation.street && mainLocation.street.toLowerCase().includes(q))
+                || (mainLocation.building && mainLocation.building.toLowerCase().includes(q))
+              ) : false;
+
               return c.name.toLowerCase().includes(q)
-                || (c.phone && c.phone.toLowerCase().includes(q))
-                || (c.postalCode && c.postalCode.toLowerCase().includes(q))
-                || (c.prefecture && c.prefecture.toLowerCase().includes(q))
-                || (c.city && c.city.toLowerCase().includes(q))
-                || (c.street && c.street.toLowerCase().includes(q))
-                || (c.building && c.building.toLowerCase().includes(q));
-            }).map((company) => (
+                || (mainLocation?.phone && mainLocation.phone.toLowerCase().includes(q))
+                || (mainLocation?.fax && mainLocation.fax.toLowerCase().includes(q))
+                || addressMatch;
+            }).map((company) => {
+              const mainLocation = company.locations && company.locations.length > 0 ? company.locations[0] : null;
+              return (
               <tr key={company.id} className="border-t hover:bg-gray-50 cursor-pointer"
                 onClick={() => navigate(`/companies/${company.id}`)}>
                 <td className="px-4 py-3 text-sky-600 font-medium">
                   {showLegalEntity ? formatCompanyName(company) : company.name}
                 </td>
-                <td className="px-4 py-3 text-gray-600">{company.phone || '-'}</td>
+                <td className="px-4 py-3 text-gray-600">{mainLocation?.phone || '-'}</td>
                 <td className="px-4 py-3 text-gray-600">
-                  {company.postalCode && `〒${company.postalCode} `}
-                  {company.prefecture}{company.city}{company.street}{company.building}
-                  {!company.postalCode && !company.prefecture && !company.city && !company.street && !company.building && '-'}
+                  {mainLocation?.postalCode && `〒${mainLocation.postalCode} `}
+                  {mainLocation?.prefecture}{mainLocation?.city}{mainLocation?.street}{mainLocation?.building}
+                  {!mainLocation && '-'}
                 </td>
                 <td className="px-4 py-3 text-gray-600">{company._count?.projects || 0}</td>
               </tr>
-            ))}
+            );
+          })}
           </tbody>
         </table>
         {companies.length === 0 && (

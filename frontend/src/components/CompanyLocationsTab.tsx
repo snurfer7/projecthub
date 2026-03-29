@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../api/client';
 import { Location } from '../types';
-import { Pencil, Trash2, MapPin, Phone } from 'lucide-react';
+import { Pencil, Trash2, MapPin, Phone, Printer } from 'lucide-react';
 import LocationModal from './LocationModal';
 import ConfirmationModal from './ConfirmationModal';
 
@@ -92,9 +92,11 @@ export default function CompanyLocationsTab({ companyId, onUpdateCount }: Compan
                     <thead className="bg-gray-50 border-b">
                         <tr>
                             <th className="text-left px-4 py-3 font-medium text-gray-600">拠点名</th>
+                            <th className="text-left px-4 py-3 font-medium text-gray-600 center w-20 text-center">概要に表示</th>
                             <th className="text-left px-4 py-3 font-medium text-gray-600">郵便番号</th>
                             <th className="text-left px-4 py-3 font-medium text-gray-600">住所</th>
                             <th className="text-left px-4 py-3 font-medium text-gray-600">電話番号</th>
+                            <th className="text-left px-4 py-3 font-medium text-gray-600">FAX</th>
                             <th className="text-left px-4 py-3 font-medium text-gray-600">備考</th>
                             <th className="text-right px-4 py-3 font-medium text-gray-600">アクション</th>
                         </tr>
@@ -108,6 +110,13 @@ export default function CompanyLocationsTab({ companyId, onUpdateCount }: Compan
                                         {location.name}
                                     </div>
                                 </td>
+                                <td className="px-4 py-3 text-center">
+                                    {location.isProfileDisplay && (
+                                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-sky-100 text-sky-600">
+                                            ✓
+                                        </span>
+                                    )}
+                                </td>
                                 <td className="px-4 py-3 text-gray-600">{location.postalCode || '-'}</td>
                                 <td className="px-4 py-3 text-gray-600">
                                     {location.prefecture}{location.city}{location.street}
@@ -119,6 +128,14 @@ export default function CompanyLocationsTab({ companyId, onUpdateCount }: Compan
                                         <div className="flex items-center gap-2">
                                             <Phone className="w-3.5 h-3.5 text-gray-400" />
                                             {location.phone}
+                                        </div>
+                                    ) : '-'}
+                                </td>
+                                <td className="px-4 py-3 text-gray-600">
+                                    {location.fax ? (
+                                        <div className="flex items-center gap-2">
+                                            <Printer className="w-3.5 h-3.5 text-gray-400" />
+                                            {location.fax}
                                         </div>
                                     ) : '-'}
                                 </td>

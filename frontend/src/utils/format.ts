@@ -49,3 +49,26 @@ export function formatDateToYYYYMMDD(date: Date): string {
     const d = String(date.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
 }
+
+/**
+ * Converts full-width alphanumeric and symbols to half-width.
+ */
+export function convertToHalfWidth(str: string): string {
+    if (!str) return str;
+    return str.replace(/[！-～]/g, (s) => {
+        return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+    }).replace(/　/g, ' ');
+}
+
+/**
+ * Formats a postal code as 000-0000.
+ * If the input already has a hyphen or non-digit characters, it cleans and reformats them.
+ */
+export function formatPostalCode(value: string): string {
+    const halfWidth = convertToHalfWidth(value);
+    const numbers = halfWidth.replace(/\D/g, '');
+    if (numbers.length <= 3) {
+        return numbers;
+    }
+    return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}`;
+}

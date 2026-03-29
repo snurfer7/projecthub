@@ -553,31 +553,56 @@ router.get('/companies/:id', async (req: AuthRequest, res: Response) => {
 
 router.post('/companies', async (req: AuthRequest, res: Response) => {
   try {
-    const { name, legalEntityStatusId, legalEntityPosition, postalCode, prefecture, city, street, building, phone, website, notes } = req.body;
-    const company = await prisma.company.create({
-      data: {
-        name,
-        legalEntityStatusId: legalEntityStatusId ? Number(legalEntityStatusId) : null,
-        legalEntityPosition,
-        postalCode,
-        prefecture,
-        city,
-        street,
-        building,
-        phone,
-        website,
-        notes
-      } as any,
+    const { name, legalEntityStatusId, legalEntityPosition, postalCode, prefecture, city, street, building, phone, website, notes, latitude, longitude } = req.body;
+    
+    const result = await prisma.$transaction(async (tx) => {
+      const company = await tx.company.create({
+        data: {
+          name,
+          legalEntityStatusId: legalEntityStatusId ? Number(legalEntityStatusId) : null,
+          legalEntityPosition,
+          postalCode,
+          prefecture,
+          city,
+          street,
+          building,
+          phone,
+          website,
+          notes,
+          latitude: latitude ? Number(latitude) : null,
+          longitude: longitude ? Number(longitude) : null
+        } as any,
+      });
+
+      // 拠点（本社）の初期登録
+      await tx.location.create({
+        data: {
+          companyId: company.id,
+          name: '本社',
+          phone,
+          postalCode,
+          prefecture,
+          city,
+          street,
+          building,
+          latitude: latitude ? Number(latitude) : null,
+          longitude: longitude ? Number(longitude) : null,
+        }
+      });
+
+      return company;
     });
-    res.status(201).json(company);
+
+    res.status(201).json(result);
   } catch (e) {
+    console.error('admin.createCompany error:', e);
     res.status(500).json({ error: '企業の作成に失敗しました' });
   }
 });
 
 router.put('/companies/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const { name, legalEntityStatusId, legalEntityPosition, postalCode, prefecture, city, street, building, phone, website, notes } = req.body;
+    const { name, legalEntityStatusId, legalEntityPosition, postalCode, prefecture, city, street, building, phone, website, notes, latitude, longitude } = req.body;
     const companyId = Number(req.params.id);
 
     const company = await prisma.company.update({
@@ -593,7 +618,9 @@ router.put('/companies/:id', async (req: AuthRequest, res: Response) => {
         building,
         phone,
         website,
-        notes
+        notes,
+        latitude: latitude ? Number(latitude) : null,
+        longitude: longitude ? Number(longitude) : null
       } as any,
     });
     res.json(company);
@@ -692,7 +719,7 @@ router.get('/associations', async (_req: AuthRequest, res: Response) => {
 
 router.post('/associations', async (req: AuthRequest, res: Response) => {
   try {
-    const { name, postalCode, prefecture, city, street, building, phone, website, notes } = req.body;
+    const { name, postalCode, prefecture, city, street, building, phone, website, notes, latitude, longitude } = req.body;
 
     if (!name || name.trim() === '') {
       return res.status(400).json({ error: '協会名は必須です' });
@@ -709,6 +736,8 @@ router.post('/associations', async (req: AuthRequest, res: Response) => {
         phone: phone || null,
         website: website || null,
         notes: notes || null,
+        latitude: latitude ? Number(latitude) : null,
+        longitude: longitude ? Number(longitude) : null,
       },
     });
 
@@ -723,7 +752,7 @@ router.post('/associations', async (req: AuthRequest, res: Response) => {
 
 router.put('/associations/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const { name, postalCode, prefecture, city, street, building, phone, website, notes } = req.body;
+    const { name, postalCode, prefecture, city, street, building, phone, website, notes, latitude, longitude } = req.body;
 
     if (!name || name.trim() === '') {
       return res.status(400).json({ error: '協会名は必須です' });
@@ -741,6 +770,8 @@ router.put('/associations/:id', async (req: AuthRequest, res: Response) => {
         phone: phone || null,
         website: website || null,
         notes: notes || null,
+        latitude: latitude ? Number(latitude) : null,
+        longitude: longitude ? Number(longitude) : null,
       },
     });
 

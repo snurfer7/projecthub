@@ -4,6 +4,10 @@ import { Company, LegalEntityStatus } from '../types';
 import Modal from './Modal';
 import TextInput from './TextInput';
 import Combobox from './Combobox';
+import { PREFECTURE_OPTIONS } from '../utils/prefectures';
+import { formatPostalCode, convertToHalfWidth } from '../utils/format';
+import MapPicker from './MapPicker';
+import { fetchCoordinatesFromAddress } from '../utils/geocoding';
 
 interface CompanyModalProps {
     isOpen: boolean;
@@ -26,6 +30,8 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
     const [companyFax, setCompanyFax] = useState('');
     const [companyWebsite, setCompanyWebsite] = useState('');
     const [companyNotes, setCompanyNotes] = useState('');
+    const [latitude, setLatitude] = useState<number | null>(null);
+    const [longitude, setLongitude] = useState<number | null>(null);
     const [companyError, setCompanyError] = useState('');
 
     useEffect(() => {
@@ -40,13 +46,6 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
                 setCompanyName(editingCompany.name);
                 setLegalEntityStatusId(editingCompany.legalEntityStatusId || '');
                 setLegalEntityPosition(editingCompany.legalEntityPosition || '');
-                setCompanyPostalCode(editingCompany.postalCode || '');
-                setCompanyPrefecture(editingCompany.prefecture || '');
-                setCompanyCity(editingCompany.city || '');
-                setCompanyStreet(editingCompany.street || '');
-                setCompanyBuilding(editingCompany.building || '');
-                setCompanyPhone(editingCompany.phone || '');
-                setCompanyFax(editingCompany.fax || '');
                 setCompanyWebsite(editingCompany.website || '');
                 setCompanyNotes(editingCompany.notes || '');
             } else {
@@ -62,29 +61,51 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
                 setCompanyFax('');
                 setCompanyWebsite('');
                 setCompanyNotes('');
+                setLatitude(null);
+                setLongitude(null);
             }
             setCompanyError('');
         }
     }, [isOpen, editingCompany]);
 
+    const handleGeocode = async () => {
+        const address = `${companyPrefecture}${companyCity}${companyStreet}`;
+        if (address.trim()) {
+            const coords = await fetchCoordinatesFromAddress(address);
+            if (coords) {
+                setLatitude(coords.lat);
+                setLongitude(coords.lng);
+            }
+        }
+    };
+
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setCompanyError('');
         try {
-            const data = {
+            const data: any = {
                 name: companyName,
                 legalEntityStatusId: legalEntityStatusId || null,
                 legalEntityPosition: legalEntityPosition || null,
-                postalCode: companyPostalCode || null,
-                prefecture: companyPrefecture || null,
-                city: companyCity || null,
-                street: companyStreet || null,
-                building: companyBuilding || null,
-                phone: companyPhone || null,
-                fax: companyFax || null,
                 website: companyWebsite || null,
                 notes: companyNotes || null,
             };
+
+            // 新規作成時のみ住所情報を送信する（拠点の初期登録用）
+            if (!editingCompany) {
+                Object.assign(data, {
+                    postalCode: companyPostalCode || null,
+                    prefecture: companyPrefecture || null,
+                    city: companyCity || null,
+                    street: companyStreet || null,
+                    building: companyBuilding || null,
+                    phone: companyPhone || null,
+                    fax: companyFax || null,
+                    latitude,
+                    longitude,
+                });
+            }
+
             if (editingCompany) {
                 await api.put(`/companies/${editingCompany.id}`, data);
             } else {
@@ -98,115 +119,152 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
     };
 
     return (
-        <Modal
-            isOpen={isOpen}
-            onClose={onClose}
-            title={editingCompany ? '企業情報編集' : '企業登録'}
-        >
-            {companyError && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{companyError}</div>}
-            <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                    <TextInput
-                        label="企業名 *"
-                        value={companyName}
-                        onChange={(e) => setCompanyName(e.target.value)}
-                        required
-                    />
-                    <div className="grid grid-cols-2 gap-2">
-                        <Combobox
-                            label="法人格"
-                            options={availableStatuses.map(s => ({ value: String(s.id), label: s.name }))}
-                            value={legalEntityStatusId}
-                            onChange={(val) => {
-                                setLegalEntityStatusId(val);
-                                if (!val) {
-                                    setLegalEntityPosition('');
-                                } else if (!legalEntityStatusId) {
-                                    // Only set default "前" if we are transitioning from unselected to selected
-                                    setLegalEntityPosition('前');
-                                }
-                            }}
+        <>
+            <Modal
+                isOpen={isOpen}
+                onClose={onClose}
+                title={editingCompany ? '企業情報編集' : '企業登録'}
+            >
+                {companyError && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{companyError}</div>}
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <TextInput
+                            label="企業名 *"
+                            value={companyName}
+                            onChange={(e) => setCompanyName(e.target.value)}
+                            required
                         />
-                        <Combobox
-                            label="法人格前後"
-                            options={[
-                                { value: '前', label: '前' },
-                                { value: '後', label: '後' },
-                            ]}
-                            value={legalEntityPosition}
-                            onChange={setLegalEntityPosition}
-                            disabled={!legalEntityStatusId}
-                        />
+                        <div className="grid grid-cols-2 gap-2">
+                            <Combobox
+                                label="法人格"
+                                options={availableStatuses.map(s => ({ value: String(s.id), label: s.name }))}
+                                value={legalEntityStatusId}
+                                onChange={(val) => {
+                                    setLegalEntityStatusId(val);
+                                    if (!val) {
+                                        setLegalEntityPosition('');
+                                    } else if (!legalEntityStatusId) {
+                                        // Only set default "前" if we are transitioning from unselected to selected
+                                        setLegalEntityPosition('前');
+                                    }
+                                }}
+                            />
+                            <Combobox
+                                label="法人格前後"
+                                options={[
+                                    { value: '前', label: '前' },
+                                    { value: '後', label: '後' },
+                                ]}
+                                value={legalEntityPosition}
+                                onChange={setLegalEntityPosition}
+                                disabled={!legalEntityStatusId}
+                            />
+                        </div>
                     </div>
-                </div>
-                <div className="grid grid-cols-2 gap-6">
-                    <TextInput
-                        label="郵便番号"
-                        value={companyPostalCode}
-                        onChange={(e) => setCompanyPostalCode(e.target.value)}
-                        placeholder="000-0000"
-                    />
-                    <TextInput
-                        label="都道府県"
-                        value={companyPrefecture}
-                        onChange={(e) => setCompanyPrefecture(e.target.value)}
-                        placeholder="東京都"
-                    />
-                </div>
-                <div className="grid grid-cols-2 gap-6">
-                    <TextInput
-                        label="市区町村"
-                        value={companyCity}
-                        onChange={(e) => setCompanyCity(e.target.value)}
-                        placeholder="千代田区"
-                    />
-                    <TextInput
-                        label="番地"
-                        value={companyStreet}
-                        onChange={(e) => setCompanyStreet(e.target.value)}
-                        placeholder="1-1-1"
-                    />
-                </div>
-                <TextInput
-                    label="建物名・部屋番号"
-                    value={companyBuilding}
-                    onChange={(e) => setCompanyBuilding(e.target.value)}
-                />
+                    {!editingCompany && (
+                        <>
+                            <div className="grid grid-cols-2 gap-6">
+                                <TextInput
+                                    label="郵便番号"
+                                    value={companyPostalCode}
+                                    onChange={(e) => setCompanyPostalCode(formatPostalCode(e.target.value))}
+                                    placeholder="000-0000"
+                                />
 
-                <div className="grid grid-cols-2 gap-4">
-                    <TextInput
-                        label="電話番号"
-                        value={companyPhone}
-                        onChange={(e) => setCompanyPhone(e.target.value)}
-                    />
-                    <TextInput
-                        label="FAX"
-                        value={companyFax}
-                        onChange={(e) => setCompanyFax(e.target.value)}
-                    />
-                </div>
-                <TextInput
-                    label="Webサイト"
-                    value={companyWebsite}
-                    onChange={(e) => setCompanyWebsite(e.target.value)}
-                />
+                                <Combobox
+                                    label="都道府県"
+                                    options={PREFECTURE_OPTIONS}
+                                    value={companyPrefecture}
+                                    onChange={(val) => {
+                                        setCompanyPrefecture(val);
+                                    }}
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-6">
+                                <TextInput
+                                    label="市区町村"
+                                    value={companyCity}
+                                    onChange={(e) => setCompanyCity(e.target.value)}
+                                    onBlur={(e) => {
+                                        setCompanyCity(convertToHalfWidth(e.target.value));
+                                        handleGeocode();
+                                    }}
+                                    placeholder="千代田区"
+                                />
+                                <TextInput
+                                    label="町域・番地"
+                                    value={companyStreet}
+                                    onChange={(e) => setCompanyStreet(e.target.value)}
+                                    onBlur={(e) => {
+                                        setCompanyStreet(convertToHalfWidth(e.target.value));
+                                        handleGeocode();
+                                    }}
+                                    placeholder="1-1-1"
+                                />
+                            </div>
+                            <TextInput
+                                label="建物名・部屋番号"
+                                value={companyBuilding}
+                                onChange={(e) => setCompanyBuilding(e.target.value)}
+                                onBlur={(e) => setCompanyBuilding(convertToHalfWidth(e.target.value))}
+                            />
 
-                <TextInput
-                    label="備考"
-                    isMultiline
-                    value={companyNotes}
-                    onChange={(e) => setCompanyNotes(e.target.value)}
-                    rows={2}
-                />
+                            <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="text-sm font-semibold text-gray-700">位置情報 (緯度・経度)</h4>
+                                </div>
 
-                <div className="flex justify-end gap-2 mt-6">
-                    <button type="button" onClick={onClose}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">キャンセル</button>
-                    <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors">
-                        {editingCompany ? '更新' : '作成'}
-                    </button>
-                </div>
-            </form>
-        </Modal>
+                                <div className="pt-1 pb-2">
+                                    <MapPicker 
+                                        initialLat={latitude}
+                                        initialLng={longitude}
+                                        onChange={(lat, lng) => {
+                                            setLatitude(lat);
+                                            setLongitude(lng);
+                                        }}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <TextInput
+                                    label="電話番号"
+                                    value={companyPhone}
+                                    onChange={(e) => setCompanyPhone(e.target.value)}
+                                />
+                                <TextInput
+                                    label="FAX"
+                                    value={companyFax}
+                                    onChange={(e) => setCompanyFax(e.target.value)}
+                                />
+                            </div>
+                        </>
+                    )}
+                    <TextInput
+                        label="Webサイト"
+                        value={companyWebsite}
+                        onChange={(e) => setCompanyWebsite(e.target.value)}
+                    />
+
+                    <TextInput
+                        label="備考"
+                        isMultiline
+                        value={companyNotes}
+                        onChange={(e) => setCompanyNotes(e.target.value)}
+                        rows={2}
+                    />
+
+                    <div className="flex justify-end gap-2 mt-6">
+                        <button type="button" onClick={onClose}
+                            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">キャンセル</button>
+                        <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors">
+                            {editingCompany ? '更新' : '作成'}
+                        </button>
+                    </div>
+                </form>
+            </Modal>
+
+
+        </>
     );
 }

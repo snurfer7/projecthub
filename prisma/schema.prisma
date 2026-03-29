@@ -69,16 +69,9 @@ model Company {
   name                String                  @unique
   legalEntityStatusId Int?                    @map("legal_entity_status_id")
   legalEntityStatus   LegalEntityStatus?      @relation(fields: [legalEntityStatusId], references: [id], onDelete: SetNull)
-  phone               String?
-  fax                        String?
   website                    String?
   notes                      String?
   createdAt                  DateTime                @default(now()) @map("created_at")
-  building                   String?
-  city                       String?
-  postalCode                 String?                 @map("postal_code")
-  prefecture                 String?
-  street                     String?
   legalEntityPosition String?                 @map("legal_entity_position")
   activities                 Activity[]
   associations               CompanyAssociation[]
@@ -98,13 +91,17 @@ model Location {
   companyId                  Int                     @map("company_id")
   name                       String
   phone                      String?
+  fax                        String?
   postalCode                 String?                 @map("postal_code")
   prefecture                 String?
   city                       String?
   street                     String?
   building                   String?
   notes                      String?
+  isProfileDisplay           Boolean                 @default(false) @map("is_profile_display")
   createdAt                  DateTime                @default(now()) @map("created_at")
+  latitude                   Float?
+  longitude                  Float?
   contactDetails             ContactDetail[]
   company                    Company                 @relation("CompanyLocations", fields: [companyId], references: [id], onDelete: Cascade)
   relatedProjectAssociations ProjectRelatedCompany[]
@@ -125,6 +122,8 @@ model Association {
   postalCode String?              @map("postal_code")
   prefecture String?
   street     String?
+  latitude   Float?
+  longitude  Float?
   companies  CompanyAssociation[]
 
   @@map("associations")

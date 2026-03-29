@@ -12,8 +12,8 @@ cd /app/backend
 echo "Generating Prisma client..."
 npx prisma generate --schema=../prisma/schema.prisma
 
-echo "Syncing database with schema..."
-npx prisma db push --schema=../prisma/schema.prisma --accept-data-loss
+echo "Syncing database with migrations..."
+npx prisma migrate deploy --schema=../prisma/schema.prisma
 
 echo "Seeding database..."
 NODE_PATH=/app/backend/node_modules npx tsx ../prisma/seed.ts

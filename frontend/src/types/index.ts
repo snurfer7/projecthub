@@ -17,13 +17,6 @@ export interface User {
 export interface Company {
   id: number;
   name: string;
-  postalCode?: string;
-  prefecture?: string;
-  city?: string;
-  street?: string;
-  building?: string;
-  phone?: string;
-  fax?: string;
   website?: string;
   notes?: string;
   legalEntityStatusId?: number;
@@ -50,6 +43,8 @@ export interface Association {
   phone?: string;
   website?: string;
   notes?: string;
+  latitude?: number;
+  longitude?: number;
   createdAt: string;
 }
 
@@ -65,12 +60,16 @@ export interface Location {
   companyId: number;
   name: string;
   phone?: string;
+  fax?: string;
   postalCode?: string;
   prefecture?: string;
   city?: string;
   street?: string;
   building?: string;
   notes?: string;
+  latitude?: number;
+  longitude?: number;
+  isProfileDisplay: boolean;
   createdAt: string;
 }
 

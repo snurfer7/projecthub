@@ -15,6 +15,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.projecthub.android.data.api.models.ContactDetailRequest
 import com.projecthub.android.ui.components.DatePickerField
+import com.projecthub.android.ui.constants.PREFECTURES
+import com.projecthub.android.ui.utils.formatPostalCode
+
 
 private data class ContactDetailState(
     val locationId: Int? = null,
@@ -624,6 +627,7 @@ fun LocationCreateScreen(
     var phone by remember { mutableStateOf("") }
     var postalCode by remember { mutableStateOf("") }
     var prefecture by remember { mutableStateOf("") }
+    var prefectureExpanded by remember { mutableStateOf(false) }
     var city by remember { mutableStateOf("") }
     var street by remember { mutableStateOf("") }
     var building by remember { mutableStateOf("") }
@@ -662,12 +666,13 @@ fun LocationCreateScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = postalCode,
-                    onValueChange = { postalCode = it },
+                    onValueChange = { postalCode = formatPostalCode(it) },
                     label = { Text("郵便番号") },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
                     placeholder = { Text("000-0000") }
                 )
+
                 OutlinedTextField(
                     value = phone,
                     onValueChange = { phone = it },
@@ -677,13 +682,35 @@ fun LocationCreateScreen(
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = prefecture,
-                    onValueChange = { prefecture = it },
-                    label = { Text("都道府県") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true
-                )
+                ExposedDropdownMenuBox(
+                    expanded = prefectureExpanded,
+                    onExpandedChange = { prefectureExpanded = it },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    OutlinedTextField(
+                        value = prefecture,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("都道府県") },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = prefectureExpanded) }
+                    )
+                    ExposedDropdownMenu(
+                        expanded = prefectureExpanded,
+                        onDismissRequest = { prefectureExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("なし") },
+                            onClick = { prefecture = ""; prefectureExpanded = false }
+                        )
+                        PREFECTURES.forEach { pref ->
+                            DropdownMenuItem(
+                                text = { Text(pref) },
+                                onClick = { prefecture = pref; prefectureExpanded = false }
+                            )
+                        }
+                    }
+                }
                 OutlinedTextField(
                     value = city,
                     onValueChange = { city = it },

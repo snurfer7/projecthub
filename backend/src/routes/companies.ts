@@ -38,6 +38,7 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
           include: { association: true },
           orderBy: { createdAt: 'desc' },
         },
+        locations: true,
         _count: {
           select: { comments: true, wikiPages: true, projects: true, locations: true },
         },
@@ -58,25 +59,43 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
 // Create company
 router.post('/', async (req: AuthRequest, res: Response) => {
   try {
-    const { name, legalEntityStatusId, legalEntityPosition, postalCode, prefecture, city, street, building, phone, fax, website, notes } = req.body;
-    const company = await prisma.company.create({
-      data: {
-        name,
-        legalEntityStatusId: legalEntityStatusId ? Number(legalEntityStatusId) : null,
-        legalEntityPosition,
-        postalCode,
-        prefecture,
-        city,
-        street,
-        building,
-        phone,
-        fax,
-        website,
-        notes,
-      } as any,
+    const { name, legalEntityStatusId, legalEntityPosition, postalCode, prefecture, city, street, building, phone, fax, website, notes, latitude, longitude } = req.body;
+    
+    const result = await prisma.$transaction(async (tx) => {
+      const company = await tx.company.create({
+        data: {
+          name,
+          legalEntityStatus: legalEntityStatusId ? { connect: { id: Number(legalEntityStatusId) } } : undefined,
+          legalEntityPosition,
+          website,
+          notes,
+        },
+      });
+
+      // 拠点（本社）の初期登録
+      await tx.location.create({
+        data: {
+          companyId: company.id,
+          name: '本社',
+          phone,
+          fax,
+          postalCode,
+          prefecture,
+          city,
+          street,
+          building,
+          isProfileDisplay: true,
+          latitude: latitude ? Number(latitude) : null,
+          longitude: longitude ? Number(longitude) : null,
+        }
+      });
+
+      return company;
     });
-    res.status(201).json(company);
+
+    res.status(201).json(result);
   } catch (e) {
+    console.error('companies.createCompany error:', e);
     res.status(500).json({ error: '企業の作成に失敗しました' });
   }
 });
@@ -84,24 +103,17 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 // Update company
 router.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const { name, legalEntityStatusId, legalEntityPosition, postalCode, prefecture, city, street, building, phone, fax, website, notes } = req.body;
+    const { name, legalEntityStatusId, legalEntityPosition, postalCode, prefecture, city, street, building, phone, fax, website, notes, latitude, longitude } = req.body;
     const companyId = Number(req.params.id);
     const company = await prisma.company.update({
       where: { id: companyId },
       data: {
         name,
-        legalEntityStatusId: legalEntityStatusId ? Number(legalEntityStatusId) : null,
+        legalEntityStatus: legalEntityStatusId ? { connect: { id: Number(legalEntityStatusId) } } : { disconnect: true },
         legalEntityPosition,
-        postalCode,
-        prefecture,
-        city,
-        street,
-        building,
-        phone,
-        fax,
         website,
         notes,
-      } as any,
+      },
     });
     res.json(company);
   } catch (e) {
@@ -409,7 +421,7 @@ router.get('/:companyId/locations', async (req: AuthRequest, res: Response) => {
 router.post('/:companyId/locations', async (req: AuthRequest, res: Response) => {
   try {
     const companyId = Number(req.params.companyId);
-    const { name, phone, postalCode, prefecture, city, street, building, notes } = req.body;
+    const { name, phone, fax, postalCode, prefecture, city, street, building, notes, latitude, longitude } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: '拠点名が必要です' });
@@ -420,12 +432,16 @@ router.post('/:companyId/locations', async (req: AuthRequest, res: Response) => 
         companyId,
         name,
         phone,
+        fax,
         postalCode,
         prefecture,
         city,
         street,
         building,
         notes,
+        isProfileDisplay: req.body.isProfileDisplay || false,
+        latitude: latitude ? Number(latitude) : null,
+        longitude: longitude ? Number(longitude) : null,
       },
     });
 
@@ -439,19 +455,23 @@ router.post('/:companyId/locations', async (req: AuthRequest, res: Response) => 
 router.put('/:companyId/locations/:locationId', async (req: AuthRequest, res: Response) => {
   try {
     const locationId = Number(req.params.locationId);
-    const { name, phone, postalCode, prefecture, city, street, building, notes } = req.body;
+    const { name, phone, fax, postalCode, prefecture, city, street, building, notes, latitude, longitude } = req.body;
 
     const location = await prisma.location.update({
       where: { id: locationId },
       data: {
         name,
         phone,
+        fax,
         postalCode,
         prefecture,
         city,
         street,
         building,
         notes,
+        isProfileDisplay: req.body.isProfileDisplay,
+        latitude: latitude ? Number(latitude) : null,
+        longitude: longitude ? Number(longitude) : null,
       },
     });
 

@@ -561,39 +561,59 @@ export default function CompanyDetailPage() {
                   </button>
                 </div>
               </div>
-              <div className="bg-white rounded-lg shadow px-6 py-5">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-                  <div>
-                    <div className="text-gray-500 mb-1">住所</div>
-                    <div className="text-slate-800 font-medium whitespace-pre-wrap">
-                      {company.postalCode && `〒${company.postalCode} `}
-                      {company.prefecture}{company.city}{company.street}{company.building}
-                      {!company.postalCode && !company.prefecture && !company.city && !company.street && !company.building && '-'}
+              <div className="bg-white rounded-lg shadow px-6 py-5 text-sm">
+                <div className="space-y-6">
+                  {(() => {
+                    const profileLocations = company.locations?.filter(loc => loc.isProfileDisplay) || [];
+                    if (profileLocations.length === 0) {
+                      return <div className="text-gray-500 text-center py-4">表示設定されている拠点がありません</div>;
+                    }
+                    return profileLocations.map((loc, idx) => (
+                      <div key={loc.id} className={`${idx > 0 ? 'border-t border-gray-100 pt-6' : ''}`}>
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="w-1.5 h-1.5 rounded-full bg-sky-500"></div>
+                          <h3 className="font-semibold text-slate-800">{loc.name}</h3>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          <div>
+                            <div className="text-gray-500 mb-1 flex items-center gap-1.5">住所</div>
+                            <div className="text-slate-600 font-medium whitespace-pre-wrap">
+                              {loc.postalCode && `〒${loc.postalCode} `}
+                              {loc.prefecture}{loc.city}{loc.street}{loc.building}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-gray-500 mb-1">電話番号</div>
+                            <div className="text-slate-600 font-medium">{loc.phone || '-'}</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-500 mb-1">FAX</div>
+                            <div className="text-slate-600 font-medium">{loc.fax || '-'}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ));
+                  })()}
+
+                  <div className="border-t border-gray-100 pt-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="md:col-span-2">
+                        <div className="text-gray-500 mb-1">ウェブサイト</div>
+                        <div className="text-slate-600 font-medium">
+                          {company.website ? (
+                            <a href={company.website} target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:underline">
+                              {company.website}
+                            </a>
+                          ) : (
+                            '-'
+                          )}
+                        </div>
+                      </div>
+                      <div className="md:col-span-3 mt-4">
+                        <div className="text-gray-500 mb-1">備考</div>
+                        <div className="text-slate-600 whitespace-pre-wrap leading-relaxed">{company.notes || '-'}</div>
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <div className="text-gray-500 mb-1">電話番号</div>
-                    <div className="text-slate-800 font-medium">{company.phone || '-'}</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-500 mb-1">FAX</div>
-                    <div className="text-slate-800 font-medium">{company.fax || '-'}</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-500 mb-1">ウェブサイト</div>
-                    <div className="text-slate-800 font-medium">
-                      {company.website ? (
-                        <a href={company.website} target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:underline">
-                          {company.website}
-                        </a>
-                      ) : (
-                        '-'
-                      )}
-                    </div>
-                  </div>
-                  <div className="md:col-span-3">
-                    <div className="text-gray-500 mb-1">備考</div>
-                    <div className="text-slate-800 whitespace-pre-wrap">{company.notes || '-'}</div>
                   </div>
                 </div>
               </div>
