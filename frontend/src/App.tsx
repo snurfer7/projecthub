@@ -5,7 +5,7 @@ import Layout from './components/Layout';
 
 // 認証前ページ（初回表示で必要）
 const LoginPage = lazy(() => import('./pages/LoginPage'));
-const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+
 
 // 認証後ページ（ルート単位で遅延読み込み）
 const HomePage = lazy(() => import('./pages/HomePage'));
@@ -36,7 +36,7 @@ const PageFallback = () => (
 );
 
 function App() {
-  const { user, loading, login, register, logout, refreshUser } = useAuth();
+  const { user, loading, login, logout, refreshUser } = useAuth();
 
   if (loading) {
     return <div className="flex items-center justify-center h-screen"><div className="text-lg text-gray-500">読み込み中...</div></div>;
@@ -47,7 +47,7 @@ function App() {
       <Suspense fallback={<PageFallback />}>
         <Routes>
           <Route path="/login" element={<LoginPage onLogin={login} />} />
-          <Route path="/register" element={<RegisterPage onRegister={register} />} />
+
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
       </Suspense>

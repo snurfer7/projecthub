@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { authenticateToken, requireAdmin, AuthRequest } from '../middleware/auth';
+import { sendWelcomeEmail } from '../services/email';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -44,6 +45,14 @@ router.post('/users', requireAdmin, async (req: AuthRequest, res: Response) => {
         groupMembers: { select: { group: { select: { id: true, name: true } } } },
       },
     });
+
+    try {
+      await sendWelcomeEmail(email, firstName, lastName);
+    } catch (emailErr) {
+      console.error('Failed to send welcome email:', emailErr);
+      // Create was successful, so we do not block returning a 201
+    }
+
     res.status(201).json(user);
   } catch (e) {
     res.status(500).json({ error: 'ユーザーの作成に失敗しました' });

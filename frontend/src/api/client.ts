@@ -17,8 +17,8 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       const requestUrl = error.config?.url ?? '';
-      // ログイン・登録の 401 は認証エラーとして画面に表示するためリダイレクトしない
-      const isAuthAttempt = /^\/?auth\/(login|register)/.test(requestUrl);
+      // ログインの 401 は認証エラーとして画面に表示するためリダイレクトしない
+      const isAuthAttempt = /^\/?auth\/login/.test(requestUrl);
       if (!isAuthAttempt) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');

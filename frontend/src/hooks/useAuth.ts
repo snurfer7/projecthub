@@ -36,13 +36,7 @@ export function useAuth() {
     return res.data.user;
   }, []);
 
-  const register = useCallback(async (email: string, password: string, firstName: string, lastName: string) => {
-    const res = await api.post('/auth/register', { email, password, firstName, lastName });
-    localStorage.setItem('token', res.data.token);
-    localStorage.setItem('user', JSON.stringify(res.data.user));
-    setUser(res.data.user);
-    return res.data.user;
-  }, []);
+
 
   const logout = useCallback(() => {
     localStorage.removeItem('token');
@@ -57,5 +51,5 @@ export function useAuth() {
     return res.data;
   }, []);
 
-  return { user, loading, login, register, logout, refreshUser };
+  return { user, loading, login, logout, refreshUser };
 }

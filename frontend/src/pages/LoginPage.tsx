@@ -55,9 +55,7 @@ export default function LoginPage({ onLogin }: Props) {
             {loading ? 'ログイン中...' : 'ログイン'}
           </button>
         </form>
-        <p className="mt-4 text-center text-sm text-gray-600">
-          アカウントをお持ちでない方は <Link to="/register" className="text-sky-600 hover:underline">新規登録</Link>
-        </p>
+
 
         {!import.meta.env.PROD && (
           <div className="mt-6 border-t pt-4">

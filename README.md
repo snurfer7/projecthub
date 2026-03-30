@@ -11,8 +11,24 @@ docker-compose down && docker-compose build && docker-compose up -d
 このコマンドで以下のサービスが起動します：
 - **PostgreSQL**: ポート 5432
 - **MinIO**: ポート 9000 (API) / 9001 (Console)
+- **LocalStack** (Amazon SESモック): ポート 4566
 - **Backend**: ポート 3000
 - **Frontend**: ポート 5173
+
+### メールの送信内容の確認方法 (ローカルデバッグ)
+
+ローカル開発環境（LocalStack）で送信されたメールの内容は、ブラウザで以下のエンドポイントを開くか `curl` コマンドで確認できます。
+
+```bash
+curl -s http://localhost:4566/_aws/ses
+```
+
+> **Note**: JSONテキスト内の日本語が `\u30a2` のように文字化け（Unicodeエスケープ）して読みにくい場合は、以下のコマンドを使用すると綺麗な日本語としてデコードされます。
+> ```bash
+> curl -s http://localhost:4566/_aws/ses | python3 -c "import sys, json; print(json.dumps(json.load(sys.stdin), indent=2, ensure_ascii=False))"
+> ```
+
+※JSON形式で送信したメールの履歴（宛先、件名、本文）が返却されます。ブラウザのJSONフォーマッター用拡張機能などを使うとブラウザ上でも日本語で確認できます。
 
 ## 本番環境へのリリース方法
 
@@ -41,6 +57,12 @@ AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
 S3_BUCKET_NAME=your-production-bucket-name
 # AWS S3の場合は以下の行を削除またはコメントアウト
 # AWS_S3_ENDPOINT_URL は設定しない（デフォルトでAWS S3を使用）
+
+# AWS SES (メール送信用) 設定
+EMAIL_FROM=noreply@your-domain.com
+# 本番のAWS SESを使用する場合、以下の行は設定しない（デフォルトでAWS SESを使用）
+# ローカルでテストする場合は `AWS_SES_ENDPOINT_URL=http://localstack:4566` とします。
+# AWS_SES_ENDPOINT_URL=
 
 # ポート設定（オプション）
 BACKEND_PORT=3000
@@ -142,6 +164,11 @@ curl http://localhost:5173/
 - AWS認証情報が正しいか確認
 - S3 バケット名と IAM 権限を確認
 - AWS リージョン設定が正しいか確認
+
+**メール送信 (SES) エラー**
+- LocalStackまたはAWSの認証情報が正しいか確認
+- 送信元アドレス (`EMAIL_FROM`) がSESで検証(Verify)済みであるか確認
+- AWSリージョン設定が正しいか確認
 
 **コンテナが起動しない**
 - Docker ログを確認: `docker-compose logs backend`

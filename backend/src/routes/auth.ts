@@ -36,39 +36,7 @@ router.post('/login', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.post('/register', async (req: AuthRequest, res: Response) => {
-  try {
-    const { email, password, firstName, lastName } = req.body;
-    const existing = await prisma.user.findUnique({ where: { email } });
-    if (existing) {
-      res.status(400).json({ error: 'このメールアドレスは既に使用されています' });
-      return;
-    }
-    const passwordHash = await bcrypt.hash(password, 10);
-    const user = await prisma.user.create({
-      data: { email, passwordHash, firstName, lastName },
-    });
-    const token = generateToken(user.id, user.role, user.isAdmin);
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        isAdmin: user.isAdmin,
-        landingPage: user.landingPage,
-        showProjectsMenu: user.showProjectsMenu,
-        showGanttMenu: user.showGanttMenu,
-        showCompanyMenu: user.showCompanyMenu,
-        showAdminMenu: user.showAdminMenu,
-      },
-    });
-  } catch (e) {
-    res.status(500).json({ error: '登録に失敗しました' });
-  }
-});
+
 
 router.get('/me', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
