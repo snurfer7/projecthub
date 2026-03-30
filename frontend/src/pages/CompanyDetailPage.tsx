@@ -79,7 +79,7 @@ export default function CompanyDetailPage() {
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [dealForm, setDealForm] = useState({ name: '', amount: '', status: 'prospecting', probability: '', expectedCloseDate: '', contactId: '', assignedToId: '', notes: '' });
   const [dealError, setDealError] = useState('');
-  const [users, setUsers] = useState<{ id: number; firstName: string; lastName: string }[]>([]);
+  const [users, setUsers] = useState<{ id: number; firstName: string; lastName: string; status: string }[]>([]);
 
   // Company Edit
   const [showCompanyModal, setShowCompanyModal] = useState(false);
@@ -111,7 +111,7 @@ export default function CompanyDetailPage() {
   const loadDeals = () => api.get(`/crm/deals?companyId=${id}`).then((res) => setDeals(res.data));
   const loadActivities = () => api.get(`/crm/activities?companyId=${id}`).then((res) => setActivities(res.data));
   const loadMasterAssociations = () => api.get('/admin/associations').then((res) => setMasterAssociations(res.data));
-  const loadUsers = () => api.get('/admin/users').then((res) => setUsers(res.data.map((u: { id: number; firstName: string; lastName: string }) => ({ id: u.id, firstName: u.firstName, lastName: u.lastName }))));
+  const loadUsers = () => api.get('/admin/users').then((res) => setUsers(res.data.map((u: { id: number; firstName: string; lastName: string; status: string }) => ({ id: u.id, firstName: u.firstName, lastName: u.lastName, status: u.status }))));
   const loadLocations = () => api.get(`/companies/${id}/locations`).then((res) => setLocations(res.data));
 
   useEffect(() => {
@@ -883,7 +883,9 @@ export default function CompanyDetailPage() {
             <Combobox
               label="担当者"
               value={dealForm.assignedToId}
-              options={users.map(u => ({ value: u.id.toString(), label: `${u.lastName} ${u.firstName}` }))}
+              options={users
+                .filter(u => u.status === 'active' || dealForm.assignedToId === String(u.id))
+                .map(u => ({ value: u.id.toString(), label: `${u.lastName} ${u.firstName}` }))}
               onChange={(val) => setDealForm({ ...dealForm, assignedToId: val })}
             />
           </div>

@@ -258,6 +258,13 @@ router.get('/deals/:id', async (req: AuthRequest, res: Response) => {
 router.post('/deals', async (req: AuthRequest, res: Response) => {
   try {
     const { companyId, contactId, name, amount, status, probability, expectedCloseDate, assignedToId, notes } = req.body;
+    if (assignedToId) {
+      const user = await prisma.user.findUnique({ where: { id: Number(assignedToId) } });
+      if (user && (user.status === 'pending' || user.status === 'inactive')) {
+        return res.status(400).json({ error: '選択されたユーザー（仮登録または退職）は担当者に指定できません' });
+      }
+    }
+
     const deal = await prisma.deal.create({
       data: {
         companyId, contactId, name, amount, status, probability,
@@ -274,6 +281,13 @@ router.post('/deals', async (req: AuthRequest, res: Response) => {
 router.put('/deals/:id', async (req: AuthRequest, res: Response) => {
   try {
     const { contactId, name, amount, status, probability, expectedCloseDate, assignedToId, notes } = req.body;
+    if (assignedToId) {
+      const user = await prisma.user.findUnique({ where: { id: Number(assignedToId) } });
+      if (user && (user.status === 'pending' || user.status === 'inactive')) {
+        return res.status(400).json({ error: '選択されたユーザー（仮登録または退職）は担当者に指定できません' });
+      }
+    }
+
     const deal = await prisma.deal.update({
       where: { id: Number(req.params.id) },
       data: {

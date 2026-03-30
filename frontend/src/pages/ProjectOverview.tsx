@@ -19,7 +19,7 @@ export default function ProjectOverview() {
 
     const [roles, setRoles] = useState<Role[]>([]);
     const [allGroups, setAllGroups] = useState<Group[]>([]);
-    const [allUsers, setAllUsers] = useState<{ id: number; firstName: string; lastName: string }[]>([]);
+    const [allUsers, setAllUsers] = useState<{ id: number; firstName: string; lastName: string; status: string }[]>([]);
 
     // Add form state
     const [selectedPrincipals, setSelectedPrincipals] = useState<Set<string>>(new Set()); // "u:1" or "g:1"
@@ -72,7 +72,7 @@ export default function ProjectOverview() {
 
     // Selectable users (not yet individually added and not in any assigned group)
     const currentIndividualUserIds = new Set(individualMembers.map(m => m.userId));
-    const selectableUsers = allUsers.filter(u => !currentIndividualUserIds.has(u.id) && !allGroupUserIds.has(u.id));
+    const selectableUsers = allUsers.filter(u => u.status === 'active' && !currentIndividualUserIds.has(u.id) && !allGroupUserIds.has(u.id));
 
     // ── Toggles ───────────────────────────────────────────────────────────────
     const togglePrincipal = (key: string) => {

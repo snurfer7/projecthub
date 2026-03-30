@@ -34,6 +34,7 @@ export default function AdminPage({ user }: Props) {
   const [userFirstName, setUserFirstName] = useState('');
   const [userLastName, setUserLastName] = useState('');
   const [userIsAdmin, setUserIsAdmin] = useState(false);
+  const [userStatus, setUserStatus] = useState('active');
   const [userGroupIds, setUserGroupIds] = useState<number[]>([]);
   const [userError, setUserError] = useState('');
 
@@ -181,14 +182,14 @@ export default function AdminPage({ user }: Props) {
   const openCreateUserModal = () => {
     setEditingUserId(null);
     setUserEmail(''); setUserPassword(''); setUserFirstName(''); setUserLastName('');
-    setUserIsAdmin(false); setUserGroupIds([]); setUserError('');
+    setUserIsAdmin(false); setUserStatus('active'); setUserGroupIds([]); setUserError('');
     setShowUserModal(true);
   };
 
   const openEditUserModal = (u: User) => {
     setEditingUserId(u.id);
     setUserEmail(u.email); setUserPassword(''); setUserFirstName(u.firstName); setUserLastName(u.lastName);
-    setUserIsAdmin(u.isAdmin);
+    setUserIsAdmin(u.isAdmin); setUserStatus(u.status || 'active');
     setUserGroupIds(u.groupMembers?.map((gm) => gm.group.id) || []);
     setUserError('');
     setShowUserModal(true);
@@ -204,7 +205,7 @@ export default function AdminPage({ user }: Props) {
     e.preventDefault();
     setUserError('');
     try {
-      const data: any = { email: userEmail, firstName: userFirstName, lastName: userLastName, isAdmin: userIsAdmin, groupIds: userGroupIds };
+      const data: any = { email: userEmail, firstName: userFirstName, lastName: userLastName, isAdmin: userIsAdmin, status: userStatus, groupIds: userGroupIds };
       if (editingUserId) {
         if (userPassword) data.password = userPassword;
         await api.put(`/admin/users/${editingUserId}`, data);
@@ -502,6 +503,7 @@ export default function AdminPage({ user }: Props) {
                 <tr>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">名前</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">メール</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">ステータス</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">ロール</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">グループ</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">アクション</th>
@@ -512,6 +514,11 @@ export default function AdminPage({ user }: Props) {
                   <tr key={u.id} className="border-t hover:bg-gray-50">
                     <td className="px-4 py-3">{u.lastName} {u.firstName}</td>
                     <td className="px-4 py-3 text-gray-500">{u.email}</td>
+                    <td className="px-4 py-3">
+                      {u.status === 'active' && <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">有効</span>}
+                      {u.status === 'pending' && <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">仮登録</span>}
+                      {u.status === 'inactive' && <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">無効</span>}
+                    </td>
                     <td className="px-4 py-3">
                       {u.isAdmin && (
                         <span className="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">管理者</span>
@@ -1079,6 +1086,19 @@ export default function AdminPage({ user }: Props) {
                 className="mr-2 rounded border-gray-300 text-sky-600 focus:ring-sky-500" />
               <span className="text-sm font-medium text-gray-700">システム管理者</span>
             </label>
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">ステータス *</label>
+            <select
+              value={userStatus}
+              onChange={(e) => setUserStatus(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-sky-500 text-sm"
+              required
+            >
+              <option value="active">有効</option>
+              <option value="pending">仮登録</option>
+              <option value="inactive">無効</option>
+            </select>
           </div>
           <div className="mb-4">
             <Combobox

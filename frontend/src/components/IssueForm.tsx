@@ -192,7 +192,9 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
                             label="担当者"
                             options={[
                                 ...(meta.groups || []).map((g) => ({ value: `g:${g.id}`, label: `(グループ) ${g.name}` })),
-                                ...(meta.users || []).map((u) => ({ value: `u:${u.id}`, label: `${u.lastName} ${u.firstName}` }))
+                                ...(meta.users || [])
+                                    .filter((u) => u.status === 'active' || assignedToPrincipal === `u:${u.id}`)
+                                    .map((u) => ({ value: `u:${u.id}`, label: `${u.lastName} ${u.firstName}` }))
                             ]}
                             value={assignedToPrincipal}
                             onChange={setAssignedToPrincipal}

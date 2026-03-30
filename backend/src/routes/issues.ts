@@ -83,7 +83,7 @@ router.get('/meta/options', async (req: AuthRequest, res: Response) => {
       const [projectMembers, projectGroups] = await Promise.all([
         prisma.projectMember.findMany({
           where: { projectId: Number(projectId) },
-          include: { user: { select: { id: true, firstName: true, lastName: true } } }
+          include: { user: { select: { id: true, firstName: true, lastName: true, status: true } } }
         }),
         (prisma as any).projectGroup.findMany({
           where: { projectId: Number(projectId) },
@@ -98,7 +98,7 @@ router.get('/meta/options', async (req: AuthRequest, res: Response) => {
       users = Array.from(userMap.values());
       groups = projectGroups.map((pg: any) => pg.group);
     } else {
-      users = await prisma.user.findMany({ select: { id: true, firstName: true, lastName: true } });
+      users = await prisma.user.findMany({ select: { id: true, firstName: true, lastName: true, status: true } });
     }
 
     res.json({ trackers, statuses, priorities, users, groups });
@@ -202,6 +202,13 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: '予定工数は整数で入力してください' });
     }
 
+    if (assignedToId) {
+      const user = await prisma.user.findUnique({ where: { id: Number(assignedToId) } });
+      if (user && (user.status === 'pending' || user.status === 'inactive')) {
+        return res.status(400).json({ error: '選択されたユーザー（仮登録または無効）は担当者に指定できません' });
+      }
+    }
+
     const issue = await prisma.issue.create({
       data: {
         projectId,
@@ -250,6 +257,13 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     if (dueDate !== undefined) data.dueDate = dueDate ? new Date(dueDate) : null;
     if (estimatedHours !== undefined) data.estimatedHours = estimatedHours ? Math.round(Number(estimatedHours)) : null;
     if (doneRatio !== undefined) data.doneRatio = Number(doneRatio);
+
+    if (assignedToId) {
+      const user = await prisma.user.findUnique({ where: { id: Number(assignedToId) } });
+      if (user && (user.status === 'pending' || user.status === 'inactive')) {
+        return res.status(400).json({ error: '選択されたユーザー（仮登録または無効）は担当者に指定できません' });
+      }
+    }
 
     const issue = await prisma.issue.update({
       where: { id: Number(req.params.id) },

@@ -17,7 +17,7 @@ router.get('/users', async (_req: AuthRequest, res: Response) => {
   try {
     const users = await prisma.user.findMany({
       select: {
-        id: true, email: true, firstName: true, lastName: true, role: true, isAdmin: true, createdAt: true,
+        id: true, email: true, firstName: true, lastName: true, role: true, status: true, isAdmin: true, createdAt: true,
         groupMembers: { select: { group: { select: { id: true, name: true } } } },
       },
       orderBy: { createdAt: 'desc' },
@@ -30,18 +30,19 @@ router.get('/users', async (_req: AuthRequest, res: Response) => {
 
 router.post('/users', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    const { email, password, firstName, lastName, isAdmin, groupIds } = req.body;
+    const { email, password, firstName, lastName, isAdmin, status, groupIds } = req.body;
     const passwordHash = await bcrypt.hash(password, 10);
     const userRole = isAdmin ? 'admin' : 'member';
     const user = await prisma.user.create({
       data: {
         email, passwordHash, firstName, lastName, role: userRole, isAdmin: !!isAdmin,
+        status: status || 'active',
         groupMembers: {
           create: (groupIds || []).map((groupId: number) => ({ groupId })),
         },
       },
       select: {
-        id: true, email: true, firstName: true, lastName: true, role: true, isAdmin: true,
+        id: true, email: true, firstName: true, lastName: true, role: true, status: true, isAdmin: true,
         groupMembers: { select: { group: { select: { id: true, name: true } } } },
       },
     });
@@ -61,12 +62,13 @@ router.post('/users', requireAdmin, async (req: AuthRequest, res: Response) => {
 
 router.put('/users/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    const { email, firstName, lastName, isAdmin, password, groupIds } = req.body;
+    const { email, firstName, lastName, isAdmin, status, password, groupIds } = req.body;
     const userId = Number(req.params.id);
     const userRole = isAdmin !== undefined ? (isAdmin ? 'admin' : 'member') : undefined;
     const data: any = { email, firstName, lastName };
     if (userRole !== undefined) data.role = userRole;
     if (isAdmin !== undefined) data.isAdmin = !!isAdmin;
+    if (status !== undefined) data.status = status;
     if (password) data.passwordHash = await bcrypt.hash(password, 10);
     if (groupIds) {
       await prisma.groupMember.deleteMany({ where: { userId } });
@@ -78,7 +80,7 @@ router.put('/users/:id', requireAdmin, async (req: AuthRequest, res: Response) =
       where: { id: userId },
       data,
       select: {
-        id: true, email: true, firstName: true, lastName: true, role: true, isAdmin: true,
+        id: true, email: true, firstName: true, lastName: true, role: true, status: true, isAdmin: true,
         groupMembers: { select: { group: { select: { id: true, name: true } } } },
       },
     });

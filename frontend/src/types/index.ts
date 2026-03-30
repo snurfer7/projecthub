@@ -12,6 +12,7 @@ export interface User {
   showGanttMenu: boolean;
   showCompanyMenu: boolean;
   showAdminMenu: boolean;
+  status: string;
 }
 
 export interface Company {
@@ -122,7 +123,7 @@ export interface ProjectMember {
   projectId: number;
   userId: number;
   roles: ProjectMemberRole[];
-  user: { id: number; firstName: string; lastName: string; email?: string };
+  user: { id: number; firstName: string; lastName: string; email?: string; status?: string };
 }
 
 export interface ProjectGroup {
@@ -342,7 +343,7 @@ export interface IssueMetaOptions {
   trackers: Tracker[];
   statuses: IssueStatus[];
   priorities: IssuePriority[];
-  users: { id: number; firstName: string; lastName: string }[];
+  users: { id: number; firstName: string; lastName: string; status: string }[];
   groups?: { id: number; name: string }[];
 }
 

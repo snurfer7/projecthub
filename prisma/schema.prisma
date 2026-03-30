@@ -16,6 +16,7 @@ model User {
   firstName        String            @map("first_name")
   lastName         String            @map("last_name")
   role             String            @default("member")
+  status           String            @default("active")
   createdAt        DateTime          @default(now()) @map("created_at")
   isAdmin          Boolean           @default(false) @map("is_admin")
   landingPage      String            @default("home") @map("landing_page")

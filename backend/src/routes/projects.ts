@@ -201,6 +201,13 @@ router.post('/:id/members', async (req: AuthRequest, res: Response) => {
       return;
     }
 
+    if (userId) {
+      const user = await prisma.user.findUnique({ where: { id: Number(userId) } });
+      if (user && (user.status === 'pending' || user.status === 'inactive')) {
+        return res.status(400).json({ error: '選択されたユーザー（仮登録または無効）はプロジェクトメンバーに指定できません' });
+      }
+    }
+
     const member = await prisma.projectMember.findUnique({
       where: { projectId_userId: { projectId, userId: Number(userId) } }
     });
