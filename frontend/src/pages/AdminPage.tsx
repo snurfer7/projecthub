@@ -2,7 +2,7 @@ import { useState, useEffect, FormEvent, DragEvent } from 'react';
 import { Navigate } from 'react-router-dom';
 import api from '../api/client';
 import { User, Tracker, IssueStatus, IssuePriority, Group, Role, SystemSetting } from '../types';
-import { Pencil, Trash2, GripVertical, Clock, Plus } from 'lucide-react';
+import { Pencil, Trash2, GripVertical, Clock, Plus, UserX, UserCheck } from 'lucide-react';
 import Modal from '../components/Modal';
 import AnalogTimePicker from '../components/AnalogTimePicker';
 import CustomTimePicker from '../components/CustomTimePicker';
@@ -34,7 +34,6 @@ export default function AdminPage({ user }: Props) {
   const [userFirstName, setUserFirstName] = useState('');
   const [userLastName, setUserLastName] = useState('');
   const [userIsAdmin, setUserIsAdmin] = useState(false);
-  const [userStatus, setUserStatus] = useState('active');
   const [userGroupIds, setUserGroupIds] = useState<number[]>([]);
   const [userError, setUserError] = useState('');
 
@@ -71,6 +70,7 @@ export default function AdminPage({ user }: Props) {
 
   // 削除用ステート
   const [confirmDelete, setConfirmDelete] = useState<{ type: string; id: number; name: string } | null>(null);
+  const [confirmUserStatus, setConfirmUserStatus] = useState<{ id: number; name: string; nextStatus: 'active' | 'inactive' } | null>(null);
 
   // 管理者ロールまたはシステム管理者（isAdmin）のいずれかでアクセス許可
   if (user.role !== 'admin' && user.isAdmin !== true) return <Navigate to="/" />;
@@ -182,14 +182,14 @@ export default function AdminPage({ user }: Props) {
   const openCreateUserModal = () => {
     setEditingUserId(null);
     setUserEmail(''); setUserPassword(''); setUserFirstName(''); setUserLastName('');
-    setUserIsAdmin(false); setUserStatus('active'); setUserGroupIds([]); setUserError('');
+    setUserIsAdmin(false); setUserGroupIds([]); setUserError('');
     setShowUserModal(true);
   };
 
   const openEditUserModal = (u: User) => {
     setEditingUserId(u.id);
     setUserEmail(u.email); setUserPassword(''); setUserFirstName(u.firstName); setUserLastName(u.lastName);
-    setUserIsAdmin(u.isAdmin); setUserStatus(u.status || 'active');
+    setUserIsAdmin(u.isAdmin);
     setUserGroupIds(u.groupMembers?.map((gm) => gm.group.id) || []);
     setUserError('');
     setShowUserModal(true);
@@ -205,18 +205,27 @@ export default function AdminPage({ user }: Props) {
     e.preventDefault();
     setUserError('');
     try {
-      const data: any = { email: userEmail, firstName: userFirstName, lastName: userLastName, isAdmin: userIsAdmin, status: userStatus, groupIds: userGroupIds };
+      const data: any = { email: userEmail, firstName: userFirstName, lastName: userLastName, isAdmin: userIsAdmin, groupIds: userGroupIds };
       if (editingUserId) {
         if (userPassword) data.password = userPassword;
         await api.put(`/admin/users/${editingUserId}`, data);
       } else {
-        data.password = userPassword;
         await api.post('/admin/users', data);
       }
       closeUserModal();
       loadAll();
     } catch (err: any) {
       setUserError(err.response?.data?.error || (editingUserId ? '更新に失敗しました' : '作成に失敗しました'));
+    }
+  };
+
+  const handleUpdateUserStatus = async (id: number, nextStatus: 'active' | 'inactive') => {
+    setConfirmUserStatus(null);
+    try {
+      await api.put(`/admin/users/${id}`, { status: nextStatus });
+      loadAll();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'ユーザーステータスの更新に失敗しました');
     }
   };
 
@@ -532,9 +541,29 @@ export default function AdminPage({ user }: Props) {
                         <button onClick={() => openEditUserModal(u)} title="編集" className="p-1.5 text-sky-600 hover:bg-sky-50 rounded">
                           <Pencil className="w-4 h-4" />
                         </button>
-                        <button onClick={() => setConfirmDelete({ type: 'users', id: u.id, name: `${u.lastName} ${u.firstName}` })} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {u.status === 'active' && (
+                          <button
+                            onClick={() => setConfirmUserStatus({ id: u.id, name: `${u.lastName} ${u.firstName}`, nextStatus: 'inactive' })}
+                            title="無効化"
+                            className="p-1.5 text-amber-600 hover:bg-amber-50 rounded"
+                          >
+                            <UserX className="w-4 h-4" />
+                          </button>
+                        )}
+                        {u.status === 'inactive' && (
+                          <button
+                            onClick={() => setConfirmUserStatus({ id: u.id, name: `${u.lastName} ${u.firstName}`, nextStatus: 'active' })}
+                            title="有効化"
+                            className="p-1.5 text-green-600 hover:bg-green-50 rounded"
+                          >
+                            <UserCheck className="w-4 h-4" />
+                          </button>
+                        )}
+                        {u.status === 'pending' && (
+                          <button onClick={() => setConfirmDelete({ type: 'users', id: u.id, name: `${u.lastName} ${u.firstName}` })} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -1071,34 +1100,27 @@ export default function AdminPage({ user }: Props) {
               required
             />
           </div>
-          <div className="mb-4">
-            <TextInput
-              label={`パスワード ${editingUserId ? '（変更する場合のみ入力）' : '*'}`}
-              type="password"
-              value={userPassword}
-              onChange={(e) => setUserPassword(e.target.value)}
-              required={!editingUserId}
-            />
-          </div>
+          {editingUserId && (
+            <div className="mb-4">
+              <TextInput
+                label="パスワード（変更する場合のみ入力）"
+                type="password"
+                value={userPassword}
+                onChange={(e) => setUserPassword(e.target.value)}
+              />
+            </div>
+          )}
+          {!editingUserId && (
+            <p className="mb-4 text-xs text-gray-500">
+              仮パスワードは自動生成され、ユーザーのメールアドレスへ通知されます。
+            </p>
+          )}
           <div className="mb-4">
             <label className="flex items-center cursor-pointer">
               <input type="checkbox" checked={userIsAdmin} onChange={(e) => setUserIsAdmin(e.target.checked)}
                 className="mr-2 rounded border-gray-300 text-sky-600 focus:ring-sky-500" />
               <span className="text-sm font-medium text-gray-700">システム管理者</span>
             </label>
-          </div>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">ステータス *</label>
-            <select
-              value={userStatus}
-              onChange={(e) => setUserStatus(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-sky-500 text-sm"
-              required
-            >
-              <option value="active">有効</option>
-              <option value="pending">仮登録</option>
-              <option value="inactive">無効</option>
-            </select>
           </div>
           <div className="mb-4">
             <Combobox
@@ -1134,6 +1156,22 @@ export default function AdminPage({ user }: Props) {
         }}
         onCancel={() => setConfirmDelete(null)}
         variant="danger"
+      />
+
+      <ConfirmationModal
+        isOpen={!!confirmUserStatus}
+        title={confirmUserStatus?.nextStatus === 'inactive' ? 'ユーザーの無効化' : 'ユーザーの有効化'}
+        message={
+          confirmUserStatus
+            ? `${confirmUserStatus.name} を${confirmUserStatus.nextStatus === 'inactive' ? '無効化' : '有効化'}しますか？`
+            : ''
+        }
+        onConfirm={() => {
+          if (!confirmUserStatus) return;
+          handleUpdateUserStatus(confirmUserStatus.id, confirmUserStatus.nextStatus);
+        }}
+        onCancel={() => setConfirmUserStatus(null)}
+        variant="info"
       />
     </div>
   );

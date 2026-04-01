@@ -28,6 +28,7 @@ const CompanyDetailPage = lazy(() => import('./pages/CompanyDetailPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const AssociationsPage = lazy(() => import('./pages/AssociationsPage'));
 const LegalEntityStatusesPage = lazy(() => import('./pages/LegalEntityStatusesPage'));
+const ForcePasswordChangePage = lazy(() => import('./pages/ForcePasswordChangePage'));
 
 const PageFallback = () => (
   <div className="flex items-center justify-center min-h-[200px]">
@@ -49,6 +50,17 @@ function App() {
           <Route path="/login" element={<LoginPage onLogin={login} />} />
 
           <Route path="*" element={<Navigate to="/login" />} />
+        </Routes>
+      </Suspense>
+    );
+  }
+
+  if (user.status === 'pending') {
+    return (
+      <Suspense fallback={<PageFallback />}>
+        <Routes>
+          <Route path="/force-password-change" element={<ForcePasswordChangePage refreshUser={refreshUser} />} />
+          <Route path="*" element={<Navigate to="/force-password-change" replace />} />
         </Routes>
       </Suspense>
     );

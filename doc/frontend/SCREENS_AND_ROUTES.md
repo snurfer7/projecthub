@@ -5,6 +5,7 @@
 | パス | コンポーネント | 概要 |
 |------|----------------|------|
 | `/login` | LoginPage | ログイン（本番では「テストユーザーでログイン」は非表示） |
+| `/force-password-change` | ForcePasswordChangePage | `user.status === 'pending'` の初回ログイン時に強制表示するパスワード変更画面。変更完了まで他画面へ遷移不可 |
 | `/register` | RegisterPage | 新規登録 |
 | 上記以外 | Navigate to `/login` | 未認証時はログインへ |
 
@@ -39,7 +40,7 @@
 | `/companies/:id` | CompanyDetailPage | 会社詳細 |
 | `/associations` | AssociationsPage | 団体マスタ |
 | `/legal-entity-statuses` | LegalEntityStatusesPage | 法人区分マスタ |
-| `/settings` | SettingsPage | 設定（パスワード・ランディング・メニュー表示） |
+| `/settings` | SettingsPage | 設定（パスワード・ランディング・メニュー表示）。`user.status === 'pending'` の場合は遷移不可 |
 | `/admin` | AdminPage | 管理（ユーザー・トラッカー・ステータス・優先度・グループ・ロール・会社・法人区分・団体・時間設定等） |
 
 ### その他
@@ -60,3 +61,14 @@
 
 - 各ページで必要な API を呼び出し（例: ProjectListPage → GET /api/projects、IssueListPage → GET /api/issues?projectId=...）。
 - モーダル・タブは必要に応じて遅延取得または同一画面内でキャッシュを利用。
+
+## 管理 > ユーザー画面のステータス運用
+
+- ユーザー登録・編集モーダルに `status` の入力 UI は表示しない。
+- ユーザー新規登録モーダルに `password` の入力 UI は表示しない（仮パスワードはサーバー側で生成）。
+- ユーザー新規作成時は常に `pending`（仮）として作成する。
+- 新規作成時に生成された仮パスワードは登録メールアドレスに通知する。
+- 一覧のアクション表示条件:
+  - 削除アイコン: `status === 'pending'` のときのみ表示
+  - 無効化アイコン: `status === 'active'` のときのみ表示（確認後 `inactive` へ更新）
+  - 有効化アイコン: `status === 'inactive'` のときのみ表示（確認後 `active` へ更新）

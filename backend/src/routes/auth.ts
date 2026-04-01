@@ -29,6 +29,7 @@ router.post('/login', async (req: AuthRequest, res: Response) => {
         showGanttMenu: user.showGanttMenu,
         showCompanyMenu: user.showCompanyMenu,
         showAdminMenu: user.showAdminMenu,
+        status: user.status,
       },
     });
   } catch (e) {
@@ -44,7 +45,7 @@ router.get('/me', authenticateToken, async (req: AuthRequest, res: Response) => 
       where: { id: req.userId },
       select: {
         id: true, email: true, firstName: true, lastName: true, role: true, isAdmin: true, landingPage: true,
-        showProjectsMenu: true, showGanttMenu: true, showCompanyMenu: true, showAdminMenu: true
+        showProjectsMenu: true, showGanttMenu: true, showCompanyMenu: true, showAdminMenu: true, status: true
       },
     });
     if (!user) {
@@ -79,7 +80,13 @@ router.put('/password', authenticateToken, async (req: AuthRequest, res: Respons
       return;
     }
     const passwordHash = await bcrypt.hash(newPassword, 10);
-    await prisma.user.update({ where: { id: req.userId }, data: { passwordHash } });
+    await prisma.user.update({
+      where: { id: req.userId },
+      data: {
+        passwordHash,
+        ...(user.status === 'pending' ? { status: 'active' } : {}),
+      },
+    });
     res.json({ message: 'パスワードを変更しました' });
   } catch (e) {
     res.status(500).json({ error: 'パスワードの変更に失敗しました' });

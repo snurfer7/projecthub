@@ -8,10 +8,10 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 | メソッド | パス | 認証 | 概要 |
 |----------|------|------|------|
-| POST | `/login` | 不要 | ログイン。Body: `email`, `password` → `token`, `user` |
+| POST | `/login` | 不要 | ログイン。Body: `email`, `password` → `token`, `user`（`user.status` を含む） |
 | POST | `/register` | 不要 | 登録。Body: `email`, `password`, `firstName`, `lastName` → `token`, `user` |
-| GET | `/me` | 必要 | 現在ユーザー情報 |
-| PUT | `/password` | 必要 | パスワード変更。Body: `currentPassword`, `newPassword` |
+| GET | `/me` | 必要 | 現在ユーザー情報（`status` を含む） |
+| PUT | `/password` | 必要 | パスワード変更。Body: `currentPassword`, `newPassword`。ログイン中ユーザーの `status === 'pending'` の場合、更新完了時に `status` を自動で `active` に更新 |
 | PUT | `/landing-page` | 必要 | ランディング設定。Body: `landingPage` (`home` \| `projects` \| `gantt` \| `companies`) |
 | PUT | `/menu-settings` | 必要 | メニュー表示。Body: `showProjectsMenu`, `showGanttMenu`, `showCompanyMenu`, `showAdminMenu` |
 
@@ -102,7 +102,9 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | メソッド | パス | 概要 | 権限 |
 |----------|------|------|------|
 | GET | `/users` | ユーザー一覧（担当者選択等） | 認証 |
-| POST/PUT/DELETE | `/users`, `/users/:id` | ユーザー作成・更新・削除 | 管理者 |
+| POST | `/users` | ユーザー作成（作成時の `status` は常に `pending`。仮パスワードはサーバーで乱数生成し、登録メールアドレスへ通知。リクエストの `status` 指定は無視） | 管理者 |
+| PUT | `/users/:id` | ユーザー更新（`status` を含む） | 管理者 |
+| DELETE | `/users/:id` | ユーザー削除（`status === 'pending'` のユーザーのみ許可） | 管理者 |
 | GET/POST/PUT/DELETE, POST reorder | `/trackers` | トラッカー | 管理者 |
 | GET/POST/PUT/DELETE, POST reorder | `/statuses` | チケットステータス | 管理者 |
 | GET/POST/PUT/DELETE, POST reorder | `/priorities` | 優先度 | 管理者 |

@@ -1,11 +1,22 @@
 import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { randomInt } from 'crypto';
 import { authenticateToken, requireAdmin, AuthRequest } from '../middleware/auth';
-import { sendWelcomeEmail } from '../services/email';
+import { sendTemporaryPasswordEmail } from '../services/email';
 
 const router = Router();
 const prisma = new PrismaClient();
+
+const TEMP_PASSWORD_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^*';
+
+function generateTemporaryPassword(length = 12): string {
+  let password = '';
+  for (let i = 0; i < length; i += 1) {
+    password += TEMP_PASSWORD_CHARS[randomInt(0, TEMP_PASSWORD_CHARS.length)];
+  }
+  return password;
+}
 
 router.use(authenticateToken);
 
@@ -30,13 +41,14 @@ router.get('/users', async (_req: AuthRequest, res: Response) => {
 
 router.post('/users', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    const { email, password, firstName, lastName, isAdmin, status, groupIds } = req.body;
-    const passwordHash = await bcrypt.hash(password, 10);
+    const { email, firstName, lastName, isAdmin, groupIds } = req.body;
+    const temporaryPassword = generateTemporaryPassword();
+    const passwordHash = await bcrypt.hash(temporaryPassword, 10);
     const userRole = isAdmin ? 'admin' : 'member';
     const user = await prisma.user.create({
       data: {
         email, passwordHash, firstName, lastName, role: userRole, isAdmin: !!isAdmin,
-        status: status || 'active',
+        status: 'pending',
         groupMembers: {
           create: (groupIds || []).map((groupId: number) => ({ groupId })),
         },
@@ -48,9 +60,9 @@ router.post('/users', requireAdmin, async (req: AuthRequest, res: Response) => {
     });
 
     try {
-      await sendWelcomeEmail(email, firstName, lastName);
+      await sendTemporaryPasswordEmail(email, firstName, lastName, temporaryPassword);
     } catch (emailErr) {
-      console.error('Failed to send welcome email:', emailErr);
+      console.error('Failed to send temporary password email:', emailErr);
       // Create was successful, so we do not block returning a 201
     }
 
@@ -68,7 +80,13 @@ router.put('/users/:id', requireAdmin, async (req: AuthRequest, res: Response) =
     const data: any = { email, firstName, lastName };
     if (userRole !== undefined) data.role = userRole;
     if (isAdmin !== undefined) data.isAdmin = !!isAdmin;
-    if (status !== undefined) data.status = status;
+    if (status !== undefined) {
+      if (!['active', 'pending', 'inactive'].includes(status)) {
+        res.status(400).json({ error: '無効なステータスです' });
+        return;
+      }
+      data.status = status;
+    }
     if (password) data.passwordHash = await bcrypt.hash(password, 10);
     if (groupIds) {
       await prisma.groupMember.deleteMany({ where: { userId } });
@@ -92,7 +110,20 @@ router.put('/users/:id', requireAdmin, async (req: AuthRequest, res: Response) =
 
 router.delete('/users/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    await prisma.user.delete({ where: { id: Number(req.params.id) } });
+    const userId = Number(req.params.id);
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, status: true },
+    });
+    if (!targetUser) {
+      res.status(404).json({ error: 'ユーザーが見つかりません' });
+      return;
+    }
+    if (targetUser.status !== 'pending') {
+      res.status(400).json({ error: '仮登録ユーザーのみ削除できます' });
+      return;
+    }
+    await prisma.user.delete({ where: { id: userId } });
     res.json({ message: 'ユーザーを削除しました' });
   } catch (e) {
     res.status(500).json({ error: 'ユーザーの削除に失敗しました' });

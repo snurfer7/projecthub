@@ -17,7 +17,12 @@ if (process.env.AWS_SES_ENDPOINT_URL) {
 const sesClient = new SESClient(sesConfig);
 const EMAIL_FROM = process.env.EMAIL_FROM || "noreply@projecthub.local";
 
-export const sendWelcomeEmail = async (toEmail: string, firstName: string, lastName: string) => {
+export const sendTemporaryPasswordEmail = async (
+  toEmail: string,
+  firstName: string,
+  lastName: string,
+  temporaryPassword: string
+) => {
   const params = {
     Destination: {
       ToAddresses: [toEmail],
@@ -26,7 +31,7 @@ export const sendWelcomeEmail = async (toEmail: string, firstName: string, lastN
       Body: {
         Text: {
           Charset: "UTF-8",
-          Data: `${lastName} ${firstName} 様\n\nProjectHubのアカウントが作成されました。\nログイン用のメールアドレスは以下の通りです。\n\nメールアドレス: ${toEmail}\n\nパスワードについてはシステム管理者にお問い合わせください。\n\n※このメールは送信専用です。\n`,
+          Data: `${lastName} ${firstName} 様\n\nProjectHubのアカウントが作成されました。\nログイン情報は以下の通りです。\n\nメールアドレス: ${toEmail}\n仮パスワード: ${temporaryPassword}\n\n初回ログイン後は、パスワード変更が必須です。\n\n※このメールは送信専用です。\n`,
         },
       },
       Subject: {

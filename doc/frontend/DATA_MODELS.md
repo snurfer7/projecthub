@@ -4,7 +4,7 @@
 
 ## 認証・ユーザー
 
-- **User** — id, email, firstName, lastName, role, isAdmin, landingPage, show*Menu, createdAt, groupMembers 等。
+- **User** — id, email, firstName, lastName, role, isAdmin, landingPage, show*Menu, createdAt, groupMembers, status（`pending` \| `active` \| `inactive`）等。
 - **Group** — id, name, createdAt, _count, members。
 
 ## 会社・CRM
