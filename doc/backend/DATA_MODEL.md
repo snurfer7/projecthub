@@ -27,7 +27,7 @@
 - **Association** — 団体（業界団体等）。CompanyAssociation で Company と多対多。
 - **CompanyAssociation** — Company と Association の多対多。
 - **Deal** — 商談。Company, Contact, User（assignedTo）, Activity と関連。
-- **Activity** — CRM アクティビティ。Company, Contact, Deal, User と関連。
+- **Activity** — CRM アクティビティ。Company, Contact, Deal, User（作成者 `user` / 担当者 `assignedTo`）と関連。
 - **CompanyComment** — 会社へのコメント。Attachment 可。
 - **CompanyWikiPage** — 会社用 Wiki。親子階層（parentId）。
 - **ContactComment** — コンタクトへのコメント。Attachment 可。

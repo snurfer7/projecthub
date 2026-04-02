@@ -14,6 +14,10 @@ router.post('/login', async (req: AuthRequest, res: Response) => {
       res.status(401).json({ error: 'メールアドレスまたはパスワードが正しくありません' });
       return;
     }
+    if (user.status === 'inactive') {
+      res.status(401).json({ error: 'このアカウントは無効化されています' });
+      return;
+    }
     const token = generateToken(user.id, user.role, user.isAdmin);
     res.json({
       token,

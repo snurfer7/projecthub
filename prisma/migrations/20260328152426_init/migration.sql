@@ -6,6 +6,7 @@ CREATE TABLE "users" (
     "first_name" TEXT NOT NULL,
     "last_name" TEXT NOT NULL,
     "role" TEXT NOT NULL DEFAULT 'member',
+    "status" TEXT NOT NULL DEFAULT 'active',
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "is_admin" BOOLEAN NOT NULL DEFAULT false,
     "landing_page" TEXT NOT NULL DEFAULT 'home',
@@ -61,6 +62,7 @@ CREATE TABLE "locations" (
     "street" TEXT,
     "building" TEXT,
     "notes" TEXT,
+    "is_profile_display" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "latitude" DOUBLE PRECISION,
     "longitude" DOUBLE PRECISION,
@@ -365,6 +367,7 @@ CREATE TABLE "activities" (
     "contact_id" INTEGER,
     "deal_id" INTEGER,
     "user_id" INTEGER NOT NULL,
+    "assigned_to_id" INTEGER,
     "type" TEXT NOT NULL,
     "subject" TEXT NOT NULL,
     "description" TEXT,
@@ -512,6 +515,9 @@ CREATE UNIQUE INDEX "workflow_transitions_role_id_old_status_id_new_status_id_ke
 
 -- CreateIndex
 CREATE UNIQUE INDEX "company_wiki_pages_company_id_title_key" ON "company_wiki_pages"("company_id", "title");
+
+-- CreateIndex
+CREATE INDEX "activities_assigned_to_id_idx" ON "activities"("assigned_to_id");
 
 -- AddForeignKey
 ALTER TABLE "group_members" ADD CONSTRAINT "group_members_group_id_fkey" FOREIGN KEY ("group_id") REFERENCES "groups"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -683,6 +689,9 @@ ALTER TABLE "activities" ADD CONSTRAINT "activities_deal_id_fkey" FOREIGN KEY ("
 
 -- AddForeignKey
 ALTER TABLE "activities" ADD CONSTRAINT "activities_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "activities" ADD CONSTRAINT "activities_assigned_to_id_fkey" FOREIGN KEY ("assigned_to_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "workflow_transitions" ADD CONSTRAINT "workflow_transitions_new_status_id_fkey" FOREIGN KEY ("new_status_id") REFERENCES "issue_statuses"("id") ON DELETE CASCADE ON UPDATE CASCADE;

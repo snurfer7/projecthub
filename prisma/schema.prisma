@@ -25,6 +25,7 @@ model User {
   showGanttMenu    Boolean           @default(true) @map("show_gantt_menu")
   showProjectsMenu Boolean           @default(true) @map("show_projects_menu")
   activities       Activity[]
+  assignedActivities Activity[]        @relation("ActivityAssignee")
   attachments      Attachment[]
   companyComments  CompanyComment[]
   companyWikiPages CompanyWikiPage[]
@@ -475,6 +476,7 @@ model Activity {
   contactId   Int?      @map("contact_id")
   dealId      Int?      @map("deal_id")
   userId      Int       @map("user_id")
+  assignedToId Int?     @map("assigned_to_id")
   type        String
   subject     String
   description String?
@@ -485,7 +487,9 @@ model Activity {
   contact     Contact?  @relation(fields: [contactId], references: [id], onDelete: Cascade)
   deal        Deal?     @relation(fields: [dealId], references: [id], onDelete: Cascade)
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedTo  User?     @relation("ActivityAssignee", fields: [assignedToId], references: [id])
 
+  @@index([assignedToId])
   @@map("activities")
 }
 

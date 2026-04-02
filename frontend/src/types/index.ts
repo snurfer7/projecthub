@@ -328,6 +328,7 @@ export interface Activity {
   contactId?: number | null;
   dealId?: number | null;
   userId: number;
+  assignedToId?: number | null;
   type: string;
   subject: string;
   description?: string;
@@ -335,6 +336,7 @@ export interface Activity {
   completed: boolean;
   createdAt: string;
   user: { id: number; firstName: string; lastName: string };
+  assignedTo?: { id: number; firstName: string; lastName: string } | null;
   contact?: { id: number; firstName: string; lastName: string } | null;
   deal?: { id: number; name: string } | null;
 }

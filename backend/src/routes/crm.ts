@@ -1,9 +1,16 @@
 import { Router, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { AuthRequest, authenticateToken } from '../middleware/auth';
 
 const router = Router();
 const prisma = new PrismaClient();
+
+function getActivityPersistenceErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2022') {
+    return 'DBスキーマが未更新です。マイグレーションを適用してから再実行してください';
+  }
+  return fallback;
+}
 
 router.use(authenticateToken);
 
@@ -37,7 +44,10 @@ router.get('/contacts/:id', async (req: AuthRequest, res: Response) => {
         details: { include: { location: { select: { id: true, name: true } } } },
         deals: { select: { id: true, name: true, status: true, amount: true } },
         activities: {
-          include: { user: { select: { id: true, firstName: true, lastName: true } } },
+          include: {
+            user: { select: { id: true, firstName: true, lastName: true } },
+            assignedTo: { select: { id: true, firstName: true, lastName: true } },
+          },
           orderBy: { createdAt: 'desc' },
           take: 20,
         },
@@ -240,7 +250,10 @@ router.get('/deals/:id', async (req: AuthRequest, res: Response) => {
         contact: { select: { id: true, firstName: true, lastName: true } },
         assignedTo: { select: { id: true, firstName: true, lastName: true } },
         activities: {
-          include: { user: { select: { id: true, firstName: true, lastName: true } } },
+          include: {
+            user: { select: { id: true, firstName: true, lastName: true } },
+            assignedTo: { select: { id: true, firstName: true, lastName: true } },
+          },
           orderBy: { createdAt: 'desc' },
         },
       },
@@ -325,58 +338,79 @@ router.get('/activities', async (req: AuthRequest, res: Response) => {
       where,
       include: {
         user: { select: { id: true, firstName: true, lastName: true } },
+        assignedTo: { select: { id: true, firstName: true, lastName: true } },
         contact: { select: { id: true, firstName: true, lastName: true } },
         deal: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
     res.json(activities);
-  } catch {
-    res.status(500).json({ error: '活動の取得に失敗しました' });
+  } catch (e) {
+    console.error('Activity fetch error:', e);
+    res.status(500).json({ error: getActivityPersistenceErrorMessage(e, '活動の取得に失敗しました') });
   }
 });
 
 router.post('/activities', async (req: AuthRequest, res: Response) => {
   try {
-    const { companyId, contactId, dealId, type, subject, description, dueDate, completed } = req.body;
+    const { companyId, contactId, dealId, assignedToId, type, subject, description, dueDate, completed } = req.body;
+    if (assignedToId) {
+      const user = await prisma.user.findUnique({ where: { id: Number(assignedToId) } });
+      if (user && (user.status === 'pending' || user.status === 'inactive')) {
+        return res.status(400).json({ error: '選択されたユーザー（仮登録または退職）は担当者に指定できません' });
+      }
+    }
+
     const activity = await prisma.activity.create({
       data: {
         companyId, contactId, dealId, userId: req.userId!,
+        assignedToId,
         type, subject, description,
         dueDate: dueDate ? new Date(dueDate) : null,
         completed: completed || false,
       },
       include: {
         user: { select: { id: true, firstName: true, lastName: true } },
+        assignedTo: { select: { id: true, firstName: true, lastName: true } },
         contact: { select: { id: true, firstName: true, lastName: true } },
         deal: { select: { id: true, name: true } },
       },
     });
     res.status(201).json(activity);
-  } catch {
-    res.status(500).json({ error: '活動の作成に失敗しました' });
+  } catch (e) {
+    console.error('Activity create error:', e);
+    res.status(500).json({ error: getActivityPersistenceErrorMessage(e, '活動の作成に失敗しました') });
   }
 });
 
 router.put('/activities/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const { contactId, dealId, type, subject, description, dueDate, completed } = req.body;
+    const { contactId, dealId, assignedToId, type, subject, description, dueDate, completed } = req.body;
+    if (assignedToId) {
+      const user = await prisma.user.findUnique({ where: { id: Number(assignedToId) } });
+      if (user && (user.status === 'pending' || user.status === 'inactive')) {
+        return res.status(400).json({ error: '選択されたユーザー（仮登録または退職）は担当者に指定できません' });
+      }
+    }
+
     const activity = await prisma.activity.update({
       where: { id: Number(req.params.id) },
       data: {
-        contactId, dealId, type, subject, description,
+        contactId, dealId, assignedToId, type, subject, description,
         dueDate: dueDate ? new Date(dueDate) : null,
         completed,
       },
       include: {
         user: { select: { id: true, firstName: true, lastName: true } },
+        assignedTo: { select: { id: true, firstName: true, lastName: true } },
         contact: { select: { id: true, firstName: true, lastName: true } },
         deal: { select: { id: true, name: true } },
       },
     });
     res.json(activity);
-  } catch {
-    res.status(500).json({ error: '活動の更新に失敗しました' });
+  } catch (e) {
+    console.error('Activity update error:', e);
+    res.status(500).json({ error: getActivityPersistenceErrorMessage(e, '活動の更新に失敗しました') });
   }
 });
 

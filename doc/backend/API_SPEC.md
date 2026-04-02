@@ -8,7 +8,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 | メソッド | パス | 認証 | 概要 |
 |----------|------|------|------|
-| POST | `/login` | 不要 | ログイン。Body: `email`, `password` → `token`, `user`（`user.status` を含む） |
+| POST | `/login` | 不要 | ログイン。Body: `email`, `password` → `token`, `user`（`user.status` を含む）。`status === 'inactive'` のユーザーはログイン不可（401） |
 | POST | `/register` | 不要 | 登録。Body: `email`, `password`, `firstName`, `lastName` → `token`, `user` |
 | GET | `/me` | 必要 | 現在ユーザー情報（`status` を含む） |
 | PUT | `/password` | 必要 | パスワード変更。Body: `currentPassword`, `newPassword`。ログイン中ユーザーの `status === 'pending'` の場合、更新完了時に `status` を自動で `active` に更新 |
@@ -155,7 +155,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | GET/POST/PUT/DELETE | `/contacts`, `/contacts/:id` | コンタクト |
 | GET/POST/PUT/DELETE | `/contacts/:id/comments`, `/:commentId` | コンタクトコメント |
 | GET/POST/PUT/DELETE | `/deals`, `/deals/:id` | 商談 |
-| GET/POST/PUT/DELETE | `/activities`, `/activities/:id` | アクティビティ |
+| GET/POST/PUT/DELETE | `/activities`, `/activities/:id` | アクティビティ（`assignedToId` で担当者を指定可能。レスポンスは `assignedTo` を含む） |
 
 ---
 

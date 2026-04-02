@@ -15,7 +15,7 @@
 - **ContactDetail** — 担当者詳細（department, position, phone, email, locationId, isPrimary）。
 - **ContactComment**, **CompanyComment** — コメント＋user, attachments。
 - **Deal** — 商談（companyId, contactId, name, amount, status, probability, expectedCloseDate, assignedToId, notes 等）。
-- **Activity** — CRM アクティビティ（type, subject, description, dueDate, completed 等）。
+- **Activity** — CRM アクティビティ（type, subject, description, dueDate, completed, assignedToId, assignedTo 等）。
 - **CompanyWikiPage** — 会社 Wiki（title, content, parentId, position, children）。
 
 ## プロジェクト

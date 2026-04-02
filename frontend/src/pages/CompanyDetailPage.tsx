@@ -88,7 +88,7 @@ export default function CompanyDetailPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
-  const [activityForm, setActivityForm] = useState({ type: 'call', subject: '', description: '', contactId: '', dealId: '', dueDate: '', completed: false });
+  const [activityForm, setActivityForm] = useState({ type: 'call', subject: '', description: '', contactId: '', dealId: '', assignedToId: '', dueDate: '', completed: false });
   const [activityError, setActivityError] = useState('');
 
   // Associations
@@ -242,7 +242,7 @@ export default function CompanyDetailPage() {
   // ========== Activity handlers ==========
   const openCreateActivity = () => {
     setEditingActivity(null);
-    setActivityForm({ type: 'call', subject: '', description: '', contactId: '', dealId: '', dueDate: '', completed: false });
+    setActivityForm({ type: 'call', subject: '', description: '', contactId: '', dealId: '', assignedToId: '', dueDate: '', completed: false });
     setActivityError('');
     setShowActivityModal(true);
   };
@@ -255,6 +255,7 @@ export default function CompanyDetailPage() {
       description: a.description || '',
       contactId: a.contactId?.toString() || '',
       dealId: a.dealId?.toString() || '',
+      assignedToId: a.assignedToId?.toString() || '',
       dueDate: a.dueDate?.split('T')[0] || '',
       completed: a.completed,
     });
@@ -271,6 +272,7 @@ export default function CompanyDetailPage() {
         description: activityForm.description || null,
         contactId: activityForm.contactId ? parseInt(activityForm.contactId) : null,
         dealId: activityForm.dealId ? parseInt(activityForm.dealId) : null,
+        assignedToId: activityForm.assignedToId ? parseInt(activityForm.assignedToId) : null,
         dueDate: activityForm.dueDate || null,
         completed: activityForm.completed,
       };
@@ -521,7 +523,7 @@ export default function CompanyDetailPage() {
                     </div>
                     {a.description && <p className="text-sm text-gray-600 mt-1">{a.description}</p>}
                     <div className="text-xs text-gray-400 mt-1">
-                      {a.user.lastName} {a.user.firstName} · {new Date(a.createdAt).toLocaleString('ja-JP')}
+                      担当: {a.assignedTo ? `${a.assignedTo.lastName} ${a.assignedTo.firstName}` : '-'} · 登録: {a.user.lastName} {a.user.firstName} · {new Date(a.createdAt).toLocaleString('ja-JP')}
                       {a.dueDate && <span className="ml-2">期限: {new Date(a.dueDate).toLocaleDateString('ja-JP')}</span>}
                     </div>
                   </div>
@@ -937,6 +939,14 @@ export default function CompanyDetailPage() {
               onChange={(val) => setActivityForm({ ...activityForm, dealId: val })}
             />
           </div>
+          <Combobox
+            label="担当者"
+            value={activityForm.assignedToId}
+            options={users
+              .filter(u => u.status === 'active' || activityForm.assignedToId === String(u.id))
+              .map(u => ({ value: u.id.toString(), label: `${u.lastName} ${u.firstName}` }))}
+            onChange={(val) => setActivityForm({ ...activityForm, assignedToId: val })}
+          />
           <div className="flex items-center gap-2">
             <input
               type="checkbox"
