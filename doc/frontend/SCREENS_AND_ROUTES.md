@@ -15,7 +15,7 @@
 
 | パス | 動作 |
 |------|------|
-| `/` | `user.landingPage` に応じて `/home` \| `/projects` \| `/gantt` \| `/companies` にリダイレクト |
+| `/` | `user.landingPage` に応じて `/home` \| `/projects`（または従来値 `gantt` の場合は `/projects?view=gantt`）\| `/companies` にリダイレクト |
 
 ### 主要画面
 
@@ -23,7 +23,7 @@
 |------|----------------|------|
 | `/home` | HomePage | ホーム（任意コンテンツ表示） |
 | `/dashboard` | DashboardPage | ダッシュボード |
-| `/projects` | ProjectListPage | プロジェクト一覧 |
+| `/projects` | ProjectListPage | プロジェクト一覧。一覧内でガント等に切替可能。ランディング用にクエリ `view=gantt` でガントを初期表示（表示確定後にクエリは除去） |
 | `/projects/:projectId` | ProjectDetailPage | プロジェクト詳細（子ルートあり） |
 | `/projects/:projectId/` (index) | ProjectOverview | 概要タブ |
 | `/projects/:projectId/issues` | IssueListPage | チケット一覧 |
@@ -35,13 +35,12 @@
 | `/projects/:projectId/time-entries` | TimeEntriesPage | 工数一覧 |
 | `/issues/:id` | IssueDetailPage | チケット詳細 |
 | `/issues/:id/edit` | IssueFormPage | チケット編集 |
-| `/gantt` | GanttAllPage | ガント（全体） |
-| `/companies` | CompaniesPage | 会社一覧 |
-| `/companies/:id` | CompanyDetailPage | 会社詳細 |
+| `/companies` | CompaniesPage | 会社一覧（API ページング・サーバー側検索。ページサイズ変更・前後ページ） |
+| `/companies/:id` | CompanyDetailPage | 会社詳細。クエリ `tab` に加え、`activity=<活動ID>` で活動履歴タブ内の該当行を強調、`comment=<コメントID>` でコメントタブを開き該当コメントを強調 |
 | `/associations` | AssociationsPage | 団体マスタ |
 | `/legal-entity-statuses` | LegalEntityStatusesPage | 法人区分マスタ |
 | `/settings` | SettingsPage | 設定（パスワード・ランディング・メニュー表示）。`user.status === 'pending'` の場合は遷移不可 |
-| `/admin` | AdminPage | 管理（ユーザー・トラッカー・ステータス・優先度・グループ・ロール・会社・法人区分・団体・時間設定等） |
+| `/admin` | AdminPage | 管理（ユーザー・トラッカー・ステータス・優先度・グループ・ロール・会社・法人区分・団体・**メール設定**（SES / SMTP・テスト送信）・時間設定等） |
 
 ### その他
 

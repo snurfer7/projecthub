@@ -10,12 +10,13 @@
 ## 会社・CRM
 
 - **Company** — id, name, 住所系（postalCode, prefecture, city, street, building）, phone, fax, website, notes, legalEntityStatusId, legalEntityStatus, legalEntityPosition, createdAt, _count, projects, locations, contacts, associations, comments, wikiPages。
+- **PaginatedCompaniesResponse** — `GET /api/companies?page=…` 用。`items`（Company[]）, `total`, `page`, `pageSize`, `totalPages`。
 - **Association**, **LegalEntityStatus**, **Location** — 会社・団体・法人区分・拠点。
 - **Contact** — id, companyId, firstName, lastName, notes, company, details, deals, _count。
 - **ContactDetail** — 担当者詳細（department, position, phone, email, locationId, isPrimary）。
-- **ContactComment**, **CompanyComment** — コメント＋user, attachments。
+- **ContactComment**, **CompanyComment** — コメント＋user, attachments。**CompanyComment** は活動のファイル用のとき `linkedActivity?: { id, subject }`（API の紐づけ活動）を含み得る。
 - **Deal** — 商談（companyId, contactId, name, amount, status, probability, expectedCloseDate, assignedToId, notes 等）。
-- **Activity** — CRM アクティビティ（type, subject, description, dueDate, completed, assignedToId, assignedTo 等）。
+- **Activity** — CRM アクティビティ（`type`, subject, description, dueDate, completed, `contactId`・`contact`, `assignedToId`・`assignedTo`, **`fileCommentId`**, **`fileComment`**＝`{ id, attachments: Attachment[] } | null` 等）。`type` の標準値は [API_SPEC.md](../backend/API_SPEC.md) の Activity.type（`call`〜`claim`）を参照。
 - **CompanyWikiPage** — 会社 Wiki（title, content, parentId, position, children）。
 
 ## プロジェクト
@@ -43,7 +44,8 @@
 
 ## システム
 
-- **SystemSetting** — id, startTime, endTime, managementTimes, conversionTimes。
+- **SystemSetting** — id, startTime, endTime, managementTimes, conversionTimes。メール関連: emailTransport（`ses` \| `smtp`）, emailFromOverride, smtpHost, smtpPort, smtpUser, smtpSecure（API の GET ではパスワードは含めず `smtpPasswordSet` を別途返す）。
+- **EmailSettings（API 応答）** — GET `/admin/settings/email`: emailTransport, emailFromOverride, smtpHost, smtpPort, smtpUser, smtpSecure, smtpPasswordSet。
 
 ## 注意
 

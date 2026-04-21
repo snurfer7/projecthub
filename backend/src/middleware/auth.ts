@@ -24,8 +24,24 @@ export function authenticateToken(req: AuthRequest, res: Response, next: NextFun
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: number; role: string; isAdmin?: boolean };
-    req.userId = decoded.userId;
+    const decoded = jwt.verify(token, JWT_SECRET) as {
+      userId?: unknown;
+      role: string;
+      isAdmin?: boolean;
+    };
+    // JWT のペイロードはクライアント次第で number / string になり得る。Prisma は Int 必須のため正規化する。
+    const uid = Number(decoded.userId);
+    if (
+      decoded.userId === undefined ||
+      decoded.userId === null ||
+      Number.isNaN(uid) ||
+      !Number.isInteger(uid) ||
+      uid < 1
+    ) {
+      res.status(403).json({ error: 'トークンが無効です' });
+      return;
+    }
+    req.userId = uid;
     req.userRole = decoded.role;
     req.isAdmin = decoded.isAdmin;
     next();

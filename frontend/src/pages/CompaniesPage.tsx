@@ -1,24 +1,64 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
-import { Company } from '../types';
+import { Company, PaginatedCompaniesResponse } from '../types';
 import CompanyModal from '../components/CompanyModal';
 import { formatCompanyName } from '../utils/format';
+
+const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
+
+type ListQuery = { page: number; pageSize: number; q: string };
 
 export default function CompaniesPage() {
   const navigate = useNavigate();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [listQuery, setListQuery] = useState<ListQuery>({ page: 1, pageSize: 50, q: '' });
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
   const [showLegalEntity, setShowLegalEntity] = useState(true);
 
-  // Company modal states
   const [showCompanyModal, setShowCompanyModal] = useState(false);
 
-  const loadCompanies = () => {
-    api.get('/companies').then((res) => setCompanies(res.data));
-  };
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const nextQ = searchQuery.trim();
+      setListQuery((prev) => {
+        if (prev.q === nextQ) return prev;
+        return { ...prev, page: 1, q: nextQ };
+      });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
-  useEffect(() => { loadCompanies(); }, []);
+  const loadCompanies = useCallback(() => {
+    const { page, pageSize, q } = listQuery;
+    setLoading(true);
+    api
+      .get<PaginatedCompaniesResponse>('/companies', {
+        params: {
+          page,
+          pageSize,
+          ...(q ? { q } : {}),
+        },
+      })
+      .then((res) => {
+        setCompanies(res.data.items);
+        setTotal(res.data.total);
+        setTotalPages(res.data.totalPages);
+      })
+      .catch(() => {
+        setCompanies([]);
+        setTotal(0);
+        setTotalPages(1);
+      })
+      .finally(() => setLoading(false));
+  }, [listQuery]);
+
+  useEffect(() => {
+    loadCompanies();
+  }, [loadCompanies]);
 
   const openCreateCompanyModal = () => {
     setShowCompanyModal(true);
@@ -27,6 +67,8 @@ export default function CompaniesPage() {
   const closeCompanyModal = () => {
     setShowCompanyModal(false);
   };
+
+  const { page, pageSize } = listQuery;
 
   return (
     <div>
@@ -71,46 +113,90 @@ export default function CompaniesPage() {
             </tr>
           </thead>
           <tbody>
-            {companies.filter((c) => {
-              if (!searchQuery) return true;
-              const q = searchQuery.toLowerCase();
-              const mainLocation = c.locations && c.locations.length > 0 ? c.locations[0] : null;
-              
-              const addressMatch = mainLocation ? (
-                   (mainLocation.postalCode && mainLocation.postalCode.toLowerCase().includes(q))
-                || (mainLocation.prefecture && mainLocation.prefecture.toLowerCase().includes(q))
-                || (mainLocation.city && mainLocation.city.toLowerCase().includes(q))
-                || (mainLocation.street && mainLocation.street.toLowerCase().includes(q))
-                || (mainLocation.building && mainLocation.building.toLowerCase().includes(q))
-              ) : false;
-
-              return c.name.toLowerCase().includes(q)
-                || (mainLocation?.phone && mainLocation.phone.toLowerCase().includes(q))
-                || (mainLocation?.fax && mainLocation.fax.toLowerCase().includes(q))
-                || addressMatch;
-            }).map((company) => {
-              const mainLocation = company.locations && company.locations.length > 0 ? company.locations[0] : null;
-              return (
-              <tr key={company.id} className="border-t hover:bg-gray-50 cursor-pointer"
-                onClick={() => navigate(`/companies/${company.id}`)}>
-                <td className="px-4 py-3 text-sky-600 font-medium">
-                  {showLegalEntity ? formatCompanyName(company) : company.name}
+            {loading ? (
+              <tr>
+                <td colSpan={4} className="px-4 py-12 text-center text-gray-500">
+                  読み込み中…
                 </td>
-                <td className="px-4 py-3 text-gray-600">{mainLocation?.phone || '-'}</td>
-                <td className="px-4 py-3 text-gray-600">
-                  {mainLocation?.postalCode && `〒${mainLocation.postalCode} `}
-                  {mainLocation?.prefecture}{mainLocation?.city}{mainLocation?.street}{mainLocation?.building}
-                  {!mainLocation && '-'}
-                </td>
-                <td className="px-4 py-3 text-gray-600">{company._count?.projects || 0}</td>
               </tr>
-            );
-          })}
+            ) : (
+              companies.map((company) => {
+                const mainLocation =
+                  company.locations && company.locations.length > 0 ? company.locations[0] : null;
+                return (
+                  <tr
+                    key={company.id}
+                    className="border-t hover:bg-gray-50 cursor-pointer"
+                    onClick={() => navigate(`/companies/${company.id}`)}
+                  >
+                    <td className="px-4 py-3 text-sky-600 font-medium">
+                      {showLegalEntity ? formatCompanyName(company) : company.name}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">{mainLocation?.phone || '-'}</td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {mainLocation?.postalCode && `〒${mainLocation.postalCode} `}
+                      {mainLocation?.prefecture}
+                      {mainLocation?.city}
+                      {mainLocation?.street}
+                      {mainLocation?.building}
+                      {!mainLocation && '-'}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">{company._count?.projects || 0}</td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
-        {companies.length === 0 && (
-          <div className="text-center py-8 text-gray-500">企業が登録されていません</div>
+        {!loading && companies.length === 0 && (
+          <div className="text-center py-8 text-gray-500">該当する企業がありません</div>
         )}
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600">
+        <div className="flex items-center gap-2">
+          <span>表示件数</span>
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              setListQuery((p) => ({ ...p, page: 1, pageSize: n }));
+            }}
+            className="border rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+          >
+            {PAGE_SIZE_OPTIONS.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          {total === 0
+            ? '0 件'
+            : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} / 全 ${total} 件`}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={page <= 1 || loading}
+            onClick={() => setListQuery((p) => ({ ...p, page: Math.max(1, p.page - 1) }))}
+            className="px-3 py-1 rounded-md border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            前へ
+          </button>
+          <span>
+            {page} / {totalPages}
+          </span>
+          <button
+            type="button"
+            disabled={page >= totalPages || loading}
+            onClick={() => setListQuery((p) => ({ ...p, page: p.page + 1 }))}
+            className="px-3 py-1 rounded-md border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            次へ
+          </button>
+        </div>
       </div>
 
       <CompanyModal

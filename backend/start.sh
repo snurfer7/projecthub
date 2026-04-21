@@ -10,13 +10,13 @@ echo "Database is ready."
 cd /app/backend
 
 echo "Generating Prisma client..."
-npx prisma generate --schema=../prisma/schema.prisma
+npx prisma generate --schema=./prisma/schema.prisma
 
 echo "Syncing database with migrations..."
-npx prisma migrate deploy --schema=../prisma/schema.prisma
+npx prisma migrate deploy --schema=./prisma/schema.prisma
 
 echo "Seeding database..."
-NODE_PATH=/app/backend/node_modules npx tsx ../prisma/seed.ts
+NODE_PATH=/app/backend/node_modules npx tsx ./prisma/seed.ts
 
 echo "Starting server..."
 exec npx tsx watch src/index.ts

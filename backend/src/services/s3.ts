@@ -16,11 +16,20 @@ const s3Client = new S3Client({
   },
   ...(process.env.AWS_S3_ENDPOINT_URL && {
     endpoint: process.env.AWS_S3_ENDPOINT_URL,
-    forcePathStyle: true, // Required for MinIO
+    forcePathStyle: true, // MinIO / LocalStack 等の互換エンドポイント向け
   }),
 });
 
 const bucketName = process.env.S3_BUCKET_NAME || 'redmine-uploads';
+
+/**
+ * コメント等の添付アップロード（`attachments` ルート）と同一規則の S3 オブジェクトキー。
+ * `uploads/<timestamp>-<random>-<元のファイル名>`
+ */
+export function buildUploadS3Key(originalFilename: string): string {
+  const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+  return `uploads/${uniqueSuffix}-${originalFilename}`;
+}
 
 export async function uploadFileToS3(
   key: string,

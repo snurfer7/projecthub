@@ -8,9 +8,27 @@ const prisma = new PrismaClient();
 
 router.post('/login', async (req: AuthRequest, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const emailRaw = req.body?.email;
+    const passwordRaw = req.body?.password;
+    if (typeof emailRaw !== 'string' || typeof passwordRaw !== 'string') {
+      res.status(400).json({ error: 'メールアドレスとパスワードを入力してください' });
+      return;
+    }
+    const email = emailRaw.trim();
+    const password = passwordRaw;
+    if (!email || !password) {
+      res.status(400).json({ error: 'メールアドレスとパスワードを入力してください' });
+      return;
+    }
+
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    let passwordOk = false;
+    try {
+      passwordOk = await bcrypt.compare(password, user?.passwordHash ?? '');
+    } catch {
+      passwordOk = false;
+    }
+    if (!user || !passwordOk) {
       res.status(401).json({ error: 'メールアドレスまたはパスワードが正しくありません' });
       return;
     }
@@ -37,6 +55,7 @@ router.post('/login', async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (e) {
+    console.error('POST /auth/login:', e);
     res.status(500).json({ error: 'ログインに失敗しました' });
   }
 });
@@ -65,6 +84,10 @@ router.get('/me', authenticateToken, async (req: AuthRequest, res: Response) => 
 router.put('/password', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const { currentPassword, newPassword } = req.body;
+    if (typeof currentPassword !== 'string' || typeof newPassword !== 'string') {
+      res.status(400).json({ error: '現在のパスワードと新しいパスワードを入力してください' });
+      return;
+    }
     if (!currentPassword || !newPassword) {
       res.status(400).json({ error: '現在のパスワードと新しいパスワードを入力してください' });
       return;
@@ -78,7 +101,12 @@ router.put('/password', authenticateToken, async (req: AuthRequest, res: Respons
       res.status(404).json({ error: 'ユーザーが見つかりません' });
       return;
     }
-    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    let valid = false;
+    try {
+      valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    } catch {
+      valid = false;
+    }
     if (!valid) {
       res.status(401).json({ error: '現在のパスワードが正しくありません' });
       return;
@@ -100,7 +128,7 @@ router.put('/password', authenticateToken, async (req: AuthRequest, res: Respons
 router.put('/landing-page', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const { landingPage } = req.body;
-    if (!['home', 'projects', 'gantt', 'companies'].includes(landingPage)) {
+    if (!['home', 'projects', 'companies'].includes(landingPage)) {
       res.status(400).json({ error: '無効な遷移先です' });
       return;
     }

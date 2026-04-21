@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import multer from 'multer';
 import { authenticateToken, AuthRequest, generateDownloadToken, verifyDownloadToken } from '../middleware/auth';
-import { uploadFileToS3, deleteFileFromS3, getSignedDownloadUrl } from '../services/s3';
+import { buildUploadS3Key, uploadFileToS3, deleteFileFromS3, getSignedDownloadUrl } from '../services/s3';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -28,9 +28,7 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req: Aut
     // Correct Multer's misinterpretation of UTF-8 filenames
     const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
 
-    // Generate S3 key
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const s3Key = `uploads/${uniqueSuffix}-${originalName}`;
+    const s3Key = buildUploadS3Key(originalName);
 
     // Upload to S3
     await uploadFileToS3(s3Key, req.file.buffer, req.file.mimetype);

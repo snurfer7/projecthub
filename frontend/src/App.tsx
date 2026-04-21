@@ -20,7 +20,6 @@ const IssueFormPage = lazy(() => import('./pages/IssueFormPage'));
 const WikiListPage = lazy(() => import('./pages/WikiListPage'));
 const GanttPage = lazy(() => import('./pages/GanttPage'));
 const KanbanPage = lazy(() => import('./pages/KanbanPage'));
-const GanttAllPage = lazy(() => import('./pages/GanttAllPage'));
 const TimeEntriesPage = lazy(() => import('./pages/TimeEntriesPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
 const CompaniesPage = lazy(() => import('./pages/CompaniesPage'));
@@ -72,7 +71,7 @@ function App() {
         <Routes>
           <Route path="/" element={
             user.landingPage === 'projects' ? <Navigate to="/projects" replace /> :
-              user.landingPage === 'gantt' ? <Navigate to="/gantt" replace /> :
+              user.landingPage === 'gantt' ? <Navigate to="/projects?view=gantt" replace /> :
                 user.landingPage === 'companies' ? <Navigate to="/companies" replace /> :
                   <Navigate to="/home" replace />
           } />
@@ -91,7 +90,6 @@ function App() {
           </Route>
           <Route path="/issues/:id" element={<IssueDetailPage user={user} />} />
           <Route path="/issues/:id/edit" element={<IssueFormPage />} />
-          <Route path="/gantt" element={<GanttAllPage />} />
           <Route path="/associations" element={<AssociationsPage />} />
           <Route path="/legal-entity-statuses" element={<LegalEntityStatusesPage />} />
           <Route path="/companies" element={<CompaniesPage />} />

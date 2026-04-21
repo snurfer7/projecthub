@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect, useRef, FormEvent } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/client';
 import { Company, Contact, Deal, Activity, Association } from '../types';
@@ -10,7 +10,7 @@ import CompanyWikiTab from '../components/CompanyWikiTab';
 import CompanyCommentsTab from '../components/CompanyCommentsTab';
 import ContactCommentsSection from '../components/ContactCommentsSection';
 import CompanyLocationsTab from '../components/CompanyLocationsTab';
-import ConfirmationModal from '../components/ConfirmationModal';
+import ConfirmationModal, { ConfirmationConfirmExtra } from '../components/ConfirmationModal';
 import Combobox from '../components/Combobox';
 import TextInput from '../components/TextInput';
 import NumberInput from '../components/NumberInput';
@@ -34,6 +34,11 @@ const ACTIVITY_TYPES: { value: string; label: string; icon: string }[] = [
   { value: 'visit', label: '訪問', icon: '🏢' },
   { value: 'meeting', label: '会議', icon: '👥' },
   { value: 'memo', label: 'メモ', icon: '📝' },
+  { value: 'lead', label: '引合', icon: '🤝' },
+  { value: 'estimate', label: '見積り', icon: '📋' },
+  { value: 'inquiry', label: '問合せ', icon: '❓' },
+  { value: 'maintenance', label: 'メンテ', icon: '🔧' },
+  { value: 'claim', label: 'クレーム', icon: '⚠️' },
 ];
 
 function getDealStatusBadge(status: string) {
@@ -58,6 +63,15 @@ export default function CompanyDetailPage() {
   const { search } = useLocation();
   const query = new URLSearchParams(search);
   const activeTab = (query.get('tab') || 'overview') as 'overview' | 'contacts' | 'deals' | 'activities' | 'projects' | 'wiki' | 'comments' | 'locations';
+
+  const parseQueryInt = (key: string): number | null => {
+    const v = query.get(key);
+    if (v == null || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const highlightActivityId = parseQueryInt('activity');
+  const highlightCommentId = parseQueryInt('comment');
 
   const setActiveTab = (tab: string) => {
     navigate(`?tab=${tab}`, { replace: true });
@@ -89,7 +103,9 @@ export default function CompanyDetailPage() {
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [activityForm, setActivityForm] = useState({ type: 'call', subject: '', description: '', contactId: '', dealId: '', assignedToId: '', dueDate: '', completed: false });
+  const [activityFiles, setActivityFiles] = useState<File[]>([]);
   const [activityError, setActivityError] = useState('');
+  const activityHighlightRef = useRef<HTMLDivElement | null>(null);
 
   // Associations
   const [masterAssociations, setMasterAssociations] = useState<Association[]>([]);
@@ -97,8 +113,13 @@ export default function CompanyDetailPage() {
   const [showAddAssociationModal, setShowAddAssociationModal] = useState(false);
   const [newAssociationId, setNewAssociationId] = useState('');
 
-  // 削除用ステート
-  const [confirmDelete, setConfirmDelete] = useState<{ type: string; id: number; name: string } | null>(null);
+  // 削除用ステート（活動でファイル用コメントがあるとき fileCommentId を持つ）
+  const [confirmDelete, setConfirmDelete] = useState<{
+    type: string;
+    id: number;
+    name: string;
+    fileCommentId?: number | null;
+  } | null>(null);
 
   const companyId = Number(id);
 
@@ -123,6 +144,15 @@ export default function CompanyDetailPage() {
     loadUsers();
     loadLocations();
   }, [id]);
+
+  useEffect(() => {
+    if (activeTab !== 'activities' || highlightActivityId == null || !activityHighlightRef.current) return;
+    const el = activityHighlightRef.current;
+    el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    el.classList.add('ring-2', 'ring-sky-400');
+    const t = window.setTimeout(() => el.classList.remove('ring-2', 'ring-sky-400'), 4000);
+    return () => window.clearTimeout(t);
+  }, [activeTab, highlightActivityId, activities]);
 
   const handleDeleteCompany = async () => {
     try {
@@ -243,6 +273,7 @@ export default function CompanyDetailPage() {
   const openCreateActivity = () => {
     setEditingActivity(null);
     setActivityForm({ type: 'call', subject: '', description: '', contactId: '', dealId: '', assignedToId: '', dueDate: '', completed: false });
+    setActivityFiles([]);
     setActivityError('');
     setShowActivityModal(true);
   };
@@ -259,6 +290,7 @@ export default function CompanyDetailPage() {
       dueDate: a.dueDate?.split('T')[0] || '',
       completed: a.completed,
     });
+    setActivityFiles([]);
     setActivityError('');
     setShowActivityModal(true);
   };
@@ -276,27 +308,96 @@ export default function CompanyDetailPage() {
         dueDate: activityForm.dueDate || null,
         completed: activityForm.completed,
       };
+      let saved: Activity;
       if (editingActivity) {
-        await api.put(`/crm/activities/${editingActivity.id}`, data);
+        const res = await api.put(`/crm/activities/${editingActivity.id}`, data);
+        saved = res.data;
       } else {
-        await api.post('/crm/activities', data);
+        const res = await api.post('/crm/activities', data);
+        saved = res.data;
       }
+
+      let fileCommentId = saved.fileCommentId ?? null;
+      if (activityFiles.length > 0) {
+        if (!fileCommentId) {
+          const cr = await api.post(`/companies/${companyId}/comments`, { sourceActivityId: saved.id });
+          fileCommentId = cr.data.id;
+        }
+        for (const file of activityFiles) {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('companyCommentId', String(fileCommentId));
+          await api.post('/attachments/upload', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+        }
+      }
+
       setShowActivityModal(false);
+      setActivityFiles([]);
       loadActivities();
+      loadCompany();
     } catch (err: any) {
       setActivityError(err.response?.data?.error || '保存に失敗しました');
     }
   };
 
   const toggleActivityCompleted = async (a: Activity) => {
-    await api.put(`/crm/activities/${a.id}`, { ...a, completed: !a.completed });
+    await api.put(`/crm/activities/${a.id}`, {
+      contactId: a.contactId,
+      dealId: a.dealId,
+      assignedToId: a.assignedToId,
+      type: a.type,
+      subject: a.subject,
+      description: a.description ?? null,
+      dueDate: a.dueDate,
+      completed: !a.completed,
+    });
     loadActivities();
   };
 
-  const handleDeleteActivity = async (aId: number) => {
-    await api.delete(`/crm/activities/${aId}`);
-    setConfirmDelete(null);
-    loadActivities();
+  const downloadActivityAttachment = async (attachmentId: number) => {
+    try {
+      const res = await api.post(`/attachments/token/${attachmentId}`);
+      const { token } = res.data;
+      window.open(`/api/attachments/file/${attachmentId}?downloadToken=${token}`, '_blank');
+    } catch {
+      alert('ダウンロードに失敗しました');
+    }
+  };
+
+  const handleDeleteActivityAttachment = async (attachmentId: number) => {
+    if (!window.confirm('このファイルを削除しますか？コメントの添付一覧からも消えます。')) return;
+    try {
+      await api.delete(`/attachments/${attachmentId}`);
+      setEditingActivity((prev) => {
+        if (!prev?.fileComment) return prev;
+        const attachments = (prev.fileComment.attachments || []).filter((x) => x.id !== attachmentId);
+        return { ...prev, fileComment: { ...prev.fileComment, attachments } };
+      });
+      loadActivities();
+    } catch (err: any) {
+      alert(err.response?.data?.error || '削除に失敗しました');
+    }
+  };
+
+  const handleDeleteActivity = async (aId: number, deleteLinkedCompanyComment?: boolean) => {
+    try {
+      const params: Record<string, string> = {};
+      if (deleteLinkedCompanyComment === true) {
+        params.deleteLinkedComment = 'true';
+      } else if (deleteLinkedCompanyComment === false) {
+        params.deleteLinkedComment = 'false';
+      }
+      await api.delete(`/crm/activities/${aId}`, {
+        params: Object.keys(params).length ? params : undefined,
+      });
+      setConfirmDelete(null);
+      loadActivities();
+      loadCompany();
+    } catch (err: any) {
+      alert(err.response?.data?.error || '削除に失敗しました');
+    }
   };
 
   // ========== Association handlers ==========
@@ -512,18 +613,40 @@ export default function CompanyDetailPage() {
             </div>
             <div className="space-y-3">
               {activities.map((a) => (
-                <div key={a.id} className={`bg-white rounded-lg shadow px-4 py-3 flex items-start gap-3 ${a.completed ? 'opacity-60' : ''}`}>
+                <div
+                  key={a.id}
+                  id={`activity-card-${a.id}`}
+                  ref={highlightActivityId === a.id ? activityHighlightRef : undefined}
+                  className={`bg-white rounded-lg shadow px-4 py-3 flex items-start gap-3 ${a.completed ? 'opacity-60' : ''}`}
+                >
                   <span className="text-xl mt-0.5">{getActivityIcon(a.type)}</span>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className={`font-medium text-sm ${a.completed ? 'line-through text-gray-400' : 'text-slate-800'}`}>{a.subject}</span>
                       <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{getActivityLabel(a.type)}</span>
-                      {a.contact && <span className="text-xs text-gray-500">→ {a.contact.lastName} {a.contact.firstName}</span>}
                       {a.deal && <span className="text-xs text-indigo-500">📊 {a.deal.name}</span>}
                     </div>
                     {a.description && <p className="text-sm text-gray-600 mt-1">{a.description}</p>}
+                    {a.fileComment && a.fileComment.attachments.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                        <span className="text-gray-500 shrink-0">添付:</span>
+                        {a.fileComment.attachments.map((att) => (
+                          <button
+                            key={att.id}
+                            type="button"
+                            onClick={() => downloadActivityAttachment(att.id)}
+                            className="text-sky-600 hover:underline font-medium truncate max-w-[220px] text-left"
+                            title={att.filename}
+                          >
+                            {att.filename}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <div className="text-xs text-gray-400 mt-1">
-                      担当: {a.assignedTo ? `${a.assignedTo.lastName} ${a.assignedTo.firstName}` : '-'} · 登録: {a.user.lastName} {a.user.firstName} · {new Date(a.createdAt).toLocaleString('ja-JP')}
+                      自社担当: {a.assignedTo ? `${a.assignedTo.lastName} ${a.assignedTo.firstName}` : '-'}
+                      {a.contact && <span> · 先方: {a.contact.lastName} {a.contact.firstName}</span>}
+                      <span> · 登録: {a.user.lastName} {a.user.firstName} · {new Date(a.createdAt).toLocaleString('ja-JP')}</span>
                       {a.dueDate && <span className="ml-2">期限: {new Date(a.dueDate).toLocaleDateString('ja-JP')}</span>}
                     </div>
                   </div>
@@ -535,7 +658,18 @@ export default function CompanyDetailPage() {
                     <button onClick={() => openEditActivity(a)} title="編集" className="p-1.5 text-sky-600 hover:bg-sky-50 rounded">
                       <Pencil className="w-4 h-4" />
                     </button>
-                    <button onClick={() => setConfirmDelete({ type: 'activity', id: a.id, name: a.subject })} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded">
+                    <button
+                      onClick={() =>
+                        setConfirmDelete({
+                          type: 'activity',
+                          id: a.id,
+                          name: a.subject,
+                          ...(a.fileCommentId != null ? { fileCommentId: a.fileCommentId } : {}),
+                        })
+                      }
+                      title="削除"
+                      className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                    >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
@@ -714,7 +848,7 @@ export default function CompanyDetailPage() {
       {/* Comments Tab */}
       {
         activeTab === 'comments' && (
-          <CompanyCommentsTab companyId={companyId} />
+          <CompanyCommentsTab companyId={companyId} highlightCommentId={highlightCommentId} />
         )
       }
 
@@ -927,7 +1061,7 @@ export default function CompanyDetailPage() {
           <TextInput isMultiline label="詳細" value={activityForm.description} onChange={(e) => setActivityForm({ ...activityForm, description: e.target.value })} rows={3} className="mb-0" />
           <div className="grid grid-cols-2 gap-4 mb-0">
             <Combobox
-              label="連絡先"
+              label="先方担当者"
               value={activityForm.contactId}
               options={contacts.map(c => ({ value: c.id.toString(), label: `${c.lastName} ${c.firstName}` }))}
               onChange={(val) => setActivityForm({ ...activityForm, contactId: val })}
@@ -940,7 +1074,7 @@ export default function CompanyDetailPage() {
             />
           </div>
           <Combobox
-            label="担当者"
+            label="自社担当者"
             value={activityForm.assignedToId}
             options={users
               .filter(u => u.status === 'active' || activityForm.assignedToId === String(u.id))
@@ -956,6 +1090,53 @@ export default function CompanyDetailPage() {
               className="rounded border-gray-300 text-sky-600 focus:ring-sky-500"
             />
             <label htmlFor="activity-completed" className="text-sm font-medium text-gray-700">完了としてマーク</label>
+          </div>
+          <div>
+            <label htmlFor="activity-files" className="block text-sm font-medium text-gray-700 mb-1">ファイル添付</label>
+            <p className="text-xs text-gray-500 mb-2">
+              保存時に会社コメントへ紐づけて保存されます。一覧・ここからダウンロードできます。削除するとコメント側の添付からも消えます。
+            </p>
+            {editingActivity?.fileComment && editingActivity.fileComment.attachments.length > 0 && (
+              <ul className="mb-3 space-y-1.5">
+                {editingActivity.fileComment.attachments.map((att) => (
+                  <li
+                    key={att.id}
+                    className="flex items-center justify-between gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1.5 text-sm"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => downloadActivityAttachment(att.id)}
+                      className="min-w-0 truncate text-left text-sky-600 hover:underline font-medium"
+                      title={att.filename}
+                    >
+                      {att.filename}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteActivityAttachment(att.id)}
+                      className="shrink-0 p-1 text-gray-400 hover:text-red-600 rounded"
+                      title="削除"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <input
+              id="activity-files"
+              type="file"
+              multiple
+              className="block w-full text-sm text-gray-600 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100"
+              onChange={(e) => setActivityFiles(e.target.files ? Array.from(e.target.files) : [])}
+            />
+            {activityFiles.length > 0 && (
+              <ul className="mt-1 text-xs text-gray-600 list-disc list-inside">
+                {activityFiles.map((f) => (
+                  <li key={f.name + f.size}>追加予定: {f.name}</li>
+                ))}
+              </ul>
+            )}
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setShowActivityModal(false)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm">キャンセル</button>
@@ -1022,13 +1203,28 @@ export default function CompanyDetailPage() {
                   confirmDelete?.type === 'association' ? '協会の削除' : '削除の確認'
         }
         message={`${confirmDelete?.name} を削除しますか？この操作は取り消せません。`}
-        onConfirm={() => {
+        linkedCommentDeleteCheckbox={
+          confirmDelete?.type === 'activity' && confirmDelete.fileCommentId != null
+            ? {
+                label: '紐づくファイル用コメントと添付ファイルも削除する',
+                defaultChecked: true,
+              }
+            : undefined
+        }
+        onConfirm={(extra?: ConfirmationConfirmExtra) => {
           if (!confirmDelete) return;
           switch (confirmDelete.type) {
             case 'company': handleDeleteCompany(); break;
             case 'contact': handleDeleteContact(confirmDelete.id); break;
             case 'deal': handleDeleteDeal(confirmDelete.id); break;
-            case 'activity': handleDeleteActivity(confirmDelete.id); break;
+            case 'activity':
+              handleDeleteActivity(
+                confirmDelete.id,
+                confirmDelete.fileCommentId != null
+                  ? extra?.deleteLinkedCompanyComment !== false
+                  : undefined
+              );
+              break;
             case 'association': handleRemoveAssociation(confirmDelete.id); break;
           }
         }}

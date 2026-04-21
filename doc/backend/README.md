@@ -15,4 +15,5 @@ Node.js + Express + Prisma による REST API サーバーの仕様です。
 
 - ソース: `backend/src/`
 - ルート: `backend/src/routes/*.ts`
-- スキーマ: `prisma/schema.prisma`
+- スキーマ: `backend/prisma/schema.prisma`
+- ワンタイム移行ツール: `backend/migration/legacy-crm/`（入力JSONは `backend/migration/legacy-crm/input/`）。`users.json` から `User` を取り込み、初期パスワードはログイン用メールアドレスの **@ より前**（`bcrypt` ハッシュで保存）。`activity_histories` → `Activity` では旧 `reason` を活動種別（`type`）にマッピングし、`detail` 内の `動機：` を件名に反映する。手順・マッピング・オプションは同フォルダの `README.md` を参照。

@@ -8,9 +8,10 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "prisma:generate": "prisma generate --schema ../prisma/schema.prisma",
-    "prisma:migrate": "prisma migrate dev --schema ../prisma/schema.prisma",
-    "prisma:seed": "tsx ../prisma/seed.ts"
+    "prisma:generate": "prisma generate --schema ./prisma/schema.prisma",
+    "prisma:migrate": "prisma migrate dev --schema ./prisma/schema.prisma",
+    "prisma:seed": "tsx ./prisma/seed.ts",
+    "migrate:legacy-crm": "tsx migration/legacy-crm/src/cli.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1001.0",
@@ -21,7 +22,8 @@
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
-    "multer": "^1.4.5-lts.1"
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^8.0.4"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -30,6 +32,7 @@
     "@types/jsonwebtoken": "^9.0.7",
     "@types/multer": "^1.4.12",
     "@types/node": "^22.13.5",
+    "@types/nodemailer": "^8.0.0",
     "prisma": "^6.19.2",
     "tsx": "^4.19.3",
     "typescript": "^5.7.3"
@@ -38,6 +41,6 @@
     "effect": "3.20.0"
   },
   "prisma": {
-    "schema": "../prisma/schema.prisma"
+    "schema": "./prisma/schema.prisma"
   }
 }

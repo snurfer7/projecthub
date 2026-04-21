@@ -12,6 +12,23 @@ function getActivityPersistenceErrorMessage(error: unknown, fallback: string): s
   return fallback;
 }
 
+/** 活動 API 共通: ファイル用コメントと添付メタ（ダウンロード UI 用） */
+const activityInclude = {
+  user: { select: { id: true, firstName: true, lastName: true } },
+  assignedTo: { select: { id: true, firstName: true, lastName: true } },
+  contact: { select: { id: true, firstName: true, lastName: true } },
+  deal: { select: { id: true, name: true } },
+  fileComment: {
+    select: {
+      id: true,
+      attachments: {
+        select: { id: true, filename: true, contentType: true, fileSize: true },
+        orderBy: { id: 'asc' as const },
+      },
+    },
+  },
+} satisfies Prisma.ActivityInclude;
+
 router.use(authenticateToken);
 
 // ========== Contacts ==========
@@ -47,6 +64,7 @@ router.get('/contacts/:id', async (req: AuthRequest, res: Response) => {
           include: {
             user: { select: { id: true, firstName: true, lastName: true } },
             assignedTo: { select: { id: true, firstName: true, lastName: true } },
+            fileComment: activityInclude.fileComment,
           },
           orderBy: { createdAt: 'desc' },
           take: 20,
@@ -253,6 +271,7 @@ router.get('/deals/:id', async (req: AuthRequest, res: Response) => {
           include: {
             user: { select: { id: true, firstName: true, lastName: true } },
             assignedTo: { select: { id: true, firstName: true, lastName: true } },
+            fileComment: activityInclude.fileComment,
           },
           orderBy: { createdAt: 'desc' },
         },
@@ -336,12 +355,7 @@ router.get('/activities', async (req: AuthRequest, res: Response) => {
 
     const activities = await prisma.activity.findMany({
       where,
-      include: {
-        user: { select: { id: true, firstName: true, lastName: true } },
-        assignedTo: { select: { id: true, firstName: true, lastName: true } },
-        contact: { select: { id: true, firstName: true, lastName: true } },
-        deal: { select: { id: true, name: true } },
-      },
+      include: activityInclude,
       orderBy: { createdAt: 'desc' },
     });
     res.json(activities);
@@ -357,7 +371,7 @@ router.post('/activities', async (req: AuthRequest, res: Response) => {
     if (assignedToId) {
       const user = await prisma.user.findUnique({ where: { id: Number(assignedToId) } });
       if (user && (user.status === 'pending' || user.status === 'inactive')) {
-        return res.status(400).json({ error: '選択されたユーザー（仮登録または退職）は担当者に指定できません' });
+        return res.status(400).json({ error: '選択されたユーザー（仮登録または退職）は自社担当者に指定できません' });
       }
     }
 
@@ -369,12 +383,7 @@ router.post('/activities', async (req: AuthRequest, res: Response) => {
         dueDate: dueDate ? new Date(dueDate) : null,
         completed: completed || false,
       },
-      include: {
-        user: { select: { id: true, firstName: true, lastName: true } },
-        assignedTo: { select: { id: true, firstName: true, lastName: true } },
-        contact: { select: { id: true, firstName: true, lastName: true } },
-        deal: { select: { id: true, name: true } },
-      },
+      include: activityInclude,
     });
     res.status(201).json(activity);
   } catch (e) {
@@ -389,7 +398,7 @@ router.put('/activities/:id', async (req: AuthRequest, res: Response) => {
     if (assignedToId) {
       const user = await prisma.user.findUnique({ where: { id: Number(assignedToId) } });
       if (user && (user.status === 'pending' || user.status === 'inactive')) {
-        return res.status(400).json({ error: '選択されたユーザー（仮登録または退職）は担当者に指定できません' });
+        return res.status(400).json({ error: '選択されたユーザー（仮登録または退職）は自社担当者に指定できません' });
       }
     }
 
@@ -400,12 +409,7 @@ router.put('/activities/:id', async (req: AuthRequest, res: Response) => {
         dueDate: dueDate ? new Date(dueDate) : null,
         completed,
       },
-      include: {
-        user: { select: { id: true, firstName: true, lastName: true } },
-        assignedTo: { select: { id: true, firstName: true, lastName: true } },
-        contact: { select: { id: true, firstName: true, lastName: true } },
-        deal: { select: { id: true, name: true } },
-      },
+      include: activityInclude,
     });
     res.json(activity);
   } catch (e) {
@@ -416,9 +420,34 @@ router.put('/activities/:id', async (req: AuthRequest, res: Response) => {
 
 router.delete('/activities/:id', async (req: AuthRequest, res: Response) => {
   try {
-    await prisma.activity.delete({ where: { id: Number(req.params.id) } });
+    const activityId = Number(req.params.id);
+    const raw = req.query.deleteLinkedComment;
+    const deleteLinkedComment = raw === 'true' || raw === '1';
+
+    const existing = await prisma.activity.findUnique({
+      where: { id: activityId },
+      select: { id: true, fileCommentId: true },
+    });
+    if (!existing) {
+      res.status(404).json({ error: '活動が見つかりません' });
+      return;
+    }
+
+    const fileCommentId = existing.fileCommentId;
+
+    await prisma.activity.delete({ where: { id: activityId } });
+
+    if (deleteLinkedComment && fileCommentId != null) {
+      try {
+        await prisma.companyComment.delete({ where: { id: fileCommentId } });
+      } catch {
+        // 既に削除済みなど
+      }
+    }
+
     res.json({ message: '活動を削除しました' });
-  } catch {
+  } catch (e) {
+    console.error('Activity delete error:', e);
     res.status(500).json({ error: '活動の削除に失敗しました' });
   }
 });

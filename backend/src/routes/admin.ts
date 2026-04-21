@@ -3,7 +3,8 @@ import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { randomInt } from 'crypto';
 import { authenticateToken, requireAdmin, AuthRequest } from '../middleware/auth';
-import { sendTemporaryPasswordEmail } from '../services/email';
+import { sendTemporaryPasswordEmail, sendTestEmail } from '../services/email';
+import { encryptSecret } from '../services/emailCrypto';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -906,6 +907,142 @@ router.put('/settings/time', requireAdmin, async (req: AuthRequest, res: Respons
   } catch (e: any) {
     console.error('Error updating time settings:', e);
     res.status(500).json({ error: '設定の更新に失敗しました', details: e.message || e });
+  }
+});
+
+function emailSettingsDto(row: Awaited<ReturnType<typeof prisma.systemSetting.findUnique>>) {
+  if (!row) {
+    return {
+      emailTransport: 'ses' as const,
+      emailFromOverride: null as string | null,
+      smtpHost: null as string | null,
+      smtpPort: 587,
+      smtpUser: null as string | null,
+      smtpSecure: false,
+      smtpPasswordSet: false,
+    };
+  }
+  return {
+    emailTransport: row.emailTransport === 'smtp' ? ('smtp' as const) : ('ses' as const),
+    emailFromOverride: row.emailFromOverride,
+    smtpHost: row.smtpHost,
+    smtpPort: row.smtpPort,
+    smtpUser: row.smtpUser,
+    smtpSecure: row.smtpSecure,
+    smtpPasswordSet: !!(row.smtpPasswordEnc && row.smtpPasswordEnc.length > 0),
+  };
+}
+
+router.get('/settings/email', requireAdmin, async (_req: AuthRequest, res: Response) => {
+  try {
+    const row = await prisma.systemSetting.findUnique({ where: { id: 'default' } });
+    res.json(emailSettingsDto(row));
+  } catch (e: any) {
+    console.error('Error fetching email settings:', e);
+    res.status(500).json({ error: 'メール設定の取得に失敗しました', details: e.message || e });
+  }
+});
+
+router.put('/settings/email', requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const existing = await prisma.systemSetting.findUnique({ where: { id: 'default' } });
+    const {
+      emailTransport,
+      emailFromOverride: rawFrom,
+      smtpHost,
+      smtpPort,
+      smtpUser,
+      smtpSecure,
+      smtpPassword,
+    } = req.body;
+
+    if (emailTransport !== 'ses' && emailTransport !== 'smtp') {
+      res.status(400).json({ error: 'emailTransport は ses または smtp です' });
+      return;
+    }
+
+    const emailFromOverride =
+      rawFrom === '' || rawFrom === null || rawFrom === undefined
+        ? null
+        : String(rawFrom).trim() || null;
+
+    const smtpHostNorm =
+      smtpHost === '' || smtpHost === null || smtpHost === undefined
+        ? null
+        : String(smtpHost).trim() || null;
+    const smtpUserNorm =
+      smtpUser === '' || smtpUser === null || smtpUser === undefined
+        ? null
+        : String(smtpUser).trim() || null;
+    const port = Math.floor(Number(smtpPort) || 587);
+
+    if (emailTransport === 'smtp') {
+      if (!smtpHostNorm || !smtpUserNorm) {
+        res.status(400).json({ error: 'SMTP 利用時はホストとユーザー名が必須です' });
+        return;
+      }
+      const hasNewPass = typeof smtpPassword === 'string' && smtpPassword.length > 0;
+      if (!existing?.smtpPasswordEnc && !hasNewPass) {
+        res.status(400).json({ error: 'SMTP パスワードを設定してください' });
+        return;
+      }
+    }
+
+    let smtpPasswordEnc = existing?.smtpPasswordEnc ?? null;
+    if (typeof smtpPassword === 'string' && smtpPassword.length > 0) {
+      smtpPasswordEnc = encryptSecret(smtpPassword);
+    }
+
+    const updatePayload = {
+      emailTransport,
+      emailFromOverride,
+      smtpHost: smtpHostNorm,
+      smtpPort: port,
+      smtpUser: smtpUserNorm,
+      smtpSecure: smtpSecure === true || smtpSecure === 'true',
+      smtpPasswordEnc,
+    };
+
+    const setting = await prisma.systemSetting.upsert({
+      where: { id: 'default' },
+      update: updatePayload,
+      create: {
+        id: 'default',
+        startTime: '09:00',
+        endTime: '18:00',
+        managementTimes: [],
+        conversionTimes: [],
+        ...updatePayload,
+      },
+    });
+
+    res.json(emailSettingsDto(setting));
+  } catch (e: any) {
+    console.error('Error updating email settings:', e);
+    res.status(500).json({ error: 'メール設定の更新に失敗しました', details: e.message || e });
+  }
+});
+
+router.post('/settings/email/test', requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { toEmail } = req.body;
+    if (!toEmail || typeof toEmail !== 'string') {
+      res.status(400).json({ error: '宛先メールアドレスを指定してください' });
+      return;
+    }
+    const trimmed = toEmail.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      res.status(400).json({ error: '有効なメールアドレス形式ではありません' });
+      return;
+    }
+    await sendTestEmail(trimmed);
+    res.json({ message: 'テストメールを送信しました' });
+  } catch (e: any) {
+    console.error('Test email failed:', e);
+    res.status(500).json({
+      error: 'テストメールの送信に失敗しました',
+      details: e?.message || String(e),
+    });
   }
 });
 

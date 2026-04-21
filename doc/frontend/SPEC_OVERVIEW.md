@@ -25,7 +25,7 @@ ProjectHub の Web クライアント。プロジェクト・チケット・Wiki
 
 1. 初回: token なし → `App` で `user` が null → `/login` または `/register` を表示。
 2. ログイン/登録成功: レスポンスの `token` と `user` を localStorage に保存 → `useAuth` が `user` を返す → `Layout` + 各ルートを表示。
-3. ランディング: `/` で `user.landingPage` に応じて `/home` / `/projects` / `/gantt` / `/companies` にリダイレクト。
+3. ランディング: `/` で `user.landingPage` に応じて `/home` / `/projects`（従来の `gantt` は `/projects?view=gantt`）/ `/companies` にリダイレクト。
 4. ログアウト: token/user を削除 → 未認証状態となり `/login` へ。
 
 ## メニュー表示制御

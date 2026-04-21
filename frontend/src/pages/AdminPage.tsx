@@ -1,8 +1,8 @@
 import { useState, useEffect, FormEvent, DragEvent } from 'react';
 import { Navigate } from 'react-router-dom';
 import api from '../api/client';
-import { User, Tracker, IssueStatus, IssuePriority, Group, Role, SystemSetting } from '../types';
-import { Pencil, Trash2, GripVertical, Clock, Plus, UserX, UserCheck } from 'lucide-react';
+import { User, Tracker, IssueStatus, IssuePriority, Group, Role, SystemSetting, EmailSettings } from '../types';
+import { Pencil, Trash2, GripVertical, Clock, Plus, UserX, UserCheck, Mail } from 'lucide-react';
 import Modal from '../components/Modal';
 import AnalogTimePicker from '../components/AnalogTimePicker';
 import CustomTimePicker from '../components/CustomTimePicker';
@@ -18,7 +18,7 @@ interface Props {
 }
 
 export default function AdminPage({ user }: Props) {
-  const [tab, setTab] = useState<'users' | 'groups' | 'roles' | 'trackers' | 'statuses' | 'priorities' | 'time'>('users');
+  const [tab, setTab] = useState<'users' | 'groups' | 'roles' | 'trackers' | 'statuses' | 'priorities' | 'time' | 'email'>('users');
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [trackers, setTrackers] = useState<Tracker[]>([]);
@@ -68,6 +68,20 @@ export default function AdminPage({ user }: Props) {
   const [timeMessage, setTimeMessage] = useState('');
   const [timeError, setTimeError] = useState('');
 
+  const [emailTransport, setEmailTransport] = useState<'ses' | 'smtp'>('ses');
+  const [emailFromOverride, setEmailFromOverride] = useState('');
+  const [smtpHost, setSmtpHost] = useState('');
+  const [smtpPort, setSmtpPort] = useState('587');
+  const [smtpUser, setSmtpUser] = useState('');
+  const [smtpPassword, setSmtpPassword] = useState('');
+  const [smtpSecure, setSmtpSecure] = useState(false);
+  const [smtpPasswordSet, setSmtpPasswordSet] = useState(false);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailMessage, setEmailMessage] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [testToEmail, setTestToEmail] = useState('');
+  const [testSending, setTestSending] = useState(false);
+
   // 削除用ステート
   const [confirmDelete, setConfirmDelete] = useState<{ type: string; id: number; name: string } | null>(null);
   const [confirmUserStatus, setConfirmUserStatus] = useState<{ id: number; name: string; nextStatus: 'active' | 'inactive' } | null>(null);
@@ -107,6 +121,9 @@ export default function AdminPage({ user }: Props) {
   useEffect(() => {
     if (tab === 'time') {
       fetchTimeSettings();
+    }
+    if (tab === 'email') {
+      fetchEmailSettings();
     }
   }, [tab]);
 
@@ -176,6 +193,77 @@ export default function AdminPage({ user }: Props) {
     const updated = [...conversionTimes];
     updated[index] = Math.floor(value);
     setConversionTimes(updated);
+  };
+
+  const fetchEmailSettings = async () => {
+    try {
+      setEmailLoading(true);
+      setEmailMessage('');
+      setEmailError('');
+      const res = await api.get<EmailSettings>('/admin/settings/email');
+      const d = res.data;
+      setEmailTransport(d.emailTransport);
+      setEmailFromOverride(d.emailFromOverride ?? '');
+      setSmtpHost(d.smtpHost ?? '');
+      setSmtpPort(String(d.smtpPort ?? 587));
+      setSmtpUser(d.smtpUser ?? '');
+      setSmtpSecure(d.smtpSecure);
+      setSmtpPasswordSet(d.smtpPasswordSet);
+      setSmtpPassword('');
+    } catch (err: any) {
+      console.error('Failed to fetch email settings:', err);
+      setEmailError('メール設定の取得に失敗しました');
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
+  const handleSaveEmailSettings = async () => {
+    try {
+      setEmailLoading(true);
+      setEmailMessage('');
+      setEmailError('');
+      const body: Record<string, unknown> = {
+        emailTransport,
+        emailFromOverride: emailFromOverride.trim() || null,
+        smtpHost: smtpHost.trim() || null,
+        smtpPort: Number(smtpPort) || 587,
+        smtpUser: smtpUser.trim() || null,
+        smtpSecure,
+      };
+      if (smtpPassword.trim()) {
+        body.smtpPassword = smtpPassword.trim();
+      }
+      const res = await api.put<EmailSettings>('/admin/settings/email', body);
+      setSmtpPasswordSet(res.data.smtpPasswordSet);
+      setSmtpPassword('');
+      setEmailMessage('メール設定を保存しました');
+    } catch (err: any) {
+      setEmailError(err.response?.data?.error || '保存に失敗しました');
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
+  const handleSendTestEmail = async () => {
+    const to = testToEmail.trim();
+    if (!to) {
+      setEmailError('テスト送信の宛先を入力してください');
+      return;
+    }
+    try {
+      setTestSending(true);
+      setEmailMessage('');
+      setEmailError('');
+      await api.post('/admin/settings/email/test', { toEmail: to });
+      setEmailMessage('テストメールを送信しました');
+    } catch (err: any) {
+      const msg = err.response?.data?.error || 'テスト送信に失敗しました';
+      const detail = err.response?.data?.details;
+      setEmailError(detail ? `${msg}（${detail}）` : msg);
+    } finally {
+      setTestSending(false);
+    }
   };
 
   // User modal helpers
@@ -480,6 +568,7 @@ export default function AdminPage({ user }: Props) {
     { key: 'statuses' as const, label: 'ステータス' },
     { key: 'priorities' as const, label: '優先度' },
     { key: 'time' as const, label: '時間' },
+    { key: 'email' as const, label: 'メール設定' },
   ];
 
   return (
@@ -848,6 +937,139 @@ export default function AdminPage({ user }: Props) {
                   </>
                 ) : '設定を保存'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === 'email' && (
+        <div className="max-w-xl">
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center gap-2 mb-6 border-b pb-4">
+              <Mail className="w-5 h-5 text-sky-600" />
+              <h2 className="text-lg font-semibold text-slate-800">メール送信設定</h2>
+            </div>
+
+            {emailMessage && (
+              <div className="mb-4 p-3 bg-green-50 text-green-700 rounded text-sm">{emailMessage}</div>
+            )}
+            {emailError && (
+              <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm whitespace-pre-wrap">{emailError}</div>
+            )}
+
+            <p className="text-sm text-gray-600 mb-4">
+              Amazon SES を API 経由で使うか、SES の SMTP エンドポイント等を経由するかを選べます。送信元は SES で検証済みのアドレス（またはドメイン）に合わせてください。
+            </p>
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <span className="block text-sm font-medium text-gray-700 mb-2">送信方式</span>
+                <div className="flex flex-col gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="emailTransport"
+                      checked={emailTransport === 'ses'}
+                      onChange={() => setEmailTransport('ses')}
+                      className="text-sky-600 focus:ring-sky-500"
+                    />
+                    <span className="text-sm">SES API（AWS SDK・従来方式）</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="emailTransport"
+                      checked={emailTransport === 'smtp'}
+                      onChange={() => setEmailTransport('smtp')}
+                      className="text-sky-600 focus:ring-sky-500"
+                    />
+                    <span className="text-sm">SMTP（Amazon SES SMTP など）</span>
+                  </label>
+                </div>
+              </div>
+
+              <TextInput
+                label="送信元メールアドレス（任意）"
+                type="email"
+                value={emailFromOverride}
+                onChange={(e) => setEmailFromOverride(e.target.value)}
+                placeholder="空欄のときはサーバーの EMAIL_FROM を使用"
+              />
+
+              {emailTransport === 'smtp' && (
+                <div className="border rounded-lg p-4 bg-gray-50 space-y-4">
+                  <TextInput
+                    label="SMTP ホスト *"
+                    value={smtpHost}
+                    onChange={(e) => setSmtpHost(e.target.value)}
+                    placeholder="例: email-smtp.ap-northeast-1.amazonaws.com"
+                  />
+                  <TextInput
+                    label="ポート"
+                    value={smtpPort}
+                    onChange={(e) => setSmtpPort(e.target.value.replace(/\D/g, '') || '587')}
+                  />
+                  <TextInput
+                    label="SMTP ユーザー名 *"
+                    value={smtpUser}
+                    onChange={(e) => setSmtpUser(e.target.value)}
+                  />
+                  <TextInput
+                    label={smtpPasswordSet ? 'SMTP パスワード（変更する場合のみ）' : 'SMTP パスワード *'}
+                    type="password"
+                    value={smtpPassword}
+                    onChange={(e) => setSmtpPassword(e.target.value)}
+                    placeholder={smtpPasswordSet ? '未入力のままなら現在のパスワードを維持' : ''}
+                  />
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={smtpSecure}
+                      onChange={(e) => setSmtpSecure(e.target.checked)}
+                      className="rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                    />
+                    <span className="text-sm text-gray-700">SSL/TLS（ポート 465 等で接続開始時から TLS）</span>
+                  </label>
+                  <p className="text-xs text-gray-500">
+                    587 番・STARTTLS の場合はチェックを外し、SES の SMTP 認証情報に合わせてください。
+                  </p>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleSaveEmailSettings}
+                disabled={emailLoading}
+                className="w-full bg-sky-600 text-white px-4 py-2.5 rounded-md text-sm font-semibold hover:bg-sky-700 disabled:opacity-50"
+              >
+                {emailLoading ? '保存中…' : '設定を保存'}
+              </button>
+            </div>
+
+            <div className="border-t pt-6">
+              <h3 className="text-sm font-semibold text-slate-800 mb-3">テストメール送信</h3>
+              <p className="text-xs text-gray-500 mb-3">保存済みの設定で 1 通送信します（先に「設定を保存」してください）。</p>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1">
+                  <TextInput
+                    label="宛先メールアドレス"
+                    type="email"
+                    value={testToEmail}
+                    onChange={(e) => setTestToEmail(e.target.value)}
+                    placeholder="test@example.com"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={handleSendTestEmail}
+                    disabled={testSending || emailLoading}
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-md text-sm font-medium bg-white border border-sky-600 text-sky-700 hover:bg-sky-50 disabled:opacity-50"
+                  >
+                    {testSending ? '送信中…' : 'テストメール送信'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -1,7 +1,7 @@
 generator client {
   provider = "prisma-client-js"
-  // サーバーで backend から prisma generate したときに backend/node_modules/.prisma/client に生成するため（schema は prisma/ にある）
-  output   = "../backend/node_modules/.prisma/client"
+  // schema が backend/prisma にあるため、backend/node_modules へ相対パスで出力
+  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -471,23 +471,25 @@ model Deal {
 }
 
 model Activity {
-  id          Int       @id @default(autoincrement())
-  companyId   Int       @map("company_id")
-  contactId   Int?      @map("contact_id")
-  dealId      Int?      @map("deal_id")
-  userId      Int       @map("user_id")
-  assignedToId Int?     @map("assigned_to_id")
-  type        String
-  subject     String
-  description String?
-  dueDate     DateTime? @map("due_date")
-  completed   Boolean   @default(false)
-  createdAt   DateTime  @default(now()) @map("created_at")
-  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  contact     Contact?  @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  deal        Deal?     @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  assignedTo  User?     @relation("ActivityAssignee", fields: [assignedToId], references: [id])
+  id            Int             @id @default(autoincrement())
+  companyId     Int             @map("company_id")
+  contactId     Int?            @map("contact_id")
+  dealId        Int?            @map("deal_id")
+  userId        Int             @map("user_id")
+  assignedToId  Int?            @map("assigned_to_id")
+  fileCommentId Int?            @unique @map("file_comment_id")
+  type          String
+  subject       String
+  description   String?
+  dueDate       DateTime?       @map("due_date")
+  completed     Boolean         @default(false)
+  createdAt     DateTime        @default(now()) @map("created_at")
+  company       Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contact       Contact?        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  deal          Deal?           @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedTo    User?           @relation("ActivityAssignee", fields: [assignedToId], references: [id])
+  fileComment   CompanyComment? @relation("ActivityFileComment", fields: [fileCommentId], references: [id], onDelete: SetNull)
 
   @@index([assignedToId])
   @@map("activities")
@@ -529,15 +531,16 @@ model ProjectComment {
 }
 
 model CompanyComment {
-  id          Int          @id @default(autoincrement())
-  companyId   Int          @map("company_id")
-  userId      Int          @map("user_id")
-  content     String
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime?    @updatedAt @map("updated_at")
-  attachments Attachment[]
-  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               Int          @id @default(autoincrement())
+  companyId        Int          @map("company_id")
+  userId           Int          @map("user_id")
+  content          String
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime?    @updatedAt @map("updated_at")
+  attachments      Attachment[]
+  company          Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activityFileFor  Activity?    @relation("ActivityFileComment")
 
   @@map("company_comments")
 }
@@ -576,11 +579,18 @@ model CompanyWikiPage {
 }
 
 model SystemSetting {
-  id              String   @id @default("default")
-  startTime       String   @default("09:00")
-  endTime         String   @default("18:00")
-  managementTimes String[] @default([])
-  conversionTimes Float[]  @default([])
+  id                 String   @id @default("default")
+  startTime          String   @default("09:00")
+  endTime            String   @default("18:00")
+  managementTimes    String[] @default([])
+  conversionTimes    Float[]  @default([])
+  emailTransport     String   @default("ses") @map("email_transport")
+  emailFromOverride  String?  @map("email_from_override")
+  smtpHost           String?  @map("smtp_host")
+  smtpPort           Int      @default(587) @map("smtp_port")
+  smtpUser           String?  @map("smtp_user")
+  smtpPasswordEnc    String?  @map("smtp_password_enc")
+  smtpSecure         Boolean  @default(false) @map("smtp_secure")
 
   @@map("system_settings")
 }

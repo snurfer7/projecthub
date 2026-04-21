@@ -12,7 +12,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | POST | `/register` | 不要 | 登録。Body: `email`, `password`, `firstName`, `lastName` → `token`, `user` |
 | GET | `/me` | 必要 | 現在ユーザー情報（`status` を含む） |
 | PUT | `/password` | 必要 | パスワード変更。Body: `currentPassword`, `newPassword`。ログイン中ユーザーの `status === 'pending'` の場合、更新完了時に `status` を自動で `active` に更新 |
-| PUT | `/landing-page` | 必要 | ランディング設定。Body: `landingPage` (`home` \| `projects` \| `gantt` \| `companies`) |
+| PUT | `/landing-page` | 必要 | ランディング設定。Body: `landingPage` (`home` \| `projects` \| `companies`) |
 | PUT | `/menu-settings` | 必要 | メニュー表示。Body: `showProjectsMenu`, `showGanttMenu`, `showCompanyMenu`, `showAdminMenu` |
 
 ---
@@ -80,7 +80,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | POST | `/token/:id` | トークン発行（ダウンロード用） |
 | GET | `/download/:id` | ダウンロード（認証 or トークン） |
 | GET | `/file/:id` | ファイル取得 |
-| DELETE | `/:id` | 削除 |
+| DELETE | `/:id` | 削除（認証済み）。会社コメント経由の添付も同一 API で削除し、コメント側の一覧からも消える |
 
 ---
 
@@ -115,6 +115,15 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | GET/POST/PUT/DELETE | `/associations` | 団体 | 認証 |
 | POST/DELETE | `/companies/:id/associations/:associationId` | 会社-団体紐付け | 認証 |
 | GET/PUT | `/settings/time` | 時間設定（管理時間・換算時間） | 管理者 |
+| GET/PUT | `/settings/email` | メール送信設定（SES API / SMTP の切替、送信元、SMTP 接続情報）。SMTP パスワードは保存時にサーバー側で暗号化され、GET では `smtpPasswordSet` のみ返す | 管理者 |
+| POST | `/settings/email/test` | テストメール送信。Body: `toEmail`（保存済み設定で 1 通送信） | 管理者 |
+
+**メール設定（`/settings/email`）**
+
+- **`emailTransport`**: `ses`（従来どおり AWS SDK の SES `SendEmail`）または `smtp`（SMTP 経由。Amazon SES の SMTP エンドポイント等）。
+- **`emailFromOverride`**: 空でない場合、環境変数 `EMAIL_FROM` より優先して送信元に使う。空文字でクリア。
+- **SMTP 時の必須**: `smtpHost`, `smtpUser`。初回またはパスワード未保存時は `smtpPassword` が必須。以降の更新でパスワードを変えない場合は `smtpPassword` を送らない（または空）。
+- **暗号化キー**: SMTP パスワードは `EMAIL_ENCRYPTION_KEY`（64 文字 hex 推奨）または未設定時は `JWT_SECRET` から導出したキーで AES-256-GCM 暗号化して DB に保存する。
 
 ---
 
@@ -133,18 +142,47 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 | メソッド | パス | 概要 |
 |----------|------|------|
-| GET | `/` | 会社一覧 |
+| GET | `/` | 会社一覧（下記クエリでページング／検索。クエリなしのときは従来どおり全件を配列で返す） |
 | GET | `/:id` | 会社詳細 |
+
+**GET `/` クエリ（任意・組み合わせ可）**
+
+| パラメータ | 型 | 説明 |
+|------------|-----|------|
+| `page` | 整数 ≥ 1 | 指定時は **ページング応答**（オブジェクト）。未指定時は全件配列。 |
+| `pageSize` | 整数 1〜100 | 1 ページあたり件数。省略時は `50`。 |
+| `q` | 文字列 | 企業名（部分一致・大文字小文字無視）またはいずれかの拠点の電話・FAX・郵便番号・住所（都道府県・市区町村・番地・建物）にマッチする企業に絞り込み。 |
+
+**ページング時のレスポンス**（`page` 指定時）
+
+```json
+{
+  "items": [ /* Company（legalEntityStatus, locations, _count を含む。contacts は含めない） */ ],
+  "total": 123,
+  "page": 1,
+  "pageSize": 50,
+  "totalPages": 3
+}
+```
+
+**全件時**（`page` 未指定）: `Company[]` の JSON 配列（従来どおり。ドロップダウン等用。`locations`, `contacts`, `_count` を含む）。
 | POST | `/` | 会社作成 |
 | PUT | `/:id` | 会社更新 |
 | DELETE | `/:id` | 会社削除 |
 | POST | `/:companyId/associations/:associationId` | 団体紐付け |
 | DELETE | `/:companyId/associations/:associationId` | 団体紐付け解除 |
-| GET/POST/PUT | `/:companyId/comments`, `/:companyId/comments/:commentId` | コメント |
+| GET/POST/PUT/DELETE | `/:companyId/comments`, `/:companyId/comments/:commentId` | コメント。GET の各要素に `linkedActivity`（`{ id, subject }` または `null`）— 当該コメントが活動のファイル用コメントとして紐づいている場合に活動を示す。POST Body: `content`（文字列。**`sourceActivityId` 未指定時は必須**）。`sourceActivityId`（数値、任意）— 指定時は当該企業に属する活動に、ファイル用コメントを 1 件紐づける（`content` 省略時は自動文面）。既に活動に `fileCommentId` がある場合は既存コメントを返す（**201** 新規 / **200** 既存） |
 | GET | `/:companyId/wiki` | 会社 Wiki 一覧 |
 | GET/PUT/DELETE | `/:companyId/wiki/:title` | 会社 Wiki ページ（title 指定） |
 | PATCH | `/:companyId/wiki/:title/move` | 会社 Wiki 移動 |
 | GET/POST/PUT/DELETE | `/:companyId/locations`, `/:companyId/locations/:locationId` | 拠点 |
+
+**POST `/`（会社作成）**
+
+- 成功: **201**、作成された `Company`（初期拠点「本社」は別テーブルで作成されるが、本レスポンスには含まれない）
+- **400**: 企業名未入力・`{ "error": "企業名は必須です" }`、法人格 ID が DB に存在しない（`{ "error": "法人格の指定が無効です。…" }`）、送信形式不正
+- **409**: 企業名の一意制約違反（既に同名）— `{ "error": "同じ企業名が既に登録されています" }` など
+- **500**: 上記以外。DB マイグレーション未適用（カラム不足）時はメッセージで案内する場合あり
 
 ---
 
@@ -155,7 +193,14 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | GET/POST/PUT/DELETE | `/contacts`, `/contacts/:id` | コンタクト |
 | GET/POST/PUT/DELETE | `/contacts/:id/comments`, `/:commentId` | コンタクトコメント |
 | GET/POST/PUT/DELETE | `/deals`, `/deals/:id` | 商談 |
-| GET/POST/PUT/DELETE | `/activities`, `/activities/:id` | アクティビティ（`assignedToId` で担当者を指定可能。レスポンスは `assignedTo` を含む） |
+| GET/POST/PUT/DELETE | `/activities`, `/activities/:id` | アクティビティ。`assignedToId` は**自社担当者**（User）。`contactId` は**先方担当者**（当該企業の連絡先 Contact を選択、任意）。レスポンスは `assignedTo`・`contact` を含む。`fileCommentId`（任意）— ファイル用 **会社コメント** の ID。`fileComment`（任意、`fileCommentId` があるとき）— `{ id, attachments: [{ id, filename, contentType, fileSize }] }`。ダウンロードは `POST /api/attachments/token/:id` と `GET /api/attachments/file/:id?downloadToken=...` を利用する。**DELETE `/activities/:id`**: Query `deleteLinkedComment` — `true` / `1` で紐づくファイル用会社コメントも削除（添付はカスケード）。`false` / `0` または未指定は活動のみ削除しコメントは残す |
+
+**Activity.type（活動種別の標準値）**: `call`（電話）, `email`（メール）, `visit`（訪問）, `meeting`（会議）, `memo`（メモ）, `lead`（引合）, `estimate`（見積り）, `inquiry`（問合せ）, `maintenance`（メンテ）, `claim`（クレーム）。フィールドは文字列のため、上記以外の値も保存され得る（レガシー移行データ等）。
+
+**活動のファイルと会社コメント**
+
+- ストレージ上は **会社コメント** 1 件に `attachments` を紐づける（`POST /api/attachments/upload` の `companyCommentId`）。UI では活動一覧・活動編集から直接ダウンロード・削除できる。`DELETE /api/attachments/:id` でファイルを消すと、会社コメント側の添付一覧からも消える（同一レコード）。
+- ファイル用コメントの紐づけは `POST /api/companies/:companyId/comments` の Body に `sourceActivityId` を指定（下記 Companies）。既に当該活動に `fileCommentId` がある場合は既存コメントを返す。
 
 ---
 

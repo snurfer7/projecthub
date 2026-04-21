@@ -19,7 +19,9 @@ export default function SettingsPage({ user, refreshUser }: Props) {
   const [landingError, setLandingError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const [landingPage, setLandingPage] = useState(user.landingPage);
+  const [landingPage, setLandingPage] = useState(
+    () => (user.landingPage === 'gantt' ? 'projects' : user.landingPage)
+  );
 
   const [showProjectsMenu, setShowProjectsMenu] = useState(user.showProjectsMenu);
   const [showCompanyMenu, setShowCompanyMenu] = useState(user.showCompanyMenu);
@@ -28,7 +30,7 @@ export default function SettingsPage({ user, refreshUser }: Props) {
 
   // Sync state if user prop changes externally
   useEffect(() => {
-    setLandingPage(user.landingPage);
+    setLandingPage(user.landingPage === 'gantt' ? 'projects' : user.landingPage);
     setShowProjectsMenu(user.showProjectsMenu);
     setShowCompanyMenu(user.showCompanyMenu);
   }, [user]);
@@ -157,7 +159,6 @@ export default function SettingsPage({ user, refreshUser }: Props) {
               options={[
                 { value: 'home', label: 'ホーム' },
                 { value: 'projects', label: 'プロジェクト' },
-                { value: 'gantt', label: 'ガントチャート' },
                 { value: 'companies', label: '企業' },
               ]}
               value={landingPage}

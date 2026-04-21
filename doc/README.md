@@ -18,7 +18,7 @@
 - **要件・仕様の参照**: 新機能追加・変更時に各領域の `SPEC_OVERVIEW.md` で概要を確認する。
 - **API 契約**: バックエンドの `API_SPEC.md` を API 契約として共有し、フロント・Android はこれに従う。
 - **画面・フロー**: フロントは `SCREENS_AND_ROUTES.md`、Android は `SCREENS_AND_NAVIGATION.md` で画面一覧と遷移を確認する。
-- **データモデル**: バックエンドの Prisma スキーマを正とする。フロント・Android の型は `DATA_MODEL.md` と整合させる。
+- **データモデル**: バックエンドの Prisma スキーマ（`backend/prisma/schema.prisma`）を正とする。フロント・Android の型は `DATA_MODEL.md` と整合させる。
 
 ## その他のドキュメント
 

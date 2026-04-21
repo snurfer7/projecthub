@@ -1,25 +1,106 @@
 import { Router, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 const prisma = new PrismaClient();
 
+function companyCommentPersistenceMessage(error: unknown, fallback: string): string {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === 'P2022') {
+      return 'DBスキーマが未更新です。マイグレーションを適用してから再実行してください';
+    }
+    if (error.code === 'P2003') {
+      return '関連データの参照が無効です（ユーザーまたは企業の整合性を確認してください）';
+    }
+  }
+  if (error instanceof Prisma.PrismaClientValidationError) {
+    return '送信データの形式が不正です。再ログインするかページを再読み込みしてお試しください';
+  }
+  if (process.env.NODE_ENV === 'development' && error instanceof Error && error.message) {
+    return error.message;
+  }
+  return fallback;
+}
+
 router.use(authenticateToken);
 
-// List companies (used by company list page and project creation dropdown)
-router.get('/', async (_req: AuthRequest, res: Response) => {
-  try {
-    const companies = await prisma.company.findMany({
-      include: {
-        legalEntityStatus: true,
-        locations: true,
-        contacts: true,
-        _count: { select: { projects: true, wikiPages: true, comments: true, locations: true } }
+const companyListInclude = {
+  legalEntityStatus: true,
+  locations: true,
+  _count: { select: { projects: true, wikiPages: true, comments: true, locations: true } },
+} satisfies Prisma.CompanyInclude;
+
+function companySearchWhere(q: string): Prisma.CompanyWhereInput {
+  return {
+    OR: [
+      { name: { contains: q, mode: 'insensitive' } },
+      {
+        locations: {
+          some: {
+            OR: [
+              { phone: { contains: q, mode: 'insensitive' } },
+              { fax: { contains: q, mode: 'insensitive' } },
+              { postalCode: { contains: q, mode: 'insensitive' } },
+              { prefecture: { contains: q, mode: 'insensitive' } },
+              { city: { contains: q, mode: 'insensitive' } },
+              { street: { contains: q, mode: 'insensitive' } },
+              { building: { contains: q, mode: 'insensitive' } },
+            ],
+          },
+        },
       },
-      orderBy: { name: 'asc' },
+    ],
+  };
+}
+
+// List companies: with ?page= — paginated + optional q. Without page — full array (dropdowns).
+router.get('/', async (req: AuthRequest, res: Response) => {
+  try {
+    const pageRaw = req.query.page;
+    const usePagination =
+      pageRaw !== undefined && pageRaw !== null && String(pageRaw).trim() !== '';
+
+    if (!usePagination) {
+      const companies = await prisma.company.findMany({
+        include: {
+          legalEntityStatus: true,
+          locations: true,
+          contacts: true,
+          _count: { select: { projects: true, wikiPages: true, comments: true, locations: true } },
+        },
+        orderBy: { name: 'asc' },
+      });
+      return res.json(companies);
+    }
+
+    const pageParsed = parseInt(String(pageRaw), 10);
+    const page = Number.isFinite(pageParsed) && pageParsed >= 1 ? pageParsed : 1;
+    const sizeParsed = parseInt(String(req.query.pageSize ?? '50'), 10);
+    const pageSize = Number.isFinite(sizeParsed) ? Math.min(100, Math.max(1, sizeParsed)) : 50;
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const where: Prisma.CompanyWhereInput = q ? companySearchWhere(q) : {};
+
+    const [total, items] = await Promise.all([
+      prisma.company.count({ where }),
+      prisma.company.findMany({
+        where,
+        include: companyListInclude,
+        orderBy: { name: 'asc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    const totalPages = total === 0 ? 1 : Math.ceil(total / pageSize);
+
+    return res.json({
+      items,
+      total,
+      page,
+      pageSize,
+      totalPages,
     });
-    res.json(companies);
   } catch (e) {
     console.error('companies.getCompanies error:', e);
     res.status(500).json({ error: '企業の取得に失敗しました' });
@@ -56,15 +137,52 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
+function companyCreateErrorMessage(error: unknown, fallback: string): { status: number; message: string } {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === 'P2002') {
+      const fields = (error.meta as { target?: string[] } | undefined)?.target;
+      const isNameUnique =
+        Array.isArray(fields) && fields.some((f) => f === 'name' || f === 'companies_name_key');
+      return {
+        status: 409,
+        message: isNameUnique ? '同じ企業名が既に登録されています' : '一意制約に違反するデータです',
+      };
+    }
+    if (error.code === 'P2003') {
+      return {
+        status: 400,
+        message: '法人格の指定が無効です。マスタを確認するか、法人格を空にしてお試しください',
+      };
+    }
+    if (error.code === 'P2022') {
+      return {
+        status: 500,
+        message: 'DBスキーマが未更新です。マイグレーションを適用してから再実行してください',
+      };
+    }
+  }
+  if (error instanceof Prisma.PrismaClientValidationError) {
+    return { status: 400, message: '送信データの形式が不正です' };
+  }
+  if (process.env.NODE_ENV === 'development' && error instanceof Error && error.message) {
+    return { status: 500, message: error.message };
+  }
+  return { status: 500, message: fallback };
+}
+
 // Create company
 router.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const { name, legalEntityStatusId, legalEntityPosition, postalCode, prefecture, city, street, building, phone, fax, website, notes, latitude, longitude } = req.body;
-    
+
+    if (typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ error: '企業名は必須です' });
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const company = await tx.company.create({
         data: {
-          name,
+          name: name.trim(),
           legalEntityStatus: legalEntityStatusId ? { connect: { id: Number(legalEntityStatusId) } } : undefined,
           legalEntityPosition,
           website,
@@ -85,9 +203,9 @@ router.post('/', async (req: AuthRequest, res: Response) => {
           street,
           building,
           isProfileDisplay: true,
-          latitude: latitude ? Number(latitude) : null,
-          longitude: longitude ? Number(longitude) : null,
-        }
+          latitude: latitude != null && latitude !== '' ? Number(latitude) : null,
+          longitude: longitude != null && longitude !== '' ? Number(longitude) : null,
+        },
       });
 
       return company;
@@ -96,7 +214,8 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     res.status(201).json(result);
   } catch (e) {
     console.error('companies.createCompany error:', e);
-    res.status(500).json({ error: '企業の作成に失敗しました' });
+    const { status, message } = companyCreateErrorMessage(e, '企業の作成に失敗しました');
+    res.status(status).json({ error: message });
   }
 });
 
@@ -176,6 +295,18 @@ router.delete('/:companyId/associations/:associationId', async (req: AuthRequest
 // Comments
 // ==========================================
 
+function serializeCompanyComment(
+  row: Record<string, unknown> & {
+    activityFileFor?: { id: number; subject: string } | null;
+  }
+): Record<string, unknown> & { linkedActivity: { id: number; subject: string } | null } {
+  const { activityFileFor, ...rest } = row;
+  return {
+    ...rest,
+    linkedActivity: activityFileFor ? { id: activityFileFor.id, subject: activityFileFor.subject } : null,
+  };
+}
+
 // Get comments for a company
 router.get('/:companyId/comments', async (req: AuthRequest, res: Response) => {
   try {
@@ -185,10 +316,11 @@ router.get('/:companyId/comments', async (req: AuthRequest, res: Response) => {
       include: {
         user: { select: { id: true, firstName: true, lastName: true } },
         attachments: true,
+        activityFileFor: { select: { id: true, subject: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
-    res.json(comments);
+    res.json(comments.map(serializeCompanyComment));
   } catch (e) {
     res.status(500).json({ error: 'コメントの取得に失敗しました' });
   }
@@ -198,9 +330,78 @@ router.get('/:companyId/comments', async (req: AuthRequest, res: Response) => {
 router.post('/:companyId/comments', async (req: AuthRequest, res: Response) => {
   try {
     const companyId = Number(req.params.companyId);
-    const { content } = req.body;
+    if (Number.isNaN(companyId)) {
+      return res.status(400).json({ error: '会社IDが不正です' });
+    }
 
-    if (!content) {
+    const body = (req.body || {}) as {
+      content?: string;
+      sourceActivityId?: number | string;
+    };
+    const { content, sourceActivityId: rawSourceActivityId } = body;
+
+    const commentIncludeWithActivity = {
+      user: { select: { id: true, firstName: true, lastName: true } },
+      attachments: true,
+      activityFileFor: { select: { id: true, subject: true } },
+    } as const;
+
+    const commentIncludeBase = {
+      user: { select: { id: true, firstName: true, lastName: true } },
+      attachments: true,
+    } as const;
+
+    if (rawSourceActivityId != null && rawSourceActivityId !== '') {
+      const activityId = Number(rawSourceActivityId);
+      if (Number.isNaN(activityId)) {
+        return res.status(400).json({ error: 'sourceActivityId が不正です' });
+      }
+      const activity = await prisma.activity.findFirst({
+        where: { id: activityId, companyId },
+      });
+      if (!activity) {
+        return res.status(404).json({ error: '活動が見つかりません' });
+      }
+      if (activity.fileCommentId) {
+        const existing = await prisma.companyComment.findUnique({
+          where: { id: activity.fileCommentId },
+          include: commentIncludeWithActivity,
+        });
+        if (!existing) {
+          return res.status(500).json({ error: '紐づくコメントが見つかりません' });
+        }
+        return res.status(200).json(serializeCompanyComment(existing as Record<string, unknown> & { activityFileFor?: { id: number; subject: string } | null }));
+      }
+      const defaultContent =
+        typeof content === 'string' && content.trim()
+          ? content.trim()
+          : `活動「${activity.subject}」の添付ファイル`;
+      const created = await prisma.$transaction(async (tx) => {
+        const c = await tx.companyComment.create({
+          data: {
+            companyId,
+            userId: req.userId!,
+            content: defaultContent,
+          },
+        });
+        await tx.activity.update({
+          where: { id: activity.id },
+          data: { fileCommentId: c.id },
+        });
+        return tx.companyComment.findUniqueOrThrow({
+          where: { id: c.id },
+          include: commentIncludeBase,
+        });
+      });
+      return res.status(201).json(
+        serializeCompanyComment({
+          ...(created as Record<string, unknown>),
+          activityFileFor: { id: activity.id, subject: activity.subject },
+        })
+      );
+    }
+
+    if (typeof content !== 'string' || !content.trim()) {
       return res.status(400).json({ error: 'コメント内容が必要です' });
     }
 
@@ -208,16 +409,22 @@ router.post('/:companyId/comments', async (req: AuthRequest, res: Response) => {
       data: {
         companyId,
         userId: req.userId!,
-        content,
+        content: content.trim(),
       },
-      include: {
-        user: { select: { id: true, firstName: true, lastName: true } },
-      },
+      include: commentIncludeBase,
     });
 
-    res.status(201).json(comment);
+    res.status(201).json(
+      serializeCompanyComment({
+        ...(comment as Record<string, unknown>),
+        activityFileFor: null,
+      })
+    );
   } catch (e) {
-    res.status(500).json({ error: 'コメントの追加に失敗しました' });
+    console.error('POST /companies/:companyId/comments', e);
+    res.status(500).json({
+      error: companyCommentPersistenceMessage(e, 'コメントの追加に失敗しました'),
+    });
   }
 });
 
@@ -247,16 +454,43 @@ router.put('/:companyId/comments/:commentId', async (req: AuthRequest, res: Resp
       data: { content },
       include: {
         user: { select: { id: true, firstName: true, lastName: true } },
+        attachments: true,
+        activityFileFor: { select: { id: true, subject: true } },
       },
     });
 
-    res.json(comment);
+    res.json(serializeCompanyComment(comment));
   } catch (e) {
     res.status(500).json({ error: 'コメントの更新に失敗しました' });
   }
 });
 
-// Delete a comment
+router.delete('/:companyId/comments/:commentId', async (req: AuthRequest, res: Response) => {
+  try {
+    const companyId = Number(req.params.companyId);
+    const commentId = Number(req.params.commentId);
+
+    const existing = await prisma.companyComment.findFirst({
+      where: { id: commentId, companyId },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: 'コメントが見つかりません' });
+    }
+
+    if (existing.userId !== req.userId) {
+      const user = await prisma.user.findUnique({ where: { id: req.userId! } });
+      if (!user?.isAdmin) {
+        return res.status(403).json({ error: '削除権限がありません' });
+      }
+    }
+
+    await prisma.companyComment.delete({ where: { id: commentId } });
+    res.json({ message: 'コメントを削除しました' });
+  } catch (e) {
+    res.status(500).json({ error: 'コメントの削除に失敗しました' });
+  }
+});
 
 // ==========================================
 // Wiki Pages

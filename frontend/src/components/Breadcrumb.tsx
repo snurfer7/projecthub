@@ -107,8 +107,6 @@ export default function Breadcrumb() {
   if (pathname === '/' || pathname === '/home') {
     // Dashboard - only show Home
     return null;
-  } else if (pathname === '/gantt') {
-    items.push({ label: 'ガントチャート' });
   } else if (pathname === '/companies') {
     items.push({ label: '企業' });
   } else if (companyMatch) {

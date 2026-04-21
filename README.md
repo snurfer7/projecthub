@@ -9,11 +9,14 @@ docker-compose down && docker-compose build && docker-compose up -d
 ```
 
 このコマンドで以下のサービスが起動します：
-- **PostgreSQL**: ポート 5432
-- **MinIO**: ポート 9000 (API) / 9001 (Console)
-- **LocalStack** (Amazon SESモック): ポート 4566
-- **Backend**: ポート 3000
+- **PostgreSQL**: ポート 5432（ヘルスチェック後に接続可能とみなす）
+- **migrate**: 同一イメージで **`prisma migrate deploy` のみ実行して終了**（`backend` より先。ボリュームを空にした直後も `up -d` だけでスキーマが揃う）
+- **LocalStack** (S3 互換・ファイル添付 / SES モック): ポート 4566（`scripts/init-localstack.sh` で S3 バケット作成）
+- **MinIO**（任意・S3 互換の別選択肢）: ポート 9000 (API) / 9001 (Console)。使う場合は `AWS_S3_ENDPOINT_URL=http://minio:9000` と MinIO 用の認証に上書き
+- **Backend**: ポート 3000（既定で LocalStack S3 にファイルを保存）
 - **Frontend**: ポート 5173
+
+旧 CRM のデータ移行（`npm run migrate:legacy-crm`）は **ローカル DB 上でのみ**実行し、本番では実行しない想定です。本番への反映は DB・S3 を手動で持ち込みます（手順は [backend/migration/legacy-crm/README.md](backend/migration/legacy-crm/README.md) を参照）。
 
 ### メールの送信内容の確認方法 (ローカルデバッグ)
 
@@ -120,10 +123,12 @@ docker-compose -f docker-compose.yml up -d
 初回デプロイ時に、データベーススキーマを適用してください：
 
 ```bash
-# Docker コンテナ内でマイグレーション実行
-docker-compose exec backend npx prisma db push --accept-data-loss
-docker-compose exec backend npx tsx ../prisma/seed.ts
+# Docker コンテナ内（作業ディレクトリは /app/backend）でマイグレーション実行
+docker-compose exec backend npx prisma migrate deploy
+docker-compose exec backend npx tsx ./prisma/seed.ts
 ```
+
+> Prisma のスキーマはリポジトリ上 `backend/prisma/schema.prisma` にあります。`docker compose up` で起動する開発用スタックでは `start.sh` 内でも `migrate deploy` と seed が実行されるため、手動は本番用スタックなど必要な場合に限ります。
 
 ### 8. ヘルスチェック
 

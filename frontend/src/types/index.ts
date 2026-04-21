@@ -33,6 +33,15 @@ export interface Company {
   wikiPages?: CompanyWikiPage[];
 }
 
+/** GET /companies?page=… のレスポンス */
+export interface PaginatedCompaniesResponse {
+  items: Company[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
 export interface Association {
   id: number;
   name: string;
@@ -329,6 +338,12 @@ export interface Activity {
   dealId?: number | null;
   userId: number;
   assignedToId?: number | null;
+  fileCommentId?: number | null;
+  /** ファイル用会社コメントと添付メタ（GET/POST/PUT 活動 API） */
+  fileComment?: {
+    id: number;
+    attachments: Pick<Attachment, 'id' | 'filename' | 'contentType' | 'fileSize'>[];
+  } | null;
   type: string;
   subject: string;
   description?: string;
@@ -367,6 +382,7 @@ export interface CompanyComment {
   createdAt: string;
   user: { id: number; firstName: string; lastName: string; email?: string };
   attachments?: Attachment[];
+  linkedActivity?: { id: number; subject: string } | null;
 }
 
 export interface CompanyWikiPage {
@@ -389,4 +405,15 @@ export interface SystemSetting {
   endTime: string;
   managementTimes: string[];
   conversionTimes: number[];
+}
+
+/** GET /admin/settings/email */
+export interface EmailSettings {
+  emailTransport: 'ses' | 'smtp';
+  emailFromOverride: string | null;
+  smtpHost: string | null;
+  smtpPort: number;
+  smtpUser: string | null;
+  smtpSecure: boolean;
+  smtpPasswordSet: boolean;
 }

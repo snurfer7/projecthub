@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { List, BarChart2, Kanban, Clock } from 'lucide-react';
 import api from '../api/client';
 import { Project, Company, Issue, IssueStatus, Tracker, TimeEntry } from '../types';
@@ -21,7 +21,18 @@ import { useAuth } from '../hooks/useAuth';
 
 export default function ProjectListPage() {
   const navigate = useNavigate();
-  const [viewMode, setViewMode] = useState<'list' | 'gantt' | 'kanban' | 'time'>('list');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [viewMode, setViewMode] = useState<'list' | 'gantt' | 'kanban' | 'time'>(() =>
+    searchParams.get('view') === 'gantt' ? 'gantt' : 'list'
+  );
+
+  useEffect(() => {
+    if (searchParams.get('view') !== 'gantt') return;
+    setViewMode('gantt');
+    const next = new URLSearchParams(searchParams);
+    next.delete('view');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [searchQuery, setSearchQuery] = useState('');

@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../api/client';
 import { CompanyComment } from '../types';
-import { Trash2, Send, Pencil } from 'lucide-react';
+import { Trash2, Pencil, MessageSquare } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import MarkdownEditor from './MarkdownEditor';
 import MarkdownRenderer from './MarkdownRenderer';
 import ConfirmationModal from './ConfirmationModal';
 import CommentModal from './CommentModal';
@@ -11,9 +11,10 @@ import CommentModal from './CommentModal';
 
 interface CompanyCommentsTabProps {
     companyId: number;
+    highlightCommentId?: number | null;
 }
 
-export default function CompanyCommentsTab({ companyId }: CompanyCommentsTabProps) {
+export default function CompanyCommentsTab({ companyId, highlightCommentId }: CompanyCommentsTabProps) {
     const [comments, setComments] = useState<CompanyComment[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -36,9 +37,22 @@ export default function CompanyCommentsTab({ companyId }: CompanyCommentsTabProp
         }
     };
 
+    const highlightedRef = useRef<HTMLDivElement | null>(null);
+
     useEffect(() => {
         loadComments();
     }, [companyId]);
+
+    useEffect(() => {
+        if (highlightCommentId == null || !highlightedRef.current) return;
+        const el = highlightedRef.current;
+        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        el.classList.add('ring-2', 'ring-sky-400', 'rounded-lg');
+        const t = window.setTimeout(() => {
+            el.classList.remove('ring-2', 'ring-sky-400', 'rounded-lg');
+        }, 4000);
+        return () => window.clearTimeout(t);
+    }, [highlightCommentId, comments]);
 
     const handleDownload = async (attachmentId: number) => {
         try {
@@ -111,64 +125,57 @@ export default function CompanyCommentsTab({ companyId }: CompanyCommentsTabProp
     if (error) return <div className="bg-red-50 text-red-600 p-4 rounded-md mb-4">{error}</div>;
 
     return (
-        <div className="flex flex-col h-full bg-white rounded-lg shadow min-h-[500px] relative">
-            <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-lg">
-                <h3 className="font-semibold text-slate-700">コメント ({comments.length})</h3>
+        <div>
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-semibold text-slate-700">コメント</h2>
                 <button
                     onClick={handleOpenCreateModal}
-                    className="flex items-center gap-1.5 bg-sky-600 text-white px-3 py-1.5 rounded text-xs font-medium hover:bg-sky-700 transition-colors shadow-sm"
+                    className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm transition-colors"
                 >
-                    <Send className="w-3.5 h-3.5" />
                     コメントを投稿
                 </button>
             </div>
 
-            {/* Comments List */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="bg-white rounded-lg shadow overflow-hidden">
                 {comments.length === 0 ? (
-                    <div className="text-center py-12 text-gray-400">
-                        <p className="mb-2">まだコメントがありません</p>
-                        <p className="text-sm">最初のコメントを投稿して、情報を共有しましょう</p>
+                    <div className="text-center py-12 bg-white">
+                        <MessageSquare className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+                        <p className="text-gray-500 mb-1">まだコメントがありません</p>
+                        <p className="text-sm text-gray-400">最初のコメントを投稿して、情報を共有しましょう</p>
                     </div>
                 ) : (
-                    comments.map((comment) => (
-                        <div key={comment.id} className="flex gap-4">
-                            <div className="flex-shrink-0 mt-1">
-                                <div className="w-8 h-8 rounded-full bg-sky-100 flex items-center justify-center text-sky-700 font-bold text-sm">
-                                    {comment.user.lastName?.[0]}{comment.user.firstName?.[0]}
-                                </div>
-                            </div>
-                            <div className="flex-1">
-                                <div className="bg-gray-50 rounded-lg p-3 border border-gray-100 relative group">
-                                    <div className="flex justify-between items-center mb-1">
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-medium text-sm text-slate-700">
-                                                {comment.user.lastName} {comment.user.firstName}
-                                            </span>
-                                            <span className="text-xs text-gray-400">
-                                                {new Date(comment.createdAt).toLocaleString('ja-JP')}
-                                            </span>
-                                        </div>
-                                        {(user?.isAdmin || user?.id === comment.userId) && (
-                                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white/80 rounded">
-                                                <button
-                                                    onClick={() => handleOpenEditModal(comment)}
-                                                    className="p-1 text-gray-400 hover:text-sky-600 transition-colors"
-                                                    title="編集"
-                                                >
-                                                    <Pencil className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => setConfirmDeleteId(comment.id)}
-                                                    className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                                                    title="コメントを削除"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        )}
+                    <div className="divide-y divide-gray-100 max-h-[min(70vh,640px)] overflow-y-auto">
+                        {comments.map((comment) => (
+                            <div
+                                key={comment.id}
+                                ref={highlightCommentId === comment.id ? highlightedRef : undefined}
+                                id={`company-comment-${comment.id}`}
+                                className="flex gap-4 px-4 py-3 hover:bg-gray-50 transition-colors"
+                            >
+                                <div className="flex-shrink-0 mt-0.5">
+                                    <div className="w-8 h-8 rounded-full bg-sky-100 flex items-center justify-center text-sky-700 font-bold text-sm">
+                                        {comment.user.lastName?.[0]}{comment.user.firstName?.[0]}
                                     </div>
-                                    
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    {comment.linkedActivity && (
+                                        <div className="mb-2">
+                                            <Link
+                                                to={`/companies/${companyId}?tab=activities&activity=${comment.linkedActivity.id}`}
+                                                className="text-xs text-sky-600 hover:underline font-medium"
+                                            >
+                                                活動履歴: {comment.linkedActivity.subject}
+                                            </Link>
+                                        </div>
+                                    )}
+                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                        <span className="font-bold text-slate-800 text-sm">
+                                            {comment.user.lastName} {comment.user.firstName}
+                                        </span>
+                                        <span className="text-xs text-gray-400">
+                                            {new Date(comment.createdAt).toLocaleString('ja-JP')}
+                                        </span>
+                                    </div>
                                     <div className="text-xs text-gray-600 markdown-content">
                                         <MarkdownRenderer content={comment.content} />
                                     </div>
@@ -191,9 +198,29 @@ export default function CompanyCommentsTab({ companyId }: CompanyCommentsTabProp
                                         </div>
                                     )}
                                 </div>
+                                {(user?.isAdmin || user?.id === comment.userId) && (
+                                    <div className="flex-shrink-0 self-start pt-0.5">
+                                        <div className="flex justify-end gap-2">
+                                            <button
+                                                onClick={() => handleOpenEditModal(comment)}
+                                                className="p-1.5 text-sky-600 hover:bg-sky-50 rounded transition-colors"
+                                                title="編集"
+                                            >
+                                                <Pencil className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => setConfirmDeleteId(comment.id)}
+                                                className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                                title="削除"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                            </div>
-                        ))
+                        ))}
+                    </div>
                 )}
             </div>
 

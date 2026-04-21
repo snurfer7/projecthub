@@ -13,7 +13,7 @@ alwaysApply: true
   - `doc/backend/README.md` で索引を確認  
   - `doc/backend/SPEC_OVERVIEW.md` でアーキテクチャ・認証を確認  
   - API を触る場合は `doc/backend/API_SPEC.md` を契約として参照  
-  - データ構造を触る場合は `doc/backend/DATA_MODEL.md` および `prisma/schema.prisma` を参照  
+  - データ構造を触る場合は `doc/backend/DATA_MODEL.md` および `backend/prisma/schema.prisma` を参照  
 
 - **対象が Frontend**  
   - `doc/frontend/README.md` で索引を確認  

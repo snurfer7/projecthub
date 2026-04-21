@@ -10,6 +10,7 @@
 - **Backend (Node.js/Express)**: ローカルでビルド → `dist/` をアップロード → PM2 で常駐起動
 - **PostgreSQL**: サーバーに直接インストール（ポート 5432、内部のみ）
 - **Nginx**: 静的ファイル配信 + API リバースプロキシ + SSL 終端
+- **Amazon SES（メール送信）**: ユーザー作成通知など。セットアップはセクション 12 を参照
 
 ---
 
@@ -128,6 +129,11 @@ AWS_ACCESS_KEY_ID=your_aws_access_key_id
 AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
 S3_BUCKET_NAME=projecthub-production-uploads
 
+# Amazon SES（メール送信。手順は「12. Amazon SES（メール送信）の設定」を参照）
+EMAIL_FROM=verified-sender@your-domain.example
+# 本番の AWS SES を使う場合は未設定のまま（LocalStack 等のみ指定）
+# AWS_SES_ENDPOINT_URL=
+
 # Application
 NODE_ENV=production
 PORT=3000
@@ -190,8 +196,8 @@ scp -i your_key.pem \
 ```bash
 rsync -avz \
   -e "ssh -i your_key.pem" \
-  prisma/ \
-  ubuntu@public-ip-address:/var/www/projecthub/prisma/
+  backend/prisma/ \
+  ubuntu@public-ip-address:/var/www/projecthub/backend/prisma/
 ```
 
 ### 6.3 Frontend のアップロード
@@ -225,7 +231,7 @@ cd /var/www/projecthub/backend
 npx prisma generate
 ```
 
-スキーマ（`prisma/schema.prisma`）の generator で `output = "../backend/node_modules/.prisma/client"` を指定しているため、`backend` から実行するとアプリが参照する正しい場所に生成されます。指定がないとルートの `node_modules` に生成され、`Cannot find module '.prisma/client/default'` になります。
+スキーマは `backend/prisma/schema.prisma` にあり、generator の `output` は `../node_modules/.prisma/client`（＝`backend/node_modules/.prisma/client`）です。`cd /var/www/projecthub/backend` から `npx prisma generate` するとアプリが参照する正しい場所に生成されます。
 
 > プロジェクトの Prisma バージョンに合わせる場合は `npx prisma@6.4.1 generate` のようにバージョン指定できます。
 
@@ -233,8 +239,10 @@ npx prisma generate
 
 ```bash
 cd /var/www/projecthub/backend
-npx prisma db push
+npx prisma migrate deploy
 ```
+
+> マイグレーション履歴は `backend/prisma/migrations/` に含まれます。スキーマだけを無履歴で押し込む場合は `npx prisma db push` も使えますが、通常は `migrate deploy` を推奨します。
 
 ### 7.4 PM2 でバックエンドを起動
 
@@ -253,7 +261,7 @@ pm2 startup
 
 ### 7.5 管理者アカウント（初回ログイン情報）
 
-`prisma/seed.ts` を実行してシード済みの場合、以下の管理者アカウントでログインできます。**本番ではログイン画面に「テストユーザーでログイン」は表示されないため、この情報を手元に控えておいてください。**
+`backend/prisma/seed.ts`（サーバー上は `/var/www/projecthub/backend/prisma/seed.ts`）を実行してシード済みの場合、以下の管理者アカウントでログインできます。**本番ではログイン画面に「テストユーザーでログイン」は表示されないため、この情報を手元に控えておいてください。**
 
 | 項目 | 値 |
 |------|-----|
@@ -298,6 +306,9 @@ server {
 
     access_log /var/log/nginx/projecthub_access.log;
     error_log /var/log/nginx/projecthub_error.log;
+
+    # ファイルアップロード（API は multer で最大 50MB）。未指定だと既定 1m で 413 になる
+    client_max_body_size 50M;
 
     # バックエンド API へのプロキシ
     location /api/ {
@@ -431,11 +442,75 @@ aws s3api put-public-access-block \
 
 ---
 
-## 12. 更新デプロイ手順
+## 12. Amazon SES（メール送信）の設定
+
+バックエンドは `@aws-sdk/client-ses` の `SendEmail` でメールを送ります（例: 管理者によるユーザー作成時の仮パスワード通知）。本番では **Amazon SES** を使い、**検証済みの送信元** と **適切な IAM 権限** が必要です。
+
+### 12.1 前提（アプリ側の挙動）
+
+- **リージョン**: `AWS_REGION`（例: `ap-northeast-1`）が SES クライアントのリージョンになります。**検証した SES のリージョンと一致**させてください。
+- **認証情報**: `AWS_SES_ENDPOINT_URL` を**設定しない**場合、SDK はデフォルトの認証プロバイダを使います。Lightsail 上では通常、セクション 4 と同じ **`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`**（環境変数または `~/.aws/credentials`）が参照されます。
+- **送信元アドレス**: 環境変数 **`EMAIL_FROM`**（未設定時は `noreply@projecthub.local`）。**SES で検証済みのメールアドレスまたはドメイン**に必ず合わせてください。
+- **LocalStack との違い**: 開発用に `AWS_SES_ENDPOINT_URL` を指定するとエンドポイント上書き用の設定になります。**本番 AWS SES ではこの変数は空のまま**（または `.env` に書かない）にします。
+
+### 12.2 SES で送信元を検証する
+
+1. AWS マネジメントコンソール → **Simple Email Service (SES)** を開く（リージョンは `AWS_REGION` と同じにする）。
+2. 左メニュー **Verified identities**（検証済み ID）で **Create identity**。
+3. 次のいずれかを選ぶ：
+   - **Email address**: 単一アドレスのみ送信する場合。届いたメールのリンクで検証を完了する。
+   - **Domain**: そのドメイン配下の任意アドレスを送信元にできる。DNS に SES が提示する **DKIM**（および必要なら **MAIL FROM**）のレコードを追加する。
+4. 検証が **Verified** になったら、そのアドレス（またはドメイン）に合わせてサーバーの `.env` の **`EMAIL_FROM`** を設定する。
+
+### 12.3 サンドボックスと本番送信
+
+- 新規アカウントの SES は多くのリージョンで **サンドボックス** のままです。この状態では **検証済みアドレス宛てにしか送れません**。
+- 任意の宛先へ送るには、SES の **Account dashboard** から **Request production access**（本番アクセスのリクエスト）を行い、利用ケースを申請して承認を待ちます。
+
+### 12.4 IAM に SES 送信権限を付与する
+
+S3 用と同じ IAM ユーザーにポリシーを追加するか、SES 専用ユーザーを作り、Lightsail の `.env` にそのキーを設定します。最低限、送信 API に必要な例は次のとおりです。
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["ses:SendEmail", "ses:SendRawEmail"],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+> 組織ポリシーで `Resource` を絞りたい場合は、[SES の IAM ドキュメント](https://docs.aws.amazon.com/ses/latest/dg/sending-authorization.html)に沿って、検証済み ID に合わせた ARN へ制限できます。
+
+### 12.5 サーバー側 `.env` の最終確認
+
+セクション 4 の例に加え、次を確認します。
+
+| 変数 | 本番の目安 |
+|------|------------|
+| `EMAIL_FROM` | SES で Verified なアドレス（例: `noreply@your-domain.example`） |
+| `AWS_REGION` | SES を利用するリージョン |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | 上記 IAM ポリシーが付いたユーザー |
+| `AWS_SES_ENDPOINT_URL` | **未設定**（本番 AWS のエンドポイントを使う） |
+
+変更後は `pm2 restart projecthub-backend` でプロセスを再起動します（セクション 14.4）。
+
+### 12.6 動作確認のヒント
+
+- テストユーザー作成など、メール送信が走る操作を一度行い、`pm2 logs projecthub-backend` に `Welcome email sent` や SES の `MessageId` が出るか確認する。
+- エラーに `MessageRejected` / `Email address is not verified` が含まれる場合は、**送信元または宛先**がサンドボックス制約・未検証に当たっていないかを確認する。
+
+---
+
+## 13. 更新デプロイ手順
 
 コードを修正した後の更新手順です。**ローカルマシンで実行**します。
 
-### 12.1 ビルドと一括デプロイ（スクリプト例）
+### 13.1 ビルドと一括デプロイ（スクリプト例）
 
 ```bash
 #!/bin/bash
@@ -467,7 +542,7 @@ scp $SCP_OPTS backend/package.json backend/package-lock.json \
   $SERVER:/var/www/projecthub/backend/
 
 rsync -avz -e "ssh $SCP_OPTS" \
-  prisma/ $SERVER:/var/www/projecthub/prisma/
+  backend/prisma/ $SERVER:/var/www/projecthub/backend/prisma/
 
 # Frontend アップロード
 echo "=== Frontend アップロード ==="
@@ -480,7 +555,7 @@ $SSH $SERVER << 'ENDSSH'
   cd /var/www/projecthub/backend
   npm install --omit=dev
   npx prisma generate
-  npx prisma db push
+  npx prisma migrate deploy
   pm2 restart projecthub-backend
 ENDSSH
 
@@ -492,7 +567,7 @@ chmod +x deploy.sh
 ./deploy.sh
 ```
 
-### 12.2 個別に更新する場合
+### 13.2 個別に更新する場合
 
 **Backend のみ更新:**
 
@@ -517,9 +592,9 @@ rsync -avz --delete -e "ssh -i your_key.pem" \
 
 ---
 
-## 13. 運用・メンテナンス
+## 14. 運用・メンテナンス
 
-### 13.1 バックエンドの状態確認
+### 14.1 バックエンドの状態確認
 
 ```bash
 ssh -i your_key.pem ubuntu@public-ip-address
@@ -527,14 +602,14 @@ pm2 status
 pm2 logs projecthub-backend
 ```
 
-### 13.2 Nginx ログの確認
+### 14.2 Nginx ログの確認
 
 ```bash
 sudo tail -f /var/log/nginx/projecthub_access.log
 sudo tail -f /var/log/nginx/projecthub_error.log
 ```
 
-### 13.3 PostgreSQL バックアップ
+### 14.3 PostgreSQL バックアップ
 
 ```bash
 # 手動バックアップ
@@ -545,7 +620,7 @@ pg_dump -U projecthub_user -h localhost projecthub_prod \
 # 0 2 * * * pg_dump -U projecthub_user -h localhost projecthub_prod > ~/backups/backup-$(date +\%Y\%m\%d).sql
 ```
 
-### 13.4 環境変数の更新
+### 14.4 環境変数の更新
 
 ```bash
 nano /var/www/projecthub/backend/.env
@@ -554,16 +629,16 @@ pm2 restart projecthub-backend
 
 ---
 
-## 14. トラブルシューティング
+## 15. トラブルシューティング
 
-### 14.1 バックエンドが起動しない
+### 15.1 バックエンドが起動しない
 
 ```bash
 pm2 logs projecthub-backend --lines 50
 pm2 show projecthub-backend
 ```
 
-### 14.2 データベース接続エラー
+### 15.2 データベース接続エラー
 
 ```bash
 # 接続テスト
@@ -573,7 +648,7 @@ psql -U projecthub_user -h localhost -d projecthub_prod -c "SELECT 1;"
 cat /var/www/projecthub/backend/.env | grep DATABASE_URL
 ```
 
-### 14.3 フロントエンドが表示されない
+### 15.3 フロントエンドが表示されない
 
 ```bash
 # ファイルが配置されているか確認
@@ -584,21 +659,34 @@ sudo nginx -t
 sudo tail -f /var/log/nginx/projecthub_error.log
 ```
 
-### 14.4 Nginx エラー
+### 15.4 Nginx エラー
 
 ```bash
 sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-### 14.5 SSL 証明書エラー
+### 15.5 SSL 証明書エラー
 
 ```bash
 sudo certbot certificates
 sudo certbot renew --dry-run
 ```
 
-### 14.6 502 Bad Gateway または `Cannot find module '.prisma/client/default'`
+### 15.6 413 Content Too Large（`/api/attachments/upload` など）
+
+ブラウザや Network タブで **413** が出る場合、リクエスト本文が **Nginx の許容サイズを超えている**ことが多いです（`client_max_body_size` の既定は **1m**）。バックエンドの添付は最大 **50MB**（`backend/src/routes/attachments.ts` の multer 設定）のため、HTTPS の `server { ... }` 内に次を追加し、Nginx を再読み込みする。
+
+```nginx
+client_max_body_size 50M;
+```
+
+```bash
+sudo nano /etc/nginx/sites-available/projecthub   # 上記を server ブロックに追記
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+### 15.7 502 Bad Gateway または `Cannot find module '.prisma/client/default'`
 
 **502 の原因**: Nginx がバックエンド（127.0.0.1:3000）に接続できない、またはバックエンドが起動直後にクラッシュしています。
 
@@ -614,9 +702,21 @@ pm2 restart projecthub-backend
 
 初回セットアップ時はセクション 7.2 の「Prisma Client の生成」を必ず実行してください。
 
+### 15.8 メールが送信されない（Amazon SES）
+
+- **`EMAIL_FROM`** が SES の **Verified identities** と一致しているか（ドメイン検証なら、そのドメインのメールアドレスか）。
+- **`AWS_REGION`** が SES コンソールで検証・送信しているリージョンと同じか。
+- IAM に **`ses:SendEmail`**（必要なら **`ses:SendRawEmail`**）が付いているか（セクション 12.4）。
+- アカウントが **サンドボックス** のままなら、**宛先も検証済みアドレス**に限られる。本番利用は **production access** の承認後に再試行する。
+- 本番では **`AWS_SES_ENDPOINT_URL` を設定していないか**（誤って LocalStack 用 URL が残っていると送信に失敗する）。
+
+```bash
+pm2 logs projecthub-backend --lines 100
+```
+
 ---
 
-## 15. セキュリティチェックリスト
+## 16. セキュリティチェックリスト
 
 本番環境を公開する前に以下を確認してください：
 
@@ -629,12 +729,14 @@ pm2 restart projecthub-backend
 - [ ] **PostgreSQL** が localhost のみでリッスン中（外部アクセス禁止）
 - [ ] **自動バックアップ** が設定されている
 - [ ] **環境変数** が .gitignore に含まれている
+- [ ] **Amazon SES** の送信元（`EMAIL_FROM`）が検証済みで、IAM に送信権限がある（本番送信ならサンドボックス解除済み）
 
 ---
 
-## 16. 参考資料
+## 17. 参考資料
 
 - [AWS Lightsail ドキュメント](https://docs.aws.amazon.com/lightsail/)
+- [Amazon SES ドキュメント](https://docs.aws.amazon.com/ses/)
 - [PM2 ドキュメント](https://pm2.keymetrics.io/docs/)
 - [Nginx ドキュメント](https://nginx.org/)
 - [Let's Encrypt](https://letsencrypt.org/)
