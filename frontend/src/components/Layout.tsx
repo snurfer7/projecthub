@@ -2,6 +2,7 @@ import { ReactNode, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { User } from '../types';
 import Breadcrumb from './Breadcrumb';
+import { clearCompaniesListPersistedFromHeader } from '../utils/companiesListStorage';
 import {
   Menu, Database, Building2, Settings, LogOut,
   Briefcase, ChevronDown, ChevronRight, Users
@@ -121,6 +122,11 @@ export default function Layout({ user, onLogout, children }: Props) {
                 <Link
                   key={item.path}
                   to={item.path}
+                  onClick={() => {
+                    if (item.path === '/companies') {
+                      clearCompaniesListPersistedFromHeader();
+                    }
+                  }}
                   className={`
                     flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
                     ${isActive(item.path)

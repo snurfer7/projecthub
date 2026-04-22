@@ -1,25 +1,60 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { Company, PaginatedCompaniesResponse } from '../types';
 import CompanyModal from '../components/CompanyModal';
 import { formatCompanyName } from '../utils/format';
+import {
+  COMPANIES_LIST_STORAGE_KEY,
+  COMPANIES_LIST_RESET_EVENT,
+  readPersistedCompaniesList,
+  defaultCompaniesListQuery,
+  type CompaniesListQuery,
+  type PersistedCompaniesList,
+} from '../utils/companiesListStorage';
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 
-type ListQuery = { page: number; pageSize: number; q: string };
-
 export default function CompaniesPage() {
   const navigate = useNavigate();
+  const persistedList = useMemo(() => readPersistedCompaniesList(), []);
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [listQuery, setListQuery] = useState<ListQuery>({ page: 1, pageSize: 50, q: '' });
+  const [searchQuery, setSearchQuery] = useState(() => persistedList?.searchQuery ?? '');
+  const [listQuery, setListQuery] = useState<CompaniesListQuery>(
+    () => persistedList?.listQuery ?? defaultCompaniesListQuery(),
+  );
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [showLegalEntity, setShowLegalEntity] = useState(true);
+  const [showLegalEntity, setShowLegalEntity] = useState(
+    () => persistedList?.showLegalEntity ?? true,
+  );
 
   const [showCompanyModal, setShowCompanyModal] = useState(false);
+
+  useEffect(() => {
+    try {
+      const payload: PersistedCompaniesList = {
+        v: 1,
+        searchQuery,
+        listQuery,
+        showLegalEntity,
+      };
+      sessionStorage.setItem(COMPANIES_LIST_STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      // ignore quota / private mode
+    }
+  }, [searchQuery, listQuery, showLegalEntity]);
+
+  useEffect(() => {
+    const onReset = () => {
+      setSearchQuery('');
+      setListQuery(defaultCompaniesListQuery());
+      setShowLegalEntity(true);
+    };
+    window.addEventListener(COMPANIES_LIST_RESET_EVENT, onReset);
+    return () => window.removeEventListener(COMPANIES_LIST_RESET_EVENT, onReset);
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => {
