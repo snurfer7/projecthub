@@ -54,7 +54,12 @@ data class ContactDto(
     val notes: String?,
     @SerializedName("createdAt") val createdAt: String?
 ) {
-    val fullName: String get() = "$firstName $lastName"
+    /** 表示用: 姓を先に、名が空なら姓のみ */
+    val fullName: String get() {
+        val l = lastName.trim()
+        val f = firstName.trim()
+        return listOf(l, f).filter { it.isNotEmpty() }.joinToString(" ").ifEmpty { "-" }
+    }
 }
 
 data class DealDto(

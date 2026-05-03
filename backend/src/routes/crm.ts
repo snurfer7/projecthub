@@ -84,11 +84,13 @@ router.get('/contacts/:id', async (req: AuthRequest, res: Response) => {
 router.post('/contacts', async (req: AuthRequest, res: Response) => {
   try {
     const { companyId, firstName, lastName, email, phone, position, department, notes, details } = req.body;
+    const firstNameNorm = firstName == null ? '' : String(firstName).trim();
+    const lastNameNorm = lastName == null ? '' : String(lastName).trim();
     const contact = await prisma.contact.create({
       data: {
         companyId,
-        firstName,
-        lastName,
+        firstName: firstNameNorm,
+        lastName: lastNameNorm,
         email,
         phone,
         position,
@@ -111,6 +113,8 @@ router.put('/contacts/:id', async (req: AuthRequest, res: Response) => {
   try {
     const { firstName, lastName, email, phone, position, department, notes, details } = req.body;
     const contactId = Number(req.params.id);
+    const firstNameNorm = firstName == null ? '' : String(firstName).trim();
+    const lastNameNorm = lastName == null ? '' : String(lastName).trim();
 
     const contact = await prisma.$transaction(async (tx: any) => {
       if (details) {
@@ -120,8 +124,8 @@ router.put('/contacts/:id', async (req: AuthRequest, res: Response) => {
       return await tx.contact.update({
         where: { id: contactId },
         data: {
-          firstName,
-          lastName,
+          firstName: firstNameNorm,
+          lastName: lastNameNorm,
           email,
           phone,
           position,

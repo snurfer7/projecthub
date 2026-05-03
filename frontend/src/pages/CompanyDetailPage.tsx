@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, FormEvent } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/client';
 import { Company, Contact, Deal, Activity, Association } from '../types';
-import { formatCompanyName } from '../utils/format';
+import { formatCompanyName, formatContactDisplayName } from '../utils/format';
 import { Pencil, Trash2, MessageSquare } from 'lucide-react';
 import CompanyModal from '../components/CompanyModal';
 import Modal from '../components/Modal';
@@ -194,6 +194,8 @@ export default function CompanyDetailPage() {
     try {
       const data = {
         ...contactForm,
+        firstName: contactForm.firstName.trim(),
+        lastName: contactForm.lastName.trim(),
         companyId,
         notes: contactForm.notes || null,
         details: contactDetails.filter(d => d.department || d.position || d.phone || d.email || d.locationId).map(d => ({
@@ -469,7 +471,7 @@ export default function CompanyDetailPage() {
                   <tr key={c.id} className="border-t hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-slate-800">
                       <span className="inline-flex items-center gap-2">
-                        {c.lastName} {c.firstName}
+                        {formatContactDisplayName(c.lastName, c.firstName)}
                         <button
                           onClick={() => setCommentContact(c)}
                           title="コメント"
@@ -532,7 +534,7 @@ export default function CompanyDetailPage() {
                         <button onClick={() => openEditContact(c)} title="編集" className="p-1.5 text-sky-600 hover:bg-sky-50 rounded">
                           <Pencil className="w-4 h-4" />
                         </button>
-                        <button onClick={() => setConfirmDelete({ type: 'contact', id: c.id, name: `${c.lastName} ${c.firstName}` })} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded">
+                        <button onClick={() => setConfirmDelete({ type: 'contact', id: c.id, name: formatContactDisplayName(c.lastName, c.firstName) })} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -562,8 +564,8 @@ export default function CompanyDetailPage() {
                   <th className="text-right px-4 py-3 font-medium text-gray-600">金額</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">確度</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">予定日</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">担当者</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">連絡先</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">自社担当者</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">先方担当者</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">アクション</th>
                 </tr>
               </thead>
@@ -576,7 +578,7 @@ export default function CompanyDetailPage() {
                     <td className="px-4 py-3 text-right text-gray-600">{d.probability != null ? `${d.probability}%` : '-'}</td>
                     <td className="px-4 py-3 text-gray-600">{d.expectedCloseDate ? new Date(d.expectedCloseDate).toLocaleDateString('ja-JP') : '-'}</td>
                     <td className="px-4 py-3 text-gray-600">{d.assignedTo ? `${d.assignedTo.lastName} ${d.assignedTo.firstName}` : '-'}</td>
-                    <td className="px-4 py-3 text-gray-600">{d.contact ? `${d.contact.lastName} ${d.contact.firstName}` : '-'}</td>
+                    <td className="px-4 py-3 text-gray-600">{d.contact ? formatContactDisplayName(d.contact.lastName, d.contact.firstName) : '-'}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-2">
                         <button onClick={() => openEditDeal(d)} title="編集" className="p-1.5 text-sky-600 hover:bg-sky-50 rounded">
@@ -645,7 +647,7 @@ export default function CompanyDetailPage() {
                     )}
                     <div className="text-xs text-gray-400 mt-1">
                       自社担当: {a.assignedTo ? `${a.assignedTo.lastName} ${a.assignedTo.firstName}` : '-'}
-                      {a.contact && <span> · 先方: {a.contact.lastName} {a.contact.firstName}</span>}
+                      {a.contact && <span> · 先方: {formatContactDisplayName(a.contact.lastName, a.contact.firstName)}</span>}
                       <span> · 登録: {a.user.lastName} {a.user.firstName} · {new Date(a.createdAt).toLocaleString('ja-JP')}</span>
                       {a.dueDate && <span className="ml-2">期限: {new Date(a.dueDate).toLocaleDateString('ja-JP')}</span>}
                     </div>
@@ -863,7 +865,7 @@ export default function CompanyDetailPage() {
       <Modal
         isOpen={commentContact !== null}
         onClose={() => setCommentContact(null)}
-        title={commentContact ? `${commentContact.lastName} ${commentContact.firstName} のコメント` : ''}
+        title={commentContact ? `${formatContactDisplayName(commentContact.lastName, commentContact.firstName)} のコメント` : ''}
       >
         {commentContact && (
           <ContactCommentsSection contactId={commentContact.id} />
@@ -880,7 +882,7 @@ export default function CompanyDetailPage() {
         <form onSubmit={handleSubmitContact} className="space-y-4">
           <div className="grid grid-cols-2 gap-4 mb-0">
             <TextInput label="姓 *" required value={contactForm.lastName} onChange={(e) => setContactForm({ ...contactForm, lastName: e.target.value })} />
-            <TextInput label="名 *" required value={contactForm.firstName} onChange={(e) => setContactForm({ ...contactForm, firstName: e.target.value })} />
+            <TextInput label="名" value={contactForm.firstName} onChange={(e) => setContactForm({ ...contactForm, firstName: e.target.value })} />
           </div>
           <div className="mb-0">
             <div className="flex justify-between items-center mb-2">
@@ -1011,13 +1013,13 @@ export default function CompanyDetailPage() {
           </div>
           <div className="grid grid-cols-2 gap-4 mb-0">
             <Combobox
-              label="連絡先"
+              label="先方担当者"
               value={dealForm.contactId}
-              options={contacts.map(c => ({ value: c.id.toString(), label: `${c.lastName} ${c.firstName}` }))}
+              options={contacts.map(c => ({ value: c.id.toString(), label: formatContactDisplayName(c.lastName, c.firstName) }))}
               onChange={(val) => setDealForm({ ...dealForm, contactId: val })}
             />
             <Combobox
-              label="担当者"
+              label="自社担当者"
               value={dealForm.assignedToId}
               options={users
                 .filter(u => u.status === 'active' || dealForm.assignedToId === String(u.id))
@@ -1063,7 +1065,7 @@ export default function CompanyDetailPage() {
             <Combobox
               label="先方担当者"
               value={activityForm.contactId}
-              options={contacts.map(c => ({ value: c.id.toString(), label: `${c.lastName} ${c.firstName}` }))}
+              options={contacts.map(c => ({ value: c.id.toString(), label: formatContactDisplayName(c.lastName, c.firstName) }))}
               onChange={(val) => setActivityForm({ ...activityForm, contactId: val })}
             />
             <Combobox

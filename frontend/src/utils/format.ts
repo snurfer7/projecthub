@@ -72,3 +72,11 @@ export function formatPostalCode(value: string): string {
     }
     return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}`;
 }
+
+/** 連絡先の氏名（姓・名）。名が空のときは姓のみ。両方空なら「-」。 */
+export function formatContactDisplayName(lastName: string, firstName: string): string {
+    const last = (lastName ?? '').trim();
+    const first = (firstName ?? '').trim();
+    const parts = [last, first].filter(Boolean);
+    return parts.length > 0 ? parts.join(' ') : '-';
+}

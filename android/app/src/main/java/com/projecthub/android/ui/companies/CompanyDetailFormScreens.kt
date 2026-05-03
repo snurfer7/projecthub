@@ -49,7 +49,6 @@ fun ContactCreateScreen(
     var lastName by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var details by remember { mutableStateOf(listOf(ContactDetailState(isPrimary = true))) }
-    var firstNameError by remember { mutableStateOf(false) }
     var lastNameError by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -83,10 +82,9 @@ fun ContactCreateScreen(
                 )
                 OutlinedTextField(
                     value = firstName,
-                    onValueChange = { firstName = it; firstNameError = false },
-                    label = { Text("名 *") },
+                    onValueChange = { firstName = it },
+                    label = { Text("名") },
                     modifier = Modifier.weight(1f),
-                    isError = firstNameError,
                     singleLine = true
                 )
             }
@@ -227,7 +225,6 @@ fun ContactCreateScreen(
             Button(
                 onClick = {
                     if (lastName.isBlank()) { lastNameError = true; return@Button }
-                    if (firstName.isBlank()) { firstNameError = true; return@Button }
                     val detailRequests = details
                         .filter { it.department.isNotBlank() || it.position.isNotBlank() || it.phone.isNotBlank() || it.email.isNotBlank() || it.locationId != null }
                         .map { d ->
@@ -242,8 +239,8 @@ fun ContactCreateScreen(
                         }
                     viewModel.createContact(
                         companyId = companyId,
-                        firstName = firstName,
-                        lastName = lastName,
+                        firstName = firstName.trim(),
+                        lastName = lastName.trim(),
                         notes = notes.ifBlank { null },
                         details = detailRequests,
                         onSuccess = { onNavigateBack() },

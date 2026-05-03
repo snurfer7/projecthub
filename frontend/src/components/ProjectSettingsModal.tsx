@@ -2,6 +2,7 @@ import { useState, useEffect, FormEvent } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import api from '../api/client';
 import { Project, Company, ProjectRelatedCompany } from '../types';
+import { formatContactDisplayName } from '../utils/format';
 import Modal from './Modal';
 import Combobox from './Combobox';
 import TextInput from './TextInput';
@@ -195,7 +196,7 @@ export default function ProjectSettingsModal({ projectId, isOpen, onClose, onUpd
                             />
                             <Combobox
                                 label="担当者"
-                                options={availableContacts.map((c) => ({ value: String(c.id), label: `${c.lastName} ${c.firstName}` }))}
+                                options={availableContacts.map((c) => ({ value: String(c.id), label: formatContactDisplayName(c.lastName, c.firstName) }))}
 
                                 value={contactId}
                                 onChange={setContactId}
@@ -254,7 +255,7 @@ export default function ProjectSettingsModal({ projectId, isOpen, onClose, onUpd
                                                         />
                                                         <Combobox
                                                             label="担当者"
-                                                            options={rccontacts.map((contact) => ({ value: String(contact.id), label: `${contact.lastName} ${contact.firstName}` }))}
+                                                            options={rccontacts.map((contact) => ({ value: String(contact.id), label: formatContactDisplayName(contact.lastName, contact.firstName) }))}
 
                                                             value={rc.contactId ? String(rc.contactId) : ''}
                                                             onChange={(val) => updateRelatedCompany(index, 'contactId', val ? Number(val) : null)}

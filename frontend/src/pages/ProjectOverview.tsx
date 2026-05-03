@@ -3,7 +3,7 @@ import { useOutletContext, Link } from 'react-router-dom';
 import { Pencil, Trash2, Check, X, Users, ChevronRight } from 'lucide-react';
 import api from '../api/client';
 import { Project, ProjectMember, ProjectGroup, Role, Group } from '../types';
-import { formatCompanyName } from '../utils/format';
+import { formatCompanyName, formatContactDisplayName } from '../utils/format';
 import ConfirmationModal from '../components/ConfirmationModal';
 import Combobox from '../components/Combobox';
 
@@ -209,7 +209,7 @@ export default function ProjectOverview() {
                             <div><div className="text-gray-500 mb-1">担当者</div><div className="text-slate-800 font-medium">
                                 {project.contact ? (
                                     <div className="flex flex-col">
-                                        <span>{project.contact.lastName} {project.contact.firstName}</span>
+                                        <span>{formatContactDisplayName(project.contact.lastName, project.contact.firstName)}</span>
                                         {(project.contact.email || project.contact.phone) && (
                                             <span className="text-[11px] text-gray-400 mt-0.5">
                                                 {[project.contact.email, project.contact.phone].filter(Boolean).join(' / ')}
@@ -241,7 +241,7 @@ export default function ProjectOverview() {
                                             <div><div className="text-gray-500 mb-1 text-[11px] uppercase tracking-wider">担当者</div><div className="text-slate-800 font-medium">
                                                 {rc.contact ? (
                                                     <div className="flex flex-col">
-                                                        <span>{rc.contact.lastName} {rc.contact.firstName}</span>
+                                                        <span>{formatContactDisplayName(rc.contact.lastName, rc.contact.firstName)}</span>
                                                         {(rc.contact.email || rc.contact.phone) && (
                                                             <span className="text-[11px] text-gray-400 mt-0.5">
                                                                 {[rc.contact.email, rc.contact.phone].filter(Boolean).join(' / ')}
