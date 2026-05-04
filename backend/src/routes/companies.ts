@@ -250,6 +250,120 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// Merge source company (:id) into target — reassign all company_id FKs, delete source
+router.post('/:id/merge', async (req: AuthRequest, res: Response) => {
+  const sourceId = Number(req.params.id);
+  const rawTarget = (req.body || {}) as { targetCompanyId?: number | string };
+  const targetId = Number(rawTarget.targetCompanyId);
+
+  if (!Number.isFinite(sourceId) || sourceId < 1) {
+    return res.status(400).json({ error: '統合元の企業 ID が不正です' });
+  }
+  if (!Number.isFinite(targetId) || targetId < 1) {
+    return res.status(400).json({ error: '統合先の企業 ID（targetCompanyId）が必要です' });
+  }
+  if (sourceId === targetId) {
+    return res.status(400).json({ error: '統合元と統合先に同じ企業は指定できません' });
+  }
+
+  try {
+    const [source, target] = await Promise.all([
+      prisma.company.findUnique({ where: { id: sourceId } }),
+      prisma.company.findUnique({ where: { id: targetId } }),
+    ]);
+    if (!source) {
+      return res.status(404).json({ error: '統合元の企業が見つかりません' });
+    }
+    if (!target) {
+      return res.status(404).json({ error: '統合先の企業が見つかりません' });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const targetTitleRows = await tx.companyWikiPage.findMany({
+        where: { companyId: targetId },
+        select: { title: true },
+      });
+      const targetTitles = new Set(targetTitleRows.map((r) => r.title));
+
+      const sourcePages = await tx.companyWikiPage.findMany({
+        where: { companyId: sourceId },
+        select: { id: true, title: true },
+      });
+      for (const page of sourcePages) {
+        if (targetTitles.has(page.title)) {
+          const newTitle = `${page.title}（統合:${page.id}）`;
+          await tx.companyWikiPage.update({
+            where: { id: page.id },
+            data: { title: newTitle },
+          });
+          targetTitles.add(newTitle);
+        }
+      }
+
+      const targetAssocIds = (
+        await tx.companyAssociation.findMany({
+          where: { companyId: targetId },
+          select: { associationId: true },
+        })
+      ).map((r) => r.associationId);
+
+      if (targetAssocIds.length > 0) {
+        await tx.companyAssociation.deleteMany({
+          where: {
+            companyId: sourceId,
+            associationId: { in: targetAssocIds },
+          },
+        });
+      }
+
+      const locationSuffix = `（${source.name}）`;
+      const sourceLocations = await tx.location.findMany({
+        where: { companyId: sourceId },
+        select: { id: true, name: true },
+      });
+      for (const loc of sourceLocations) {
+        await tx.location.update({
+          where: { id: loc.id },
+          data: {
+            companyId: targetId,
+            name: `${loc.name}${locationSuffix}`,
+          },
+        });
+      }
+      await tx.contact.updateMany({ where: { companyId: sourceId }, data: { companyId: targetId } });
+      await tx.deal.updateMany({ where: { companyId: sourceId }, data: { companyId: targetId } });
+      await tx.activity.updateMany({ where: { companyId: sourceId }, data: { companyId: targetId } });
+      await tx.companyComment.updateMany({ where: { companyId: sourceId }, data: { companyId: targetId } });
+      await tx.companyWikiPage.updateMany({ where: { companyId: sourceId }, data: { companyId: targetId } });
+      await tx.companyAssociation.updateMany({ where: { companyId: sourceId }, data: { companyId: targetId } });
+      await tx.project.updateMany({ where: { companyId: sourceId }, data: { companyId: targetId } });
+      await tx.projectRelatedCompany.updateMany({ where: { companyId: sourceId }, data: { companyId: targetId } });
+
+      const sourceNotes = (source.notes ?? '').trim();
+      if (sourceNotes) {
+        const targetNotes = (target.notes ?? '').trim();
+        const mergedNotes = targetNotes ? `${targetNotes}\n\n${sourceNotes}` : sourceNotes;
+        await tx.company.update({
+          where: { id: targetId },
+          data: { notes: mergedNotes },
+        });
+      }
+
+      await tx.company.delete({ where: { id: sourceId } });
+
+      return {
+        mergedIntoId: targetId,
+        message: `企業「${source.name}」を「${target.name}」に統合しました`,
+      };
+    });
+
+    res.json(result);
+  } catch (e) {
+    console.error('POST /companies/:id/merge', e);
+    res.status(500).json({ error: '企業の統合に失敗しました' });
+  }
+});
+
 // Add association to company
 router.post('/:companyId/associations/:associationId', async (req: AuthRequest, res: Response) => {
   try {

@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/client';
 import { Company, Contact, Deal, Activity, Association } from '../types';
 import { formatCompanyName, formatContactDisplayName } from '../utils/format';
-import { Pencil, Trash2, MessageSquare } from 'lucide-react';
+import { Pencil, Trash2, MessageSquare, GitMerge } from 'lucide-react';
 import CompanyModal from '../components/CompanyModal';
 import Modal from '../components/Modal';
 import CompanyWikiTab from '../components/CompanyWikiTab';
@@ -98,6 +98,14 @@ export default function CompanyDetailPage() {
   // Company Edit
   const [showCompanyModal, setShowCompanyModal] = useState(false);
 
+  // Merge company into another
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [mergeTargetId, setMergeTargetId] = useState<string | number>('');
+  const [mergeCandidates, setMergeCandidates] = useState<Company[]>([]);
+  const [mergeModalLoading, setMergeModalLoading] = useState(false);
+  const [mergeSubmitting, setMergeSubmitting] = useState(false);
+  const [mergeError, setMergeError] = useState('');
+
   // Activities
   const [activities, setActivities] = useState<Activity[]>([]);
   const [showActivityModal, setShowActivityModal] = useState(false);
@@ -161,6 +169,46 @@ export default function CompanyDetailPage() {
       navigate('/companies');
     } catch (err: any) {
       alert(err.response?.data?.error || '削除に失敗しました');
+    }
+  };
+
+  const openMergeModal = () => {
+    setMergeError('');
+    setMergeTargetId('');
+    setShowMergeModal(true);
+    setMergeModalLoading(true);
+    api
+      .get<Company[]>('/companies')
+      .then((res) => {
+        setMergeCandidates(res.data.filter((c) => c.id !== companyId));
+      })
+      .catch(() => {
+        setMergeError('企業一覧の取得に失敗しました');
+        setMergeCandidates([]);
+      })
+      .finally(() => setMergeModalLoading(false));
+  };
+
+  const handleMergeCompanies = async () => {
+    if (mergeTargetId === '' || mergeTargetId == null) {
+      setMergeError('統合先の企業を選択してください');
+      return;
+    }
+    const tid = Number(mergeTargetId);
+    if (!Number.isFinite(tid)) {
+      setMergeError('統合先の企業を選択してください');
+      return;
+    }
+    setMergeSubmitting(true);
+    setMergeError('');
+    try {
+      await api.post(`/companies/${companyId}/merge`, { targetCompanyId: tid });
+      setShowMergeModal(false);
+      navigate(`/companies/${tid}?tab=overview`);
+    } catch (err: any) {
+      setMergeError(err.response?.data?.error || '統合に失敗しました');
+    } finally {
+      setMergeSubmitting(false);
     }
   };
 
@@ -691,6 +739,9 @@ export default function CompanyDetailPage() {
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold text-slate-700">基本情報</h2>
                 <div className="flex gap-2">
+                  <button type="button" onClick={openMergeModal} title="統合先の企業へデータを移す" className="p-1.5 text-violet-600 hover:bg-violet-50 rounded">
+                    <GitMerge className="w-4 h-4" />
+                  </button>
                   <button onClick={() => setShowCompanyModal(true)} title="編集" className="p-1.5 text-sky-600 hover:bg-sky-50 rounded">
                     <Pencil className="w-4 h-4" />
                   </button>
@@ -1187,6 +1238,59 @@ export default function CompanyDetailPage() {
         </div>
       </div>
     </Modal>
+
+      <Modal
+        isOpen={showMergeModal}
+        onClose={() => {
+          setShowMergeModal(false);
+          setMergeError('');
+          setMergeTargetId('');
+        }}
+        title="企業を統合"
+        size="md"
+      >
+        <p className="text-sm text-slate-600 mb-4">
+          表示中の企業（統合元）に紐づく拠点・連絡先・商談・活動・コメント・Wiki・プロジェクト等の企業 ID を、選択した企業（統合先）に付け替えます。統合元の企業レコードは削除されます。この操作は取り消せません。
+        </p>
+        {mergeModalLoading ? (
+          <div className="text-sm text-gray-500 py-4">読み込み中…</div>
+        ) : mergeCandidates.length === 0 ? (
+          <div className="text-sm text-amber-700 py-2">統合できる他の企業がありません。</div>
+        ) : (
+          <Combobox
+            label="統合先の企業"
+            value={mergeTargetId}
+            onChange={(v) => setMergeTargetId(v)}
+            options={mergeCandidates.map((c) => ({
+              value: c.id,
+              label: formatCompanyName(c),
+            }))}
+            placeholder="企業を選択"
+          />
+        )}
+        {mergeError && <p className="text-sm text-red-600 mt-3">{mergeError}</p>}
+        <div className="flex justify-end gap-2 pt-6">
+          <button
+            type="button"
+            onClick={() => {
+              setShowMergeModal(false);
+              setMergeError('');
+              setMergeTargetId('');
+            }}
+            className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm"
+          >
+            キャンセル
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleMergeCompanies()}
+            disabled={mergeModalLoading || mergeCandidates.length === 0 || mergeSubmitting}
+            className="bg-violet-600 text-white px-4 py-2 rounded-md hover:bg-violet-700 text-sm disabled:bg-gray-400 disabled:cursor-not-allowed"
+          >
+            {mergeSubmitting ? '実行中…' : '統合を実行'}
+          </button>
+        </div>
+      </Modal>
 
       <CompanyModal
         isOpen={showCompanyModal}

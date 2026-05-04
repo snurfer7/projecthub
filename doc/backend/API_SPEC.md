@@ -169,6 +169,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | POST | `/` | 会社作成 |
 | PUT | `/:id` | 会社更新 |
 | DELETE | `/:id` | 会社削除 |
+| POST | `/:id/merge` | 企業統合。Body: `targetCompanyId`（数値・必須）。**統合元**はパスの `:id`、**統合先**は `targetCompanyId`。統合元に紐づく拠点・連絡先・商談・活動・会社コメント・会社 Wiki・団体紐付け・主契約プロジェクト・プロジェクト関連会社の `company_id` を統合先 ID に更新し、統合元の企業レコードを削除する。**拠点**は付け替えの際、拠点名の末尾に統合元の企業名を括弧付きで追記する（例: `本社` → `本社（統合元の企業名）`）。**備考（`notes`）**は統合元に内容があるとき、統合先の備考の末尾へ空行を挟んで追記する（統合先のみ・統合元のみのどちらか一方でも可）。団体紐付けは統合先に同一団体が既にある行は統合元側を削除（重複解消）。会社 Wiki は統合先とタイトルが重複するページのみ、統合実行前にタイトルへ `（統合:<ページID>）` を付与して一意化する。**200** で `{ mergedIntoId, message }`。**400**（同一 ID・必須欠如・不正 ID）、**404**（いずれかの企業が存在しない） |
 | POST | `/:companyId/associations/:associationId` | 団体紐付け |
 | DELETE | `/:companyId/associations/:associationId` | 団体紐付け解除 |
 | GET/POST/PUT/DELETE | `/:companyId/comments`, `/:companyId/comments/:commentId` | コメント。GET の各要素に `linkedActivity`（`{ id, subject }` または `null`）— 当該コメントが活動のファイル用コメントとして紐づいている場合に活動を示す。POST Body: `content`（文字列。**`sourceActivityId` 未指定時は必須**）。`sourceActivityId`（数値、任意）— 指定時は当該企業に属する活動に、ファイル用コメントを 1 件紐づける（`content` 省略時は自動文面）。既に活動に `fileCommentId` がある場合は既存コメントを返す（**201** 新規 / **200** 既存） |
