@@ -36,6 +36,7 @@
 | `/issues/:id` | IssueDetailPage | チケット詳細 |
 | `/issues/:id/edit` | IssueFormPage | チケット編集 |
 | `/companies` | CompaniesPage | 会社一覧（API ページング・サーバー側検索。ページサイズ変更・前後ページ）。検索語・ページ・件数・法人格表示の有無は `sessionStorage` に保持し、企業詳細から一覧へ戻った際に復元する。ヘッダー（トップバー）の「企業」をクリックしたときは当該保持を削除し条件を初期化する |
+| `/contacts` | ContactsPage | 連絡先一覧（全企業横断）。`GET /crm/contacts`（`companyId` なし）で取得。クライアント側検索（氏名・企業名・所属・役職・電話・メール等）。**CSV 出力**ボタンで現在の検索結果を UTF-8 BOM 付き CSV としてダウンロード。行クリックまたは企業名リンクで `/companies/:id?tab=contacts` へ遷移 |
 | `/companies/:id` | CompanyDetailPage | 会社詳細。クエリ `tab` に加え、`activity=<活動ID>` で活動履歴タブ内の該当行を強調、`comment=<コメントID>` でコメントタブを開き該当コメントを強調。概要タブの基本情報では、編集の左に「統合」操作（統合先企業を選ぶモーダル → API で統合元の全関連データの企業 ID を統合先へ付け替え、統合元レコード削除）がある |
 | `/associations` | AssociationsPage | 団体マスタ |
 | `/legal-entity-statuses` | LegalEntityStatusesPage | 法人区分マスタ |

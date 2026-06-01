@@ -109,6 +109,9 @@ export default function Breadcrumb() {
     return null;
   } else if (pathname === '/companies') {
     items.push({ label: '企業' });
+  } else if (pathname === '/contacts') {
+    items.push({ label: '企業', path: '/companies' });
+    items.push({ label: '連絡先' });
   } else if (companyMatch) {
     const cid = companyMatch.params.id!;
     items.push({ label: '企業', path: '/companies' });

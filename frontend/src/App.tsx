@@ -24,6 +24,7 @@ const TimeEntriesPage = lazy(() => import('./pages/TimeEntriesPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
 const CompaniesPage = lazy(() => import('./pages/CompaniesPage'));
 const CompanyDetailPage = lazy(() => import('./pages/CompanyDetailPage'));
+const ContactsPage = lazy(() => import('./pages/ContactsPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const AssociationsPage = lazy(() => import('./pages/AssociationsPage'));
 const LegalEntityStatusesPage = lazy(() => import('./pages/LegalEntityStatusesPage'));
@@ -94,6 +95,7 @@ function App() {
           <Route path="/legal-entity-statuses" element={<LegalEntityStatusesPage />} />
           <Route path="/companies" element={<CompaniesPage />} />
           <Route path="/companies/:id" element={<CompanyDetailPage />} />
+          <Route path="/contacts" element={<ContactsPage />} />
           <Route path="/settings" element={<SettingsPage user={user} refreshUser={refreshUser} />} />
           <Route path="/admin" element={<AdminPage user={user} />} />
           <Route path="*" element={<Navigate to="/" />} />

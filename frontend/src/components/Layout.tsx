@@ -5,7 +5,7 @@ import Breadcrumb from './Breadcrumb';
 import { clearCompaniesListPersistedFromHeader } from '../utils/companiesListStorage';
 import {
   Menu, Database, Building2, Settings, LogOut,
-  Briefcase, ChevronDown, ChevronRight, Users
+  Briefcase, ChevronDown, ChevronRight, Users, Contact
 } from 'lucide-react';
 
 interface Props {
@@ -42,6 +42,7 @@ const TREE_MENU: TreeItem[] = [
     icon: Building2,
     key: 'company',
     children: [
+      { label: '連絡先', path: '/contacts', icon: Contact, key: 'contacts' },
       { label: '協会', path: '/associations', icon: Users, key: 'associations' },
       { label: '法人格', path: '/legal-entity-statuses', icon: Database, key: 'legal-entity-statuses' },
     ],
