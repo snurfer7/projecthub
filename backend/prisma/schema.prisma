@@ -300,6 +300,7 @@ model Issue {
   subject           String
   description       String?
   startDate         DateTime?       @map("start_date")
+  endDate           DateTime?       @map("end_date")
   dueDate           DateTime?       @map("due_date")
   estimatedHours    Int?            @map("estimated_hours")
   doneRatio         Int             @default(0) @map("done_ratio")

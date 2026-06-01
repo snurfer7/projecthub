@@ -32,7 +32,7 @@ export default function GanttPage() {
 
   useEffect(() => { loadIssues(); }, [loadIssues]);
 
-  const handleUpdateIssue = useCallback(async (id: number, data: { startDate?: string; dueDate?: string }) => {
+  const handleUpdateIssue = useCallback(async (id: number, data: { startDate?: string; endDate?: string; dueDate?: string }) => {
     await api.put(`/issues/${id}`, data);
     loadIssues();
   }, [loadIssues]);

@@ -32,7 +32,7 @@
 
 - **Tracker**, **IssueStatus**, **IssuePriority** — マスタ（id, name, position 等）。
 - **Role** — id, name, position, isDefaultRole, statuses, transitions。
-- **Issue** — id, projectId, trackerId, statusId, priorityId, authorId, assignedToId, assignedToGroupId, subject, description, startDate, dueDate, estimatedHours, doneRatio, createdAt, updatedAt, project, tracker, status, priority, author, assignedTo, assignedToGroup, comments, attachments, timeEntries, relationsFrom, relationsTo, _count。
+- **Issue** — id, projectId, trackerId, statusId, priorityId, authorId, assignedToId, assignedToGroupId, subject, description, startDate, endDate（終了日時）, dueDate（期日）, estimatedHours, doneRatio, createdAt, updatedAt, project, tracker, status, priority, author, assignedTo, assignedToGroup, comments, attachments, timeEntries, relationsFrom, relationsTo, _count。
 - **IssueRelation** — issueFromId, issueToId, relationType, issueFrom, issueTo。
 - **IssueComment** — issueId, userId, content, user, attachments。
 - **IssueMetaOptions** — trackers, statuses, priorities, users, groups（チケット作成/編集用メタ）。

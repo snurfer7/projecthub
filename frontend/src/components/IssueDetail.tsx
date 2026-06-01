@@ -319,6 +319,7 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                         <span className="ml-1">{issue.doneRatio}%</span>
                     </div>
                     {issue.startDate && <div><span className="text-gray-500">開始日時:</span><span className="ml-1">{new Date(issue.startDate).toLocaleString('ja-JP')}</span></div>}
+                    {issue.endDate && <div><span className="text-gray-500">終了日時:</span><span className="ml-1">{new Date(issue.endDate).toLocaleString('ja-JP')}</span></div>}
                     {issue.estimatedHours && (
                         <div>
                             <span className="text-gray-500">予定工数:</span>

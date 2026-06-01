@@ -39,7 +39,7 @@
 - **ProjectMemberRole** — メンバーのロール。Role と Group（sourceGroupId、グループ経由で付与した場合）と関連。
 - **ProjectGroup** — プロジェクトに紐づくグループ。
 - **ProjectRelatedCompany** — プロジェクトと関連会社（Company + Location + Contact の組み合わせ）。
-- **Issue** — チケット。Project, Tracker, IssueStatus, IssuePriority, User（author, assignedTo）, Group（assignedToGroup）, IssueRelation, IssueComment, TimeEntry, Attachment と関連。
+- **Issue** — チケット。Project, Tracker, IssueStatus, IssuePriority, User（author, assignedTo）, Group（assignedToGroup）, IssueRelation, IssueComment, TimeEntry, Attachment と関連。スケジュール用に `startDate`（開始日時）, `endDate`（終了日時）, `dueDate`（期日）, `estimatedHours`（予定工数）を持つ。ガントチャートのバーは `startDate`〜`endDate` で表示する。
 - **IssueRelation** — チケット間関連。relationType（例: precedes）。
 - **IssueComment** — チケットコメント。Attachment 可。
 - **WikiPage** — プロジェクト Wiki。親子階層（parentId）。author, project と関連。

@@ -197,7 +197,7 @@ router.delete('/relations/:relationId', async (req: AuthRequest, res: Response) 
 // Create issue
 router.post('/', async (req: AuthRequest, res: Response) => {
   try {
-    const { projectId, trackerId, statusId, priorityId, assignedToId, assignedToGroupId, subject, description, startDate, dueDate, estimatedHours } = req.body;
+    const { projectId, trackerId, statusId, priorityId, assignedToId, assignedToGroupId, subject, description, startDate, endDate, dueDate, estimatedHours } = req.body;
     if (estimatedHours !== undefined && estimatedHours !== null && !Number.isInteger(Number(estimatedHours))) {
       return res.status(400).json({ error: '予定工数は整数で入力してください' });
     }
@@ -221,6 +221,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
         subject,
         description,
         startDate: startDate ? new Date(startDate) : null,
+        endDate: endDate ? new Date(endDate) : null,
         dueDate: dueDate ? new Date(dueDate) : null,
         estimatedHours: estimatedHours ? Math.round(Number(estimatedHours)) : null,
       },
@@ -233,6 +234,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     });
     res.status(201).json(issue);
   } catch (e) {
+    console.error('POST /issues:', e);
     res.status(500).json({ error: 'チケットの作成に失敗しました' });
   }
 });
@@ -240,7 +242,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 // Update issue
 router.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const { trackerId, statusId, priorityId, assignedToId, assignedToGroupId, subject, description, startDate, dueDate, estimatedHours, doneRatio } = req.body;
+    const { trackerId, statusId, priorityId, assignedToId, assignedToGroupId, subject, description, startDate, endDate, dueDate, estimatedHours, doneRatio } = req.body;
     const data: any = {};
     if (estimatedHours !== undefined && estimatedHours !== null && !Number.isInteger(Number(estimatedHours))) {
       return res.status(400).json({ error: '予定工数は整数で入力してください' });
@@ -254,6 +256,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     if (subject !== undefined) data.subject = subject;
     if (description !== undefined) data.description = description;
     if (startDate !== undefined) data.startDate = startDate ? new Date(startDate) : null;
+    if (endDate !== undefined) data.endDate = endDate ? new Date(endDate) : null;
     if (dueDate !== undefined) data.dueDate = dueDate ? new Date(dueDate) : null;
     if (estimatedHours !== undefined) data.estimatedHours = estimatedHours ? Math.round(Number(estimatedHours)) : null;
     if (doneRatio !== undefined) data.doneRatio = Number(doneRatio);

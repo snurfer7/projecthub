@@ -191,7 +191,7 @@ export default function ProjectListPage() {
     }
   };
 
-  const handleUpdateIssue = useCallback(async (id: number, data: { startDate?: string; dueDate?: string }) => {
+  const handleUpdateIssue = useCallback(async (id: number, data: { startDate?: string; endDate?: string; dueDate?: string }) => {
     await api.put(`/issues/${id}`, data);
     loadGanttData();
   }, [loadGanttData]);

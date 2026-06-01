@@ -182,6 +182,7 @@ export interface Issue {
   subject: string;
   description?: string;
   startDate?: string;
+  endDate?: string;
   dueDate?: string;
   estimatedHours?: number;
   doneRatio: number;

@@ -246,45 +246,30 @@ function snapToEndPoint(date: Date, settings?: SystemSetting): Date {
   return result;
 }
 
-function calcConversionHours(startDate: Date, endDate: Date, settings?: SystemSetting): number {
-  if (!settings || !settings.conversionTimes?.length || !settings.startTime || !settings.endTime) {
-    const diffMs = endDate.getTime() - startDate.getTime();
-    return Math.max(0, Math.round((diffMs / (1000 * 60 * 60)) * 2) / 2);
-  }
+/** ガント表示用の開始・終了日時（endDate 優先。未設定時は工数からの逆算にフォールバック） */
+function resolveIssueSchedule(issue: Issue, settings?: SystemSetting): { start: Date; end: Date } | null {
+  const s = issue.startDate ? new Date(issue.startDate) : null;
+  const endRaw = issue.endDate ? new Date(issue.endDate) : null;
+  const d = issue.dueDate ? new Date(issue.dueDate) : null;
+  if (!s && !endRaw && !d) return null;
 
-  const toMinutes = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
-  const startMin = toMinutes(settings.startTime);
-  const endMin = toMinutes(settings.endTime);
-  const managementMins = (settings.managementTimes || []).map(toMinutes).sort((a, b) => a - b);
-  const boundaries = [startMin, ...managementMins, endMin];
-  const conversions = settings.conversionTimes;
-
-  let totalHours = 0;
-  const startDay = new Date(startDate); startDay.setHours(0, 0, 0, 0);
-  const endDay = new Date(endDate); endDay.setHours(0, 0, 0, 0);
-  const cur = new Date(startDay);
-
-  while (cur <= endDay) {
-    const isFirst = cur.getTime() === startDay.getTime();
-    const isLast = cur.getTime() === endDay.getTime();
-    const dayStart = isFirst ? startDate.getHours() * 60 + startDate.getMinutes() : startMin;
-    const dayEnd = isLast ? endDate.getHours() * 60 + endDate.getMinutes() : endMin;
-
-    for (let i = 0; i < boundaries.length - 1; i++) {
-      const segFrom = boundaries[i];
-      const segTo = boundaries[i + 1];
-      const segDuration = segTo - segFrom;
-      if (segDuration <= 0) continue;
-      const overlapFrom = Math.max(dayStart, segFrom);
-      const overlapTo = Math.min(dayEnd, segTo);
-      if (overlapFrom < overlapTo) {
-        totalHours += (conversions[i] || 0) * (overlapTo - overlapFrom) / segDuration;
-      }
+  if (s) {
+    const start = snapToStartPoint(s, settings);
+    let end: Date;
+    if (endRaw) {
+      end = snapToEndPoint(endRaw, settings);
+    } else if (issue.estimatedHours) {
+      end = snapToEndPoint(addConvertedHours(start, issue.estimatedHours, settings), settings);
+    } else if (d) {
+      end = snapToEndPoint(d, settings);
+    } else {
+      end = start;
     }
-    cur.setDate(cur.getDate() + 1);
+    return { start, end };
   }
 
-  return Math.max(0, Math.round(totalHours));
+  const end = endRaw ? snapToEndPoint(endRaw, settings) : snapToEndPoint(d!, settings);
+  return { start: end, end };
 }
 
 function convertRangeOnZoomChange(
@@ -446,7 +431,6 @@ export default function GanttChart({
     startX: number;
     origStartDate: Date;
     origDueDate: Date;
-    origEstimatedHours: number;
     currentStartDate: Date;
     currentDueDate: Date;
   } | null>(null);
@@ -782,16 +766,9 @@ export default function GanttChart({
       return { left, width };
     }
 
-    const s = issue.startDate ? new Date(issue.startDate) : null;
-    const h = issue.estimatedHours || 0;
-    const d = issue.dueDate ? new Date(issue.dueDate) : null;
-    if (!s && !d) return null;
-
-    // バー左端: 開始日時を有効なスナップポイント（開始時刻・管理時刻）に切り捨て
-    const start = s ? snapToStartPoint(s, systemSettings) : d!;
-    // バー右端: 左端から工数（換算時間）を消費した日時を、有効な終了スナップポイントに切り上げ
-    const rawEnd = s ? addConvertedHours(start, h, systemSettings) : d!;
-    const end = s ? snapToEndPoint(rawEnd, systemSettings) : d!;
+    const schedule = resolveIssueSchedule(issue, systemSettings);
+    if (!schedule) return null;
+    const { start, end } = schedule;
 
     const startOffset = getOffset(start);
     const endOffset = getOffset(end);
@@ -948,14 +925,9 @@ export default function GanttChart({
     let minStartOffset: number | null = null;
     let maxEndOffset: number | null = null;
     groupIssues.forEach((issue) => {
-      const s = issue.startDate ? new Date(issue.startDate) : null;
-      const h = issue.estimatedHours || 0;
-      const d = issue.dueDate ? new Date(issue.dueDate) : null;
-      if (!s && !d) return;
-
-      const start = s ? snapToStartPoint(s, systemSettings) : d!;
-      const rawEnd = s ? addConvertedHours(start, h, systemSettings) : d!;
-      const end = s ? snapToEndPoint(rawEnd, systemSettings) : d!;
+      const schedule = resolveIssueSchedule(issue, systemSettings);
+      if (!schedule) return;
+      const { start, end } = schedule;
 
       const startOffset = getOffset(start);
       const endOffset = getOffset(end);
@@ -998,15 +970,9 @@ export default function GanttChart({
   const handleMouseDown = useCallback((e: React.MouseEvent, issue: Issue, type: 'move' | 'resize-left' | 'resize-right') => {
     e.preventDefault();
     e.stopPropagation();
-    const s = issue.startDate ? new Date(issue.startDate) : null;
-    const h = issue.estimatedHours || 0;
-    const d = issue.dueDate ? new Date(issue.dueDate) : null;
-    if (!s && !d) return;
-
-    // 表示上のバー位置と一致するよう、スナップ済みの日時をドラッグ起点にする
-    const start = s ? snapToStartPoint(s, systemSettings) : d!;
-    const rawEnd = s ? addConvertedHours(start, h, systemSettings) : d!;
-    const end = s ? snapToEndPoint(rawEnd, systemSettings) : d!;
+    const schedule = resolveIssueSchedule(issue, systemSettings);
+    if (!schedule) return;
+    const { start, end } = schedule;
 
     setDrag({
       issueId: issue.id,
@@ -1014,7 +980,6 @@ export default function GanttChart({
       startX: e.clientX,
       origStartDate: start,
       origDueDate: end,
-      origEstimatedHours: h,
       currentStartDate: start,
       currentDueDate: end,
     });
@@ -1088,9 +1053,7 @@ export default function GanttChart({
 
       if (drag.type === 'move') {
         newStart = offsetToDate(newStartOffset, 'start');
-        // 移動時は元の工数を維持したまま終了日時を計算し、さらに有効な終了スナップポイントまで切り上げ
-        const rawEnd = addConvertedHours(newStart, drag.origEstimatedHours, systemSettings);
-        newEnd = snapToEndPoint(rawEnd, systemSettings);
+        newEnd = offsetToDate(newEndOffset, 'end');
       } else if (drag.type === 'resize-left') {
         newStart = offsetToDate(newStartOffset, 'start');
         newEnd = drag.origDueDate; // 右端固定
@@ -1104,12 +1067,12 @@ export default function GanttChart({
 
     const handleMouseUp = async () => {
       if (drag) {
-        const data: { startDate?: string; estimatedHours?: number; dueDate?: string } = {};
+        const data: { startDate?: string; endDate?: string } = {};
         if (drag.type === 'move' || drag.type === 'resize-left') {
           data.startDate = formatDateTime(drag.currentStartDate);
         }
-        if (drag.type === 'resize-right' || drag.type === 'resize-left') {
-          data.estimatedHours = calcConversionHours(drag.currentStartDate, drag.currentDueDate, systemSettings);
+        if (drag.type === 'move' || drag.type === 'resize-right' || drag.type === 'resize-left') {
+          data.endDate = formatDateTime(drag.currentDueDate);
         }
         await onUpdateIssue(drag.issueId, data);
       }
@@ -1717,9 +1680,10 @@ export default function GanttChart({
               <div className="space-y-0.5 text-slate-300">
                 {tooltip.issue.tracker && <div>トラッカー: {tooltip.issue.tracker.name}</div>}
                 {tooltip.issue.startDate && <div>開始日時: {formatDateDisplay(new Date(tooltip.issue.startDate))}</div>}
-                {tooltip.issue.startDate && (
-                  <div>終了日時: {formatDateDisplay(addConvertedHours(snapToStartPoint(new Date(tooltip.issue.startDate), systemSettings), tooltip.issue.estimatedHours || 0, systemSettings))}</div>
-                )}
+                {(() => {
+                  const schedule = resolveIssueSchedule(tooltip.issue, systemSettings);
+                  return schedule ? <div>終了日時: {formatDateDisplay(schedule.end)}</div> : null;
+                })()}
                 {tooltip.issue.dueDate && <div>期日: {new Date(tooltip.issue.dueDate).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })}</div>}
                 {tooltip.issue.assignedTo && <div>担当: {tooltip.issue.assignedTo.lastName} {tooltip.issue.assignedTo.firstName}</div>}
                 {tooltip.issue.estimatedHours && (

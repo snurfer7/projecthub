@@ -26,13 +26,14 @@ interface IssueFormProps {
     projectId?: string;
     issueId?: string;
     initialStartDate?: string;
+    initialEndDate?: string;
     initialDueDate?: string;
     defaultStatusId?: number;
     onSuccess: (issueId: number) => void;
     onCancel: () => void;
 }
 
-export default function IssueForm({ projectId, issueId, initialStartDate, initialDueDate, defaultStatusId, onSuccess, onCancel }: IssueFormProps) {
+export default function IssueForm({ projectId, issueId, initialStartDate, initialEndDate, initialDueDate, defaultStatusId, onSuccess, onCancel }: IssueFormProps) {
     const isEdit = !!issueId;
 
     const [meta, setMeta] = useState<IssueMetaOptions | null>(null);
@@ -43,6 +44,7 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
     const [subject, setSubject] = useState('');
     const [description, setDescription] = useState('');
     const [startDate, setStartDate] = useState(initialStartDate || '');
+    const [endDate, setEndDate] = useState(initialEndDate || '');
     const [dueDate, setDueDate] = useState(initialDueDate || '');
     const [estimatedHours, setEstimatedHours] = useState('');
     const [doneRatio, setDoneRatio] = useState('0');
@@ -72,12 +74,16 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
                     setStartDate(initialStartDate.includes('T') ? initialStartDate : `${initialStartDate}T${data.startTime}`);
                 }
 
+                if (initialEndDate) {
+                    setEndDate(initialEndDate.includes('T') ? initialEndDate : `${initialEndDate}T${data.endTime}`);
+                }
+
                 if (initialDueDate) {
                     setDueDate(initialDueDate);
                 }
             }
         }).catch(() => { });
-    }, [isEdit, initialStartDate, initialDueDate]);
+    }, [isEdit, initialStartDate, initialEndDate, initialDueDate]);
 
     useEffect(() => {
         api.get('/issues/meta/options', { params: { projectId: currentProjectId } }).then((res) => {
@@ -105,6 +111,7 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
                 setSubject(issue.subject);
                 setDescription(issue.description || '');
                 setStartDate(issue.startDate ? toLocalDatetimeString(issue.startDate) : '');
+                setEndDate(issue.endDate ? toLocalDatetimeString(issue.endDate) : '');
                 setDueDate(issue.dueDate ? issue.dueDate.slice(0, 10) : '');
                 setEstimatedHours(issue.estimatedHours ? String(issue.estimatedHours) : '');
                 setDoneRatio(String(issue.doneRatio));
@@ -136,6 +143,7 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
                 subject,
                 description,
                 startDate: startDate ? new Date(startDate).toISOString() : null,
+                endDate: endDate ? new Date(endDate).toISOString() : null,
                 dueDate: dueDate ? new Date(dueDate).toISOString() : null,
                 estimatedHours: estimatedHours ? Math.round(Number(estimatedHours)) : null,
                 doneRatio: Number(doneRatio),
@@ -227,6 +235,29 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
                                 disabled={!startDate}
                             />
                         </div>
+                        <div className="grid grid-cols-[1fr_100px] gap-2">
+                            <DateInput
+                                label="終了日"
+                                id="end-date"
+                                value={endDate ? endDate.slice(0, 10) : ''}
+                                onChange={(val) => {
+                                    const t = endDate ? endDate.slice(11, 16) : systemEndTime;
+                                    setEndDate(val ? `${val}T${t}` : '');
+                                }}
+                            />
+                            <CustomTimePicker
+                                label="終了時刻"
+                                value={endDate ? endDate.slice(11, 16) : systemEndTime}
+                                onChange={(val) => {
+                                    const d = endDate ? endDate.slice(0, 10) : (startDate ? startDate.slice(0, 10) : new Date().toISOString().slice(0, 10));
+                                    setEndDate(`${d}T${val}`);
+                                }}
+                                disabled={!endDate}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <NumberInput
                             label={`予定工数${totalDayConversion > 0 && estimatedHours ? ` (${formatEstimatedHours(Number(estimatedHours), totalDayConversion)})` : ''}`}
                             value={estimatedHours}
