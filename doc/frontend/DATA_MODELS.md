@@ -13,6 +13,7 @@
 - **PaginatedCompaniesResponse** — `GET /api/companies?page=…` 用。`items`（Company[]）, `total`, `page`, `pageSize`, `totalPages`。
 - **Association**, **LegalEntityStatus**, **Location** — 会社・団体・法人区分・拠点。
 - **Contact** — id, companyId, firstName, lastName, notes, company, details, deals, _count。
+- **PaginatedContactsResponse** — `GET /api/crm/contacts?page=…` 用。`items`（Contact[]）, `total`, `page`, `pageSize`, `totalPages`。
 - **ContactDetail** — 担当者詳細（department, position, phone, email, locationId, isPrimary）。
 - **ContactComment**, **CompanyComment** — コメント＋user, attachments。**CompanyComment** は活動のファイル用のとき `linkedActivity?: { id, subject }`（API の紐づけ活動）を含み得る。
 - **Deal** — 商談（companyId, contactId, name, amount, status, probability, expectedCloseDate, assignedToId, notes 等）。

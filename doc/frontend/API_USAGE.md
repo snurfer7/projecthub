@@ -17,7 +17,7 @@
 
 - バックエンドの [API_SPEC.md](../backend/API_SPEC.md) を契約とする。パスは `client` の baseURL が `/api` のため、`api.get('auth/me')` は `GET /api/auth/me` に相当。
 - 企業一覧ページは `api.get('companies', { params: { page, pageSize, q } })` でページング応答（`items`, `total`, …）を取得する。ドロップダウン用など全件が必要な箇所は `page` なしで配列を取得する。
-- 連絡先一覧ページは `api.get('crm/contacts')`（Query `companyId` なし）で全連絡先を取得する。企業別の連絡先タブは `api.get('crm/contacts', { params: { companyId } })` を使用する。
+- 連絡先一覧ページは `api.get('crm/contacts', { params: { page, pageSize, q } })` でページング応答を取得する。企業別の連絡先タブは `page` なしで `api.get('crm/contacts', { params: { companyId } })` を使用する（配列）。CSV 出力時は一覧と同じ `q` を付け、`pageSize=100` で一致する全ページを取得する。
 - 企業統合は `api.post('companies/' + sourceId + '/merge', { targetCompanyId })` のように POST `/companies/:id/merge` を呼ぶ（成功時は統合先の企業詳細へ遷移する）。契約は `API_SPEC.md` の当該エンドポイントを参照。
 - ファイルアップロードは `FormData` で `api.post('attachments/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })` のように呼ぶ。
 - 管理画面のメール設定は `GET/PUT admin/settings/email`、`POST admin/settings/email/test`（Body: `toEmail`）を使用する。SMTP パスワードは PUT でのみ送り、GET では `smtpPasswordSet` のみ参照する。

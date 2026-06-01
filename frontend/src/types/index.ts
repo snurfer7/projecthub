@@ -290,6 +290,15 @@ export interface Contact {
   _count?: { comments: number };
 }
 
+/** GET /crm/contacts?page=… のレスポンス */
+export interface PaginatedContactsResponse {
+  items: Contact[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
 export interface ContactComment {
   id: number;
   contactId: number;

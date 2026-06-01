@@ -31,22 +31,104 @@ const activityInclude = {
 
 router.use(authenticateToken);
 
+const contactListInclude = {
+  company: { select: { id: true, name: true } },
+  details: { include: { location: { select: { id: true, name: true } } } },
+  _count: { select: { comments: true } },
+} satisfies Prisma.ContactInclude;
+
+function contactSearchWhere(q: string): Prisma.ContactWhereInput {
+  const contains = { contains: q, mode: 'insensitive' as const };
+  return {
+    OR: [
+      { lastName: contains },
+      { firstName: contains },
+      { notes: contains },
+      { company: { name: contains } },
+      {
+        details: {
+          some: {
+            OR: [
+              { department: contains },
+              { position: contains },
+              { phone: contains },
+              { email: contains },
+              { location: { name: contains } },
+            ],
+          },
+        },
+      },
+    ],
+  };
+}
+
+function buildContactListWhere(companyId: string | undefined, q: string): Prisma.ContactWhereInput {
+  const parts: Prisma.ContactWhereInput[] = [];
+  if (companyId) {
+    parts.push({ companyId: Number(companyId) });
+  }
+  if (q) {
+    parts.push(contactSearchWhere(q));
+  }
+  if (parts.length === 0) return {};
+  if (parts.length === 1) return parts[0];
+  return { AND: parts };
+}
+
 // ========== Contacts ==========
 
+// List contacts: with ?page= — paginated + optional q. Without page — full array (dropdowns, company tab).
 router.get('/contacts', async (req: AuthRequest, res: Response) => {
   try {
     const { companyId } = req.query;
-    const where = companyId ? { companyId: Number(companyId) } : {};
-    const contacts = await prisma.contact.findMany({
-      where,
-      include: {
-        company: { select: { id: true, name: true } },
-        details: { include: { location: { select: { id: true, name: true } } } },
-        _count: { select: { comments: true } },
-      },
-      orderBy: { lastName: 'asc' },
+    const pageRaw = req.query.page;
+    const usePagination =
+      pageRaw !== undefined && pageRaw !== null && String(pageRaw).trim() !== '';
+
+    const where = buildContactListWhere(
+      companyId !== undefined && companyId !== null ? String(companyId) : undefined,
+      '',
+    );
+
+    if (!usePagination) {
+      const contacts = await prisma.contact.findMany({
+        where,
+        include: contactListInclude,
+        orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+      });
+      return res.json(contacts);
+    }
+
+    const pageParsed = parseInt(String(pageRaw), 10);
+    const page = Number.isFinite(pageParsed) && pageParsed >= 1 ? pageParsed : 1;
+    const sizeParsed = parseInt(String(req.query.pageSize ?? '50'), 10);
+    const pageSize = Number.isFinite(sizeParsed) ? Math.min(100, Math.max(1, sizeParsed)) : 50;
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const paginatedWhere = buildContactListWhere(
+      companyId !== undefined && companyId !== null ? String(companyId) : undefined,
+      q,
+    );
+
+    const [total, items] = await Promise.all([
+      prisma.contact.count({ where: paginatedWhere }),
+      prisma.contact.findMany({
+        where: paginatedWhere,
+        include: contactListInclude,
+        orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    const totalPages = total === 0 ? 1 : Math.ceil(total / pageSize);
+
+    return res.json({
+      items,
+      total,
+      page,
+      pageSize,
+      totalPages,
     });
-    res.json(contacts);
   } catch {
     res.status(500).json({ error: '連絡先の取得に失敗しました' });
   }
