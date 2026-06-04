@@ -39,6 +39,16 @@ function flattenResources(
   return rows;
 }
 
+function descendantResourceIds(rows: PermissionRow[], index: number): number[] {
+  const depth = rows[index].depth;
+  const ids: number[] = [];
+  for (let i = index + 1; i < rows.length; i++) {
+    if (rows[i].depth <= depth) break;
+    ids.push(rows[i].resourceId);
+  }
+  return ids;
+}
+
 export default function PermissionSetsPanel() {
   const { refreshUser } = useAuth();
   const [sets, setSets] = useState<PermissionSet[]>([]);
@@ -101,21 +111,45 @@ export default function PermissionSetsPanel() {
 
   const updateRow = (resourceId: number, field: 'canUse' | 'canInput', value: boolean) => {
     setRows((prev) => {
-      const target = prev.find((r) => r.resourceId === resourceId);
-      if (!target) return prev;
+      const index = prev.findIndex((r) => r.resourceId === resourceId);
+      if (index < 0) return prev;
+      const target = prev[index];
+      const affectedIds = new Set([resourceId, ...descendantResourceIds(prev, index)]);
       const parentCodeSet = new Set(parentCodesOf(target.code));
       return prev.map((row) => {
         let next = { ...row };
-        if (row.resourceId === resourceId) {
+        if (affectedIds.has(row.resourceId)) {
           if (field === 'canUse') {
-            next = { ...next, canUse: value, canInput: value ? next.canInput : false };
+            next.canUse = value;
+            if (!value) next.canInput = false;
           } else {
-            next = { ...next, canInput: value, canUse: value ? true : next.canUse };
+            next.canInput = value;
+            if (value) next.canUse = true;
           }
         } else if (value && parentCodeSet.has(row.code)) {
-          if (field === 'canUse' || field === 'canInput') {
-            next.canUse = true;
-          }
+          next.canUse = true;
+        }
+        return next;
+      });
+    });
+  };
+
+  /** 項目セルクリック: 使用・入力をまとめてトグル（下層も同値） */
+  const toggleRowFromCell = (resourceId: number) => {
+    setRows((prev) => {
+      const index = prev.findIndex((r) => r.resourceId === resourceId);
+      if (index < 0) return prev;
+      const target = prev[index];
+      const turnOn = !(target.canUse && target.canInput);
+      const affectedIds = new Set([resourceId, ...descendantResourceIds(prev, index)]);
+      const parentCodeSet = new Set(parentCodesOf(target.code));
+      return prev.map((row) => {
+        let next = { ...row };
+        if (affectedIds.has(row.resourceId)) {
+          next.canUse = turnOn;
+          next.canInput = turnOn;
+        } else if (turnOn && parentCodeSet.has(row.code)) {
+          next.canUse = true;
         }
         return next;
       });
@@ -240,7 +274,13 @@ export default function PermissionSetsPanel() {
               <tbody>
                 {rows.map((row) => (
                   <tr key={row.resourceId}>
-                    <td className="p-1 border" style={{ paddingLeft: `${8 + row.depth * 16}px` }}>{row.name}</td>
+                    <td
+                      className="p-1 border cursor-pointer hover:bg-blue-50 select-none"
+                      style={{ paddingLeft: `${8 + row.depth * 16}px` }}
+                      onClick={() => toggleRowFromCell(row.resourceId)}
+                    >
+                      {row.name}
+                    </td>
                     <td className="p-1 border text-center">
                       <input type="checkbox" checked={row.canUse} onChange={(e) => updateRow(row.resourceId, 'canUse', e.target.checked)} />
                     </td>
