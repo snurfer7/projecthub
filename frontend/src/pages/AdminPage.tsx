@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent, DragEvent } from 'react';
+import { useState, useEffect, useMemo, FormEvent, DragEvent } from 'react';
 import { Navigate } from 'react-router-dom';
 import api from '../api/client';
 import { User, Tracker, IssueStatus, IssuePriority, Group, Role, SystemSetting, EmailSettings, PermissionSet } from '../types';
@@ -18,6 +18,16 @@ import Tabs from '../components/Tabs';
 interface Props {
   user: User;
 }
+
+type UserAccountStatus = 'active' | 'pending' | 'inactive';
+
+const USER_STATUS_FILTER_OPTIONS: { value: UserAccountStatus; label: string }[] = [
+  { value: 'active', label: '有効' },
+  { value: 'pending', label: '仮登録' },
+  { value: 'inactive', label: '無効' },
+];
+
+const DEFAULT_USER_STATUS_FILTERS: UserAccountStatus[] = ['active', 'pending'];
 
 export default function AdminPage({ user }: Props) {
   const [tab, setTab] = useState<'users' | 'groups' | 'permission-sets' | 'roles' | 'trackers' | 'statuses' | 'priorities' | 'time' | 'email'>('users');
@@ -90,7 +100,27 @@ export default function AdminPage({ user }: Props) {
   const [confirmDelete, setConfirmDelete] = useState<{ type: string; id: number; name: string } | null>(null);
   const [confirmUserStatus, setConfirmUserStatus] = useState<{ id: number; name: string; nextStatus: 'active' | 'inactive' } | null>(null);
 
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [userStatusFilters, setUserStatusFilters] = useState<UserAccountStatus[]>(DEFAULT_USER_STATUS_FILTERS);
+
   const { canUse } = usePermissions(user.permissions);
+
+  const filteredUsers = useMemo(() => {
+    const q = userSearchQuery.trim().toLowerCase();
+    return users.filter((u) => {
+      if (!userStatusFilters.includes(u.status as UserAccountStatus)) return false;
+      if (!q) return true;
+      const name = `${u.lastName} ${u.firstName}`.toLowerCase();
+      const groups = (u.groupMembers?.map((gm) => gm.group.name).join(' ') ?? '').toLowerCase();
+      return name.includes(q) || u.email.toLowerCase().includes(q) || groups.includes(q);
+    });
+  }, [users, userSearchQuery, userStatusFilters]);
+
+  const toggleUserStatusFilter = (status: UserAccountStatus) => {
+    setUserStatusFilters((prev) =>
+      prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status],
+    );
+  };
 
   const loadAll = () => {
     api.get('/admin/users').then((res) => {
@@ -601,9 +631,36 @@ export default function AdminPage({ user }: Props) {
 
       {tab === 'users' && (
         <div>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex gap-3 mb-4 items-center">
+            <div className="bg-white rounded-lg shadow p-3 flex-1 flex flex-wrap items-center gap-3">
+              <span className="text-xs text-gray-500">検索:</span>
+              <TextInput
+                placeholder="氏名、メール、グループ名..."
+                value={userSearchQuery}
+                onChange={(e) => setUserSearchQuery(e.target.value)}
+                size="small"
+                showFloatingLabel={false}
+                className="w-64"
+              />
+              <div className="w-px h-6 bg-gray-200" />
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-500">ステータス:</span>
+                {USER_STATUS_FILTER_OPTIONS.map(({ value, label }) => (
+                  <label key={value} className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={userStatusFilters.includes(value)}
+                      onChange={() => toggleUserStatusFilter(value)}
+                      className="rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              <span className="text-xs text-gray-400 ml-auto">{filteredUsers.length} 件</span>
+            </div>
             <button onClick={openCreateUserModal}
-              className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">
+              className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm shrink-0">
               新規ユーザー
             </button>
           </div>
@@ -621,7 +678,7 @@ export default function AdminPage({ user }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {users.map((u) => (
+                {filteredUsers.map((u) => (
                   <tr key={u.id} className="border-t hover:bg-gray-50">
                     <td className="px-4 py-3">{u.lastName} {u.firstName}</td>
                     <td className="px-4 py-3 text-gray-500">{u.email}</td>
@@ -674,6 +731,9 @@ export default function AdminPage({ user }: Props) {
             </table>
             {users.length === 0 && (
               <div className="text-center py-8 text-gray-500">ユーザーが登録されていません</div>
+            )}
+            {users.length > 0 && filteredUsers.length === 0 && (
+              <div className="text-center py-8 text-gray-500">条件に一致するユーザーがありません</div>
             )}
           </div>
         </div>
