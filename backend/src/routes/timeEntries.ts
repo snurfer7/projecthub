@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { requirePermission } from '../middleware/permissions';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -8,7 +9,7 @@ const prisma = new PrismaClient();
 router.use(authenticateToken);
 
 // List time entries
-router.get('/', async (req: AuthRequest, res: Response) => {
+router.get('/', requirePermission('projects.time-entries', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const { projectId, issueId, userId, startDate, endDate } = req.query;
     const where: any = {};
@@ -41,7 +42,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 });
 
 // Create time entry
-router.post('/', async (req: AuthRequest, res: Response) => {
+router.post('/', requirePermission('projects.time-entries', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { projectId, issueId, hours, activity, spentOn, comments } = req.body;
     const entry = await prisma.timeEntry.create({
@@ -67,7 +68,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 });
 
 // Update time entry
-router.put('/:id', async (req: AuthRequest, res: Response) => {
+router.put('/:id', requirePermission('projects.time-entries', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { hours, activity, spentOn, comments } = req.body;
     const entry = await prisma.timeEntry.update({
@@ -91,7 +92,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
 });
 
 // Delete time entry
-router.delete('/:id', async (req: AuthRequest, res: Response) => {
+router.delete('/:id', requirePermission('projects.time-entries', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     await prisma.timeEntry.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: '時間記録を削除しました' });

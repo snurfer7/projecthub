@@ -928,9 +928,15 @@ export default function CompanyDetailPage() {
         isOpen={showContactModal}
         onClose={() => setShowContactModal(false)}
         title={editingContact ? '連絡先編集' : '連絡先登録'}
+        footer={
+          <>
+            <button type="button" onClick={() => setShowContactModal(false)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm">キャンセル</button>
+            <button type="submit" form="company-contact-form" className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">{editingContact ? '更新' : '作成'}</button>
+          </>
+        }
       >
         {contactError && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{contactError}</div>}
-        <form onSubmit={handleSubmitContact} className="space-y-4">
+        <form id="company-contact-form" onSubmit={handleSubmitContact} className="space-y-4">
           <div className="grid grid-cols-2 gap-4 mb-0">
             <TextInput label="姓 *" required value={contactForm.lastName} onChange={(e) => setContactForm({ ...contactForm, lastName: e.target.value })} />
             <TextInput label="名" value={contactForm.firstName} onChange={(e) => setContactForm({ ...contactForm, firstName: e.target.value })} />
@@ -1012,10 +1018,6 @@ export default function CompanyDetailPage() {
             </div>
           </div>
           <TextInput isMultiline label="備考" value={contactForm.notes} onChange={(e) => setContactForm({ ...contactForm, notes: e.target.value })} rows={2} className="mb-0" />
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setShowContactModal(false)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm">キャンセル</button>
-            <button type="submit" className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">{editingContact ? '更新' : '作成'}</button>
-          </div>
         </form>
       </Modal>
 
@@ -1024,9 +1026,15 @@ export default function CompanyDetailPage() {
         isOpen={showDealModal}
         onClose={() => setShowDealModal(false)}
         title={editingDeal ? '商談編集' : '商談登録'}
+        footer={
+          <>
+            <button type="button" onClick={() => setShowDealModal(false)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm">キャンセル</button>
+            <button type="submit" form="company-deal-form" className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">{editingDeal ? '更新' : '作成'}</button>
+          </>
+        }
       >
         {dealError && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{dealError}</div>}
-        <form onSubmit={handleSubmitDeal} className="space-y-4">
+        <form id="company-deal-form" onSubmit={handleSubmitDeal} className="space-y-4">
           <TextInput label="商談名 *" required value={dealForm.name} onChange={(e) => setDealForm({ ...dealForm, name: e.target.value })} className="mb-0" />
           <div className="grid grid-cols-2 gap-4 mb-0">
             <NumberInput
@@ -1079,10 +1087,6 @@ export default function CompanyDetailPage() {
             />
           </div>
           <TextInput isMultiline label="備考" value={dealForm.notes} onChange={(e) => setDealForm({ ...dealForm, notes: e.target.value })} rows={2} className="mb-0" />
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setShowDealModal(false)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm">キャンセル</button>
-            <button type="submit" className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">{editingDeal ? '更新' : '作成'}</button>
-          </div>
         </form>
       </Modal>
 
@@ -1091,9 +1095,15 @@ export default function CompanyDetailPage() {
         isOpen={showActivityModal}
         onClose={() => setShowActivityModal(false)}
         title={editingActivity ? '活動履歴編集' : '活動履歴登録'}
+        footer={
+          <>
+            <button type="button" onClick={() => setShowActivityModal(false)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm">キャンセル</button>
+            <button type="submit" form="company-activity-form" className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">{editingActivity ? '更新' : '登録'}</button>
+          </>
+        }
       >
         {activityError && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{activityError}</div>}
-        <form onSubmit={handleSubmitActivity} className="space-y-4">
+        <form id="company-activity-form" onSubmit={handleSubmitActivity} className="space-y-4">
           <div className="grid grid-cols-2 gap-4 mb-0">
             <Combobox
               label="種類"
@@ -1191,10 +1201,6 @@ export default function CompanyDetailPage() {
               </ul>
             )}
           </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setShowActivityModal(false)} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm">キャンセル</button>
-            <button type="submit" className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">{editingActivity ? '更新' : '登録'}</button>
-          </div>
         </form>
       </Modal>
       {/* Add Association Modal */}
@@ -1202,42 +1208,42 @@ export default function CompanyDetailPage() {
         isOpen={showAddAssociationModal}
         onClose={() => setShowAddAssociationModal(false)}
         title="協会を割り当て"
-      >
-        <div className="space-y-4">
-          <Combobox
-            label="協会"
-            value={newAssociationId}
-            options={masterAssociations.filter((ma) => !assignedAssociations.some((aa) => aa.association.id === ma.id)).map((a) => ({ value: a.id.toString(), label: a.name }))}
-            onChange={(val) => setNewAssociationId(val)}
-          />
-          <div className="flex justify-end gap-2 pt-2">
-          <button
-            type="button"
-            onClick={() => {
-              setShowAddAssociationModal(false);
-              setNewAssociationId('');
-            }}
-            className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm"
-          >
-            キャンセル
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (newAssociationId) {
-                handleAssignAssociation(parseInt(newAssociationId));
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => {
                 setShowAddAssociationModal(false);
                 setNewAssociationId('');
-              }
-            }}
-            disabled={!newAssociationId}
-            className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm disabled:bg-gray-400 disabled:cursor-not-allowed"
-          >
-            追加
-          </button>
-        </div>
-      </div>
-    </Modal>
+              }}
+              className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm"
+            >
+              キャンセル
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (newAssociationId) {
+                  handleAssignAssociation(parseInt(newAssociationId));
+                  setShowAddAssociationModal(false);
+                  setNewAssociationId('');
+                }
+              }}
+              disabled={!newAssociationId}
+              className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              追加
+            </button>
+          </>
+        }
+      >
+        <Combobox
+          label="協会"
+          value={newAssociationId}
+          options={masterAssociations.filter((ma) => !assignedAssociations.some((aa) => aa.association.id === ma.id)).map((a) => ({ value: a.id.toString(), label: a.name }))}
+          onChange={(val) => setNewAssociationId(val)}
+        />
+      </Modal>
 
       <Modal
         isOpen={showMergeModal}
@@ -1248,6 +1254,29 @@ export default function CompanyDetailPage() {
         }}
         title="企業を統合"
         size="md"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                setShowMergeModal(false);
+                setMergeError('');
+                setMergeTargetId('');
+              }}
+              className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm"
+            >
+              キャンセル
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleMergeCompanies()}
+              disabled={mergeModalLoading || mergeCandidates.length === 0 || mergeSubmitting}
+              className="bg-violet-600 text-white px-4 py-2 rounded-md hover:bg-violet-700 text-sm disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {mergeSubmitting ? '実行中…' : '統合を実行'}
+            </button>
+          </>
+        }
       >
         <p className="text-sm text-slate-600 mb-4">
           表示中の企業（統合元）に紐づく拠点・連絡先・商談・活動・コメント・Wiki・プロジェクト等の企業 ID を、選択した企業（統合先）に付け替えます。統合元の企業レコードは削除されます。この操作は取り消せません。
@@ -1269,27 +1298,6 @@ export default function CompanyDetailPage() {
           />
         )}
         {mergeError && <p className="text-sm text-red-600 mt-3">{mergeError}</p>}
-        <div className="flex justify-end gap-2 pt-6">
-          <button
-            type="button"
-            onClick={() => {
-              setShowMergeModal(false);
-              setMergeError('');
-              setMergeTargetId('');
-            }}
-            className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm"
-          >
-            キャンセル
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleMergeCompanies()}
-            disabled={mergeModalLoading || mergeCandidates.length === 0 || mergeSubmitting}
-            className="bg-violet-600 text-white px-4 py-2 rounded-md hover:bg-violet-700 text-sm disabled:bg-gray-400 disabled:cursor-not-allowed"
-          >
-            {mergeSubmitting ? '実行中…' : '統合を実行'}
-          </button>
-        </div>
       </Modal>
 
       <CompanyModal

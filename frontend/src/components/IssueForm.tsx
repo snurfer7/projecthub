@@ -1,6 +1,8 @@
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect, FormEvent, useId } from 'react';
 import api from '../api/client';
-import { Issue, IssueMetaOptions, SystemSetting } from '../types';
+import { Issue, IssueMetaOptions, SystemSetting, PermissionMap } from '../types';
+import { usePermissions } from '../hooks/usePermissions';
+import Modal from './Modal';
 import MarkdownEditor from './MarkdownEditor';
 import AnalogTimePicker from './AnalogTimePicker';
 import CustomTimePicker from './CustomTimePicker';
@@ -31,10 +33,94 @@ interface IssueFormProps {
     defaultStatusId?: number;
     onSuccess: (issueId: number) => void;
     onCancel: () => void;
+    permissions?: PermissionMap;
+    /** Modal 内表示時は true。フッターは Modal の footer に出す */
+    inModal?: boolean;
+    formId?: string;
 }
 
-export default function IssueForm({ projectId, issueId, initialStartDate, initialEndDate, initialDueDate, defaultStatusId, onSuccess, onCancel }: IssueFormProps) {
+export function IssueFormModalActions({
+    formId,
+    onCancel,
+    isEdit,
+    canSave,
+}: {
+    formId: string;
+    onCancel: () => void;
+    isEdit: boolean;
+    canSave: boolean;
+}) {
+    return (
+        <>
+            <button
+                type="button"
+                onClick={onCancel}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            >
+                キャンセル
+            </button>
+            <button
+                type="submit"
+                form={formId}
+                disabled={!canSave}
+                className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+                {isEdit ? '更新' : '作成'}
+            </button>
+        </>
+    );
+}
+
+interface IssueFormModalProps extends IssueFormProps {
+    isOpen: boolean;
+    onClose: () => void;
+    title: string;
+    size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
+}
+
+export function IssueFormModal({ isOpen, onClose, title, size, ...issueFormProps }: IssueFormModalProps) {
+    const formId = useId();
+    const { canInput } = usePermissions(issueFormProps.permissions);
+    const canSave = canInput('projects.issues');
+    const isEdit = !!issueFormProps.issueId;
+
+    return (
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            title={title}
+            size={size}
+            footer={
+                <IssueFormModalActions
+                    formId={formId}
+                    onCancel={issueFormProps.onCancel}
+                    isEdit={isEdit}
+                    canSave={canSave}
+                />
+            }
+        >
+            <IssueForm {...issueFormProps} inModal formId={formId} />
+        </Modal>
+    );
+}
+
+export default function IssueForm({
+    projectId,
+    issueId,
+    initialStartDate,
+    initialEndDate,
+    initialDueDate,
+    defaultStatusId,
+    onSuccess,
+    onCancel,
+    permissions,
+    inModal,
+    formId: formIdProp,
+}: IssueFormProps) {
     const isEdit = !!issueId;
+    const { canInput, canInputField } = usePermissions(permissions);
+    const fieldDisabled = (code: string) => (permissions ? !canInputField(code) : false);
+    const canSave = canInput('projects.issues');
 
     const [meta, setMeta] = useState<IssueMetaOptions | null>(null);
     const [trackerId, setTrackerId] = useState('');
@@ -164,16 +250,23 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
 
     if (!meta) return <div className="text-center py-12 text-gray-500">読み込み中...</div>;
 
+    const formClassName = inModal ? 'space-y-4' : 'bg-white rounded-lg shadow p-6 space-y-4';
+
     return (
         <div>
             {error && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{error}</div>}
 
-            <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-4">
+            <form
+                id={inModal ? formIdProp : undefined}
+                onSubmit={handleSubmit}
+                className={formClassName}
+            >
                 <TextInput
                     label="題名 *"
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
                     required
+                    disabled={fieldDisabled('projects.issues.fields.subject')}
                 />
 
                 <div className="space-y-4">
@@ -183,18 +276,21 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
                             options={meta.trackers.map((t) => ({ value: String(t.id), label: t.name }))}
                             value={trackerId}
                             onChange={setTrackerId}
+                            disabled={fieldDisabled('projects.issues.fields.tracker')}
                         />
                         <Combobox
                             label="ステータス"
                             options={meta.statuses.map((s) => ({ value: String(s.id), label: s.name }))}
                             value={statusId}
                             onChange={setStatusId}
+                            disabled={fieldDisabled('projects.issues.fields.status')}
                         />
                         <Combobox
                             label="優先度"
                             options={meta.priorities.map((p) => ({ value: String(p.id), label: p.name }))}
                             value={priorityId}
                             onChange={setPriorityId}
+                            disabled={fieldDisabled('projects.issues.fields.priority')}
                         />
                         <Combobox
                             label="担当者"
@@ -206,12 +302,13 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
                             ]}
                             value={assignedToPrincipal}
                             onChange={setAssignedToPrincipal}
+                            disabled={fieldDisabled('projects.issues.fields.assignee')}
                         />
                     </div>
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">説明</label>
-                        <MarkdownEditor value={description} onChange={setDescription} rows={6} />
+                        <MarkdownEditor value={description} onChange={setDescription} rows={6} disabled={fieldDisabled('projects.issues.fields.description')} />
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -224,6 +321,7 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
                                     const t = startDate ? startDate.slice(11, 16) : systemStartTime;
                                     setStartDate(val ? `${val}T${t}` : '');
                                 }}
+                                disabled={fieldDisabled('projects.issues.fields.startDateTime')}
                             />
                             <CustomTimePicker
                                 label="開始時刻"
@@ -232,7 +330,7 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
                                     const d = startDate ? startDate.slice(0, 10) : new Date().toISOString().slice(0, 10);
                                     setStartDate(`${d}T${val}`);
                                 }}
-                                disabled={!startDate}
+                                disabled={!startDate || fieldDisabled('projects.issues.fields.startDateTime')}
                             />
                         </div>
                         <div className="grid grid-cols-[1fr_100px] gap-2">
@@ -244,6 +342,7 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
                                     const t = endDate ? endDate.slice(11, 16) : systemEndTime;
                                     setEndDate(val ? `${val}T${t}` : '');
                                 }}
+                                disabled={fieldDisabled('projects.issues.fields.endDateTime')}
                             />
                             <CustomTimePicker
                                 label="終了時刻"
@@ -252,7 +351,7 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
                                     const d = endDate ? endDate.slice(0, 10) : (startDate ? startDate.slice(0, 10) : new Date().toISOString().slice(0, 10));
                                     setEndDate(`${d}T${val}`);
                                 }}
-                                disabled={!endDate}
+                                disabled={!endDate || fieldDisabled('projects.issues.fields.endDateTime')}
                             />
                         </div>
                     </div>
@@ -265,6 +364,7 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
                             step="1"
                             min="0"
                             endAdornment="時間"
+                            disabled={fieldDisabled('projects.issues.fields.estimatedHours')}
                         />
                     </div>
 
@@ -274,24 +374,28 @@ export default function IssueForm({ projectId, issueId, initialStartDate, initia
                             id="due-date"
                             value={dueDate}
                             onChange={(val) => setDueDate(val)}
+                            disabled={fieldDisabled('projects.issues.fields.dueDate')}
                         />
                         <Combobox
                             label="進捗率 (%)"
                             options={[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(v => ({ value: String(v), label: `${v}%` }))}
                             value={doneRatio}
                             onChange={setDoneRatio}
+                            disabled={fieldDisabled('projects.issues.fields.doneRatio')}
                         />
                     </div>
                 </div>
 
-                <div className="flex justify-end gap-2 mt-6">
-                    <button type="button" onClick={onCancel}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">キャンセル</button>
-                    <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors">
-                        {isEdit ? '更新' : '作成'}
-                    </button>
-                </div>
-            </form >
-        </div >
+                {!inModal && (
+                    <div className="flex justify-end gap-2 mt-6">
+                        <button type="button" onClick={onCancel}
+                            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">キャンセル</button>
+                        <button type="submit" disabled={!canSave} className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                            {isEdit ? '更新' : '作成'}
+                        </button>
+                    </div>
+                )}
+            </form>
+        </div>
     );
 }

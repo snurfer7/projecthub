@@ -4,7 +4,7 @@ import { Plus } from 'lucide-react';
 import api from '../api/client';
 import { Issue, IssueStatus } from '../types';
 import Modal from '../components/Modal';
-import IssueForm from '../components/IssueForm';
+import { IssueFormModal } from '../components/IssueForm';
 import KanbanBoard from '../components/KanbanBoard';
 import IssueDetail from '../components/IssueDetail';
 import { useAuth } from '../hooks/useAuth';
@@ -115,23 +115,18 @@ export default function KanbanPage() {
         onIssueClick={handleIssueClick}
       />
 
-      <Modal
+      <IssueFormModal
         isOpen={isNewIssueModalOpen}
         onClose={() => setIsNewIssueModalOpen(false)}
         title="新規チケット作成"
-      >
-        {isNewIssueModalOpen && (
-          <IssueForm
-            projectId={String(projectId)}
-            defaultStatusId={newIssueStatusId}
-            onSuccess={() => {
-              setIsNewIssueModalOpen(false);
-              fetchData();
-            }}
-            onCancel={() => setIsNewIssueModalOpen(false)}
-          />
-        )}
-      </Modal>
+        projectId={String(projectId)}
+        defaultStatusId={newIssueStatusId}
+        onSuccess={() => {
+          setIsNewIssueModalOpen(false);
+          fetchData();
+        }}
+        onCancel={() => setIsNewIssueModalOpen(false)}
+      />
 
       <Modal
         isOpen={isDetailModalOpen}
@@ -147,27 +142,23 @@ export default function KanbanPage() {
         )}
       </Modal>
 
-      <Modal
-        isOpen={isEditModalOpen}
-        onClose={closeModal}
-        title="チケット編集"
-      >
-        {isEditModalOpen && selectedIssueId && (
-          <IssueForm
-            issueId={String(selectedIssueId)}
-            onSuccess={() => {
-              setIsEditModalOpen(false);
-              fetchData();
-              // Back to detail
-              setIsDetailModalOpen(true);
-            }}
-            onCancel={() => {
-              setIsEditModalOpen(false);
-              setIsDetailModalOpen(true);
-            }}
-          />
-        )}
-      </Modal>
+      {selectedIssueId && (
+        <IssueFormModal
+          isOpen={isEditModalOpen}
+          onClose={closeModal}
+          title="チケット編集"
+          issueId={String(selectedIssueId)}
+          onSuccess={() => {
+            setIsEditModalOpen(false);
+            fetchData();
+            setIsDetailModalOpen(true);
+          }}
+          onCancel={() => {
+            setIsEditModalOpen(false);
+            setIsDetailModalOpen(true);
+          }}
+        />
+      )}
     </div>
   );
 }

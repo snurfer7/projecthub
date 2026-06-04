@@ -124,9 +124,18 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
                 isOpen={isOpen}
                 onClose={onClose}
                 title={editingCompany ? '企業情報編集' : '企業登録'}
+                footer={
+                    <>
+                        <button type="button" onClick={onClose}
+                            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">キャンセル</button>
+                        <button type="submit" form="company-modal-form" className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors">
+                            {editingCompany ? '更新' : '作成'}
+                        </button>
+                    </>
+                }
             >
                 {companyError && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{companyError}</div>}
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form id="company-modal-form" onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                         <TextInput
                             label="企業名 *"
@@ -254,13 +263,6 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
                         rows={2}
                     />
 
-                    <div className="flex justify-end gap-2 mt-6">
-                        <button type="button" onClick={onClose}
-                            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">キャンセル</button>
-                        <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors">
-                            {editingCompany ? '更新' : '作成'}
-                        </button>
-                    </div>
                 </form>
             </Modal>
 

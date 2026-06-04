@@ -1,0 +1,27 @@
+---
+description: 機能・項目追加時は権限設定（カタログ・API・UI）を必ず同時実装する
+alwaysApply: true
+---
+
+# 権限設定の同時実装（必須）
+
+システムスコープ（`frontend/` + `backend/` + `doc/frontend/` + `doc/backend/`）で、ユーザー向けの **機能・画面・API・フォーム項目** を追加・変更する場合、**権限設定も同一作業に含める**。後追いは禁止。
+
+## 必須作業
+
+1. **doc** — `doc/README.md` チェックリストに沿い DATA_MODEL / API_SPEC / SCREENS_AND_ROUTES を更新
+2. **カタログ** — `backend/src/constants/permissionCatalog.ts` に code（feature または field）を追加
+3. **API** — ルートに `requirePermission(code, 'use'|'input')`。部分更新は `assertFieldPermissions`
+4. **UI** — `canUse`（メニュー・ルート）、`canInput`（ボタン・フィールド disabled）
+
+## 命名
+
+- feature: `companies.deals`, `admin.users`
+- field: `projects.issues.fields.subject`
+
+## 参照
+
+- 全体ルール: `doc/README.md`「権限設定を伴う実装（必須）」
+- バックエンド: `doc/backend/SPEC_OVERVIEW.md`
+
+`isAdmin` / `role=admin` ではバイパスしない。PermissionSet 経由のグループ権限のみ有効。

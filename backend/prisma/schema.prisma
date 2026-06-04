@@ -44,15 +44,55 @@ model User {
 }
 
 model Group {
-  id             Int                 @id @default(autoincrement())
-  name           String              @unique
-  createdAt      DateTime            @default(now()) @map("created_at")
-  members        GroupMember[]
-  assignedIssues Issue[]             @relation("IssueAssigneeGroup")
-  projects       ProjectGroup[]
-  projectRoles   ProjectMemberRole[] @relation("GroupSourceRoles")
+  id              Int                 @id @default(autoincrement())
+  name            String              @unique
+  createdAt       DateTime            @default(now()) @map("created_at")
+  permissionSetId Int?                @map("permission_set_id")
+  members         GroupMember[]
+  assignedIssues  Issue[]             @relation("IssueAssigneeGroup")
+  projects        ProjectGroup[]
+  projectRoles    ProjectMemberRole[] @relation("GroupSourceRoles")
+  permissionSet   PermissionSet?      @relation(fields: [permissionSetId], references: [id], onDelete: SetNull)
 
   @@map("groups")
+}
+
+model PermissionResource {
+  id             Int                       @id @default(autoincrement())
+  code           String                    @unique
+  name           String
+  resourceType   String                    @default("feature") @map("resource_type")
+  parentId       Int?                      @map("parent_id")
+  position       Int                       @default(0)
+  parent         PermissionResource?       @relation("PermissionTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children       PermissionResource[]      @relation("PermissionTree")
+  setPermissions PermissionSetPermission[]
+
+  @@map("permission_resources")
+}
+
+model PermissionSet {
+  id          Int                       @id @default(autoincrement())
+  name        String                    @unique
+  description String?
+  createdAt   DateTime                  @default(now()) @map("created_at")
+  groups      Group[]
+  permissions PermissionSetPermission[]
+
+  @@map("permission_sets")
+}
+
+model PermissionSetPermission {
+  id              Int                @id @default(autoincrement())
+  permissionSetId Int                @map("permission_set_id")
+  resourceId      Int                @map("resource_id")
+  canUse          Boolean            @default(false) @map("can_use")
+  canInput        Boolean            @default(false) @map("can_input")
+  permissionSet   PermissionSet      @relation(fields: [permissionSetId], references: [id], onDelete: Cascade)
+  resource        PermissionResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@unique([permissionSetId, resourceId])
+  @@map("permission_set_permissions")
 }
 
 model GroupMember {

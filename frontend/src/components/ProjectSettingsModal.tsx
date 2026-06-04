@@ -121,11 +121,20 @@ export default function ProjectSettingsModal({ projectId, isOpen, onClose, onUpd
             isOpen={isOpen}
             onClose={onClose}
             title="プロジェクト設定"
+            footer={
+                <>
+                    <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+                        キャンセル
+                    </button>
+                    <button type="submit" form="project-form" className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors">
+                        更新
+                    </button>
+                </>
+            }
         >
-            <div className="bg-gray-50 -mx-6 -mt-6 p-6 mb-6 border-b">
-                {error && <div className="bg-red-50 text-red-600 p-3 rounded mb-6 text-sm border border-red-200">{error}</div>}
+            {error && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm border border-red-200">{error}</div>}
 
-                <form id="project-form" onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+            <form id="project-form" onSubmit={handleSubmit} className="space-y-4">
                     <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">基本情報</h3>
                     <div className="space-y-4">
                         <TextInput
@@ -283,16 +292,7 @@ export default function ProjectSettingsModal({ projectId, isOpen, onClose, onUpd
                         )}
                     </div>
 
-                    <div className="flex justify-end gap-2 mt-6 border-t pt-6">
-                        <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
-                            キャンセル
-                        </button>
-                        <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors">
-                            更新
-                        </button>
-                    </div>
                 </form>
-            </div>
         </Modal>
     );
 }

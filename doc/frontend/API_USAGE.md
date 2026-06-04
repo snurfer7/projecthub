@@ -7,6 +7,14 @@
 - **認証**: リクエストインターセプターで `localStorage.getItem('token')` を取得し、`Authorization: Bearer <token>` を付与。
 - **401 処理**: レスポンスインターセプターで 401 の場合、`localStorage` から token/user を削除し、`window.location.href = '/login'` でログイン画面へ遷移。
 
+## 権限チェック
+
+- **フック**: `frontend/src/hooks/usePermissions.ts` — `canUse(code)`, `canInput(code)` を提供。`useAuth` が `/auth/me` の `permissions` を保持。
+- **コンポーネント**: `PermissionGate` — 子要素の表示/非表示・readOnly 切替。
+- **権限設定管理**: `GET admin/permissions/resources`, `GET/POST/PUT/DELETE admin/permission-sets`（Body に `groupIds`, `permissions`）。
+
+- **権限チェック**: `usePermissions` の `canUse` / `canInput`。新画面・新ボタン・新フィールド追加時は [doc/README.md](../README.md) の権限チェックリストに従い、同一変更で反映する。
+
 ## 利用方針
 
 - 各ページ・コンポーネントで `import api from '@/api/client'`（または相対パス）し、`api.get()`, `api.post()`, `api.put()`, `api.patch()`, `api.delete()` でエンドポイントを呼ぶ。

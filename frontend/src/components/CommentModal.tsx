@@ -71,8 +71,37 @@ export default function CommentModal({
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={title} size="md">
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            title={title}
+            size="md"
+            footer={
+                <>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors"
+                    >
+                        キャンセル
+                    </button>
+                    <button
+                        type="submit"
+                        form="comment-modal-form"
+                        disabled={!content.trim() || submitting}
+                        className="bg-sky-600 text-white px-6 py-2 rounded text-sm font-medium hover:bg-sky-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                    >
+                        {submitting ? (
+                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                            submitLabel === '保存' ? <Check className="w-4 h-4" /> : <Send className="w-4 h-4" />
+                        )}
+                        {submitLabel}
+                    </button>
+                </>
+            }
+        >
+            <form id="comment-modal-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
                 <div
                     className={`relative ${isDragging ? 'bg-sky-50' : ''}`}
                     onDragOver={handleDragOver}
@@ -135,27 +164,6 @@ export default function CommentModal({
                     </div>
                 )}
 
-                <div className="flex justify-end gap-3 pt-2 border-t mt-2">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors"
-                    >
-                        キャンセル
-                    </button>
-                    <button
-                        type="submit"
-                        disabled={!content.trim() || submitting}
-                        className="bg-sky-600 text-white px-6 py-2 rounded text-sm font-medium hover:bg-sky-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition-all flex items-center gap-2"
-                    >
-                        {submitting ? (
-                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        ) : (
-                            submitLabel === '保存' ? <Check className="w-4 h-4" /> : <Send className="w-4 h-4" />
-                        )}
-                        {submitLabel}
-                    </button>
-                </div>
             </form>
         </Modal>
     );

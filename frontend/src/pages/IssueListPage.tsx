@@ -3,16 +3,18 @@ import { useParams } from 'react-router-dom';
 import { Pencil, Trash2, Users } from 'lucide-react';
 import api from '../api/client';
 import { Issue, IssueMetaOptions } from '../types';
-import Modal from '../components/Modal';
-import IssueForm from '../components/IssueForm';
+import { IssueFormModal } from '../components/IssueForm';
 import ConfirmationModal from '../components/ConfirmationModal';
 import IssueDetailModal from '../components/IssueDetailModal';
 import { useAuth } from '../hooks/useAuth';
+import { usePermissions } from '../hooks/usePermissions';
+import PermissionGate from '../components/PermissionGate';
 import Combobox from '../components/Combobox';
 
 export default function IssueListPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const { user } = useAuth();
+  const { canInput } = usePermissions(user?.permissions);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [meta, setMeta] = useState<IssueMetaOptions | null>(null);
   const [filterStatus, setFilterStatus] = useState('');
@@ -58,12 +60,14 @@ export default function IssueListPage() {
       <div className="mb-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-semibold text-slate-700">チケット一覧</h2>
-          <button
-            onClick={() => setIsNewIssueModalOpen(true)}
-            className="bg-sky-600 text-white px-4 py-2 rounded-md text-sm hover:bg-sky-700 cursor-pointer"
-          >
-            新規チケット
-          </button>
+          <PermissionGate code="projects.issues" action="input" permissions={user?.permissions}>
+            <button
+              onClick={() => setIsNewIssueModalOpen(true)}
+              className="bg-sky-600 text-white px-4 py-2 rounded-md text-sm hover:bg-sky-700 cursor-pointer"
+            >
+              新規チケット
+            </button>
+          </PermissionGate>
         </div>
 
         <div className="bg-white rounded-lg shadow p-4 mb-6 flex gap-4">
@@ -147,20 +151,24 @@ export default function IssueListPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => setEditingIssueId(String(issue.id))}
-                      className="text-sky-600 hover:text-sky-800 mr-4 cursor-pointer"
-                      title="編集"
-                    >
-                      <Pencil size={18} />
-                    </button>
-                    <button
-                      onClick={() => setDeletingIssueId(issue.id)}
-                      className="text-red-500 hover:text-red-700 cursor-pointer"
-                      title="削除"
-                    >
-                      <Trash2 size={18} />
-                    </button>
+                    {canInput('projects.issues') && (
+                      <>
+                        <button
+                          onClick={() => setEditingIssueId(String(issue.id))}
+                          className="text-sky-600 hover:text-sky-800 mr-4 cursor-pointer"
+                          title="編集"
+                        >
+                          <Pencil size={18} />
+                        </button>
+                        <button
+                          onClick={() => setDeletingIssueId(issue.id)}
+                          className="text-red-500 hover:text-red-700 cursor-pointer"
+                          title="削除"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -171,22 +179,20 @@ export default function IssueListPage() {
           )}
         </div>
 
-        <Modal
-          isOpen={!!editingIssueId}
-          onClose={() => setEditingIssueId(null)}
-          title="チケット編集"
-        >
-          {editingIssueId && (
-            <IssueForm
-              issueId={editingIssueId}
-              onSuccess={() => {
-                setEditingIssueId(null);
-                fetchIssues();
-              }}
-              onCancel={() => setEditingIssueId(null)}
-            />
-          )}
-        </Modal>
+        {editingIssueId && (
+          <IssueFormModal
+            isOpen={!!editingIssueId}
+            onClose={() => setEditingIssueId(null)}
+            title="チケット編集"
+            issueId={editingIssueId}
+            onSuccess={() => {
+              setEditingIssueId(null);
+              fetchIssues();
+            }}
+            onCancel={() => setEditingIssueId(null)}
+            permissions={user?.permissions}
+          />
+        )}
 
         <IssueDetailModal
           isOpen={!!selectedIssueId}
@@ -200,22 +206,18 @@ export default function IssueListPage() {
           onRefresh={fetchIssues}
         />
 
-        <Modal
+        <IssueFormModal
           isOpen={isNewIssueModalOpen}
           onClose={() => setIsNewIssueModalOpen(false)}
           title="新規チケット"
-        >
-          {isNewIssueModalOpen && (
-            <IssueForm
-              projectId={projectId}
-              onSuccess={() => {
-                setIsNewIssueModalOpen(false);
-                fetchIssues();
-              }}
-              onCancel={() => setIsNewIssueModalOpen(false)}
-            />
-          )}
-        </Modal>
+          projectId={projectId}
+          onSuccess={() => {
+            setIsNewIssueModalOpen(false);
+            fetchIssues();
+          }}
+          onCancel={() => setIsNewIssueModalOpen(false)}
+          permissions={user?.permissions}
+        />
         <ConfirmationModal
           isOpen={!!deletingIssueId}
           title="チケットの削除"

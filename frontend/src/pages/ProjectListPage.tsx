@@ -9,7 +9,7 @@ import TicketSearchSection from '../components/TicketSearchSection';
 import ProjectSearchSection from '../components/ProjectSearchSection';
 import KanbanBoard from '../components/KanbanBoard';
 import IssueDetail from '../components/IssueDetail';
-import IssueForm from '../components/IssueForm';
+import { IssueFormModal } from '../components/IssueForm';
 import Combobox from '../components/Combobox';
 import TextInput from '../components/TextInput';
 import DateInput from '../components/DateInput';
@@ -601,9 +601,18 @@ export default function ProjectListPage() {
         isOpen={showProjectModal}
         onClose={closeProjectModal}
         title={editingProjectId ? 'プロジェクト情報編集' : 'プロジェクト登録'}
+        footer={
+          <>
+            <button type="button" onClick={closeProjectModal}
+              className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm">キャンセル</button>
+            <button type="submit" form="project-list-form" className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">
+              {editingProjectId ? '更新' : '作成'}
+            </button>
+          </>
+        }
       >
         {projectError && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{projectError}</div>}
-        <form onSubmit={handleSubmitProject}>
+        <form id="project-list-form" onSubmit={handleSubmitProject}>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <TextInput
               label="プロジェクト名 *"
@@ -671,13 +680,6 @@ export default function ProjectListPage() {
               rows={3}
             />
           </div>
-          <div className="flex justify-end gap-2">
-            <button type="button" onClick={closeProjectModal}
-              className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm">キャンセル</button>
-            <button type="submit" className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">
-              {editingProjectId ? '更新' : '作成'}
-            </button>
-          </div>
         </form>
       </Modal>
 
@@ -695,26 +697,23 @@ export default function ProjectListPage() {
         )}
       </Modal>
 
-      <Modal
-        isOpen={isEditModalOpen}
-        onClose={closeIssueModal}
-        title="チケット編集"
-      >
-        {isEditModalOpen && selectedIssueId && (
-          <IssueForm
-            issueId={String(selectedIssueId)}
-            onSuccess={() => {
-              setIsEditModalOpen(false);
-              loadKanbanData();
-              setIsDetailModalOpen(true);
-            }}
-            onCancel={() => {
-              setIsEditModalOpen(false);
-              setIsDetailModalOpen(true);
-            }}
-          />
-        )}
-      </Modal>
+      {selectedIssueId && (
+        <IssueFormModal
+          isOpen={isEditModalOpen}
+          onClose={closeIssueModal}
+          title="チケット編集"
+          issueId={String(selectedIssueId)}
+          onSuccess={() => {
+            setIsEditModalOpen(false);
+            loadKanbanData();
+            setIsDetailModalOpen(true);
+          }}
+          onCancel={() => {
+            setIsEditModalOpen(false);
+            setIsDetailModalOpen(true);
+          }}
+        />
+      )}
     </div>
   );
 }

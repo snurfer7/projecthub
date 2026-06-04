@@ -1,23 +1,23 @@
-import express from 'express';
+import express, { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { requirePermission } from '../middleware/permissions';
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// GET ホームページコンテンツを取得
-router.get('/', async (_req, res) => {
+router.get('/', authenticateToken, requirePermission('home', 'use'), async (_req: AuthRequest, res: Response) => {
   try {
     let homePage = await prisma.homePage.findFirst();
-    
-    // ホームページが存在しない場合は作成
+
     if (!homePage) {
       homePage = await prisma.homePage.create({
         data: {
-          content: '# ホームページ\n\nこのページはmarkdownで編集可能です。'
-        }
+          content: '# ホームページ\n\nこのページはmarkdownで編集可能です.',
+        },
       });
     }
-    
+
     res.json(homePage);
   } catch (error) {
     console.error('Error fetching home page:', error);
@@ -25,25 +25,25 @@ router.get('/', async (_req, res) => {
   }
 });
 
-// POST ホームページコンテンツを更新
-router.post('/', async (req, res) => {
+router.post('/', authenticateToken, requirePermission('home', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { content } = req.body;
 
     if (!content || typeof content !== 'string') {
-      return res.status(400).json({ error: 'Content is required and must be a string' });
+      res.status(400).json({ error: 'Content is required and must be a string' });
+      return;
     }
 
     let homePage = await prisma.homePage.findFirst();
 
     if (!homePage) {
       homePage = await prisma.homePage.create({
-        data: { content }
+        data: { content },
       });
     } else {
       homePage = await prisma.homePage.update({
         where: { id: homePage.id },
-        data: { content }
+        data: { content },
       });
     }
 

@@ -1,6 +1,7 @@
 import { ReactNode, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { User } from '../types';
+import { usePermissions } from '../hooks/usePermissions';
 import Breadcrumb from './Breadcrumb';
 import { clearCompaniesListPersistedFromHeader } from '../utils/companiesListStorage';
 import {
@@ -56,7 +57,14 @@ const TREE_MENU: TreeItem[] = [
   },
 ];
 
-// ヘッダー用フラットリスト（旧来の設定と互換性を保つ）
+const PERM_BY_MENU_KEY: Record<string, string> = {
+  projects: 'projects',
+  company: 'companies',
+  contacts: 'contacts',
+  associations: 'associations',
+  'legal-entity-statuses': 'legal-entity-statuses',
+  admin: 'admin',
+};
 const FLAT_MENU = [
   { label: 'プロジェクト', path: '/projects', icon: Briefcase, key: 'projects' },
   { label: '企業', path: '/companies', icon: Building2, key: 'company' },
@@ -64,6 +72,7 @@ const FLAT_MENU = [
 
 export default function Layout({ user, onLogout, children }: Props) {
   const location = useLocation();
+  const { canUse } = usePermissions(user.permissions);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // 各親メニューの展開状態（デフォルトで全展開）
@@ -87,17 +96,28 @@ export default function Layout({ user, onLogout, children }: Props) {
 
   // ヘッダーメニュー（ユーザー設定に基づく）
   const headerNavItems = FLAT_MENU.filter((item) => {
+    const perm = PERM_BY_MENU_KEY[item.key];
+    if (perm && !canUse(perm)) return false;
     if (item.key === 'projects') return user.showProjectsMenu !== false;
     if (item.key === 'company') return user.showCompanyMenu !== false;
     return true;
   });
 
-  // サイドバーに表示するツリーメニュー（管理は role=admin または isAdmin かつ showAdminMenu）
-  const canAccessAdmin = user.role === 'admin' || user.isAdmin === true;
   const sideTreeItems = TREE_MENU.filter((item) => {
-    if (!item.adminOnly) return true;
-    return canAccessAdmin && user.showAdminMenu !== false;
-  });
+    const perm = PERM_BY_MENU_KEY[item.key];
+    if (perm && !canUse(perm)) return false;
+    if (item.adminOnly) return user.showAdminMenu !== false;
+    return true;
+  }).map((item) => {
+    if (!item.children) return item;
+    return {
+      ...item,
+      children: item.children.filter((child) => {
+        const childPerm = PERM_BY_MENU_KEY[child.key];
+        return !childPerm || canUse(childPerm);
+      }),
+    };
+  }).filter((item) => !item.children || item.children.length > 0);
 
   const isActive = (path: string) => location.pathname.startsWith(path);
 

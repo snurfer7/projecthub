@@ -77,9 +77,19 @@ export default function TimeEntryModal({ isOpen, onClose, onSuccess, projectId, 
       onClose={onClose}
       title={entry ? "時間記録の編集" : "時間記録の追加"}
       size="md"
+      footer={
+        <>
+          <button type="button" onClick={onClose} disabled={submitting}
+            className="bg-gray-200 text-gray-700 px-4 py-1.5 rounded text-sm hover:bg-gray-300">キャンセル</button>
+          <button type="submit" form="time-entry-form" disabled={submitting}
+            className="bg-sky-600 text-white px-4 py-1.5 rounded text-sm hover:bg-sky-700">
+            {submitting ? '保存中...' : entry ? '更新' : '追加'}
+          </button>
+        </>
+      }
     >
-      <form onSubmit={handleSubmit}>
-        <div className="space-y-4 mb-6">
+      <form id="time-entry-form" onSubmit={handleSubmit}>
+        <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Combobox
@@ -136,14 +146,6 @@ export default function TimeEntryModal({ isOpen, onClose, onSuccess, projectId, 
               size="medium"
             />
           </div>
-        </div>
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} disabled={submitting}
-            className="bg-gray-200 text-gray-700 px-4 py-1.5 rounded text-sm hover:bg-gray-300">キャンセル</button>
-          <button type="submit" disabled={submitting}
-            className="bg-sky-600 text-white px-4 py-1.5 rounded text-sm hover:bg-sky-700">
-            {submitting ? '保存中...' : entry ? '更新' : '追加'}
-          </button>
         </div>
       </form>
     </Modal>

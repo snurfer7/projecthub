@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { AuthRequest, authenticateToken } from '../middleware/auth';
+import { requirePermission, requireAnyPermission } from '../middleware/permissions';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -420,7 +421,7 @@ router.put('/deals/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.delete('/deals/:id', async (req: AuthRequest, res: Response) => {
+router.delete('/deals/:id', requirePermission('companies.deals', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     await prisma.deal.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: '商談を削除しました' });
@@ -431,7 +432,7 @@ router.delete('/deals/:id', async (req: AuthRequest, res: Response) => {
 
 // ========== Activities ==========
 
-router.get('/activities', async (req: AuthRequest, res: Response) => {
+router.get('/activities', requirePermission('companies.activities', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const { companyId, contactId, dealId } = req.query;
     const where: any = {};
@@ -451,7 +452,7 @@ router.get('/activities', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.post('/activities', async (req: AuthRequest, res: Response) => {
+router.post('/activities', requirePermission('companies.activities', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { companyId, contactId, dealId, assignedToId, type, subject, description, dueDate, completed } = req.body;
     if (assignedToId) {
@@ -478,7 +479,7 @@ router.post('/activities', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.put('/activities/:id', async (req: AuthRequest, res: Response) => {
+router.put('/activities/:id', requirePermission('companies.activities', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { contactId, dealId, assignedToId, type, subject, description, dueDate, completed } = req.body;
     if (assignedToId) {
@@ -504,7 +505,7 @@ router.put('/activities/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.delete('/activities/:id', async (req: AuthRequest, res: Response) => {
+router.delete('/activities/:id', requirePermission('companies.activities', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const activityId = Number(req.params.id);
     const raw = req.query.deleteLinkedComment;

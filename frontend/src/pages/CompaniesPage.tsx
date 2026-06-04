@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { Company, PaginatedCompaniesResponse } from '../types';
 import CompanyModal from '../components/CompanyModal';
+import PermissionGate from '../components/PermissionGate';
+import { useAuth } from '../hooks/useAuth';
 import { formatCompanyName } from '../utils/format';
 import {
   COMPANIES_LIST_STORAGE_KEY,
@@ -17,6 +19,7 @@ const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 
 export default function CompaniesPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const persistedList = useMemo(() => readPersistedCompaniesList(), []);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [searchQuery, setSearchQuery] = useState(() => persistedList?.searchQuery ?? '');
@@ -117,10 +120,12 @@ export default function CompaniesPage() {
           onChange={(e) => setSearchQuery(e.target.value)}
           className="border rounded-md px-3 py-2 text-sm w-72 focus:outline-none focus:ring-2 focus:ring-sky-500"
         />
-        <button onClick={openCreateCompanyModal}
-          className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">
-          新規企業
-        </button>
+        <PermissionGate code="companies" action="input" permissions={user?.permissions}>
+          <button onClick={openCreateCompanyModal}
+            className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">
+            新規企業
+          </button>
+        </PermissionGate>
       </div>
 
       <div className="bg-white rounded-lg shadow">

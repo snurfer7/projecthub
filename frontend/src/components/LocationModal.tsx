@@ -87,9 +87,27 @@ export default function LocationModal({ isOpen, onClose, onSubmit, editingLocati
                 isOpen={isOpen}
                 onClose={onClose}
                 title={editingLocation ? '拠点編集' : '拠点登録'}
+                footer={
+                    <>
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm"
+                        >
+                            キャンセル
+                        </button>
+                        <button
+                            type="submit"
+                            form="location-modal-form"
+                            className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm"
+                        >
+                            {editingLocation ? '更新' : '作成'}
+                        </button>
+                    </>
+                }
             >
                 {error && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{error}</div>}
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form id="location-modal-form" onSubmit={handleSubmit} className="space-y-4">
                     <div className="flex items-end gap-4">
                         <div className="flex-1">
                             <TextInput
@@ -189,21 +207,6 @@ export default function LocationModal({ isOpen, onClose, onSubmit, editingLocati
                         onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                         rows={3}
                     />
-                    <div className="flex justify-end gap-2 mt-6">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm"
-                        >
-                            キャンセル
-                        </button>
-                        <button
-                            type="submit"
-                            className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm"
-                        >
-                            {editingLocation ? '更新' : '作成'}
-                        </button>
-                    </div>
                 </form>
             </Modal>
 

@@ -4,7 +4,7 @@ import { FoldVertical, UnfoldVertical, GripVertical, MessageSquare } from 'lucid
 import api from '../api/client';
 import { Issue, IssueComment, Tracker, IssueStatus, IssuePriority, Project, SystemSetting } from '../types';
 import Modal from './Modal';
-import IssueForm from './IssueForm';
+import { IssueFormModal } from './IssueForm';
 import IssueDetail from './IssueDetail';
 import MarkdownRenderer from './MarkdownRenderer';
 import { useAuth } from '../hooks/useAuth';
@@ -1613,22 +1613,19 @@ export default function GanttChart({
       </Modal>
 
       {/* チケット追加モーダル */}
-      <Modal
+      <IssueFormModal
         isOpen={addModal.isOpen}
         onClose={() => setAddModal({ ...addModal, isOpen: false })}
         title="新規チケット作成"
-      >
-        <IssueForm
-          projectId={String(addModal.projectId)}
-          initialStartDate={addModal.initialStartDate}
-          initialDueDate={addModal.initialDueDate}
-          onSuccess={() => {
-            setAddModal({ ...addModal, isOpen: false });
-            onIssueCreated?.();
-          }}
-          onCancel={() => setAddModal({ ...addModal, isOpen: false })}
-        />
-      </Modal>
+        projectId={String(addModal.projectId)}
+        initialStartDate={addModal.initialStartDate}
+        initialDueDate={addModal.initialDueDate}
+        onSuccess={() => {
+          setAddModal({ ...addModal, isOpen: false });
+          onIssueCreated?.();
+        }}
+        onCancel={() => setAddModal({ ...addModal, isOpen: false })}
+      />
 
       {/* チケット詳細モーダル */}
       <Modal
@@ -1653,22 +1650,19 @@ export default function GanttChart({
       </Modal>
 
       {/* チケット編集モーダル */}
-      <Modal
-        isOpen={editIssueId !== null}
-        onClose={() => setEditIssueId(null)}
-        title="チケットの編集"
-      >
-        {editIssueId && (
-          <IssueForm
-            issueId={String(editIssueId)}
-            onSuccess={() => {
-              setEditIssueId(null);
-              onIssueCreated?.(); // ガントチャートを更新
-            }}
-            onCancel={() => setEditIssueId(null)}
-          />
-        )}
-      </Modal>
+      {editIssueId && (
+        <IssueFormModal
+          isOpen={editIssueId !== null}
+          onClose={() => setEditIssueId(null)}
+          title="チケットの編集"
+          issueId={String(editIssueId)}
+          onSuccess={() => {
+            setEditIssueId(null);
+            onIssueCreated?.();
+          }}
+          onCancel={() => setEditIssueId(null)}
+        />
+      )}
 
       {/* ツールチップ */}
       {tooltip && !drag && (

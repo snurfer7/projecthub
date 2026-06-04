@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import Layout from './components/Layout';
+import PermissionRoute from './components/PermissionRoute';
 
 // 認証前ページ（初回表示で必要）
 const LoginPage = lazy(() => import('./pages/LoginPage'));
@@ -76,10 +77,10 @@ function App() {
                 user.landingPage === 'companies' ? <Navigate to="/companies" replace /> :
                   <Navigate to="/home" replace />
           } />
-          <Route path="/home" element={<HomePage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/projects" element={<ProjectListPage />} />
-          <Route path="/projects/:projectId" element={<ProjectDetailPage />}>
+          <Route path="/home" element={<PermissionRoute code="home" permissions={user.permissions}><HomePage /></PermissionRoute>} />
+          <Route path="/dashboard" element={<PermissionRoute code="dashboard" permissions={user.permissions}><DashboardPage /></PermissionRoute>} />
+          <Route path="/projects" element={<PermissionRoute code="projects" permissions={user.permissions}><ProjectListPage /></PermissionRoute>} />
+          <Route path="/projects/:projectId" element={<PermissionRoute code="projects" permissions={user.permissions}><ProjectDetailPage /></PermissionRoute>}>
             <Route index element={<ProjectOverview />} />
             <Route path="issues" element={<IssueListPage />} />
             <Route path="issues/new" element={<IssueFormPage />} />
@@ -91,13 +92,13 @@ function App() {
           </Route>
           <Route path="/issues/:id" element={<IssueDetailPage user={user} />} />
           <Route path="/issues/:id/edit" element={<IssueFormPage />} />
-          <Route path="/associations" element={<AssociationsPage />} />
-          <Route path="/legal-entity-statuses" element={<LegalEntityStatusesPage />} />
-          <Route path="/companies" element={<CompaniesPage />} />
-          <Route path="/companies/:id" element={<CompanyDetailPage />} />
-          <Route path="/contacts" element={<ContactsPage />} />
-          <Route path="/settings" element={<SettingsPage user={user} refreshUser={refreshUser} />} />
-          <Route path="/admin" element={<AdminPage user={user} />} />
+          <Route path="/associations" element={<PermissionRoute code="associations" permissions={user.permissions}><AssociationsPage /></PermissionRoute>} />
+          <Route path="/legal-entity-statuses" element={<PermissionRoute code="legal-entity-statuses" permissions={user.permissions}><LegalEntityStatusesPage /></PermissionRoute>} />
+          <Route path="/companies" element={<PermissionRoute code="companies" permissions={user.permissions}><CompaniesPage /></PermissionRoute>} />
+          <Route path="/companies/:id" element={<PermissionRoute code="companies" permissions={user.permissions}><CompanyDetailPage /></PermissionRoute>} />
+          <Route path="/contacts" element={<PermissionRoute code="contacts" permissions={user.permissions}><ContactsPage /></PermissionRoute>} />
+          <Route path="/settings" element={<PermissionRoute code="settings" permissions={user.permissions}><SettingsPage user={user} refreshUser={refreshUser} /></PermissionRoute>} />
+          <Route path="/admin" element={<PermissionRoute code="admin" permissions={user.permissions}><AdminPage user={user} /></PermissionRoute>} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Suspense>

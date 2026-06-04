@@ -39,12 +39,29 @@ PostgreSQL + Prisma で永続化し、JWT で認証する。
 | `/api/crm` | crm.ts | コンタクト・ Deal・Activity CRUD、コメント |
 | `/api/home` | home.ts | ホームページコンテンツ |
 
-## 認証
+## 認証・権限
 
 - **ログイン**: `POST /api/auth/login` — `email`, `password` → `token`, `user`
 - **登録**: `POST /api/auth/register` — `email`, `password`, `firstName`, `lastName` → `token`, `user`
 - **認証が必要なリクエスト**: ヘッダー `Authorization: Bearer <token>`
-- **トークン取得**: `auth.ts` 内の `generateToken(userId, role, isAdmin)`（JWT、要 `JWT_SECRET` 環境変数）。管理画面・ユーザー/マスタ/設定の操作は、JWT の `isAdmin === true` または `role === 'admin'` のいずれかで許可する。プロジェクト・チケット・企業・協会・法人格・連絡先・商談・活動履歴・Wiki・コメント・拠点の新規登録・編集は認証済みユーザーであれば可能。
+- **トークン取得**: `auth.ts` 内の `generateToken(userId, role, isAdmin)`（JWT、要 `JWT_SECRET` 環境変数）
+- **権限制御**: ユーザー → 複数 Group → 各 Group の PermissionSet → PermissionSetPermission。`GET /api/auth/me` で解決済み権限マップを返却。API ルートは `requirePermission(code, 'use'|'input')` で検証。**isAdmin / role=admin でもバイパスしない**。
+- **使用可否 (`canUse`)**: 閲覧・GET API・画面アクセス
+- **入力可否 (`canInput`)**: 作成・更新・削除・POST/PUT/DELETE API（canUse が true のときのみ有効）
+
+### 新機能・項目追加時の権限実装
+
+[doc/README.md](../README.md) の「権限設定を伴う実装（必須）」に従う。実装の正:
+
+| レイヤ | ファイル |
+|--------|---------|
+| カタログ定義 | `backend/src/constants/permissionCatalog.ts` |
+| seed | `backend/prisma/seed-permissions.ts` |
+| API ガード | `backend/src/middleware/permissions.ts`（`requirePermission`） |
+| 解決・フィールド検証 | `backend/src/services/permissions.ts` |
+| フロント | `frontend/src/hooks/usePermissions.ts`, `PermissionGate`, `PermissionRoute` |
+
+新 API を追加したら、同 PR で `requirePermission('<code>', 'use' \| 'input')` を必ず付ける。
 
 ## 環境変数（代表）
 

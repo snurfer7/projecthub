@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
+import { seedPermissions } from './seed-permissions';
+
 async function main() {
   // ensure admin user exists
   const existingAdmin = await prisma.user.findUnique({ where: { email: 'admin@example.com' } });
@@ -93,6 +95,8 @@ async function main() {
     });
     console.log('Seeded default legal entity statuses');
   }
+
+  await seedPermissions();
 
   console.log('Seed data check complete');
 }

@@ -115,8 +115,22 @@ export default function LegalEntityStatusesPage() {
             </div>
 
             {showModal && (
-                <Modal isOpen={showModal} title={editingId ? '法人格を編集' : '新規法人格'} onClose={closeModal}>
-                    <form onSubmit={handleSubmit} className="space-y-4">
+                <Modal
+                    isOpen={showModal}
+                    title={editingId ? '法人格を編集' : '新規法人格'}
+                    onClose={closeModal}
+                    footer={
+                        <>
+                            <button type="button" onClick={closeModal} className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">
+                                キャンセル
+                            </button>
+                            <button type="submit" form="legal-entity-form" className="px-4 py-2 text-sm text-white bg-sky-600 rounded-md hover:bg-sky-700">
+                                {editingId ? '更新' : '作成'}
+                            </button>
+                        </>
+                    }
+                >
+                    <form id="legal-entity-form" onSubmit={handleSubmit} className="space-y-4">
                         {error && <div className="p-3 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
                         <TextInput
                             label="法人格名"
@@ -126,14 +140,6 @@ export default function LegalEntityStatusesPage() {
                             autoFocus
                             placeholder="例: 株式会社"
                         />
-                        <div className="flex justify-end gap-3 pt-2">
-                            <button type="button" onClick={closeModal} className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">
-                                キャンセル
-                            </button>
-                            <button type="submit" className="px-4 py-2 text-sm text-white bg-sky-600 rounded-md hover:bg-sky-700">
-                                {editingId ? '更新' : '作成'}
-                            </button>
-                        </div>
                     </form>
                 </Modal>
             )}

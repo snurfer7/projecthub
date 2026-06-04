@@ -4,8 +4,12 @@
 
 ## 認証・ユーザー
 
-- **User** — id, email, firstName, lastName, role, isAdmin, landingPage, show*Menu, createdAt, groupMembers, status（`pending` \| `active` \| `inactive`）等。
-- **Group** — id, name, createdAt, _count, members。
+- **User** — id, email, firstName, lastName, role, isAdmin, landingPage, show*Menu, createdAt, groupMembers, status（`pending` \| `active` \| `inactive`）, **permissions**（`Record<string, PermissionEntry>`）等。
+- **PermissionEntry** — `{ canUse: boolean, canInput: boolean }`。
+- **PermissionResource** — id, code, name, resourceType, parentId, position, children?。
+- **PermissionSet** — id, name, description, createdAt, groups?, permissions?。
+- **PermissionSetPermission** — resourceId, resource?, canUse, canInput。
+- **Group** — id, name, createdAt, permissionSetId?, permissionSet?, _count, members。
 
 ## 会社・CRM
 

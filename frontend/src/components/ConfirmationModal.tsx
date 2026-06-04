@@ -54,10 +54,10 @@ export default function ConfirmationModal({
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
             <div
-                className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200"
+                className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="px-6 pt-6 pb-4 flex items-start gap-4">
+                <div className="flex-1 min-h-0 overflow-y-auto px-6 pt-6 pb-4 flex items-start gap-4">
                     <div className={`p-2 rounded-full flex-shrink-0 ${variant === 'danger' ? 'bg-red-100 text-red-600'
                         : 'bg-sky-100 text-sky-600'
                         }`}>
@@ -87,7 +87,7 @@ export default function ConfirmationModal({
                         <X className="w-5 h-5" />
                     </button>
                 </div>
-                <div className="flex justify-end gap-3 px-6 pb-6">
+                <div className="flex-shrink-0 flex justify-end gap-3 px-6 py-4 border-t border-gray-200">
                     <button
                         type="button"
                         onClick={onCancel}

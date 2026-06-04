@@ -187,8 +187,22 @@ export default function AssociationsPage() {
             </div>
 
             {showModal && (
-                <Modal isOpen={showModal} title={editingId ? '協会を編集' : '新規協会'} onClose={closeModal}>
-                    <form onSubmit={handleSubmit} className="space-y-4">
+                <Modal
+                    isOpen={showModal}
+                    title={editingId ? '協会を編集' : '新規協会'}
+                    onClose={closeModal}
+                    footer={
+                        <>
+                            <button type="button" onClick={closeModal} className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+                                キャンセル
+                            </button>
+                            <button type="submit" form="association-form" className="px-4 py-2 text-sm text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors">
+                                {editingId ? '更新' : '作成'}
+                            </button>
+                        </>
+                    }
+                >
+                    <form id="association-form" onSubmit={handleSubmit} className="space-y-4">
                         {error && <div className="p-3 bg-red-50 text-red-700 rounded text-sm mb-4 border border-red-100">{error}</div>}
                         <TextInput
                             label="協会名"
@@ -277,14 +291,6 @@ export default function AssociationsPage() {
                             isMultiline
                             rows={3}
                         />
-                        <div className="flex justify-end gap-3 pt-2">
-                            <button type="button" onClick={closeModal} className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
-                                キャンセル
-                            </button>
-                            <button type="submit" className="px-4 py-2 text-sm text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors">
-                                {editingId ? '更新' : '作成'}
-                            </button>
-                        </div>
                     </form>
                 </Modal>
             )}

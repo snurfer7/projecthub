@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { requirePermission, requireAnyPermission } from '../middleware/permissions';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -55,7 +56,7 @@ function companySearchWhere(q: string): Prisma.CompanyWhereInput {
 }
 
 // List companies: with ?page= — paginated + optional q. Without page — full array (dropdowns).
-router.get('/', async (req: AuthRequest, res: Response) => {
+router.get('/', requirePermission('companies', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const pageRaw = req.query.page;
     const usePagination =
@@ -108,7 +109,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 });
 
 // Get company details with associations
-router.get('/:id', async (req: AuthRequest, res: Response) => {
+router.get('/:id', requirePermission('companies', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const company = await prisma.company.findUnique({
       where: { id: Number(req.params.id) },
@@ -171,7 +172,7 @@ function companyCreateErrorMessage(error: unknown, fallback: string): { status: 
 }
 
 // Create company
-router.post('/', async (req: AuthRequest, res: Response) => {
+router.post('/', requirePermission('companies', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { name, legalEntityStatusId, legalEntityPosition, postalCode, prefecture, city, street, building, phone, fax, website, notes, latitude, longitude } = req.body;
 
@@ -220,7 +221,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 });
 
 // Update company
-router.put('/:id', async (req: AuthRequest, res: Response) => {
+router.put('/:id', requirePermission('companies', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { name, legalEntityStatusId, legalEntityPosition, postalCode, prefecture, city, street, building, phone, fax, website, notes, latitude, longitude } = req.body;
     const companyId = Number(req.params.id);
@@ -241,7 +242,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
 });
 
 // Delete company
-router.delete('/:id', async (req: AuthRequest, res: Response) => {
+router.delete('/:id', requirePermission('companies', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     await prisma.company.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: '企業を削除しました' });
@@ -251,7 +252,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
 });
 
 // Merge source company (:id) into target — reassign all company_id FKs, delete source
-router.post('/:id/merge', async (req: AuthRequest, res: Response) => {
+router.post('/:id/merge', requirePermission('companies.merge', 'input'), async (req: AuthRequest, res: Response) => {
   const sourceId = Number(req.params.id);
   const rawTarget = (req.body || {}) as { targetCompanyId?: number | string };
   const targetId = Number(rawTarget.targetCompanyId);
@@ -365,7 +366,7 @@ router.post('/:id/merge', async (req: AuthRequest, res: Response) => {
 });
 
 // Add association to company
-router.post('/:companyId/associations/:associationId', async (req: AuthRequest, res: Response) => {
+router.post('/:companyId/associations/:associationId', requirePermission('companies', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const companyId = Number(req.params.companyId);
     const associationId = Number(req.params.associationId);
@@ -388,7 +389,7 @@ router.post('/:companyId/associations/:associationId', async (req: AuthRequest, 
 });
 
 // Remove association from company
-router.delete('/:companyId/associations/:associationId', async (req: AuthRequest, res: Response) => {
+router.delete('/:companyId/associations/:associationId', requirePermission('companies', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const companyId = Number(req.params.companyId);
     const associationId = Number(req.params.associationId);
@@ -422,7 +423,7 @@ function serializeCompanyComment(
 }
 
 // Get comments for a company
-router.get('/:companyId/comments', async (req: AuthRequest, res: Response) => {
+router.get('/:companyId/comments', requirePermission('companies.comments', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const companyId = Number(req.params.companyId);
     const comments = await prisma.companyComment.findMany({
@@ -441,7 +442,7 @@ router.get('/:companyId/comments', async (req: AuthRequest, res: Response) => {
 });
 
 // Add a comment to a company
-router.post('/:companyId/comments', async (req: AuthRequest, res: Response) => {
+router.post('/:companyId/comments', requirePermission('companies.comments', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const companyId = Number(req.params.companyId);
     if (Number.isNaN(companyId)) {
@@ -543,7 +544,7 @@ router.post('/:companyId/comments', async (req: AuthRequest, res: Response) => {
 });
 
 // Update a comment
-router.put('/:companyId/comments/:commentId', async (req: AuthRequest, res: Response) => {
+router.put('/:companyId/comments/:commentId', requirePermission('companies.comments', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const commentId = Number(req.params.commentId);
     const { content } = req.body;
@@ -579,7 +580,7 @@ router.put('/:companyId/comments/:commentId', async (req: AuthRequest, res: Resp
   }
 });
 
-router.delete('/:companyId/comments/:commentId', async (req: AuthRequest, res: Response) => {
+router.delete('/:companyId/comments/:commentId', requirePermission('companies.comments', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const companyId = Number(req.params.companyId);
     const commentId = Number(req.params.commentId);
@@ -611,7 +612,7 @@ router.delete('/:companyId/comments/:commentId', async (req: AuthRequest, res: R
 // ==========================================
 
 // Get all wiki pages for a company
-router.get('/:companyId/wiki', async (req: AuthRequest, res: Response) => {
+router.get('/:companyId/wiki', requirePermission('companies.wiki', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const companyId = Number(req.params.companyId);
     const pages = await prisma.companyWikiPage.findMany({
@@ -631,7 +632,7 @@ router.get('/:companyId/wiki', async (req: AuthRequest, res: Response) => {
 });
 
 // Get a specific wiki page by title
-router.get('/:companyId/wiki/:title', async (req: AuthRequest, res: Response) => {
+router.get('/:companyId/wiki/:title', requirePermission('companies.wiki', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const companyId = Number(req.params.companyId);
     const title = req.params.title as string;
@@ -659,7 +660,7 @@ router.get('/:companyId/wiki/:title', async (req: AuthRequest, res: Response) =>
 });
 
 // Create or update a wiki page
-router.put('/:companyId/wiki/:title', async (req: AuthRequest, res: Response) => {
+router.put('/:companyId/wiki/:title', requirePermission('companies.wiki', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const companyId = Number(req.params.companyId);
     const title = req.params.title as string;
@@ -701,7 +702,7 @@ router.put('/:companyId/wiki/:title', async (req: AuthRequest, res: Response) =>
 });
 
 // Delete a wiki page
-router.delete('/:companyId/wiki/:title', async (req: AuthRequest, res: Response) => {
+router.delete('/:companyId/wiki/:title', requirePermission('companies.wiki', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const companyId = Number(req.params.companyId);
     const title = req.params.title as string;
@@ -722,7 +723,7 @@ router.delete('/:companyId/wiki/:title', async (req: AuthRequest, res: Response)
 });
 
 // Move company wiki page
-router.patch('/:companyId/wiki/:title/move', async (req: AuthRequest, res: Response) => {
+router.patch('/:companyId/wiki/:title/move', requirePermission('companies.wiki', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const companyId = Number(req.params.companyId);
     const title = req.params.title as string;
@@ -752,7 +753,7 @@ router.patch('/:companyId/wiki/:title/move', async (req: AuthRequest, res: Respo
 // ==========================================
 
 // Get all locations for a company
-router.get('/:companyId/locations', async (req: AuthRequest, res: Response) => {
+router.get('/:companyId/locations', requirePermission('companies.locations', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const companyId = Number(req.params.companyId);
     const locations = await prisma.location.findMany({
@@ -766,7 +767,7 @@ router.get('/:companyId/locations', async (req: AuthRequest, res: Response) => {
 });
 
 // Create a location
-router.post('/:companyId/locations', async (req: AuthRequest, res: Response) => {
+router.post('/:companyId/locations', requirePermission('companies.locations', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const companyId = Number(req.params.companyId);
     const { name, phone, fax, postalCode, prefecture, city, street, building, notes, latitude, longitude } = req.body;
@@ -800,7 +801,7 @@ router.post('/:companyId/locations', async (req: AuthRequest, res: Response) => 
 });
 
 // Update a location
-router.put('/:companyId/locations/:locationId', async (req: AuthRequest, res: Response) => {
+router.put('/:companyId/locations/:locationId', requirePermission('companies.locations', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const locationId = Number(req.params.locationId);
     const { name, phone, fax, postalCode, prefecture, city, street, building, notes, latitude, longitude } = req.body;
@@ -830,7 +831,7 @@ router.put('/:companyId/locations/:locationId', async (req: AuthRequest, res: Re
 });
 
 // Delete a location
-router.delete('/:companyId/locations/:locationId', async (req: AuthRequest, res: Response) => {
+router.delete('/:companyId/locations/:locationId', requirePermission('companies.locations', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const locationId = Number(req.params.locationId);
 

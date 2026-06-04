@@ -2,7 +2,9 @@ import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { randomInt } from 'crypto';
-import { authenticateToken, requireAdmin, AuthRequest } from '../middleware/auth';
+import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { requirePermission, requireAnyPermission } from '../middleware/permissions';
+import permissionSetRoutes from './permissionSets';
 import { sendTemporaryPasswordEmail, sendTestEmail } from '../services/email';
 import { encryptSecret } from '../services/emailCrypto';
 
@@ -20,12 +22,10 @@ function generateTemporaryPassword(length = 12): string {
 }
 
 router.use(authenticateToken);
+router.use(permissionSetRoutes);
 
-// 管理者のみ: ユーザー・トラッカー・ステータス・優先度・グループ・ロール・設定
-// 企業・法人格・協会は認証済みユーザーで利用可能
-
-// Users（一覧は担当者選択等で利用するため認証のみ。作成・更新・削除は管理者のみ）
-router.get('/users', async (_req: AuthRequest, res: Response) => {
+// Users
+router.get('/users', requireAnyPermission(['admin.users', 'projects.issues', 'projects.members', 'companies.deals', 'admin.groups', 'admin.permission-sets'], 'use'), async (_req: AuthRequest, res: Response) => {
   try {
     const users = await prisma.user.findMany({
       select: {
@@ -40,7 +40,7 @@ router.get('/users', async (_req: AuthRequest, res: Response) => {
   }
 });
 
-router.post('/users', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.post('/users', requirePermission('admin.users', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { email, firstName, lastName, isAdmin, groupIds } = req.body;
     const temporaryPassword = generateTemporaryPassword();
@@ -73,7 +73,7 @@ router.post('/users', requireAdmin, async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.put('/users/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.put('/users/:id', requirePermission('admin.users', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { email, firstName, lastName, isAdmin, status, password, groupIds } = req.body;
     const userId = Number(req.params.id);
@@ -109,7 +109,7 @@ router.put('/users/:id', requireAdmin, async (req: AuthRequest, res: Response) =
   }
 });
 
-router.delete('/users/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.delete('/users/:id', requirePermission('admin.users', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = Number(req.params.id);
     const targetUser = await prisma.user.findUnique({
@@ -132,7 +132,7 @@ router.delete('/users/:id', requireAdmin, async (req: AuthRequest, res: Response
 });
 
 // Trackers
-router.get('/trackers', requireAdmin, async (_req: AuthRequest, res: Response) => {
+router.get('/trackers', requirePermission('admin.trackers', 'use'), async (_req: AuthRequest, res: Response) => {
   try {
     // the generated client in this workspace may be out-of-date so we cast
     let trackers = await prisma.tracker.findMany({ orderBy: { position: 'asc' } as any });
@@ -153,7 +153,7 @@ router.get('/trackers', requireAdmin, async (_req: AuthRequest, res: Response) =
   }
 });
 
-router.post('/trackers', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.post('/trackers', requirePermission('admin.trackers', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     // place new tracker at end of list
     const max: any = await prisma.tracker.aggregate({ _max: { position: true } } as any);
@@ -166,7 +166,7 @@ router.post('/trackers', requireAdmin, async (req: AuthRequest, res: Response) =
   }
 });
 
-router.put('/trackers/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.put('/trackers/:id', requirePermission('admin.trackers', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
     const { name, position } = req.body;
@@ -180,7 +180,7 @@ router.put('/trackers/:id', requireAdmin, async (req: AuthRequest, res: Response
   }
 });
 
-router.post('/trackers/reorder', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.post('/trackers/reorder', requirePermission('admin.trackers', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { ids } = req.body;
     if (!Array.isArray(ids)) {
@@ -197,7 +197,7 @@ router.post('/trackers/reorder', requireAdmin, async (req: AuthRequest, res: Res
   }
 });
 
-router.delete('/trackers/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.delete('/trackers/:id', requirePermission('admin.trackers', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     await prisma.tracker.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: '削除しました' });
@@ -207,7 +207,7 @@ router.delete('/trackers/:id', requireAdmin, async (req: AuthRequest, res: Respo
 });
 
 // Statuses
-router.get('/statuses', requireAdmin, async (_req: AuthRequest, res: Response) => {
+router.get('/statuses', requirePermission('admin.statuses', 'use'), async (_req: AuthRequest, res: Response) => {
   try {
     res.json(await prisma.issueStatus.findMany({ orderBy: { position: 'asc' } }));
   } catch (e) {
@@ -215,7 +215,7 @@ router.get('/statuses', requireAdmin, async (_req: AuthRequest, res: Response) =
   }
 });
 
-router.post('/statuses', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.post('/statuses', requirePermission('admin.statuses', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { name, isClosed, position } = req.body;
     // when creating new status default to end
@@ -229,7 +229,7 @@ router.post('/statuses', requireAdmin, async (req: AuthRequest, res: Response) =
   }
 });
 
-router.put('/statuses/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.put('/statuses/:id', requirePermission('admin.statuses', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
     const { name, isClosed, position } = req.body;
@@ -244,7 +244,7 @@ router.put('/statuses/:id', requireAdmin, async (req: AuthRequest, res: Response
   }
 });
 
-router.post('/statuses/reorder', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.post('/statuses/reorder', requirePermission('admin.statuses', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { ids } = req.body;
     if (!Array.isArray(ids)) {
@@ -261,7 +261,7 @@ router.post('/statuses/reorder', requireAdmin, async (req: AuthRequest, res: Res
   }
 });
 
-router.delete('/statuses/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.delete('/statuses/:id', requirePermission('admin.statuses', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     await prisma.issueStatus.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: '削除しました' });
@@ -271,7 +271,7 @@ router.delete('/statuses/:id', requireAdmin, async (req: AuthRequest, res: Respo
 });
 
 // Priorities
-router.get('/priorities', requireAdmin, async (_req: AuthRequest, res: Response) => {
+router.get('/priorities', requirePermission('admin.priorities', 'use'), async (_req: AuthRequest, res: Response) => {
   try {
     res.json(await prisma.issuePriority.findMany({ orderBy: { position: 'asc' } }));
   } catch (e) {
@@ -279,7 +279,7 @@ router.get('/priorities', requireAdmin, async (_req: AuthRequest, res: Response)
   }
 });
 
-router.post('/priorities', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.post('/priorities', requirePermission('admin.priorities', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { name, position } = req.body;
     const max = await prisma.issuePriority.aggregate({ _max: { position: true } });
@@ -292,7 +292,7 @@ router.post('/priorities', requireAdmin, async (req: AuthRequest, res: Response)
   }
 });
 
-router.put('/priorities/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.put('/priorities/:id', requirePermission('admin.priorities', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
     const { name, position } = req.body;
@@ -306,7 +306,7 @@ router.put('/priorities/:id', requireAdmin, async (req: AuthRequest, res: Respon
   }
 });
 
-router.post('/priorities/reorder', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.post('/priorities/reorder', requirePermission('admin.priorities', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { ids } = req.body;
     if (!Array.isArray(ids)) {
@@ -323,7 +323,7 @@ router.post('/priorities/reorder', requireAdmin, async (req: AuthRequest, res: R
   }
 });
 
-router.delete('/priorities/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.delete('/priorities/:id', requirePermission('admin.priorities', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     await prisma.issuePriority.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: '削除しました' });
@@ -333,10 +333,13 @@ router.delete('/priorities/:id', requireAdmin, async (req: AuthRequest, res: Res
 });
 
 // Groups
-router.get('/groups', requireAdmin, async (_req: AuthRequest, res: Response) => {
+router.get('/groups', requirePermission('admin.groups', 'use'), async (_req: AuthRequest, res: Response) => {
   try {
     const groups = await prisma.group.findMany({
-      include: { _count: { select: { members: true } } },
+      include: {
+        _count: { select: { members: true } },
+        permissionSet: { select: { id: true, name: true } },
+      },
       orderBy: { name: 'asc' },
     });
     res.json(groups);
@@ -345,11 +348,12 @@ router.get('/groups', requireAdmin, async (_req: AuthRequest, res: Response) => 
   }
 });
 
-router.get('/groups/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.get('/groups/:id', requirePermission('admin.groups', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const group = await prisma.group.findUnique({
       where: { id: Number(req.params.id) },
       include: {
+        permissionSet: { select: { id: true, name: true } },
         members: {
           include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } },
         },
@@ -365,17 +369,21 @@ router.get('/groups/:id', requireAdmin, async (req: AuthRequest, res: Response) 
   }
 });
 
-router.post('/groups', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.post('/groups', requirePermission('admin.groups', 'input'), async (req: AuthRequest, res: Response) => {
   try {
-    const { name, memberIds } = req.body;
+    const { name, memberIds, permissionSetId } = req.body;
     const group = await prisma.group.create({
       data: {
         name,
+        permissionSetId: permissionSetId ?? null,
         members: {
           create: (memberIds || []).map((userId: number) => ({ userId })),
         },
       },
-      include: { _count: { select: { members: true } } },
+      include: {
+        _count: { select: { members: true } },
+        permissionSet: { select: { id: true, name: true } },
+      },
     });
     res.status(201).json(group);
   } catch (e) {
@@ -383,20 +391,24 @@ router.post('/groups', requireAdmin, async (req: AuthRequest, res: Response) => 
   }
 });
 
-router.put('/groups/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.put('/groups/:id', requirePermission('admin.groups', 'input'), async (req: AuthRequest, res: Response) => {
   try {
-    const { name, memberIds } = req.body;
+    const { name, memberIds, permissionSetId } = req.body;
     const groupId = Number(req.params.id);
     await prisma.groupMember.deleteMany({ where: { groupId } });
     const group = await prisma.group.update({
       where: { id: groupId },
       data: {
         name,
+        ...(permissionSetId !== undefined && { permissionSetId: permissionSetId || null }),
         members: {
           create: (memberIds || []).map((userId: number) => ({ userId })),
         },
       },
-      include: { _count: { select: { members: true } } },
+      include: {
+        _count: { select: { members: true } },
+        permissionSet: { select: { id: true, name: true } },
+      },
     });
     res.json(group);
   } catch (e) {
@@ -404,7 +416,7 @@ router.put('/groups/:id', requireAdmin, async (req: AuthRequest, res: Response) 
   }
 });
 
-router.delete('/groups/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.delete('/groups/:id', requirePermission('admin.groups', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     await prisma.group.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: 'グループを削除しました' });
@@ -414,7 +426,7 @@ router.delete('/groups/:id', requireAdmin, async (req: AuthRequest, res: Respons
 });
 
 // Roles
-router.get('/roles', requireAdmin, async (_req: AuthRequest, res: Response) => {
+router.get('/roles', requirePermission('admin.roles', 'use'), async (_req: AuthRequest, res: Response) => {
   try {
     console.log('ロール取得リクエスト');
     const roles = await prisma.role.findMany({
@@ -433,7 +445,7 @@ router.get('/roles', requireAdmin, async (_req: AuthRequest, res: Response) => {
   }
 });
 
-router.post('/roles', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.post('/roles', requirePermission('admin.roles', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { name, position, isDefaultRole } = req.body;
     const max = await prisma.role.aggregate({ _max: { position: true } });
@@ -449,7 +461,7 @@ router.post('/roles', requireAdmin, async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.put('/roles/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.put('/roles/:id', requirePermission('admin.roles', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
     const { name, position, statusIds, isDefaultRole } = req.body;
@@ -481,7 +493,7 @@ router.put('/roles/:id', requireAdmin, async (req: AuthRequest, res: Response) =
   }
 });
 
-router.post('/roles/reorder', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.post('/roles/reorder', requirePermission('admin.roles', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { ids } = req.body;
     if (!Array.isArray(ids)) {
@@ -498,7 +510,7 @@ router.post('/roles/reorder', requireAdmin, async (req: AuthRequest, res: Respon
   }
 });
 
-router.delete('/roles/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.delete('/roles/:id', requirePermission('admin.roles', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     await prisma.role.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: '削除しました' });
@@ -508,7 +520,7 @@ router.delete('/roles/:id', requireAdmin, async (req: AuthRequest, res: Response
 });
 
 // Workflow transitions for a role
-router.get('/roles/:id/transitions', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.get('/roles/:id/transitions', requirePermission('admin.roles', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const roleId = Number(req.params.id);
     const transitions = await prisma.workflowTransition.findMany({
@@ -521,7 +533,7 @@ router.get('/roles/:id/transitions', requireAdmin, async (req: AuthRequest, res:
   }
 });
 
-router.put('/roles/:id/transitions', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.put('/roles/:id/transitions', requirePermission('admin.roles', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const roleId = Number(req.params.id);
     const { transitions } = req.body;
@@ -548,7 +560,7 @@ router.put('/roles/:id/transitions', requireAdmin, async (req: AuthRequest, res:
 });
 
 // Companies
-router.get('/companies', async (_req: AuthRequest, res: Response) => {
+router.get('/companies', requirePermission('companies', 'use'), async (_req: AuthRequest, res: Response) => {
   try {
     const companies = await prisma.company.findMany({
       include: {
@@ -564,7 +576,7 @@ router.get('/companies', async (_req: AuthRequest, res: Response) => {
   }
 });
 
-router.get('/companies/:id', async (req: AuthRequest, res: Response) => {
+router.get('/companies/:id', requirePermission('companies', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const companyId = req.query.companyId ? Number(req.query.companyId as string) : undefined;
     const userId = req.query.userId ? Number(req.query.userId as string) : undefined;
@@ -594,7 +606,7 @@ router.get('/companies/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.post('/companies', async (req: AuthRequest, res: Response) => {
+router.post('/companies', requirePermission('companies', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { name, legalEntityStatusId, legalEntityPosition, postalCode, prefecture, city, street, building, phone, website, notes, latitude, longitude } = req.body;
     
@@ -643,7 +655,7 @@ router.post('/companies', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.put('/companies/:id', async (req: AuthRequest, res: Response) => {
+router.put('/companies/:id', requirePermission('companies', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { name, legalEntityStatusId, legalEntityPosition, postalCode, prefecture, city, street, building, phone, website, notes, latitude, longitude } = req.body;
     const companyId = Number(req.params.id);
@@ -672,7 +684,7 @@ router.put('/companies/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.delete('/companies/:id', async (req: AuthRequest, res: Response) => {
+router.delete('/companies/:id', requirePermission('companies', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     await prisma.company.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: '企業を削除しました' });
@@ -682,7 +694,7 @@ router.delete('/companies/:id', async (req: AuthRequest, res: Response) => {
 });
 
 // Legal Entity Statuses
-router.get('/legal-entity-statuses', async (_req: AuthRequest, res: Response) => {
+router.get('/legal-entity-statuses', requirePermission('legal-entity-statuses', 'use'), async (_req: AuthRequest, res: Response) => {
   try {
     const statuses = await prisma.legalEntityStatus.findMany({
       orderBy: { position: 'asc' },
@@ -693,7 +705,7 @@ router.get('/legal-entity-statuses', async (_req: AuthRequest, res: Response) =>
   }
 });
 
-router.post('/legal-entity-statuses', async (req: AuthRequest, res: Response) => {
+router.post('/legal-entity-statuses', requirePermission('legal-entity-statuses', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { name } = req.body;
     const max = await prisma.legalEntityStatus.aggregate({ _max: { position: true } });
@@ -707,7 +719,7 @@ router.post('/legal-entity-statuses', async (req: AuthRequest, res: Response) =>
   }
 });
 
-router.put('/legal-entity-statuses/:id', async (req: AuthRequest, res: Response) => {
+router.put('/legal-entity-statuses/:id', requirePermission('legal-entity-statuses', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
     const { name, position } = req.body;
@@ -721,7 +733,7 @@ router.put('/legal-entity-statuses/:id', async (req: AuthRequest, res: Response)
   }
 });
 
-router.post('/legal-entity-statuses/reorder', async (req: AuthRequest, res: Response) => {
+router.post('/legal-entity-statuses/reorder', requirePermission('legal-entity-statuses', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { ids } = req.body;
     if (!Array.isArray(ids)) {
@@ -738,7 +750,7 @@ router.post('/legal-entity-statuses/reorder', async (req: AuthRequest, res: Resp
   }
 });
 
-router.delete('/legal-entity-statuses/:id', async (req: AuthRequest, res: Response) => {
+router.delete('/legal-entity-statuses/:id', requirePermission('legal-entity-statuses', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     await prisma.legalEntityStatus.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: '法人格を削除しました' });
@@ -748,7 +760,7 @@ router.delete('/legal-entity-statuses/:id', async (req: AuthRequest, res: Respon
 });
 
 // Associations
-router.get('/associations', async (_req: AuthRequest, res: Response) => {
+router.get('/associations', requirePermission('associations', 'use'), async (_req: AuthRequest, res: Response) => {
   try {
     const associationId = _req.query.associationId ? parseInt(_req.query.associationId as string) : undefined;
     const associations = await prisma.association.findMany({
@@ -760,7 +772,7 @@ router.get('/associations', async (_req: AuthRequest, res: Response) => {
   }
 });
 
-router.post('/associations', async (req: AuthRequest, res: Response) => {
+router.post('/associations', requirePermission('associations', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { name, postalCode, prefecture, city, street, building, phone, website, notes, latitude, longitude } = req.body;
 
@@ -793,7 +805,7 @@ router.post('/associations', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.put('/associations/:id', async (req: AuthRequest, res: Response) => {
+router.put('/associations/:id', requirePermission('associations', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { name, postalCode, prefecture, city, street, building, phone, website, notes, latitude, longitude } = req.body;
 
@@ -827,7 +839,7 @@ router.put('/associations/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.delete('/associations/:id', async (req: AuthRequest, res: Response) => {
+router.delete('/associations/:id', requirePermission('associations', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     await prisma.association.delete({
       where: { id: Number(req.params.id) },
@@ -840,7 +852,7 @@ router.delete('/associations/:id', async (req: AuthRequest, res: Response) => {
 });
 
 // Company Associations
-router.post('/companies/:id/associations/:associationId', async (req: AuthRequest, res: Response) => {
+router.post('/companies/:id/associations/:associationId', requirePermission('companies', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const companyId = Number(req.params.id);
     const associationId = Number(req.params.associationId);
@@ -857,7 +869,7 @@ router.post('/companies/:id/associations/:associationId', async (req: AuthReques
   }
 });
 
-router.delete('/companies/:id/associations/:associationId', async (req: AuthRequest, res: Response) => {
+router.delete('/companies/:id/associations/:associationId', requirePermission('companies', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const companyId = Number(req.params.id);
     const associationId = Number(req.params.associationId);
@@ -874,7 +886,7 @@ router.delete('/companies/:id/associations/:associationId', async (req: AuthRequ
 });
 
 // System Settings
-router.get('/settings/time', requireAdmin, async (_req: AuthRequest, res: Response) => {
+router.get('/settings/time', requirePermission('admin.time-settings', 'use'), async (_req: AuthRequest, res: Response) => {
   try {
     let setting = await prisma.systemSetting.findUnique({ where: { id: 'default' } });
     if (!setting) {
@@ -889,7 +901,7 @@ router.get('/settings/time', requireAdmin, async (_req: AuthRequest, res: Respon
   }
 });
 
-router.put('/settings/time', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.put('/settings/time', requirePermission('admin.time-settings', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { startTime, endTime, managementTimes, conversionTimes } = req.body;
 
@@ -933,7 +945,7 @@ function emailSettingsDto(row: Awaited<ReturnType<typeof prisma.systemSetting.fi
   };
 }
 
-router.get('/settings/email', requireAdmin, async (_req: AuthRequest, res: Response) => {
+router.get('/settings/email', requirePermission('admin.email-settings', 'use'), async (_req: AuthRequest, res: Response) => {
   try {
     const row = await prisma.systemSetting.findUnique({ where: { id: 'default' } });
     res.json(emailSettingsDto(row));
@@ -943,7 +955,7 @@ router.get('/settings/email', requireAdmin, async (_req: AuthRequest, res: Respo
   }
 });
 
-router.put('/settings/email', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.put('/settings/email', requirePermission('admin.email-settings', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const existing = await prisma.systemSetting.findUnique({ where: { id: 'default' } });
     const {
@@ -1023,7 +1035,7 @@ router.put('/settings/email', requireAdmin, async (req: AuthRequest, res: Respon
   }
 });
 
-router.post('/settings/email/test', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.post('/settings/email/test', requirePermission('admin.email-settings', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { toEmail } = req.body;
     if (!toEmail || typeof toEmail !== 'string') {

@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { requirePermission } from '../middleware/permissions';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -8,7 +9,7 @@ const prisma = new PrismaClient();
 router.use(authenticateToken);
 
 // Get gantt data for project
-router.get('/project/:projectId', async (req: AuthRequest, res: Response) => {
+router.get('/project/:projectId', requirePermission('projects.gantt', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const projectId = Number(req.params.projectId);
     const { trackerId, assignedToId, statusId } = req.query;
@@ -52,7 +53,7 @@ router.get('/project/:projectId', async (req: AuthRequest, res: Response) => {
 });
 
 // Get gantt data for all projects
-router.get('/all', async (req: AuthRequest, res: Response) => {
+router.get('/all', requirePermission('projects.gantt', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const { trackerId, assignedToId, statusId } = req.query;
 

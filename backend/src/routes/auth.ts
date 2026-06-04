@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { authenticateToken, generateToken, AuthRequest } from '../middleware/auth';
+import { resolveUserPermissions } from '../services/permissions';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -37,6 +38,7 @@ router.post('/login', async (req: AuthRequest, res: Response) => {
       return;
     }
     const token = generateToken(user.id, user.role, user.isAdmin);
+    const permissions = await resolveUserPermissions(user.id);
     res.json({
       token,
       user: {
@@ -52,6 +54,7 @@ router.post('/login', async (req: AuthRequest, res: Response) => {
         showCompanyMenu: user.showCompanyMenu,
         showAdminMenu: user.showAdminMenu,
         status: user.status,
+        permissions,
       },
     });
   } catch (e) {
@@ -68,14 +71,16 @@ router.get('/me', authenticateToken, async (req: AuthRequest, res: Response) => 
       where: { id: req.userId },
       select: {
         id: true, email: true, firstName: true, lastName: true, role: true, isAdmin: true, landingPage: true,
-        showProjectsMenu: true, showGanttMenu: true, showCompanyMenu: true, showAdminMenu: true, status: true
+        showProjectsMenu: true, showGanttMenu: true, showCompanyMenu: true, showAdminMenu: true, status: true,
+        groupMembers: { select: { group: { select: { id: true, name: true } } } },
       },
     });
     if (!user) {
       res.status(404).json({ error: 'ユーザーが見つかりません' });
       return;
     }
-    res.json(user);
+    const permissions = await resolveUserPermissions(req.userId!);
+    res.json({ ...user, permissions });
   } catch (e) {
     res.status(500).json({ error: 'ユーザー情報の取得に失敗しました' });
   }

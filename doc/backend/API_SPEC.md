@@ -10,7 +10,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 |----------|------|------|------|
 | POST | `/login` | 不要 | ログイン。Body: `email`, `password` → `token`, `user`（`user.status` を含む）。`status === 'inactive'` のユーザーはログイン不可（401） |
 | POST | `/register` | 不要 | 登録。Body: `email`, `password`, `firstName`, `lastName` → `token`, `user` |
-| GET | `/me` | 必要 | 現在ユーザー情報（`status` を含む） |
+| GET | `/me` | 必要 | 現在ユーザー情報（`status`, `permissions` を含む）。`permissions` は `Record<string, { canUse: boolean, canInput: boolean }>`（権限コード → 解決済み権限） |
 | PUT | `/password` | 必要 | パスワード変更。Body: `currentPassword`, `newPassword`。ログイン中ユーザーの `status === 'pending'` の場合、更新完了時に `status` を自動で `active` に更新 |
 | PUT | `/landing-page` | 必要 | ランディング設定。Body: `landingPage` (`home` \| `projects` \| `companies`) |
 | PUT | `/menu-settings` | 必要 | メニュー表示。Body: `showProjectsMenu`, `showGanttMenu`, `showCompanyMenu`, `showAdminMenu` |
@@ -97,7 +97,22 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 ## Admin — `/api/admin`
 
-認証必須。以下のうち **ユーザー・トラッカー・ステータス・優先度・グループ・ロール・設定** は管理者（`isAdmin === true` または `role === 'admin'`）のみ。**会社・法人区分・団体** および **GET /users**（担当者一覧）は認証済みユーザーで利用可能。
+認証必須。各エンドポイントは対応する権限コードの `canUse`（GET）または `canInput`（POST/PUT/DELETE）が必要。`isAdmin` / `role=admin` でもバイパスしない。
+
+### 権限設定 — `/api/admin/permission-sets`
+
+| メソッド | パス | 概要 | 権限 |
+|----------|------|------|------|
+| GET | `/permissions/resources` | 権限カタログツリー | `admin.permission-sets` use |
+| GET | `/permission-sets` | 権限設定一覧（割当グループ名含む） | `admin.permission-sets` use |
+| GET | `/permission-sets/:id` | 権限設定詳細 + 権限マトリクス + 割当グループ | `admin.permission-sets` use |
+| POST | `/permission-sets` | 作成。Body: `{ name, description?, groupIds?, permissions? }` | `admin.permission-sets` input |
+| PUT | `/permission-sets/:id` | 更新。Body: `{ name, description?, groupIds?, permissions? }` | `admin.permission-sets` input |
+| DELETE | `/permission-sets/:id` | 削除（紐づく Group の permissionSetId を null に） | `admin.permission-sets` input |
+
+**グループ割当**: `groupIds` 指定時、対象 Group の `permissionSetId` を設定。1 グループ = 1 権限設定。他の PermissionSet から移動する。
+
+### その他 Admin エンドポイント
 
 | メソッド | パス | 概要 | 権限 |
 |----------|------|------|------|
@@ -108,7 +123,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | GET/POST/PUT/DELETE, POST reorder | `/trackers` | トラッカー | 管理者 |
 | GET/POST/PUT/DELETE, POST reorder | `/statuses` | チケットステータス | 管理者 |
 | GET/POST/PUT/DELETE, POST reorder | `/priorities` | 優先度 | 管理者 |
-| GET/GET:id/POST/PUT/DELETE | `/groups` | グループ | 管理者 |
+| GET/GET:id/POST/PUT/DELETE | `/groups` | グループ（`permissionSetId` 割当可） | `admin.groups` |
 | GET/POST/PUT/DELETE, POST reorder, GET/PUT transitions | `/roles` | ロール・ワークフロー遷移 | 管理者 |
 | GET/GET:id/POST/PUT/DELETE | `/companies` | 会社（一覧・詳細・作成・更新・削除） | 認証 |
 | GET/POST/PUT/DELETE, POST reorder | `/legal-entity-statuses` | 法人区分 | 認証 |

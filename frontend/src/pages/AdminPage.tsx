@@ -1,7 +1,9 @@
 import { useState, useEffect, FormEvent, DragEvent } from 'react';
 import { Navigate } from 'react-router-dom';
 import api from '../api/client';
-import { User, Tracker, IssueStatus, IssuePriority, Group, Role, SystemSetting, EmailSettings } from '../types';
+import { User, Tracker, IssueStatus, IssuePriority, Group, Role, SystemSetting, EmailSettings, PermissionSet } from '../types';
+import { usePermissions } from '../hooks/usePermissions';
+import PermissionSetsPanel from '../components/PermissionSetsPanel';
 import { Pencil, Trash2, GripVertical, Clock, Plus, UserX, UserCheck, Mail } from 'lucide-react';
 import Modal from '../components/Modal';
 import AnalogTimePicker from '../components/AnalogTimePicker';
@@ -18,13 +20,14 @@ interface Props {
 }
 
 export default function AdminPage({ user }: Props) {
-  const [tab, setTab] = useState<'users' | 'groups' | 'roles' | 'trackers' | 'statuses' | 'priorities' | 'time' | 'email'>('users');
+  const [tab, setTab] = useState<'users' | 'groups' | 'permission-sets' | 'roles' | 'trackers' | 'statuses' | 'priorities' | 'time' | 'email'>('users');
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [trackers, setTrackers] = useState<Tracker[]>([]);
   const [statuses, setStatuses] = useState<IssueStatus[]>([]);
   const [priorities, setPriorities] = useState<IssuePriority[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
+  const [permissionSets, setPermissionSets] = useState<PermissionSet[]>([]);
 
   // User modal states
   const [showUserModal, setShowUserModal] = useState(false);
@@ -52,6 +55,7 @@ export default function AdminPage({ user }: Props) {
   const [editingGroupId, setEditingGroupId] = useState<number | null>(null);
   const [groupName, setGroupName] = useState('');
   const [groupMemberIds, setGroupMemberIds] = useState<number[]>([]);
+  const [groupPermissionSetId, setGroupPermissionSetId] = useState<number | ''>('');
   const [groupError, setGroupError] = useState('');
 
   // Group detail states
@@ -86,8 +90,7 @@ export default function AdminPage({ user }: Props) {
   const [confirmDelete, setConfirmDelete] = useState<{ type: string; id: number; name: string } | null>(null);
   const [confirmUserStatus, setConfirmUserStatus] = useState<{ id: number; name: string; nextStatus: 'active' | 'inactive' } | null>(null);
 
-  // 管理者ロールまたはシステム管理者（isAdmin）のいずれかでアクセス許可
-  if (user.role !== 'admin' && user.isAdmin !== true) return <Navigate to="/" />;
+  const { canUse } = usePermissions(user.permissions);
 
   const loadAll = () => {
     api.get('/admin/users').then((res) => {
@@ -114,6 +117,7 @@ export default function AdminPage({ user }: Props) {
       console.log('グループ取得:', res.data.length);
       setGroups(res.data);
     }).catch((e) => console.error('グループ取得失敗:', e));
+    api.get('/admin/permission-sets').then((res) => setPermissionSets(res.data)).catch(console.error);
   };
 
   useEffect(() => { loadAll(); }, []);
@@ -501,6 +505,7 @@ export default function AdminPage({ user }: Props) {
     setEditingGroupId(null);
     setGroupName('');
     setGroupMemberIds([]);
+    setGroupPermissionSetId('');
     setGroupError('');
     setShowGroupModal(true);
   };
@@ -511,6 +516,7 @@ export default function AdminPage({ user }: Props) {
     setEditingGroupId(group.id);
     setGroupName(detail.name);
     setGroupMemberIds(detail.members?.map((m) => m.userId) || []);
+    setGroupPermissionSetId(detail.permissionSetId ?? '');
     setGroupError('');
     setShowGroupModal(true);
   };
@@ -525,7 +531,11 @@ export default function AdminPage({ user }: Props) {
     e.preventDefault();
     setGroupError('');
     try {
-      const data = { name: groupName, memberIds: groupMemberIds };
+      const data = {
+        name: groupName,
+        memberIds: groupMemberIds,
+        permissionSetId: groupPermissionSetId === '' ? null : groupPermissionSetId,
+      };
       if (editingGroupId) {
         await api.put(`/admin/groups/${editingGroupId}`, data);
         if (selectedGroup?.id === editingGroupId) {
@@ -563,6 +573,7 @@ export default function AdminPage({ user }: Props) {
   const tabs = [
     { key: 'users' as const, label: 'ユーザー' },
     { key: 'groups' as const, label: 'グループ' },
+    { key: 'permission-sets' as const, label: '権限設定' },
     { key: 'roles' as const, label: 'ロール' },
     { key: 'trackers' as const, label: 'トラッカー' },
     { key: 'statuses' as const, label: 'ステータス' },
@@ -570,6 +581,8 @@ export default function AdminPage({ user }: Props) {
     { key: 'time' as const, label: '時間' },
     { key: 'email' as const, label: 'メール設定' },
   ];
+
+  if (!canUse('admin')) return <Navigate to="/" replace />;
 
   return (
     <div>
@@ -666,6 +679,8 @@ export default function AdminPage({ user }: Props) {
         </div>
       )}
 
+      {tab === 'permission-sets' && <PermissionSetsPanel />}
+
       {tab === 'groups' && (
         <div>
           <div className="flex items-center justify-between mb-4">
@@ -680,6 +695,7 @@ export default function AdminPage({ user }: Props) {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">グループ名</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">権限設定</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">メンバー数</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">アクション</th>
                 </tr>
@@ -689,6 +705,7 @@ export default function AdminPage({ user }: Props) {
                   <tr key={group.id} className="border-t hover:bg-gray-50 cursor-pointer"
                     onClick={() => handleSelectGroup(group.id)}>
                     <td className="px-4 py-3 text-sky-600 font-medium">{group.name}</td>
+                    <td className="px-4 py-3 text-gray-600">{group.permissionSet?.name || '-'}</td>
                     <td className="px-4 py-3 text-gray-600">{group._count?.members || 0}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-2">
@@ -1080,9 +1097,19 @@ export default function AdminPage({ user }: Props) {
         isOpen={showMasterModal && !!masterType}
         onClose={closeMasterModal}
         title={editingMasterId ? `${getMasterListLabel()}編集` : `${getMasterListLabel()}登録`}
+        footer={
+          <>
+            <button type="button" onClick={closeMasterModal} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+              キャンセル
+            </button>
+            <button type="submit" form="admin-master-form" className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors">
+              {editingMasterId ? '更新' : '作成'}
+            </button>
+          </>
+        }
       >
         {masterError && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{masterError}</div>}
-        <form onSubmit={handleSubmitMaster}>
+        <form id="admin-master-form" onSubmit={handleSubmitMaster}>
           <div className="mb-4">
             <TextInput
               label="名前 *"
@@ -1208,14 +1235,6 @@ export default function AdminPage({ user }: Props) {
             </div>
           )}
 
-          <div className="flex justify-end gap-3">
-            <button type="button" onClick={closeMasterModal} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
-              キャンセル
-            </button>
-            <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors">
-              {editingMasterId ? '更新' : '作成'}
-            </button>
-          </div>
         </form>
       </Modal>
 
@@ -1230,6 +1249,10 @@ export default function AdminPage({ user }: Props) {
             <div className="text-sm mb-2">
               <span className="text-gray-500">登録日:</span>
               <span className="ml-2">{new Date(selectedGroup.createdAt).toLocaleDateString('ja-JP')}</span>
+            </div>
+            <div className="text-sm mb-2">
+              <span className="text-gray-500">権限設定:</span>
+              <span className="ml-2">{selectedGroup.permissionSet?.name || '未割当'}</span>
             </div>
             <div className="border-t pt-4">
               <h3 className="text-sm font-semibold text-gray-700 mb-2">メンバー ({selectedGroup.members?.length || 0})</h3>
@@ -1255,9 +1278,18 @@ export default function AdminPage({ user }: Props) {
         isOpen={showGroupModal}
         onClose={closeGroupModal}
         title={editingGroupId ? 'グループ編集' : 'グループ登録'}
+        footer={
+          <>
+            <button type="button" onClick={closeGroupModal}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">キャンセル</button>
+            <button type="submit" form="admin-group-form" className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors">
+              {editingGroupId ? '更新' : '作成'}
+            </button>
+          </>
+        }
       >
         {groupError && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{groupError}</div>}
-        <form onSubmit={handleSubmitGroup}>
+        <form id="admin-group-form" onSubmit={handleSubmitGroup}>
           <div className="mb-4">
             <TextInput
               label="グループ名 *"
@@ -1265,6 +1297,19 @@ export default function AdminPage({ user }: Props) {
               onChange={(e) => setGroupName(e.target.value)}
               required
             />
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">権限設定</label>
+            <select
+              value={groupPermissionSetId}
+              onChange={(e) => setGroupPermissionSetId(e.target.value === '' ? '' : Number(e.target.value))}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+            >
+              <option value="">未割当</option>
+              {permissionSets.map((ps) => (
+                <option key={ps.id} value={ps.id}>{ps.name}</option>
+              ))}
+            </select>
           </div>
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">メンバー</label>
@@ -1281,13 +1326,6 @@ export default function AdminPage({ user }: Props) {
             </div>
             <p className="text-xs text-gray-400 mt-1">{groupMemberIds.length} 名選択中</p>
           </div>
-          <div className="flex justify-end gap-3">
-            <button type="button" onClick={closeGroupModal}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">キャンセル</button>
-            <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors">
-              {editingGroupId ? '更新' : '作成'}
-            </button>
-          </div>
         </form>
       </Modal>
 
@@ -1296,9 +1334,18 @@ export default function AdminPage({ user }: Props) {
         isOpen={showUserModal}
         onClose={closeUserModal}
         title={editingUserId ? 'ユーザー編集' : 'ユーザー登録'}
+        footer={
+          <>
+            <button type="button" onClick={closeUserModal}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">キャンセル</button>
+            <button type="submit" form="admin-user-form" className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors">
+              {editingUserId ? '更新' : '作成'}
+            </button>
+          </>
+        }
       >
         {userError && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{userError}</div>}
-        <form onSubmit={handleSubmitUser}>
+        <form id="admin-user-form" onSubmit={handleSubmitUser}>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <TextInput
               label="姓 *"
@@ -1353,13 +1400,6 @@ export default function AdminPage({ user }: Props) {
               isMulti
               showFloatingLabel
             />
-          </div>
-          <div className="flex justify-end gap-3">
-            <button type="button" onClick={closeUserModal}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">キャンセル</button>
-            <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors">
-              {editingUserId ? '更新' : '作成'}
-            </button>
           </div>
         </form>
       </Modal>

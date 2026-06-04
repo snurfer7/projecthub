@@ -1,7 +1,9 @@
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import IssueForm from '../components/IssueForm';
+import { useAuth } from '../hooks/useAuth';
 
 export default function IssueFormPage() {
+  const { user } = useAuth();
   const { projectId, id } = useParams<{ projectId?: string; id?: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -23,6 +25,7 @@ export default function IssueFormPage() {
         onCancel={() => {
           navigate(-1);
         }}
+        permissions={user?.permissions}
       />
     </div>
   );

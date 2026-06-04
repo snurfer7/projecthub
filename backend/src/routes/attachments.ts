@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import multer from 'multer';
 import { authenticateToken, AuthRequest, generateDownloadToken, verifyDownloadToken } from '../middleware/auth';
+import { requireAnyPermission } from '../middleware/permissions';
 import { buildUploadS3Key, uploadFileToS3, deleteFileFromS3, getSignedDownloadUrl } from '../services/s3';
 
 const router = Router();
@@ -12,7 +13,7 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } });
 
 // Upload file
-router.post('/upload', authenticateToken, upload.single('file'), async (req: AuthRequest, res: Response) => {
+router.post('/upload', authenticateToken, requireAnyPermission(['projects', 'projects.issues', 'projects.comments', 'projects.wiki', 'companies.comments', 'companies.contacts', 'companies.activities'], 'input'), upload.single('file'), async (req: AuthRequest, res: Response) => {
   try {
     if (!req.file) {
       res.status(400).json({ error: 'ファイルが必要です' });
@@ -61,7 +62,7 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req: Aut
 });
 
 // Get a short-lived download token
-router.post('/token/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/token/:id', authenticateToken, requireAnyPermission(['projects', 'projects.issues', 'projects.comments', 'projects.wiki', 'companies.comments', 'companies.contacts', 'companies.activities'], 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const attachmentId = Number(req.params.id);
     const attachment = await prisma.attachment.findUnique({ where: { id: attachmentId } });
@@ -133,7 +134,7 @@ router.get('/file/:id', async (req: AuthRequest, res: Response) => {
 });
 
 // Delete file
-router.delete('/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.delete('/:id', authenticateToken, requireAnyPermission(['projects', 'projects.issues', 'projects.comments', 'projects.wiki', 'companies.comments', 'companies.contacts', 'companies.activities'], 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const attachment = await prisma.attachment.findUnique({ where: { id: Number(req.params.id) } });
     if (!attachment) {

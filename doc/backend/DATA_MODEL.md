@@ -4,9 +4,20 @@
 
 ## 認証・ユーザー
 
-- **User** — ユーザー。email, passwordHash, firstName, lastName, role, isAdmin（システム管理者フラグ）, landingPage, show*Menu。GroupMember, ProjectMember, Issue（author/assignedTo）, TimeEntry, WikiPage, 各種 Comment 等と関連。管理機能（`/api/admin`）へのアクセスは、role が admin であるか、isAdmin が true のいずれかで許可する。
-- **Group** — グループ。GroupMember で User と多対多。Issue の担当グループ、ProjectGroup、ProjectMemberRole の sourceGroup として使用。
-- **GroupMember** — Group と User の多対多中間。
+- **User** — ユーザー。email, passwordHash, firstName, lastName, role, isAdmin, landingPage, show*Menu。GroupMember, ProjectMember, Issue（author/assignedTo）, TimeEntry, WikiPage, 各種 Comment 等と関連。**API アクセスはグループ経由の権限設定で制御**（`isAdmin` / `role=admin` でもバイパスしない）。
+- **Group** — グループ。GroupMember で User と多対多。Issue の担当グループ、ProjectGroup、ProjectMemberRole の sourceGroup として使用。**`permissionSetId`（任意）** で PermissionSet を参照（1 グループ = 最大 1 権限設定）。
+- **GroupMember** — Group と User の多対多中間。ユーザーは複数グループに所属可能。
+- **PermissionResource** — 権限カタログ（機能・項目）。code（例: `projects.issues.fields.subject`）, name, resourceType（`feature` \| `field`）, parentId, position。親子ツリー構造。
+- **PermissionSet** — 権限設定。name, description。**1 つの権限設定に複数 Group を割り当て可能**（Group.permissionSetId の 1:N）。
+- **PermissionSetPermission** — 権限設定と PermissionResource の対応。canUse（使用可否）, canInput（入力可否）。`(permissionSetId, resourceId)` はユニーク。
+
+### 権限解決
+
+1. ユーザーの所属グループ（GroupMember）を取得
+2. 各グループの PermissionSet から PermissionSetPermission を取得
+3. 複数 PermissionSet の権限を **OR 結合**
+4. 親 resource の canUse=false → 子孫すべて拒否
+5. グループ未所属、または全所属グループが権限設定未割当 → 全拒否
 
 ## マスタ（チケット・ワークフロー）
 

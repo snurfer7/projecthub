@@ -1,6 +1,8 @@
 import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { requirePermission } from '../middleware/permissions';
+import { assertFieldPermissions, assertDatetimeFieldPermissions, resolveUserPermissions } from '../services/permissions';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -8,7 +10,7 @@ const prisma = new PrismaClient();
 router.use(authenticateToken);
 
 // List issues (with filters)
-router.get('/', async (req: AuthRequest, res: Response) => {
+router.get('/', requirePermission('projects.issues', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const { projectId, statusId, trackerId, priorityId, assignedToId, assignedToGroupId } = req.query;
     const where: any = {};
@@ -42,7 +44,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 });
 
 // Reorder issues
-router.put('/reorder', async (req: AuthRequest, res: Response) => {
+router.put('/reorder', requirePermission('projects.issues', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { issues } = req.body; // Array of { id: number, position: number }
     if (!Array.isArray(issues)) {
@@ -65,7 +67,7 @@ router.put('/reorder', async (req: AuthRequest, res: Response) => {
 });
 
 // Get metadata (trackers, statuses, priorities, users, and optionally groups)
-router.get('/meta/options', async (req: AuthRequest, res: Response) => {
+router.get('/meta/options', requirePermission('projects.issues', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const { projectId } = req.query;
 
@@ -109,7 +111,7 @@ router.get('/meta/options', async (req: AuthRequest, res: Response) => {
 });
 
 // Get issue
-router.get('/:id', async (req: AuthRequest, res: Response) => {
+router.get('/:id', requirePermission('projects.issues', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const issue = await prisma.issue.findUnique({
       where: { id: Number(req.params.id) },
@@ -158,7 +160,7 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
 });
 
 // Add relation
-router.post('/:id/relations', async (req: AuthRequest, res: Response) => {
+router.post('/:id/relations', requirePermission('projects.issues', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { issueToId, relationType } = req.body;
     const issueFromId = Number(req.params.id);
@@ -181,7 +183,7 @@ router.post('/:id/relations', async (req: AuthRequest, res: Response) => {
 });
 
 // Delete relation
-router.delete('/relations/:relationId', async (req: AuthRequest, res: Response) => {
+router.delete('/relations/:relationId', requirePermission('projects.issues', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const relationId = Number(req.params.relationId);
     await prisma.issueRelation.delete({
@@ -195,8 +197,14 @@ router.delete('/relations/:relationId', async (req: AuthRequest, res: Response) 
 });
 
 // Create issue
-router.post('/', async (req: AuthRequest, res: Response) => {
+router.post('/', requirePermission('projects.issues', 'input'), async (req: AuthRequest, res: Response) => {
   try {
+    const permissions = await resolveUserPermissions(req.userId!);
+    const deniedDt = assertDatetimeFieldPermissions(permissions, req.body, {});
+    if (deniedDt) {
+      res.status(403).json({ error: `フィールドの編集権限がありません: ${deniedDt}` });
+      return;
+    }
     const { projectId, trackerId, statusId, priorityId, assignedToId, assignedToGroupId, subject, description, startDate, endDate, dueDate, estimatedHours } = req.body;
     if (estimatedHours !== undefined && estimatedHours !== null && !Number.isInteger(Number(estimatedHours))) {
       return res.status(400).json({ error: '予定工数は整数で入力してください' });
@@ -240,8 +248,57 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 });
 
 // Update issue
-router.put('/:id', async (req: AuthRequest, res: Response) => {
+router.put('/:id', requirePermission('projects.issues', 'input'), async (req: AuthRequest, res: Response) => {
   try {
+    const issueId = Number(req.params.id);
+    const existingIssue = await prisma.issue.findUnique({
+      where: { id: issueId },
+      select: {
+        subject: true,
+        trackerId: true,
+        statusId: true,
+        priorityId: true,
+        assignedToId: true,
+        assignedToGroupId: true,
+        description: true,
+        startDate: true,
+        endDate: true,
+        dueDate: true,
+        estimatedHours: true,
+        doneRatio: true,
+      },
+    });
+    if (!existingIssue) {
+      res.status(404).json({ error: 'チケットが見つかりません' });
+      return;
+    }
+    const permissions = await resolveUserPermissions(req.userId!);
+    const deniedDt = assertDatetimeFieldPermissions(permissions, req.body, existingIssue);
+    if (deniedDt) {
+      res.status(403).json({ error: `フィールドの編集権限がありません: ${deniedDt}` });
+      return;
+    }
+    const denied = assertFieldPermissions(
+      permissions,
+      req.body,
+      {
+        subject: 'projects.issues.fields.subject',
+        trackerId: 'projects.issues.fields.tracker',
+        statusId: 'projects.issues.fields.status',
+        priorityId: 'projects.issues.fields.priority',
+        assignedToId: 'projects.issues.fields.assignee',
+        assignedToGroupId: 'projects.issues.fields.assignee',
+        description: 'projects.issues.fields.description',
+        estimatedHours: 'projects.issues.fields.estimatedHours',
+        dueDate: 'projects.issues.fields.dueDate',
+        doneRatio: 'projects.issues.fields.doneRatio',
+      },
+      existingIssue as Record<string, unknown>
+    );
+    if (denied) {
+      res.status(403).json({ error: `フィールドの編集権限がありません: ${denied}` });
+      return;
+    }
     const { trackerId, statusId, priorityId, assignedToId, assignedToGroupId, subject, description, startDate, endDate, dueDate, estimatedHours, doneRatio } = req.body;
     const data: any = {};
     if (estimatedHours !== undefined && estimatedHours !== null && !Number.isInteger(Number(estimatedHours))) {
@@ -269,7 +326,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     }
 
     const issue = await prisma.issue.update({
-      where: { id: Number(req.params.id) },
+      where: { id: issueId },
       data,
       include: {
         tracker: true,
@@ -288,7 +345,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
 });
 
 // Delete issue
-router.delete('/:id', async (req: AuthRequest, res: Response) => {
+router.delete('/:id', requirePermission('projects.issues', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     await prisma.issue.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: 'チケットを削除しました' });
@@ -298,7 +355,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
 });
 
 // Add comment
-router.post('/:id/comments', async (req: AuthRequest, res: Response) => {
+router.post('/:id/comments', requirePermission('projects.issues', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const comment = await prisma.issueComment.create({
       data: {
@@ -315,7 +372,7 @@ router.post('/:id/comments', async (req: AuthRequest, res: Response) => {
 });
 
 // Update comment
-router.put('/:id/comments/:commentId', async (req: AuthRequest, res: Response) => {
+router.put('/:id/comments/:commentId', requirePermission('projects.issues', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const commentId = Number(req.params.commentId);
     const existing = await prisma.issueComment.findUnique({ where: { id: commentId } });
@@ -339,7 +396,7 @@ router.put('/:id/comments/:commentId', async (req: AuthRequest, res: Response) =
 });
 
 // Delete comment
-router.delete('/:id/comments/:commentId', async (req: AuthRequest, res: Response) => {
+router.delete('/:id/comments/:commentId', requirePermission('projects.issues', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const commentId = Number(req.params.commentId);
     const existing = await prisma.issueComment.findUnique({ where: { id: commentId } });

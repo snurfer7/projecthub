@@ -1,3 +1,37 @@
+export interface PermissionEntry {
+  canUse: boolean;
+  canInput: boolean;
+}
+
+export type PermissionMap = Record<string, PermissionEntry>;
+
+export interface PermissionResource {
+  id: number;
+  code: string;
+  name: string;
+  resourceType: string;
+  position: number;
+  children?: PermissionResource[];
+}
+
+export interface PermissionSetPermission {
+  id?: number;
+  resourceId: number;
+  canUse: boolean;
+  canInput: boolean;
+  resource?: { id: number; code: string; name: string; resourceType: string };
+}
+
+export interface PermissionSet {
+  id: number;
+  name: string;
+  description?: string | null;
+  createdAt?: string;
+  groups?: { id: number; name: string }[];
+  permissions?: PermissionSetPermission[];
+  _count?: { groups: number; permissions: number };
+}
+
 export interface User {
   id: number;
   email: string;
@@ -13,6 +47,7 @@ export interface User {
   showCompanyMenu: boolean;
   showAdminMenu: boolean;
   status: string;
+  permissions?: PermissionMap;
 }
 
 export interface Company {
@@ -274,6 +309,8 @@ export interface Group {
   id: number;
   name: string;
   createdAt: string;
+  permissionSetId?: number | null;
+  permissionSet?: { id: number; name: string } | null;
   _count?: { members: number };
   members?: { id: number; userId: number; user: { id: number; firstName: string; lastName: string; email: string } }[];
 }

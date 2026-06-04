@@ -8,6 +8,7 @@ interface MarkdownEditorProps {
     placeholder?: string;
     className?: string;
     autoFocus?: boolean;
+    disabled?: boolean;
 }
 
 const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
@@ -17,6 +18,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
     placeholder = '',
     className = '',
     autoFocus = false,
+    disabled = false,
 }) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
@@ -158,7 +160,8 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
                     onChange={(e) => onChange(e.target.value)}
                     rows={rows}
                     placeholder={placeholder}
-                    className="w-full px-3 py-2 font-mono text-sm focus:outline-none border-none resize-y block leading-relaxed min-h-[200px]"
+                    disabled={disabled}
+                    className={`w-full px-3 py-2 font-mono text-sm focus:outline-none border-none resize-y block leading-relaxed min-h-[200px] ${disabled ? 'bg-gray-50 cursor-not-allowed' : ''}`}
                 />
             ) : (
                 <div className="p-4 bg-slate-50 min-h-[200px] overflow-auto prose prose-sm max-w-none">

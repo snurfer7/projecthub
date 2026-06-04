@@ -35,6 +35,51 @@
 
 実装は、上記ドキュメントに書かれた仕様・契約に沿って行う。
 
+### 権限設定を伴う実装（必須）
+
+**システムスコープ**（`frontend/` + `backend/`）で、ユーザーが触る **機能（画面・API）** または **フォーム項目** を新規追加・変更する場合は、**権限設定も同一変更に含めて実装する**。権限なしの機能・項目を残してはならない。
+
+#### 対象
+
+| 追加・変更の種類 | 権限で行うこと |
+|----------------|---------------|
+| 新しい画面・ルート・メニュー | 権限カタログに feature を追加し、`canUse` で表示・ルートガード |
+| 新しい API（GET / POST / PUT / DELETE） | 対応 code に `requirePermission(..., 'use' \| 'input')` を付与 |
+| 新しいフォーム項目・編集可能フィールド | 権限カタログに field を追加し、PUT 時のフィールド検証 + フロント `disabled` |
+| 新規/編集/削除ボタン | フロントで `canInput` により表示制御 |
+
+#### 実装チェックリスト（システムスコープ）
+
+1. **doc 更新**（機能実装 doc と同時）
+   - [backend/DATA_MODEL.md](backend/DATA_MODEL.md) — 追加する PermissionResource（code・name・親子）を記載
+   - [backend/API_SPEC.md](backend/API_SPEC.md) — 各エンドポイントの必要権限 code を記載
+   - [frontend/SCREENS_AND_ROUTES.md](frontend/SCREENS_AND_ROUTES.md) — 表示条件・ルートガードに使う code を記載
+2. **権限カタログ**
+   - [backend/src/constants/permissionCatalog.ts](../backend/src/constants/permissionCatalog.ts) に code・表示名・親子を追加
+   - [backend/prisma/seed-permissions.ts](../backend/prisma/seed-permissions.ts) がカタログを参照していることを確認（通常は `permissionCatalog.ts` の更新のみで足りる）
+   - 既存 DB 環境では seed 再実行またはマイグレーション用 upsert で `permission_resources` に反映
+3. **バックエンド**
+   - ルートに `requirePermission` / `requireAnyPermission` を適用
+   - 部分更新 API では `assertFieldPermissions` で body キーと field code を検証
+4. **フロントエンド**
+   - メニュー・ルート: `canUse`（[Layout.tsx](../frontend/src/components/Layout.tsx)、[PermissionRoute](../frontend/src/components/PermissionRoute.tsx)）
+   - 操作 UI: `canInput`（[PermissionGate](../frontend/src/components/PermissionGate.tsx) または `usePermissions`）
+   - フォーム項目: 対応 field code で `disabled` / 非表示
+5. **管理画面**
+   - 新 feature / field は管理 > **権限設定** のマトリクスに自動表示される（カタログ seed 済みであること）
+
+#### コード命名
+
+- feature: `projects`, `projects.issues`, `companies.merge`, `admin.permission-sets` 等（ドット区切り）
+- field: `projects.issues.fields.subject` 等（`.fields.` を挟む）。開始・終了は `startDateTime` / `endDateTime`（日付・時刻をまとめて制御）
+- API 検証・フロントは **code 文字列** を正とし、`canUse` / `canInput` は PermissionSet 側のフラグ
+
+#### スコープ外
+
+- **モバイル**（`android/`）のみの変更では、本チェックリストの backend/frontend 権限実装は不要（API 契約変更時は backend 側の権限は要更新）。
+
+> 機能だけ先にマージし、権限は後追い — **禁止**。受け入れ条件に権限の doc・seed・API・UI 反映を含める。
+
 ### 仕様変更時のルール
 
 #### スコープの指定（必須確認）
@@ -58,6 +103,7 @@
    - バックエンドの責務・構成の変更 → [backend/SPEC_OVERVIEW.md](backend/SPEC_OVERVIEW.md)
    - フロントの画面・ルートの変更 → [frontend/SCREENS_AND_ROUTES.md](frontend/SCREENS_AND_ROUTES.md)。型が変わる場合は [frontend/DATA_MODELS.md](frontend/DATA_MODELS.md) も更新
    - フロントの API の呼び方・クライアントの使い方の変更 → [frontend/API_USAGE.md](frontend/API_USAGE.md)
+   - **権限カタログ・PermissionSet の追加** → [backend/DATA_MODEL.md](backend/DATA_MODEL.md)、[backend/API_SPEC.md](backend/API_SPEC.md)、[frontend/SCREENS_AND_ROUTES.md](frontend/SCREENS_AND_ROUTES.md)（[権限設定を伴う実装](#権限設定を伴う実装必須) チェックリストに従う）
    - Android の画面・ナビの変更 → [android/SCREENS_AND_NAVIGATION.md](android/SCREENS_AND_NAVIGATION.md)
    - Android の API 連携の変更 → [android/API_INTEGRATION.md](android/API_INTEGRATION.md)
 3. doc の変更をコミットまたはステージングする
