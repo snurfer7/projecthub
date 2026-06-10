@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
+import { X } from 'lucide-react';
 import api from '../api/client';
 import { Tracker, IssueStatus } from '../types';
 import Combobox from './Combobox';
 import CustomDatePicker from './CustomDatePicker';
+import DateInput from './DateInput';
 import { formatDateToYYYYMMDD } from '../utils/format';
 
 type ZoomLevel = 'day' | 'month' | 'year';
@@ -17,8 +19,13 @@ interface TicketSearchSectionProps {
   onFilterTrackerIdChange: (value: number | '') => void;
   filterStatusId: number | '';
   onFilterStatusIdChange: (value: number | '') => void;
-  filterAssignedToId: number | '';
-  onFilterAssignedToIdChange: (value: number | '') => void;
+  filterAssignedToIds: (number | string)[];
+  onFilterAssignedToIdsChange: (values: (number | string)[]) => void;
+  dueDateStart?: string;
+  onDueDateStartChange?: (value: string) => void;
+  dueDateEnd?: string;
+  onDueDateEndChange?: (value: string) => void;
+  onResetFilter?: () => void;
   issueCount: number;
 }
 
@@ -38,8 +45,13 @@ export default function TicketSearchSection({
   onFilterTrackerIdChange,
   filterStatusId,
   onFilterStatusIdChange,
-  filterAssignedToId,
-  onFilterAssignedToIdChange,
+  filterAssignedToIds,
+  onFilterAssignedToIdsChange,
+  dueDateStart,
+  onDueDateStartChange,
+  dueDateEnd,
+  onDueDateEndChange,
+  onResetFilter,
   issueCount,
 }: TicketSearchSectionProps) {
   const [trackers, setTrackers] = useState<Tracker[]>([]);
@@ -113,6 +125,13 @@ export default function TicketSearchSection({
       onEndValueChange(value);
     }
   };
+
+  const hasActiveFilter =
+    filterTrackerId !== '' ||
+    filterStatusId !== '' ||
+    filterAssignedToIds.length > 0 ||
+    (onDueDateStartChange != null && ((dueDateStart ?? '') !== '' || (dueDateEnd ?? '') !== '')) ||
+    (onStartValueChange != null && ((startValue ?? '') !== '' || (endValue ?? '') !== ''));
 
   return (
     <div className="bg-white rounded-lg shadow p-3 flex flex-wrap items-center gap-3">
@@ -209,14 +228,55 @@ export default function TicketSearchSection({
 
       <Combobox
         label="担当者"
-        value={filterAssignedToId}
+        value={filterAssignedToIds}
         options={assignees.map((a: { id: number; firstName: string; lastName: string }) => ({ value: a.id.toString(), label: `${a.lastName} ${a.firstName}` }))}
-        onChange={(val) => onFilterAssignedToIdChange(val ? Number(val) : '')}
+        onChange={onFilterAssignedToIdsChange}
+        placeholder="全担当者"
+        isMulti={true}
         size="small"
-        className="w-40"
+        className="w-48"
       />
 
-      <div className="ml-auto text-xs text-gray-400">{issueCount} 件</div>
+      {onDueDateStartChange && onDueDateEndChange && (
+        <>
+          <div className="w-px h-6 bg-gray-200" />
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">チケット期限:</span>
+            <div className="flex items-center gap-1">
+              <DateInput
+                value={dueDateStart || ''}
+                onChange={onDueDateStartChange}
+                size="small"
+                showFloatingLabel={false}
+                placeholder="開始"
+                className="w-32"
+              />
+              <span className="text-gray-400 text-xs">〜</span>
+              <DateInput
+                value={dueDateEnd || ''}
+                onChange={onDueDateEndChange}
+                size="small"
+                showFloatingLabel={false}
+                placeholder="終了"
+                className="w-32"
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      {hasActiveFilter && onResetFilter && (
+        <button
+          type="button"
+          onClick={onResetFilter}
+          className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
+        >
+          <X size={14} />
+          条件クリア
+        </button>
+      )}
+
+      <div className="ml-auto text-xs text-gray-400">{issueCount} チケット</div>
     </div>
   );
 }

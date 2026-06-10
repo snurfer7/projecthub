@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
 import { assertFieldPermissions, assertDatetimeFieldPermissions, resolveUserPermissions } from '../services/permissions';
+import { parseNumericQueryIds } from '../utils/queryParams';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -12,13 +13,14 @@ router.use(authenticateToken);
 // List issues (with filters)
 router.get('/', requirePermission('projects.issues', 'use'), async (req: AuthRequest, res: Response) => {
   try {
-    const { projectId, statusId, trackerId, priorityId, assignedToId, assignedToGroupId } = req.query;
+    const { projectId, statusId, trackerId, priorityId, assignedToId, assignedToIds, assignedToGroupId } = req.query;
     const where: any = {};
     if (projectId && !isNaN(Number(projectId))) where.projectId = Number(projectId);
     if (statusId && String(statusId).trim() !== '' && !isNaN(Number(statusId))) where.statusId = Number(statusId);
     if (trackerId && String(trackerId).trim() !== '' && !isNaN(Number(trackerId))) where.trackerId = Number(trackerId);
     if (priorityId && String(priorityId).trim() !== '' && !isNaN(Number(priorityId))) where.priorityId = Number(priorityId);
-    if (assignedToId && String(assignedToId).trim() !== '' && !isNaN(Number(assignedToId))) where.assignedToId = Number(assignedToId);
+    const assigneeIds = parseNumericQueryIds(assignedToIds ?? assignedToId);
+    if (assigneeIds.length > 0) where.assignedToId = { in: assigneeIds };
     if (assignedToGroupId && String(assignedToGroupId).trim() !== '' && !isNaN(Number(assignedToGroupId))) where.assignedToGroupId = Number(assignedToGroupId);
 
     const issues = await prisma.issue.findMany({

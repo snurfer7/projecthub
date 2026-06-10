@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import api from '../api/client';
@@ -16,7 +16,7 @@ export default function KanbanPage() {
   const [statuses, setStatuses] = useState<IssueStatus[]>([]);
   const [filterTrackerId, setFilterTrackerId] = useState<number | ''>('');
   const [filterStatusId, setFilterStatusId] = useState<number | ''>('');
-  const [filterAssignedToId, setFilterAssignedToId] = useState<number | ''>('');
+  const [filterAssignedToIds, setFilterAssignedToIds] = useState<(number | string)[]>([]);
   const [isNewIssueModalOpen, setIsNewIssueModalOpen] = useState(false);
   const [newIssueStatusId, setNewIssueStatusId] = useState<number | undefined>(undefined);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -29,7 +29,7 @@ export default function KanbanPage() {
       const params: any = { projectId };
       if (filterTrackerId) params.trackerId = filterTrackerId;
       if (filterStatusId) params.statusId = filterStatusId;
-      if (filterAssignedToId) params.assignedToId = filterAssignedToId;
+      if (filterAssignedToIds.length > 0) params.assignedToIds = filterAssignedToIds.join(',');
 
       const [issuesRes, metaRes] = await Promise.all([
         api.get('/issues', { params }),
@@ -45,7 +45,7 @@ export default function KanbanPage() {
 
   useEffect(() => {
     fetchData();
-  }, [projectId, filterTrackerId, filterStatusId, filterAssignedToId]);
+  }, [projectId, filterTrackerId, filterStatusId, filterAssignedToIds]);
 
   const handleDrop = async (issueId: number, targetStatusId: number) => {
     const issueToUpdate = issues.find(i => i.id === issueId);
@@ -82,6 +82,12 @@ export default function KanbanPage() {
     setSelectedIssueId(null);
   };
 
+  const resetTicketSearchFilter = useCallback(() => {
+    setFilterTrackerId('');
+    setFilterStatusId('');
+    setFilterAssignedToIds([]);
+  }, []);
+
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden">
       {/* Header */}
@@ -101,8 +107,9 @@ export default function KanbanPage() {
           onFilterTrackerIdChange={setFilterTrackerId}
           filterStatusId={filterStatusId}
           onFilterStatusIdChange={setFilterStatusId}
-          filterAssignedToId={filterAssignedToId}
-          onFilterAssignedToIdChange={setFilterAssignedToId}
+          filterAssignedToIds={filterAssignedToIds}
+          onFilterAssignedToIdsChange={setFilterAssignedToIds}
+          onResetFilter={resetTicketSearchFilter}
           issueCount={issues.length}
         />
       </div>

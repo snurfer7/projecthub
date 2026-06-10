@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { List, BarChart2, Kanban, Clock } from 'lucide-react';
 import api from '../api/client';
-import { Project, Company, Issue, IssueStatus, Tracker, TimeEntry } from '../types';
+import { Project, Company, Issue, IssueStatus, TimeEntry } from '../types';
 import Modal from '../components/Modal';
 import GanttChart from '../components/GanttChart';
 import TicketSearchSection from '../components/TicketSearchSection';
@@ -16,15 +16,26 @@ import DateInput from '../components/DateInput';
 import TimeRecordSearchSection from '../components/TimeRecordSearchSection';
 import TimeRecordTree from '../components/TimeRecordTree';
 import { useAuth } from '../hooks/useAuth';
-
-
+import { useProjectListFilters } from '../hooks/useProjectListFilters';
+import { filterProjects, filteredProjectIdSet } from '../utils/projectFilter';
+import { filterIssues, filterIssuesByProjectIds } from '../utils/issueFilter';
 
 export default function ProjectListPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [viewMode, setViewMode] = useState<'list' | 'gantt' | 'kanban' | 'time'>(() =>
-    searchParams.get('view') === 'gantt' ? 'gantt' : 'list'
-  );
+  const initialViewMode = searchParams.get('view') === 'gantt' ? 'gantt' : undefined;
+  const {
+    viewMode,
+    setViewMode,
+    projectFilter,
+    updateProjectFilter,
+    resetProjectFilter,
+    issueFilter,
+    updateIssueFilter,
+    resetIssueFilter,
+    ganttZoom,
+    setGanttZoom,
+  } = useProjectListFilters(initialViewMode);
 
   useEffect(() => {
     if (searchParams.get('view') !== 'gantt') return;
@@ -32,52 +43,43 @@ export default function ProjectListPage() {
     const next = new URLSearchParams(searchParams);
     next.delete('view');
     setSearchParams(next, { replace: true });
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, setViewMode]);
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [listFilterStartMonth, setListFilterStartMonth] = useState('');
-  const [listFilterEndMonth, setListFilterEndMonth] = useState('');
-  const [listFilterCompanyIds, setListFilterCompanyIds] = useState<(number | string)[]>([]);
 
-  // Gantt-related state
   const [ganttIssues, setGanttIssues] = useState<Issue[]>([]);
   const [ganttProjects, setGanttProjects] = useState<Project[]>([]);
   const [systemSettings, setSystemSettings] = useState<any>(null);
-  const [ganttZoom, setGanttZoom] = useState<'day' | 'month' | 'year'>('day');
   const [ganttStartValue, setGanttStartValue] = useState('');
   const [ganttEndValue, setGanttEndValue] = useState('');
-  const [ganttFilterTrackerId, setGanttFilterTrackerId] = useState<number | ''>('');
-  const [ganttFilterStatusId, setGanttFilterStatusId] = useState<number | ''>('');
-  const [ganttFilterAssignedToId, setGanttFilterAssignedToId] = useState<number | ''>('');
   const [ganttCollapsedProjects, setGanttCollapsedProjects] = useState<Set<number>>(new Set());
 
-  // Kanban-related state
   const [kanbanIssues, setKanbanIssues] = useState<Issue[]>([]);
   const [kanbanStatuses, setKanbanStatuses] = useState<IssueStatus[]>([]);
-  const [kanbanTrackers, setKanbanTrackers] = useState<Tracker[]>([]);
-  const [kanbanAssignees, setKanbanAssignees] = useState<{ id: number; firstName: string; lastName: string }[]>([]);
-  const [kanbanFilterTrackerId, setKanbanFilterTrackerId] = useState<number | ''>('');
-  const [kanbanFilterStatusId, setKanbanFilterStatusId] = useState<number | ''>('');
-  const [kanbanFilterAssignedToId, setKanbanFilterAssignedToId] = useState<number | ''>('');
-  const [kanbanFilterStartMonth, setKanbanFilterStartMonth] = useState('');
-  const [kanbanFilterEndMonth, setKanbanFilterEndMonth] = useState('');
   const [selectedIssueId, setSelectedIssueId] = useState<number | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const { user } = useAuth();
 
-  // Time-related state
   const [timeIssues, setTimeIssues] = useState<Issue[]>([]);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
-  const [timeFilterTrackerId, setTimeFilterTrackerId] = useState<number | ''>('');
-  const [timeFilterStatusId, setTimeFilterStatusId] = useState<number | ''>('');
-  const [timeFilterAssignedToId, setTimeFilterAssignedToId] = useState<number | ''>('');
   const [timeRecordStartDate, setTimeRecordStartDate] = useState('');
   const [timeRecordEndDate, setTimeRecordEndDate] = useState('');
-  const [timeRecordFilterUserId, setTimeRecordFilterUserId] = useState<number | ''>('');
+  const [timeRecordFilterUserIds, setTimeRecordFilterUserIds] = useState<(number | string)[]>([]);
 
-  // Project modal states
+  const resetTicketSearchFilter = useCallback(() => {
+    resetIssueFilter();
+    setGanttStartValue('');
+    setGanttEndValue('');
+  }, [resetIssueFilter]);
+
+  const resetTimeRecordFilter = useCallback(() => {
+    setTimeRecordStartDate('');
+    setTimeRecordEndDate('');
+    setTimeRecordFilterUserIds([]);
+  }, []);
+
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState<number | null>(null);
   const [projectName, setProjectName] = useState('');
@@ -113,21 +115,23 @@ export default function ProjectListPage() {
     ]).then(([issuesRes, metaRes]) => {
       setKanbanIssues(issuesRes.data);
       setKanbanStatuses(metaRes.data.statuses);
-      setKanbanTrackers(metaRes.data.trackers);
-      setKanbanAssignees(metaRes.data.users);
     });
   }, []);
 
   const loadTimeData = useCallback(() => {
-    const issueParams: any = {};
-    if (timeFilterTrackerId) issueParams.trackerId = timeFilterTrackerId;
-    if (timeFilterStatusId) issueParams.statusId = timeFilterStatusId;
-    if (timeFilterAssignedToId) issueParams.assignedToId = timeFilterAssignedToId;
+    const issueParams: Record<string, string | number> = {};
+    if (issueFilter.trackerId) issueParams.trackerId = issueFilter.trackerId;
+    if (issueFilter.statusId) issueParams.statusId = issueFilter.statusId;
+    if (issueFilter.assignedToIds.length > 0) {
+      issueParams.assignedToIds = issueFilter.assignedToIds.join(',');
+    }
 
-    const entryParams: any = {};
+    const entryParams: Record<string, string | number> = {};
     if (timeRecordStartDate) entryParams.startDate = timeRecordStartDate;
     if (timeRecordEndDate) entryParams.endDate = timeRecordEndDate;
-    if (timeRecordFilterUserId) entryParams.userId = timeRecordFilterUserId;
+    if (timeRecordFilterUserIds.length > 0) {
+      entryParams.userIds = timeRecordFilterUserIds.join(',');
+    }
 
     Promise.all([
       api.get('/issues', { params: issueParams }),
@@ -136,7 +140,14 @@ export default function ProjectListPage() {
       setTimeIssues(issuesRes.data);
       setTimeEntries(entriesRes.data);
     });
-  }, [timeFilterTrackerId, timeFilterStatusId, timeFilterAssignedToId, timeRecordStartDate, timeRecordEndDate, timeRecordFilterUserId]);
+  }, [
+    issueFilter.trackerId,
+    issueFilter.statusId,
+    issueFilter.assignedToIds,
+    timeRecordStartDate,
+    timeRecordEndDate,
+    timeRecordFilterUserIds,
+  ]);
 
   useEffect(() => {
     loadProjects();
@@ -206,18 +217,16 @@ export default function ProjectListPage() {
     }
   }, [loadGanttData]);
 
-  // Kanban drag handlers
-
   const handleKanbanDrop = async (droppedIssueId: number, targetStatusId: number) => {
-    const issueToDrop = kanbanIssues.find(i => i.id === droppedIssueId);
+    const issueToDrop = kanbanIssues.find((i) => i.id === droppedIssueId);
     if (!issueToDrop || issueToDrop.statusId === targetStatusId) return;
 
     setKanbanIssues((prev) =>
       prev.map((issue) =>
         issue.id === issueToDrop.id
           ? { ...issue, statusId: targetStatusId, status: kanbanStatuses.find((s) => s.id === targetStatusId) }
-          : issue
-      )
+          : issue,
+      ),
     );
     try {
       await api.put(`/issues/${issueToDrop.id}`, { statusId: targetStatusId });
@@ -242,59 +251,46 @@ export default function ProjectListPage() {
     setSelectedIssueId(null);
   };
 
-  const matchesProjectFilter = useCallback((p: Project) => {
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      const matchText = p.name.toLowerCase().includes(q)
-        || (p.identifier?.toLowerCase() ?? '').includes(q)
-        || (p.company && p.company.name.toLowerCase().includes(q));
-      if (!matchText) return false;
-    }
-    if (listFilterCompanyIds.length > 0) {
-      const hasMatchingCompany =
-        (p.companyId && listFilterCompanyIds.some(id => String(id) === String(p.companyId))) ||
-        (p.relatedCompanies?.some(rc => listFilterCompanyIds.some(id => String(id) === String(rc.companyId))));
-      if (!hasMatchingCompany) return false;
-    }
-    if (p.dueDate) {
-      const due = p.dueDate.slice(0, 10);
-      if (listFilterStartMonth && due < listFilterStartMonth) return false;
-      if (listFilterEndMonth && due > listFilterEndMonth) return false;
-    }
-    return true;
-  }, [searchQuery, listFilterCompanyIds, listFilterStartMonth, listFilterEndMonth]);
+  const filteredProjects = useMemo(
+    () => filterProjects(projects, projectFilter),
+    [projects, projectFilter],
+  );
 
-  const filteredProjects = useMemo(() => projects.filter(matchesProjectFilter), [projects, matchesProjectFilter]);
+  const projectIds = useMemo(
+    () => filteredProjectIdSet(projects, projectFilter),
+    [projects, projectFilter],
+  );
 
-  const filteredGanttProjects = useMemo(() => ganttProjects.filter(matchesProjectFilter), [ganttProjects, matchesProjectFilter]);
+  const filteredGanttProjects = useMemo(
+    () => ganttProjects.filter((p) => projectIds.has(p.id)),
+    [ganttProjects, projectIds],
+  );
 
-  const filteredGanttIssues = useMemo(() => {
-    const projectIds = new Set(filteredGanttProjects.map((p) => p.id));
-    return ganttIssues.filter((issue) => projectIds.has(issue.projectId));
-  }, [ganttIssues, filteredGanttProjects]);
+  const filteredGanttIssues = useMemo(
+    () => filterIssuesByProjectIds(ganttIssues, projectIds),
+    [ganttIssues, projectIds],
+  );
 
-  const kanbanFilteredIssues = useMemo(() => {
-    const filteredProjectIds = new Set(projects.filter(matchesProjectFilter).map((p) => p.id));
-    return kanbanIssues.filter((issue) => {
-      if (!filteredProjectIds.has(issue.projectId)) return false;
-      if (kanbanFilterTrackerId && issue.trackerId !== kanbanFilterTrackerId) return false;
-      if (kanbanFilterStatusId && issue.statusId !== kanbanFilterStatusId) return false;
-      if (kanbanFilterAssignedToId && issue.assignedToId !== kanbanFilterAssignedToId) return false;
-      if (issue.dueDate) {
-        const due = issue.dueDate.slice(0, 10);
-        if (kanbanFilterStartMonth && due < kanbanFilterStartMonth) return false;
-        if (kanbanFilterEndMonth && due > kanbanFilterEndMonth) return false;
-      }
-      return true;
-    });
-  }, [kanbanIssues, projects, matchesProjectFilter, kanbanFilterTrackerId, kanbanFilterStatusId, kanbanFilterAssignedToId, kanbanFilterStartMonth, kanbanFilterEndMonth]);
+  const kanbanFilteredIssues = useMemo(
+    () => filterIssues(filterIssuesByProjectIds(kanbanIssues, projectIds), issueFilter),
+    [kanbanIssues, projectIds, issueFilter],
+  );
+
+  const timeFilteredIssues = useMemo(
+    () => filterIssuesByProjectIds(timeIssues, projectIds),
+    [timeIssues, projectIds],
+  );
+
+  const ganttDisplayIssueCount = useMemo(
+    () => filterIssues(filteredGanttIssues, issueFilter).length,
+    [filteredGanttIssues, issueFilter],
+  );
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-slate-800">プロジェクト</h1>
 
-        {/* View toggle button group (Aligned with title on the right) */}
         <div className="inline-flex rounded-md border border-gray-300 overflow-hidden shadow-sm">
           <button
             onClick={() => setViewMode('list')}
@@ -339,272 +335,170 @@ export default function ProjectListPage() {
         </div>
       </div>
 
-      {/* List toolbar (matches gantt toolbar style) */}
+      <ProjectSearchSection
+        filter={projectFilter}
+        onFilterChange={updateProjectFilter}
+        onResetFilter={resetProjectFilter}
+        companies={companies}
+        totalCount={filteredProjects.length}
+        onNewProjectClick={openCreateProjectModal}
+      />
+
+      {(viewMode === 'gantt' || viewMode === 'kanban' || viewMode === 'time') && (
+        <div className="mb-4">
+          <TicketSearchSection
+            zoom={viewMode === 'gantt' ? ganttZoom : undefined}
+            startValue={viewMode === 'gantt' ? ganttStartValue : undefined}
+            onStartValueChange={viewMode === 'gantt' ? setGanttStartValue : undefined}
+            endValue={viewMode === 'gantt' ? ganttEndValue : undefined}
+            onEndValueChange={viewMode === 'gantt' ? setGanttEndValue : undefined}
+            filterTrackerId={issueFilter.trackerId}
+            onFilterTrackerIdChange={(value) => updateIssueFilter({ trackerId: value })}
+            filterStatusId={issueFilter.statusId}
+            onFilterStatusIdChange={(value) => updateIssueFilter({ statusId: value })}
+            filterAssignedToIds={issueFilter.assignedToIds}
+            onFilterAssignedToIdsChange={(values) => updateIssueFilter({ assignedToIds: values })}
+            dueDateStart={viewMode === 'kanban' ? issueFilter.dueDateStart : undefined}
+            onDueDateStartChange={viewMode === 'kanban' ? (value) => updateIssueFilter({ dueDateStart: value }) : undefined}
+            dueDateEnd={viewMode === 'kanban' ? issueFilter.dueDateEnd : undefined}
+            onDueDateEndChange={viewMode === 'kanban' ? (value) => updateIssueFilter({ dueDateEnd: value }) : undefined}
+            onResetFilter={resetTicketSearchFilter}
+            issueCount={
+              viewMode === 'gantt'
+                ? ganttDisplayIssueCount
+                : viewMode === 'kanban'
+                  ? kanbanFilteredIssues.length
+                  : timeFilteredIssues.length
+            }
+          />
+        </div>
+      )}
+
+      {viewMode === 'time' && (
+        <div className="mb-4">
+          <TimeRecordSearchSection
+            startDate={timeRecordStartDate}
+            onStartDateChange={setTimeRecordStartDate}
+            endDate={timeRecordEndDate}
+            onEndDateChange={setTimeRecordEndDate}
+            filterUserIds={timeRecordFilterUserIds}
+            onFilterUserIdsChange={setTimeRecordFilterUserIds}
+            onResetFilter={resetTimeRecordFilter}
+            entryCount={timeEntries.length}
+          />
+        </div>
+      )}
+
       {viewMode === 'list' && (
-        <ProjectSearchSection
-          searchQuery={searchQuery}
-          onSearchQueryChange={setSearchQuery}
-          startMonth={listFilterStartMonth}
-          onStartMonthChange={setListFilterStartMonth}
-          endMonth={listFilterEndMonth}
-          onEndMonthChange={setListFilterEndMonth}
-          companyIds={listFilterCompanyIds}
-          onCompanyIdsChange={setListFilterCompanyIds}
-          companies={companies}
-          totalCount={filteredProjects.length}
-          onNewProjectClick={openCreateProjectModal}
+        <div className="bg-white rounded-lg shadow">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">プロジェクト名</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">識別子</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">企業</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">期限</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">チケット数</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">ステータス</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredProjects.map((project) => (
+                <tr
+                  key={project.id}
+                  className="border-t hover:bg-gray-50 cursor-pointer"
+                  onClick={() => navigate(`/projects/${project.id}`)}
+                >
+                  <td className="px-4 py-3 text-sky-600 font-medium">{project.name}</td>
+                  <td className="px-4 py-3 text-gray-600">{project.identifier}</td>
+                  <td className="px-4 py-3 text-gray-600">{project.company?.name || '-'}</td>
+                  <td className="px-4 py-3 text-gray-600">
+                    {project.dueDate ? new Date(project.dueDate).toLocaleDateString('ja-JP') : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">{project._count?.issues || 0}</td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-block px-2 py-1 rounded text-xs font-medium ${project.status === 'active'
+                        ? 'bg-green-100 text-green-700'
+                        : project.status === 'closed'
+                          ? 'bg-gray-100 text-gray-700'
+                          : 'bg-yellow-100 text-yellow-700'
+                        }`}
+                    >
+                      {project.status === 'active' ? '有効' : project.status === 'closed' ? '終了' : 'アーカイブ'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {projects.length === 0 && (
+            <div className="text-center py-8 text-gray-500">プロジェクトが登録されていません</div>
+          )}
+          {projects.length > 0 && filteredProjects.length === 0 && (
+            <div className="text-center py-8 text-gray-500">条件に一致するプロジェクトがありません</div>
+          )}
+        </div>
+      )}
+
+      {viewMode === 'gantt' && (
+        <GanttChart
+          issues={filteredGanttIssues}
+          projects={filteredGanttProjects}
+          showProject
+          systemSettings={systemSettings}
+          onUpdateIssue={handleUpdateIssue}
+          onIssueCreated={loadGanttData}
+          onRelationCreated={handleCreateRelation}
+          zoom={ganttZoom}
+          onZoomChange={setGanttZoom}
+          startValue={ganttStartValue}
+          onStartValueChange={setGanttStartValue}
+          endValue={ganttEndValue}
+          onEndValueChange={setGanttEndValue}
+          filterTrackerId={issueFilter.trackerId}
+          onFilterTrackerIdChange={(value) => updateIssueFilter({ trackerId: value })}
+          filterStatusId={issueFilter.statusId}
+          onFilterStatusIdChange={(value) => updateIssueFilter({ statusId: value })}
+          filterAssignedToIds={issueFilter.assignedToIds}
+          onFilterAssignedToIdsChange={(values) => updateIssueFilter({ assignedToIds: values })}
+          collapsedProjects={ganttCollapsedProjects}
+          onCollapsedProjectsChange={setGanttCollapsedProjects}
         />
       )}
 
-      {/* Kanban toolbar */}
       {viewMode === 'kanban' && (
-        <>
-          <ProjectSearchSection
-            searchQuery={searchQuery}
-            onSearchQueryChange={setSearchQuery}
-            startMonth={listFilterStartMonth}
-            onStartMonthChange={setListFilterStartMonth}
-            endMonth={listFilterEndMonth}
-            onEndMonthChange={setListFilterEndMonth}
-            companyIds={listFilterCompanyIds}
-            onCompanyIdsChange={setListFilterCompanyIds}
-            companies={companies}
-            totalCount={filteredProjects.length}
-            onNewProjectClick={openCreateProjectModal}
-          />
-          <div className="bg-white rounded-lg shadow p-3 flex flex-wrap items-center gap-3 mb-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">期間:</span>
-              <div className="flex items-center gap-1">
-                <DateInput
-                  value={kanbanFilterStartMonth}
-                  onChange={setKanbanFilterStartMonth}
-                  size="small"
-                  showFloatingLabel={false}
-                  placeholder="開始"
-                  className="w-32"
-                />
-                <span className="text-gray-400 text-xs">〜</span>
-                <DateInput
-                  value={kanbanFilterEndMonth}
-                  onChange={setKanbanFilterEndMonth}
-                  size="small"
-                  showFloatingLabel={false}
-                  placeholder="終了"
-                  className="w-32"
-                />
-              </div>
-            </div>
-            <div className="w-px h-6 bg-gray-200" />
-            <Combobox
-              label="トラッカー"
-              options={[
-                { value: '', label: '全トラッカー' },
-                ...kanbanTrackers.map((t) => ({ value: String(t.id), label: t.name }))
-              ]}
-              value={String(kanbanFilterTrackerId)}
-              onChange={(val) => setKanbanFilterTrackerId(val ? Number(val) : '')}
-              size="small"
-            />
-            <Combobox
-              label="ステータス"
-              options={[
-                { value: '', label: '全ステータス' },
-                ...kanbanStatuses.map((s) => ({ value: String(s.id), label: s.name }))
-              ]}
-              value={String(kanbanFilterStatusId)}
-              onChange={(val) => setKanbanFilterStatusId(val ? Number(val) : '')}
-              size="small"
-            />
-            <Combobox
-              label="担当者"
-              options={[
-                { value: '', label: '全担当者' },
-                ...kanbanAssignees.map((a) => ({ value: String(a.id), label: `${a.lastName} ${a.firstName}` }))
-              ]}
-              value={String(kanbanFilterAssignedToId)}
-              onChange={(val) => setKanbanFilterAssignedToId(val ? Number(val) : '')}
-              size="small"
-            />
-            <div className="ml-auto text-xs text-gray-400">{kanbanFilteredIssues.length} 件</div>
-          </div>
-        </>
+        <KanbanBoard
+          statuses={kanbanStatuses}
+          issues={kanbanFilteredIssues}
+          onDrop={handleKanbanDrop}
+          onIssueClick={handleIssueClick}
+          showProjectName={true}
+        />
       )}
 
-      {/* List view */}
-      {
-        viewMode === 'list' && (
-          <div className="bg-white rounded-lg shadow">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">プロジェクト名</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">識別子</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">企業</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">期限</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">チケット数</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">ステータス</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProjects.map((project) => (
-                  <tr key={project.id} className="border-t hover:bg-gray-50 cursor-pointer"
-                    onClick={() => navigate(`/projects/${project.id}`)}>
-                    <td className="px-4 py-3 text-sky-600 font-medium">{project.name}</td>
-                    <td className="px-4 py-3 text-gray-600">{project.identifier}</td>
-                    <td className="px-4 py-3 text-gray-600">{project.company?.name || '-'}</td>
-                    <td className="px-4 py-3 text-gray-600">
-                      {project.dueDate ? new Date(project.dueDate).toLocaleDateString('ja-JP') : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">{project._count?.issues || 0}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${project.status === 'active' ? 'bg-green-100 text-green-700' :
-                        project.status === 'closed' ? 'bg-gray-100 text-gray-700' :
-                          'bg-yellow-100 text-yellow-700'
-                        }`}>
-                        {project.status === 'active' ? '有効' : project.status === 'closed' ? '終了' : 'アーカイブ'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {projects.length === 0 && (
-              <div className="text-center py-8 text-gray-500">プロジェクトが登録されていません</div>
-            )}
-          </div>
-        )
-      }
-
-      {/* Gantt chart view */}
-      {
-        viewMode === 'gantt' && (
-          <>
-            <ProjectSearchSection
-              searchQuery={searchQuery}
-              onSearchQueryChange={setSearchQuery}
-              startMonth={listFilterStartMonth}
-              onStartMonthChange={setListFilterStartMonth}
-              endMonth={listFilterEndMonth}
-              onEndMonthChange={setListFilterEndMonth}
-              companyIds={listFilterCompanyIds}
-              onCompanyIdsChange={setListFilterCompanyIds}
-              companies={companies}
-              totalCount={filteredGanttProjects.length}
-              onNewProjectClick={openCreateProjectModal}
-            />
-            <div className="mb-4">
-              <TicketSearchSection
-                zoom={ganttZoom}
-                startValue={ganttStartValue}
-                onStartValueChange={setGanttStartValue}
-                endValue={ganttEndValue}
-                onEndValueChange={setGanttEndValue}
-                filterTrackerId={ganttFilterTrackerId}
-                onFilterTrackerIdChange={setGanttFilterTrackerId}
-                filterStatusId={ganttFilterStatusId}
-                onFilterStatusIdChange={setGanttFilterStatusId}
-                filterAssignedToId={ganttFilterAssignedToId}
-                onFilterAssignedToIdChange={setGanttFilterAssignedToId}
-                issueCount={filteredGanttIssues.length}
-              />
-            </div>
-            <GanttChart
-              issues={filteredGanttIssues}
-              projects={filteredGanttProjects}
-              showProject
-              systemSettings={systemSettings}
-              onUpdateIssue={handleUpdateIssue}
-              onIssueCreated={loadGanttData}
-              onRelationCreated={handleCreateRelation}
-              zoom={ganttZoom}
-              onZoomChange={setGanttZoom}
-              startValue={ganttStartValue}
-              onStartValueChange={setGanttStartValue}
-              endValue={ganttEndValue}
-              onEndValueChange={setGanttEndValue}
-              filterTrackerId={ganttFilterTrackerId}
-              onFilterTrackerIdChange={setGanttFilterTrackerId}
-              filterStatusId={ganttFilterStatusId}
-              onFilterStatusIdChange={setGanttFilterStatusId}
-              filterAssignedToId={ganttFilterAssignedToId}
-              onFilterAssignedToIdChange={setGanttFilterAssignedToId}
-              collapsedProjects={ganttCollapsedProjects}
-              onCollapsedProjectsChange={setGanttCollapsedProjects}
-            />
-          </>
-        )
-      }
-
-      {/* Kanban board view */}
-      {
-        viewMode === 'kanban' && (
-          <KanbanBoard
-            statuses={kanbanStatuses}
-            issues={kanbanFilteredIssues}
-            onDrop={handleKanbanDrop}
-            onIssueClick={handleIssueClick}
-            showProjectName={true}
-          />
-        )
-      }
-
-      {/* Time view */}
       {viewMode === 'time' && (
-        <>
-          <ProjectSearchSection
-            searchQuery={searchQuery}
-            onSearchQueryChange={setSearchQuery}
-            startMonth={listFilterStartMonth}
-            onStartMonthChange={setListFilterStartMonth}
-            endMonth={listFilterEndMonth}
-            onEndMonthChange={setListFilterEndMonth}
-            companyIds={listFilterCompanyIds}
-            onCompanyIdsChange={setListFilterCompanyIds}
-            companies={companies}
-            totalCount={filteredProjects.length}
-            onNewProjectClick={openCreateProjectModal}
-          />
-          <div className="mb-2">
-            <TicketSearchSection
-              filterTrackerId={timeFilterTrackerId}
-              onFilterTrackerIdChange={setTimeFilterTrackerId}
-              filterStatusId={timeFilterStatusId}
-              onFilterStatusIdChange={setTimeFilterStatusId}
-              filterAssignedToId={timeFilterAssignedToId}
-              onFilterAssignedToIdChange={setTimeFilterAssignedToId}
-              issueCount={timeIssues.filter((i) => filteredProjects.some((p) => p.id === i.projectId)).length}
-            />
-          </div>
-          <div className="mb-4">
-            <TimeRecordSearchSection
-              startDate={timeRecordStartDate}
-              onStartDateChange={setTimeRecordStartDate}
-              endDate={timeRecordEndDate}
-              onEndDateChange={setTimeRecordEndDate}
-              filterUserId={timeRecordFilterUserId}
-              onFilterUserIdChange={setTimeRecordFilterUserId}
-              entryCount={timeEntries.length}
-            />
-          </div>
-          <TimeRecordTree
-            projects={filteredProjects}
-            issues={timeIssues}
-            timeEntries={timeEntries}
-            onRefresh={loadTimeData}
-          />
-        </>
+        <TimeRecordTree
+          projects={filteredProjects}
+          issues={timeIssues}
+          timeEntries={timeEntries}
+          onRefresh={loadTimeData}
+        />
       )}
 
-      {/* Project create/edit modal */}
       <Modal
         isOpen={showProjectModal}
         onClose={closeProjectModal}
         title={editingProjectId ? 'プロジェクト情報編集' : 'プロジェクト登録'}
         footer={
           <>
-            <button type="button" onClick={closeProjectModal}
-              className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm">キャンセル</button>
+            <button
+              type="button"
+              onClick={closeProjectModal}
+              className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm"
+            >
+              キャンセル
+            </button>
             <button type="submit" form="project-list-form" className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">
               {editingProjectId ? '更新' : '作成'}
             </button>
@@ -635,7 +529,7 @@ export default function ProjectListPage() {
                 label="企業"
                 options={[
                   { value: '', label: 'なし' },
-                  ...companies.map((c) => ({ value: String(c.id), label: c.name }))
+                  ...companies.map((c) => ({ value: String(c.id), label: c.name })),
                 ]}
                 value={projectCompanyId}
                 onChange={setProjectCompanyId}
@@ -647,7 +541,7 @@ export default function ProjectListPage() {
                 label="親プロジェクト"
                 options={[
                   { value: '', label: 'なし' },
-                  ...projects.map((p) => ({ value: String(p.id), label: p.name }))
+                  ...projects.map((p) => ({ value: String(p.id), label: p.name })),
                 ]}
                 value={projectParentId}
                 onChange={(val) => {
@@ -683,11 +577,7 @@ export default function ProjectListPage() {
         </form>
       </Modal>
 
-      <Modal
-        isOpen={isDetailModalOpen}
-        onClose={closeIssueModal}
-        title="チケット詳細"
-      >
+      <Modal isOpen={isDetailModalOpen} onClose={closeIssueModal} title="チケット詳細">
         {isDetailModalOpen && selectedIssueId && user && (
           <IssueDetail
             issueId={String(selectedIssueId)}

@@ -17,7 +17,7 @@ export default function GanttPage() {
   const [endValue, setEndValue] = useState('');
   const [filterTrackerId, setFilterTrackerId] = useState<number | ''>('');
   const [filterStatusId, setFilterStatusId] = useState<number | ''>('');
-  const [filterAssignedToId, setFilterAssignedToId] = useState<number | ''>('');
+  const [filterAssignedToIds, setFilterAssignedToIds] = useState<(number | string)[]>([]);
   const [collapsedProjects, setCollapsedProjects] = useState<Set<number>>(new Set());
 
   const loadIssues = useCallback(() => {
@@ -57,6 +57,14 @@ export default function GanttPage() {
     setCollapsedProjects(new Set());
   }, []);
 
+  const resetTicketSearchFilter = useCallback(() => {
+    setFilterTrackerId('');
+    setFilterStatusId('');
+    setFilterAssignedToIds([]);
+    setStartValue('');
+    setEndValue('');
+  }, []);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -74,8 +82,9 @@ export default function GanttPage() {
             onFilterTrackerIdChange={setFilterTrackerId}
             filterStatusId={filterStatusId}
             onFilterStatusIdChange={setFilterStatusId}
-            filterAssignedToId={filterAssignedToId}
-            onFilterAssignedToIdChange={setFilterAssignedToId}
+            filterAssignedToIds={filterAssignedToIds}
+            onFilterAssignedToIdsChange={setFilterAssignedToIds}
+            onResetFilter={resetTicketSearchFilter}
             issueCount={issues.length}
           />
         </div>
@@ -97,8 +106,8 @@ export default function GanttPage() {
         onFilterTrackerIdChange={setFilterTrackerId}
         filterStatusId={filterStatusId}
         onFilterStatusIdChange={setFilterStatusId}
-        filterAssignedToId={filterAssignedToId}
-        onFilterAssignedToIdChange={setFilterAssignedToId}
+        filterAssignedToIds={filterAssignedToIds}
+        onFilterAssignedToIdsChange={setFilterAssignedToIds}
         collapsedProjects={collapsedProjects}
         onCollapsedProjectsChange={setCollapsedProjects}
       />

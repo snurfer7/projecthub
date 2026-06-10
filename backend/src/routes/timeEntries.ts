@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
+import { parseNumericQueryIds } from '../utils/queryParams';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -11,11 +12,12 @@ router.use(authenticateToken);
 // List time entries
 router.get('/', requirePermission('projects.time-entries', 'use'), async (req: AuthRequest, res: Response) => {
   try {
-    const { projectId, issueId, userId, startDate, endDate } = req.query;
+    const { projectId, issueId, userId, userIds, startDate, endDate } = req.query;
     const where: any = {};
     if (projectId) where.projectId = Number(projectId);
     if (issueId) where.issueId = Number(issueId);
-    if (userId) where.userId = Number(userId);
+    const recordUserIds = parseNumericQueryIds(userIds ?? userId);
+    if (recordUserIds.length > 0) where.userId = { in: recordUserIds };
     if (startDate || endDate) {
       where.spentOn = {};
       if (startDate) where.spentOn.gte = new Date(startDate as string);

@@ -23,7 +23,7 @@
 |------|----------------|------|
 | `/home` | HomePage | ホーム（任意コンテンツ表示） |
 | `/dashboard` | DashboardPage | ダッシュボード |
-| `/projects` | ProjectListPage | プロジェクト一覧。一覧内でガント等に切替可能。ランディング用にクエリ `view=gantt` でガントを初期表示（表示確定後にクエリは除去） |
+| `/projects` | ProjectListPage | プロジェクト一覧。一覧／ガントチャート／カンバン／時間の4表示を切替可能。共通のプロジェクト検索（テキスト・期限日・企業）と、ガント／カンバン／時間向けのチケット検索（トラッカー・ステータス・担当者（複数選択可）。カンバンはチケット期限日も可）を上部ツールバーで提供。表示モード・検索条件は `sessionStorage` に保持し、詳細画面から戻った際に復元する。ヘッダー（トップバー）の「プロジェクト」をクリックしたときは当該保持を削除し条件を初期化する。ランディング用にクエリ `view=gantt` でガントを初期表示（表示確定後にクエリは除去） |
 | `/projects/:projectId` | ProjectDetailPage | プロジェクト詳細（子ルートあり） |
 | `/projects/:projectId/` (index) | ProjectOverview | 概要タブ |
 | `/projects/:projectId/issues` | IssueListPage | チケット一覧 |

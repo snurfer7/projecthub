@@ -30,8 +30,8 @@ interface GanttChartProps {
   onFilterTrackerIdChange?: (value: number | '') => void;
   filterStatusId?: number | '';
   onFilterStatusIdChange?: (value: number | '') => void;
-  filterAssignedToId?: number | '';
-  onFilterAssignedToIdChange?: (value: number | '') => void;
+  filterAssignedToIds?: (number | string)[];
+  onFilterAssignedToIdsChange?: (values: (number | string)[]) => void;
   collapsedProjects?: Set<number>;
   onCollapsedProjectsChange?: (collapsed: Set<number>) => void;
 }
@@ -356,8 +356,8 @@ export default function GanttChart({
   onFilterTrackerIdChange,
   filterStatusId: propsFilterStatusId = '',
   onFilterStatusIdChange,
-  filterAssignedToId: propsFilterAssignedToId = '',
-  onFilterAssignedToIdChange,
+  filterAssignedToIds: propsFilterAssignedToIds = [],
+  onFilterAssignedToIdsChange,
   collapsedProjects: propsCollapsedProjects = new Set(),
   onCollapsedProjectsChange,
 }: GanttChartProps) {
@@ -368,7 +368,7 @@ export default function GanttChart({
   const [customLeftColWidth, setCustomLeftColWidth] = useState<number | null>(null);
 
   const [internalFilterTrackerId, setInternalFilterTrackerId] = useState<number | ''>('');
-  const [internalFilterAssignedToId, setInternalFilterAssignedToId] = useState<number | ''>('');
+  const [internalFilterAssignedToIds, setInternalFilterAssignedToIds] = useState<(number | string)[]>([]);
   const [internalFilterStatusId, setInternalFilterStatusId] = useState<number | ''>('');
   const [internalCollapsedProjects, setInternalCollapsedProjects] = useState<Set<number>>(new Set());
   
@@ -409,10 +409,10 @@ export default function GanttChart({
     onFilterStatusIdChange?.(v);
   };
   
-  const filterAssignedToId = propsFilterAssignedToId ?? internalFilterAssignedToId;
-  const setFilterAssignedToId = (v: number | '') => {
-    setInternalFilterAssignedToId(v);
-    onFilterAssignedToIdChange?.(v);
+  const filterAssignedToIds = propsFilterAssignedToIds ?? internalFilterAssignedToIds;
+  const setFilterAssignedToIds = (v: (number | string)[]) => {
+    setInternalFilterAssignedToIds(v);
+    onFilterAssignedToIdsChange?.(v);
   };
   
   const collapsedProjects = propsCollapsedProjects ?? internalCollapsedProjects;
@@ -615,11 +615,19 @@ export default function GanttChart({
   const filteredIssues = useMemo(() => {
     return issues.filter((issue) => {
       if (filterTrackerId && issue.trackerId !== filterTrackerId) return false;
-      if (filterAssignedToId && issue.assignedToId !== filterAssignedToId) return false;
+      if (filterAssignedToIds.length > 0) {
+        const assigneeId = issue.assignedToId;
+        if (
+          assigneeId == null ||
+          !filterAssignedToIds.some((id) => String(id) === String(assigneeId))
+        ) {
+          return false;
+        }
+      }
       if (filterStatusId && issue.statusId !== filterStatusId) return false;
       return true;
     });
-  }, [issues, filterTrackerId, filterAssignedToId, filterStatusId]);
+  }, [issues, filterTrackerId, filterAssignedToIds, filterStatusId]);
 
   const trackerColorMap = useMemo(() => {
     const map: Record<number, string> = {};

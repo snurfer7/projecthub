@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
+import { parseNumericQueryIds } from '../utils/queryParams';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -12,7 +13,7 @@ router.use(authenticateToken);
 router.get('/project/:projectId', requirePermission('projects.gantt', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const projectId = Number(req.params.projectId);
-    const { trackerId, assignedToId, statusId } = req.query;
+    const { trackerId, assignedToId, assignedToIds, statusId } = req.query;
 
     // Get project with dueDate
     const project = await prisma.project.findUnique({
@@ -29,7 +30,8 @@ router.get('/project/:projectId', requirePermission('projects.gantt', 'use'), as
       OR: [{ startDate: { not: null } }, { dueDate: { not: null } }],
     };
     if (trackerId) where.trackerId = Number(trackerId);
-    if (assignedToId) where.assignedToId = Number(assignedToId);
+    const assigneeIds = parseNumericQueryIds(assignedToIds ?? assignedToId);
+    if (assigneeIds.length > 0) where.assignedToId = { in: assigneeIds };
     if (statusId) where.statusId = Number(statusId);
 
     const issues = await prisma.issue.findMany({
@@ -55,7 +57,7 @@ router.get('/project/:projectId', requirePermission('projects.gantt', 'use'), as
 // Get gantt data for all projects
 router.get('/all', requirePermission('projects.gantt', 'use'), async (req: AuthRequest, res: Response) => {
   try {
-    const { trackerId, assignedToId, statusId } = req.query;
+    const { trackerId, assignedToId, assignedToIds, statusId } = req.query;
 
     // Get all active projects
     const projects = await prisma.project.findMany({
@@ -77,7 +79,8 @@ router.get('/all', requirePermission('projects.gantt', 'use'), async (req: AuthR
       OR: [{ startDate: { not: null } }, { dueDate: { not: null } }],
     };
     if (trackerId) where.trackerId = Number(trackerId);
-    if (assignedToId) where.assignedToId = Number(assignedToId);
+    const assigneeIds = parseNumericQueryIds(assignedToIds ?? assignedToId);
+    if (assigneeIds.length > 0) where.assignedToId = { in: assigneeIds };
     if (statusId) where.statusId = Number(statusId);
 
     const issues = await prisma.issue.findMany({

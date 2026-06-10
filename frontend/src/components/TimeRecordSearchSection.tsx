@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { X } from 'lucide-react';
 import api from '../api/client';
 import Combobox from './Combobox';
 import DateInput from './DateInput';
@@ -8,8 +9,9 @@ interface TimeRecordSearchSectionProps {
   onStartDateChange: (value: string) => void;
   endDate: string;
   onEndDateChange: (value: string) => void;
-  filterUserId: number | '';
-  onFilterUserIdChange: (value: number | '') => void;
+  filterUserIds: (number | string)[];
+  onFilterUserIdsChange: (values: (number | string)[]) => void;
+  onResetFilter?: () => void;
   entryCount: number;
 }
 
@@ -18,8 +20,9 @@ export default function TimeRecordSearchSection({
   onStartDateChange,
   endDate,
   onEndDateChange,
-  filterUserId,
-  onFilterUserIdChange,
+  filterUserIds,
+  onFilterUserIdsChange,
+  onResetFilter,
   entryCount,
 }: TimeRecordSearchSectionProps) {
   const [users, setUsers] = useState<{ id: number; firstName: string; lastName: string }[]>([]);
@@ -27,6 +30,9 @@ export default function TimeRecordSearchSection({
   useEffect(() => {
     api.get('/issues/meta/options').then((res) => setUsers(res.data.users));
   }, []);
+
+  const hasActiveFilter =
+    startDate !== '' || endDate !== '' || filterUserIds.length > 0;
 
   return (
     <div className="bg-white rounded-lg shadow p-3 flex flex-wrap items-center gap-3">
@@ -57,12 +63,25 @@ export default function TimeRecordSearchSection({
 
       <Combobox
         label="担当者"
-        value={filterUserId}
+        value={filterUserIds}
         options={users.map((u) => ({ value: u.id.toString(), label: `${u.lastName} ${u.firstName}` }))}
-        onChange={(val) => onFilterUserIdChange(val ? Number(val) : '')}
+        onChange={onFilterUserIdsChange}
+        placeholder="全担当者"
+        isMulti={true}
         size="small"
-        className="w-40"
+        className="w-48"
       />
+
+      {hasActiveFilter && onResetFilter && (
+        <button
+          type="button"
+          onClick={onResetFilter}
+          className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
+        >
+          <X size={14} />
+          条件クリア
+        </button>
+      )}
 
       <div className="ml-auto text-xs text-gray-400">{entryCount} 件</div>
     </div>

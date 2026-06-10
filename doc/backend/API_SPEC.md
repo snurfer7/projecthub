@@ -44,7 +44,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 | メソッド | パス | 概要 |
 |----------|------|------|
-| GET | `/` | チケット一覧。Query: `projectId`, `statusId`, `trackerId`, `priorityId`, `assignedToId`, `assignedToGroupId` |
+| GET | `/` | チケット一覧。Query: `projectId`, `statusId`, `trackerId`, `priorityId`, `assignedToId`（単一・後方互換）, `assignedToIds`（カンマ区切りまたは配列で複数担当者）, `assignedToGroupId` |
 | GET | `/meta/options` | メタ（trackers, statuses, priorities, users, groups）。Query: `projectId`（任意） |
 | GET | `/:id` | チケット詳細 |
 | POST | `/` | チケット作成 |
@@ -88,7 +88,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 | メソッド | パス | 概要 |
 |----------|------|------|
-| GET | `/` | 一覧。Query: `projectId`, `userId`（任意） |
+| GET | `/` | 一覧。Query: `projectId`, `issueId`, `startDate`, `endDate`, `userId`（単一・後方互換）, `userIds`（カンマ区切りまたは配列で複数担当者） |
 | POST | `/` | 作成。Body: `projectId`, `issueId`（任意）, `hours`, `activity`, `spentOn`, `comments`（任意） |
 | PUT | `/:id` | 更新 |
 | DELETE | `/:id` | 削除 |

@@ -4,6 +4,7 @@ import { User } from '../types';
 import { usePermissions } from '../hooks/usePermissions';
 import Breadcrumb from './Breadcrumb';
 import { clearCompaniesListPersistedFromHeader } from '../utils/companiesListStorage';
+import { clearProjectListPersistedFromHeader } from '../utils/projectListStorage';
 import {
   Menu, Database, Building2, Settings, LogOut,
   Briefcase, ChevronDown, ChevronRight, Users, Contact
@@ -146,6 +147,9 @@ export default function Layout({ user, onLogout, children }: Props) {
                   onClick={() => {
                     if (item.path === '/companies') {
                       clearCompaniesListPersistedFromHeader();
+                    }
+                    if (item.path === '/projects') {
+                      clearProjectListPersistedFromHeader();
                     }
                   }}
                   className={`
