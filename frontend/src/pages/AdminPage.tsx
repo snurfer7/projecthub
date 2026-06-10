@@ -612,7 +612,7 @@ export default function AdminPage({ user }: Props) {
     { key: 'email' as const, label: 'メール設定' },
   ];
 
-  if (!canUse('admin')) return <Navigate to="/" replace />;
+  if (!canUse('admin')) return <Navigate to="/no-access" replace />;
 
   return (
     <div>

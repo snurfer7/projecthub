@@ -1,9 +1,13 @@
 import { PrismaClient } from '@prisma/client';
-import { flattenPermissionCatalog, PERMISSION_CATALOG } from '../src/constants/permissionCatalog';
+import { assertPermissionPrismaClient } from './lib/assertPrismaClient';
+import { loadPermissionCatalog } from './lib/loadPermissionCatalog';
+
+const { flattenPermissionCatalog } = loadPermissionCatalog();
 
 const prisma = new PrismaClient();
 
 export async function seedPermissions() {
+  assertPermissionPrismaClient(prisma);
   const flat = flattenPermissionCatalog();
   const catalogCodes = new Set(flat.map((e) => e.code));
   const codeToId = new Map<string, number>();
@@ -131,6 +135,12 @@ export async function seedPermissions() {
       data: { permissionSetId: fullAccessSet.id },
     });
   }
+
+  // 権限設定未割当のグループにも全権限を付与（メンバーが権限ゼロにならないようにする）
+  await prisma.group.updateMany({
+    where: { permissionSetId: null },
+    data: { permissionSetId: fullAccessSet.id },
+  });
 
   const allUsers = await prisma.user.findMany({ select: { id: true } });
   for (const user of allUsers) {

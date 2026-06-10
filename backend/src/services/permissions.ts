@@ -13,7 +13,8 @@ let resourceTreeCache: Array<{
 }> | null = null;
 
 async function getResourceTree() {
-  if (!resourceTreeCache) {
+  const count = await prisma.permissionResource.count();
+  if (resourceTreeCache === null || resourceTreeCache.length !== count) {
     resourceTreeCache = await prisma.permissionResource.findMany({
       select: { id: true, code: true, parentId: true },
     });

@@ -12,7 +12,7 @@ interface Props {
 export default function PermissionRoute({ code, permissions, children }: Props) {
   const { canUse } = usePermissions(permissions);
   if (!canUse(code)) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/no-access" replace />;
   }
   return <>{children}</>;
 }

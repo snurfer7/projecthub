@@ -244,7 +244,30 @@ npx prisma migrate deploy
 
 > マイグレーション履歴は `backend/prisma/migrations/` に含まれます。スキーマだけを無履歴で押し込む場合は `npx prisma db push` も使えますが、通常は `migrate deploy` を推奨します。
 
-### 7.4 PM2 でバックエンドを起動
+### 7.4 シード（権限・初期データ）
+
+本番サーバーには `backend/src/` は配置されません。seed はローカルでビルド済みの `dist/`（`dist/constants/permissionCatalog.js` および `dist/prisma/*.js`）を参照します。**`npm run build` 後に `dist/` をアップロードしたうえで**、サーバーでは **tsx 不要**のコマンドを使います。
+
+`prisma:seed:*:prod` は実行前に **`npx prisma generate`** を自動で行います（`permissionResource` 等を Client に含めるため）。あわせて **`npx prisma migrate deploy` 済み**であることも確認してください。
+
+```bash
+cd /var/www/projecthub/backend
+npx prisma migrate deploy
+
+# 権限カタログ・全権限グループ・既存ユーザーのデフォルトグループ所属のみ
+npm run prisma:seed:permissions:prod
+
+# 管理者・マスタ・権限をまとめて投入（初回セットアップ向け）
+npm run prisma:seed:prod
+```
+
+> `Cannot find module '../src/constants/permissionCatalog'` が出る場合は、古い seed 手順（`npx tsx ./prisma/seed-permissions.ts`）を使っています。上記の `prisma:seed:*:prod` に切り替えてください。`dist/prisma/` が無い場合はローカルで `npm run build` し、`backend/dist/` を再アップロードしてください。
+>
+> `Cannot read properties of undefined (reading 'findUnique')` は **Prisma Client 未生成**または **権限テーブルのマイグレーション未適用**が原因です。`npx prisma migrate deploy` のあと `npm run prisma:seed:permissions:prod` を実行してください。
+>
+> seed 後に画面が真っ白・メニューが出ない場合は、(1) **`pm2 restart projecthub-backend`** でバックエンドを再起動（権限キャッシュの更新）、(2) **ログアウトして再ログイン**（`permissions` をセッションに反映）を行ってください。
+
+### 7.5 PM2 でバックエンドを起動
 
 ```bash
 cd /var/www/projecthub/backend
@@ -259,9 +282,9 @@ pm2 startup
 # 表示されたコマンドを実行する（sudo env PATH=... など）
 ```
 
-### 7.5 管理者アカウント（初回ログイン情報）
+### 7.6 管理者アカウント（初回ログイン情報）
 
-`backend/prisma/seed.ts`（サーバー上は `/var/www/projecthub/backend/prisma/seed.ts`）を実行してシード済みの場合、以下の管理者アカウントでログインできます。**本番ではログイン画面に「テストユーザーでログイン」は表示されないため、この情報を手元に控えておいてください。**
+`npm run prisma:seed:prod` を実行してシード済みの場合、以下の管理者アカウントでログインできます。**本番ではログイン画面に「テストユーザーでログイン」は表示されないため、この情報を手元に控えておいてください。**
 
 | 項目 | 値 |
 |------|-----|

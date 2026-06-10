@@ -57,6 +57,7 @@
 2. **権限カタログ**
    - [backend/src/constants/permissionCatalog.ts](../backend/src/constants/permissionCatalog.ts) に code・表示名・親子を追加
    - [backend/prisma/seed-permissions.ts](../backend/prisma/seed-permissions.ts) がカタログを参照していることを確認（通常は `permissionCatalog.ts` の更新のみで足りる）
+   - 本番 seed は `npm run build` 後に `npm run prisma:seed:permissions:prod`（`dist/` 経由。`src/` は本番に無い）
    - 既存 DB 環境では seed 再実行またはマイグレーション用 upsert で `permission_resources` に反映
 3. **バックエンド**
    - ルートに `requirePermission` / `requireAnyPermission` を適用

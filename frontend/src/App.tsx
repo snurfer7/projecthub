@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import Layout from './components/Layout';
 import PermissionRoute from './components/PermissionRoute';
+import { resolveDefaultRoute } from './utils/defaultRoute';
 
 // 認証前ページ（初回表示で必要）
 const LoginPage = lazy(() => import('./pages/LoginPage'));
@@ -30,6 +31,7 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const AssociationsPage = lazy(() => import('./pages/AssociationsPage'));
 const LegalEntityStatusesPage = lazy(() => import('./pages/LegalEntityStatusesPage'));
 const ForcePasswordChangePage = lazy(() => import('./pages/ForcePasswordChangePage'));
+const NoAccessPage = lazy(() => import('./pages/NoAccessPage'));
 
 const PageFallback = () => (
   <div className="flex items-center justify-center min-h-[200px]">
@@ -67,16 +69,14 @@ function App() {
     );
   }
 
+  const defaultRoute = resolveDefaultRoute(user.landingPage, user.permissions);
+
   return (
     <Layout user={user} onLogout={logout}>
       <Suspense fallback={<PageFallback />}>
         <Routes>
-          <Route path="/" element={
-            user.landingPage === 'projects' ? <Navigate to="/projects" replace /> :
-              user.landingPage === 'gantt' ? <Navigate to="/projects?view=gantt" replace /> :
-                user.landingPage === 'companies' ? <Navigate to="/companies" replace /> :
-                  <Navigate to="/home" replace />
-          } />
+          <Route path="/" element={<Navigate to={defaultRoute} replace />} />
+          <Route path="/no-access" element={<NoAccessPage onLogout={logout} />} />
           <Route path="/home" element={<PermissionRoute code="home" permissions={user.permissions}><HomePage /></PermissionRoute>} />
           <Route path="/dashboard" element={<PermissionRoute code="dashboard" permissions={user.permissions}><DashboardPage /></PermissionRoute>} />
           <Route path="/projects" element={<PermissionRoute code="projects" permissions={user.permissions}><ProjectListPage /></PermissionRoute>} />
