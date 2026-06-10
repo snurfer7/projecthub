@@ -44,7 +44,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 | メソッド | パス | 概要 |
 |----------|------|------|
-| GET | `/` | チケット一覧。Query: `projectId`, `statusId`, `trackerId`, `priorityId`, `assignedToId`（単一・後方互換）, `assignedToIds`（カンマ区切りまたは配列で複数担当者）, `assignedToGroupId` |
+| GET | `/` | チケット一覧。Query: `projectId`, `statusId` / `statusIds`（複数）, `trackerId` / `trackerIds`（複数）, `priorityId`, `assignedToId` / `assignedToIds`（複数担当者）, `assignedToGroupId`。複数 ID はカンマ区切りまたは配列 |
 | GET | `/meta/options` | メタ（trackers, statuses, priorities, users, groups）。Query: `projectId`（任意） |
 | GET | `/:id` | チケット詳細 |
 | POST | `/` | チケット作成 |

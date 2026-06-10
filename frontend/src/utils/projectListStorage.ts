@@ -50,11 +50,15 @@ function parseProjectFilter(o: unknown): ProjectFilterCriteria | null {
   };
 }
 
-function parseAssignedToIds(f: Record<string, unknown>): (number | string)[] | null {
-  if (Array.isArray(f.assignedToIds)) {
-    return f.assignedToIds;
+function parseIdListField(
+  f: Record<string, unknown>,
+  pluralKey: string,
+  singularKey: string,
+): (number | string)[] | null {
+  if (Array.isArray(f[pluralKey])) {
+    return f[pluralKey] as (number | string)[];
   }
-  const legacy = f.assignedToId;
+  const legacy = f[singularKey];
   if (legacy === '' || legacy == null) return [];
   if (typeof legacy === 'number') return [legacy];
   return null;
@@ -63,17 +67,15 @@ function parseAssignedToIds(f: Record<string, unknown>): (number | string)[] | n
 function parseIssueFilter(o: unknown): IssueFilterCriteria | null {
   if (!o || typeof o !== 'object') return null;
   const f = o as Record<string, unknown>;
-  const trackerId = f.trackerId;
-  const statusId = f.statusId;
-  if (trackerId !== '' && typeof trackerId !== 'number') return null;
-  if (statusId !== '' && typeof statusId !== 'number') return null;
-  const assignedToIds = parseAssignedToIds(f);
-  if (assignedToIds === null) return null;
+  const trackerIds = parseIdListField(f, 'trackerIds', 'trackerId');
+  const statusIds = parseIdListField(f, 'statusIds', 'statusId');
+  const assignedToIds = parseIdListField(f, 'assignedToIds', 'assignedToId');
+  if (trackerIds === null || statusIds === null || assignedToIds === null) return null;
   if (typeof f.dueDateStart !== 'string') return null;
   if (typeof f.dueDateEnd !== 'string') return null;
   return {
-    trackerId: trackerId as number | '',
-    statusId: statusId as number | '',
+    trackerIds,
+    statusIds,
     assignedToIds,
     dueDateStart: f.dueDateStart,
     dueDateEnd: f.dueDateEnd,

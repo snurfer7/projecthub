@@ -15,8 +15,8 @@ export default function GanttPage() {
   const [zoom, setZoom] = useState<ZoomLevel>('day');
   const [startValue, setStartValue] = useState('');
   const [endValue, setEndValue] = useState('');
-  const [filterTrackerId, setFilterTrackerId] = useState<number | ''>('');
-  const [filterStatusId, setFilterStatusId] = useState<number | ''>('');
+  const [filterTrackerIds, setFilterTrackerIds] = useState<(number | string)[]>([]);
+  const [filterStatusIds, setFilterStatusIds] = useState<(number | string)[]>([]);
   const [filterAssignedToIds, setFilterAssignedToIds] = useState<(number | string)[]>([]);
   const [collapsedProjects, setCollapsedProjects] = useState<Set<number>>(new Set());
 
@@ -58,8 +58,8 @@ export default function GanttPage() {
   }, []);
 
   const resetTicketSearchFilter = useCallback(() => {
-    setFilterTrackerId('');
-    setFilterStatusId('');
+    setFilterTrackerIds([]);
+    setFilterStatusIds([]);
     setFilterAssignedToIds([]);
     setStartValue('');
     setEndValue('');
@@ -78,10 +78,10 @@ export default function GanttPage() {
             onStartValueChange={setStartValue}
             endValue={endValue}
             onEndValueChange={setEndValue}
-            filterTrackerId={filterTrackerId}
-            onFilterTrackerIdChange={setFilterTrackerId}
-            filterStatusId={filterStatusId}
-            onFilterStatusIdChange={setFilterStatusId}
+            filterTrackerIds={filterTrackerIds}
+            onFilterTrackerIdsChange={setFilterTrackerIds}
+            filterStatusIds={filterStatusIds}
+            onFilterStatusIdsChange={setFilterStatusIds}
             filterAssignedToIds={filterAssignedToIds}
             onFilterAssignedToIdsChange={setFilterAssignedToIds}
             onResetFilter={resetTicketSearchFilter}
@@ -102,10 +102,10 @@ export default function GanttPage() {
         onStartValueChange={setStartValue}
         endValue={endValue}
         onEndValueChange={setEndValue}
-        filterTrackerId={filterTrackerId}
-        onFilterTrackerIdChange={setFilterTrackerId}
-        filterStatusId={filterStatusId}
-        onFilterStatusIdChange={setFilterStatusId}
+        filterTrackerIds={filterTrackerIds}
+        onFilterTrackerIdsChange={setFilterTrackerIds}
+        filterStatusIds={filterStatusIds}
+        onFilterStatusIdsChange={setFilterStatusIds}
         filterAssignedToIds={filterAssignedToIds}
         onFilterAssignedToIdsChange={setFilterAssignedToIds}
         collapsedProjects={collapsedProjects}

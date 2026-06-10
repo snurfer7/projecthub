@@ -15,10 +15,10 @@ interface TicketSearchSectionProps {
   onStartValueChange?: (value: string) => void;
   endValue?: string;
   onEndValueChange?: (value: string) => void;
-  filterTrackerId: number | '';
-  onFilterTrackerIdChange: (value: number | '') => void;
-  filterStatusId: number | '';
-  onFilterStatusIdChange: (value: number | '') => void;
+  filterTrackerIds: (number | string)[];
+  onFilterTrackerIdsChange: (values: (number | string)[]) => void;
+  filterStatusIds: (number | string)[];
+  onFilterStatusIdsChange: (values: (number | string)[]) => void;
   filterAssignedToIds: (number | string)[];
   onFilterAssignedToIdsChange: (values: (number | string)[]) => void;
   dueDateStart?: string;
@@ -41,10 +41,10 @@ export default function TicketSearchSection({
   onStartValueChange,
   endValue,
   onEndValueChange,
-  filterTrackerId,
-  onFilterTrackerIdChange,
-  filterStatusId,
-  onFilterStatusIdChange,
+  filterTrackerIds,
+  onFilterTrackerIdsChange,
+  filterStatusIds,
+  onFilterStatusIdsChange,
   filterAssignedToIds,
   onFilterAssignedToIdsChange,
   dueDateStart,
@@ -127,8 +127,8 @@ export default function TicketSearchSection({
   };
 
   const hasActiveFilter =
-    filterTrackerId !== '' ||
-    filterStatusId !== '' ||
+    filterTrackerIds.length > 0 ||
+    filterStatusIds.length > 0 ||
     filterAssignedToIds.length > 0 ||
     (onDueDateStartChange != null && ((dueDateStart ?? '') !== '' || (dueDateEnd ?? '') !== '')) ||
     (onStartValueChange != null && ((startValue ?? '') !== '' || (endValue ?? '') !== ''));
@@ -146,7 +146,7 @@ export default function TicketSearchSection({
               size="small"
               showFloatingLabel={false}
               placeholder="開始"
-              className="w-24"
+              className="w-36"
               selectMode="year"
             />
             <span className="text-gray-400">〜</span>
@@ -156,7 +156,7 @@ export default function TicketSearchSection({
               size="small"
               showFloatingLabel={false}
               placeholder="終了"
-              className="w-24"
+              className="w-36"
               selectMode="year"
             />
           </div>
@@ -168,7 +168,7 @@ export default function TicketSearchSection({
               size="small"
               showFloatingLabel={false}
               placeholder="開始"
-              className="w-32"
+              className="w-48"
               selectMode="month"
             />
             <span className="text-gray-400">〜</span>
@@ -178,7 +178,7 @@ export default function TicketSearchSection({
               size="small"
               showFloatingLabel={false}
               placeholder="終了"
-              className="w-32"
+              className="w-48"
               selectMode="month"
             />
           </div>
@@ -190,7 +190,7 @@ export default function TicketSearchSection({
               size="small"
               showFloatingLabel={false}
               placeholder="開始"
-              className="w-32"
+              className="w-48"
             />
             <span className="text-gray-400">〜</span>
             <CustomDatePicker
@@ -199,7 +199,7 @@ export default function TicketSearchSection({
               size="small"
               showFloatingLabel={false}
               placeholder="終了"
-              className="w-32"
+              className="w-48"
             />
           </div>
         )}
@@ -207,23 +207,55 @@ export default function TicketSearchSection({
 
       <div className="w-px h-6 bg-gray-200" />
 
+      {onDueDateStartChange && onDueDateEndChange && (
+        <>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">チケット期限:</span>
+            <div className="flex items-center gap-1">
+              <DateInput
+                value={dueDateStart || ''}
+                onChange={onDueDateStartChange}
+                size="small"
+                showFloatingLabel={false}
+                placeholder="開始"
+                className="w-48"
+              />
+              <span className="text-gray-400 text-xs">〜</span>
+              <DateInput
+                value={dueDateEnd || ''}
+                onChange={onDueDateEndChange}
+                size="small"
+                showFloatingLabel={false}
+                placeholder="終了"
+                className="w-48"
+              />
+            </div>
+          </div>
+          <div className="w-px h-6 bg-gray-200" />
+        </>
+      )}
+
       {/* フィルター */}
       <Combobox
         label="トラッカー"
-        value={filterTrackerId}
+        value={filterTrackerIds}
         options={trackers.map((t: Tracker) => ({ value: t.id.toString(), label: t.name }))}
-        onChange={(val) => onFilterTrackerIdChange(val ? Number(val) : '')}
+        onChange={onFilterTrackerIdsChange}
+        placeholder="全トラッカー"
+        isMulti={true}
         size="small"
-        className="w-32"
+        className="w-[13.5rem]"
       />
 
       <Combobox
         label="ステータス"
-        value={filterStatusId}
+        value={filterStatusIds}
         options={statuses.map((s: IssueStatus) => ({ value: s.id.toString(), label: s.name }))}
-        onChange={(val) => onFilterStatusIdChange(val ? Number(val) : '')}
+        onChange={onFilterStatusIdsChange}
+        placeholder="全ステータス"
+        isMulti={true}
         size="small"
-        className="w-32"
+        className="w-[13.5rem]"
       />
 
       <Combobox
@@ -234,36 +266,8 @@ export default function TicketSearchSection({
         placeholder="全担当者"
         isMulti={true}
         size="small"
-        className="w-48"
+        className="w-72"
       />
-
-      {onDueDateStartChange && onDueDateEndChange && (
-        <>
-          <div className="w-px h-6 bg-gray-200" />
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500">チケット期限:</span>
-            <div className="flex items-center gap-1">
-              <DateInput
-                value={dueDateStart || ''}
-                onChange={onDueDateStartChange}
-                size="small"
-                showFloatingLabel={false}
-                placeholder="開始"
-                className="w-32"
-              />
-              <span className="text-gray-400 text-xs">〜</span>
-              <DateInput
-                value={dueDateEnd || ''}
-                onChange={onDueDateEndChange}
-                size="small"
-                showFloatingLabel={false}
-                placeholder="終了"
-                className="w-32"
-              />
-            </div>
-          </div>
-        </>
-      )}
 
       {hasActiveFilter && onResetFilter && (
         <button

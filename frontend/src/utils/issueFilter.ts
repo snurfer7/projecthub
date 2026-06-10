@@ -1,8 +1,8 @@
 import { Issue } from '../types';
 
 export type IssueFilterCriteria = {
-  trackerId: number | '';
-  statusId: number | '';
+  trackerIds: (number | string)[];
+  statusIds: (number | string)[];
   assignedToIds: (number | string)[];
   dueDateStart: string;
   dueDateEnd: string;
@@ -10,17 +10,23 @@ export type IssueFilterCriteria = {
 
 export function defaultIssueFilterCriteria(): IssueFilterCriteria {
   return {
-    trackerId: '',
-    statusId: '',
+    trackerIds: [],
+    statusIds: [],
     assignedToIds: [],
     dueDateStart: '',
     dueDateEnd: '',
   };
 }
 
+function matchesIdList(value: number | undefined | null, ids: (number | string)[]): boolean {
+  if (ids.length === 0) return true;
+  if (value == null) return false;
+  return ids.some((id) => String(id) === String(value));
+}
+
 export function matchesIssueFilter(issue: Issue, criteria: IssueFilterCriteria): boolean {
-  if (criteria.trackerId && issue.trackerId !== criteria.trackerId) return false;
-  if (criteria.statusId && issue.statusId !== criteria.statusId) return false;
+  if (!matchesIdList(issue.trackerId, criteria.trackerIds)) return false;
+  if (!matchesIdList(issue.statusId, criteria.statusIds)) return false;
   if (criteria.assignedToIds.length > 0) {
     const assigneeId = issue.assignedToId;
     if (

@@ -14,8 +14,8 @@ export default function KanbanPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const [issues, setIssues] = useState<Issue[]>([]);
   const [statuses, setStatuses] = useState<IssueStatus[]>([]);
-  const [filterTrackerId, setFilterTrackerId] = useState<number | ''>('');
-  const [filterStatusId, setFilterStatusId] = useState<number | ''>('');
+  const [filterTrackerIds, setFilterTrackerIds] = useState<(number | string)[]>([]);
+  const [filterStatusIds, setFilterStatusIds] = useState<(number | string)[]>([]);
   const [filterAssignedToIds, setFilterAssignedToIds] = useState<(number | string)[]>([]);
   const [isNewIssueModalOpen, setIsNewIssueModalOpen] = useState(false);
   const [newIssueStatusId, setNewIssueStatusId] = useState<number | undefined>(undefined);
@@ -27,8 +27,8 @@ export default function KanbanPage() {
   const fetchData = async () => {
     try {
       const params: any = { projectId };
-      if (filterTrackerId) params.trackerId = filterTrackerId;
-      if (filterStatusId) params.statusId = filterStatusId;
+      if (filterTrackerIds.length > 0) params.trackerIds = filterTrackerIds.join(',');
+      if (filterStatusIds.length > 0) params.statusIds = filterStatusIds.join(',');
       if (filterAssignedToIds.length > 0) params.assignedToIds = filterAssignedToIds.join(',');
 
       const [issuesRes, metaRes] = await Promise.all([
@@ -45,7 +45,7 @@ export default function KanbanPage() {
 
   useEffect(() => {
     fetchData();
-  }, [projectId, filterTrackerId, filterStatusId, filterAssignedToIds]);
+  }, [projectId, filterTrackerIds, filterStatusIds, filterAssignedToIds]);
 
   const handleDrop = async (issueId: number, targetStatusId: number) => {
     const issueToUpdate = issues.find(i => i.id === issueId);
@@ -83,8 +83,8 @@ export default function KanbanPage() {
   };
 
   const resetTicketSearchFilter = useCallback(() => {
-    setFilterTrackerId('');
-    setFilterStatusId('');
+    setFilterTrackerIds([]);
+    setFilterStatusIds([]);
     setFilterAssignedToIds([]);
   }, []);
 
@@ -103,10 +103,10 @@ export default function KanbanPage() {
           </button>
         </div>
         <TicketSearchSection
-          filterTrackerId={filterTrackerId}
-          onFilterTrackerIdChange={setFilterTrackerId}
-          filterStatusId={filterStatusId}
-          onFilterStatusIdChange={setFilterStatusId}
+          filterTrackerIds={filterTrackerIds}
+          onFilterTrackerIdsChange={setFilterTrackerIds}
+          filterStatusIds={filterStatusIds}
+          onFilterStatusIdsChange={setFilterStatusIds}
           filterAssignedToIds={filterAssignedToIds}
           onFilterAssignedToIdsChange={setFilterAssignedToIds}
           onResetFilter={resetTicketSearchFilter}

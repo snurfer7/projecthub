@@ -26,10 +26,10 @@ interface GanttChartProps {
   onStartValueChange?: (value: string) => void;
   endValue?: string;
   onEndValueChange?: (value: string) => void;
-  filterTrackerId?: number | '';
-  onFilterTrackerIdChange?: (value: number | '') => void;
-  filterStatusId?: number | '';
-  onFilterStatusIdChange?: (value: number | '') => void;
+  filterTrackerIds?: (number | string)[];
+  onFilterTrackerIdsChange?: (values: (number | string)[]) => void;
+  filterStatusIds?: (number | string)[];
+  onFilterStatusIdsChange?: (values: (number | string)[]) => void;
   filterAssignedToIds?: (number | string)[];
   onFilterAssignedToIdsChange?: (values: (number | string)[]) => void;
   collapsedProjects?: Set<number>;
@@ -352,10 +352,10 @@ export default function GanttChart({
   onStartValueChange,
   endValue: propsEndValue = '',
   onEndValueChange,
-  filterTrackerId: propsFilterTrackerId = '',
-  onFilterTrackerIdChange,
-  filterStatusId: propsFilterStatusId = '',
-  onFilterStatusIdChange,
+  filterTrackerIds: propsFilterTrackerIds = [],
+  onFilterTrackerIdsChange,
+  filterStatusIds: propsFilterStatusIds = [],
+  onFilterStatusIdsChange,
   filterAssignedToIds: propsFilterAssignedToIds = [],
   onFilterAssignedToIdsChange,
   collapsedProjects: propsCollapsedProjects = new Set(),
@@ -367,9 +367,9 @@ export default function GanttChart({
   const [internalEndValue, setInternalEndValue] = useState<string>('');
   const [customLeftColWidth, setCustomLeftColWidth] = useState<number | null>(null);
 
-  const [internalFilterTrackerId, setInternalFilterTrackerId] = useState<number | ''>('');
+  const [internalFilterTrackerIds, setInternalFilterTrackerIds] = useState<(number | string)[]>([]);
   const [internalFilterAssignedToIds, setInternalFilterAssignedToIds] = useState<(number | string)[]>([]);
-  const [internalFilterStatusId, setInternalFilterStatusId] = useState<number | ''>('');
+  const [internalFilterStatusIds, setInternalFilterStatusIds] = useState<(number | string)[]>([]);
   const [internalCollapsedProjects, setInternalCollapsedProjects] = useState<Set<number>>(new Set());
   
   // 外部propsを優先、なければ内部状態を使用
@@ -397,16 +397,16 @@ export default function GanttChart({
     onEndValueChange?.(v);
   };
   
-  const filterTrackerId = propsFilterTrackerId ?? internalFilterTrackerId;
-  const setFilterTrackerId = (v: number | '') => {
-    setInternalFilterTrackerId(v);
-    onFilterTrackerIdChange?.(v);
+  const filterTrackerIds = propsFilterTrackerIds ?? internalFilterTrackerIds;
+  const setFilterTrackerIds = (v: (number | string)[]) => {
+    setInternalFilterTrackerIds(v);
+    onFilterTrackerIdsChange?.(v);
   };
   
-  const filterStatusId = propsFilterStatusId ?? internalFilterStatusId;
-  const setFilterStatusId = (v: number | '') => {
-    setInternalFilterStatusId(v);
-    onFilterStatusIdChange?.(v);
+  const filterStatusIds = propsFilterStatusIds ?? internalFilterStatusIds;
+  const setFilterStatusIds = (v: (number | string)[]) => {
+    setInternalFilterStatusIds(v);
+    onFilterStatusIdsChange?.(v);
   };
   
   const filterAssignedToIds = propsFilterAssignedToIds ?? internalFilterAssignedToIds;
@@ -614,7 +614,9 @@ export default function GanttChart({
 
   const filteredIssues = useMemo(() => {
     return issues.filter((issue) => {
-      if (filterTrackerId && issue.trackerId !== filterTrackerId) return false;
+      if (filterTrackerIds.length > 0 && !filterTrackerIds.some((id) => String(id) === String(issue.trackerId))) {
+        return false;
+      }
       if (filterAssignedToIds.length > 0) {
         const assigneeId = issue.assignedToId;
         if (
@@ -624,10 +626,12 @@ export default function GanttChart({
           return false;
         }
       }
-      if (filterStatusId && issue.statusId !== filterStatusId) return false;
+      if (filterStatusIds.length > 0 && !filterStatusIds.some((id) => String(id) === String(issue.statusId))) {
+        return false;
+      }
       return true;
     });
-  }, [issues, filterTrackerId, filterAssignedToIds, filterStatusId]);
+  }, [issues, filterTrackerIds, filterAssignedToIds, filterStatusIds]);
 
   const trackerColorMap = useMemo(() => {
     const map: Record<number, string> = {};

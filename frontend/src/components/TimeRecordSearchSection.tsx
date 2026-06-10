@@ -45,7 +45,7 @@ export default function TimeRecordSearchSection({
             size="small"
             showFloatingLabel={false}
             placeholder="開始"
-            className="w-32"
+            className="w-48"
           />
           <span className="text-gray-400 text-xs">〜</span>
           <DateInput
@@ -54,7 +54,7 @@ export default function TimeRecordSearchSection({
             size="small"
             showFloatingLabel={false}
             placeholder="終了"
-            className="w-32"
+            className="w-48"
           />
         </div>
       </div>
@@ -69,7 +69,7 @@ export default function TimeRecordSearchSection({
         placeholder="全担当者"
         isMulti={true}
         size="small"
-        className="w-48"
+        className="w-72"
       />
 
       {hasActiveFilter && onResetFilter && (

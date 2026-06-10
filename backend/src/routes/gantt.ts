@@ -13,7 +13,7 @@ router.use(authenticateToken);
 router.get('/project/:projectId', requirePermission('projects.gantt', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const projectId = Number(req.params.projectId);
-    const { trackerId, assignedToId, assignedToIds, statusId } = req.query;
+    const { trackerId, trackerIds, assignedToId, assignedToIds, statusId, statusIds } = req.query;
 
     // Get project with dueDate
     const project = await prisma.project.findUnique({
@@ -29,10 +29,12 @@ router.get('/project/:projectId', requirePermission('projects.gantt', 'use'), as
       projectId: projectId,
       OR: [{ startDate: { not: null } }, { dueDate: { not: null } }],
     };
-    if (trackerId) where.trackerId = Number(trackerId);
+    const filterTrackerIds = parseNumericQueryIds(trackerIds ?? trackerId);
+    if (filterTrackerIds.length > 0) where.trackerId = { in: filterTrackerIds };
     const assigneeIds = parseNumericQueryIds(assignedToIds ?? assignedToId);
     if (assigneeIds.length > 0) where.assignedToId = { in: assigneeIds };
-    if (statusId) where.statusId = Number(statusId);
+    const filterStatusIds = parseNumericQueryIds(statusIds ?? statusId);
+    if (filterStatusIds.length > 0) where.statusId = { in: filterStatusIds };
 
     const issues = await prisma.issue.findMany({
       where,
@@ -57,7 +59,7 @@ router.get('/project/:projectId', requirePermission('projects.gantt', 'use'), as
 // Get gantt data for all projects
 router.get('/all', requirePermission('projects.gantt', 'use'), async (req: AuthRequest, res: Response) => {
   try {
-    const { trackerId, assignedToId, assignedToIds, statusId } = req.query;
+    const { trackerId, trackerIds, assignedToId, assignedToIds, statusId, statusIds } = req.query;
 
     // Get all active projects
     const projects = await prisma.project.findMany({
@@ -78,10 +80,12 @@ router.get('/all', requirePermission('projects.gantt', 'use'), async (req: AuthR
     const where: any = {
       OR: [{ startDate: { not: null } }, { dueDate: { not: null } }],
     };
-    if (trackerId) where.trackerId = Number(trackerId);
+    const filterTrackerIds = parseNumericQueryIds(trackerIds ?? trackerId);
+    if (filterTrackerIds.length > 0) where.trackerId = { in: filterTrackerIds };
     const assigneeIds = parseNumericQueryIds(assignedToIds ?? assignedToId);
     if (assigneeIds.length > 0) where.assignedToId = { in: assigneeIds };
-    if (statusId) where.statusId = Number(statusId);
+    const filterStatusIds = parseNumericQueryIds(statusIds ?? statusId);
+    if (filterStatusIds.length > 0) where.statusId = { in: filterStatusIds };
 
     const issues = await prisma.issue.findMany({
       where,

@@ -1,24 +1,29 @@
-import { useState, useEffect, useCallback, useMemo, FormEvent } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { List, BarChart2, Kanban, Clock } from 'lucide-react';
 import api from '../api/client';
 import { Project, Company, Issue, IssueStatus, TimeEntry } from '../types';
 import Modal from '../components/Modal';
 import GanttChart from '../components/GanttChart';
-import TicketSearchSection from '../components/TicketSearchSection';
-import ProjectSearchSection from '../components/ProjectSearchSection';
+import ProjectListFilterPanel from '../components/ProjectListFilterPanel';
 import KanbanBoard from '../components/KanbanBoard';
 import IssueDetail from '../components/IssueDetail';
 import { IssueFormModal } from '../components/IssueForm';
 import Combobox from '../components/Combobox';
 import TextInput from '../components/TextInput';
 import DateInput from '../components/DateInput';
-import TimeRecordSearchSection from '../components/TimeRecordSearchSection';
 import TimeRecordTree from '../components/TimeRecordTree';
 import { useAuth } from '../hooks/useAuth';
 import { useProjectListFilters } from '../hooks/useProjectListFilters';
 import { filterProjects, filteredProjectIdSet } from '../utils/projectFilter';
 import { filterIssues, filterIssuesByProjectIds } from '../utils/issueFilter';
+import {
+  timeViewAssignedToIds,
+  timeViewRecordDateRange,
+  timeViewRecordUserIds,
+  timeViewTicketDueDateRange,
+} from '../utils/projectListTimeDefaults';
+import type { ProjectListViewMode } from '../utils/projectListStorage';
 
 export default function ProjectListPage() {
   const navigate = useNavigate();
@@ -67,18 +72,62 @@ export default function ProjectListPage() {
   const [timeRecordStartDate, setTimeRecordStartDate] = useState('');
   const [timeRecordEndDate, setTimeRecordEndDate] = useState('');
   const [timeRecordFilterUserIds, setTimeRecordFilterUserIds] = useState<(number | string)[]>([]);
+  const prevViewModeRef = useRef<ProjectListViewMode | null>(null);
+  const timeDefaultsUserIdRef = useRef<number | null>(null);
 
-  const resetTicketSearchFilter = useCallback(() => {
+  const applyTimeViewDefaults = useCallback(() => {
+    if (!user) return;
+    const { startDate, endDate } = timeViewRecordDateRange();
+    const { dueDateStart, dueDateEnd } = timeViewTicketDueDateRange();
+    updateIssueFilter({
+      assignedToIds: timeViewAssignedToIds(user.id),
+      dueDateStart,
+      dueDateEnd,
+    });
+    setTimeRecordStartDate(startDate);
+    setTimeRecordEndDate(endDate);
+    setTimeRecordFilterUserIds(timeViewRecordUserIds(user.id));
+    timeDefaultsUserIdRef.current = user.id;
+  }, [user, updateIssueFilter]);
+
+  useEffect(() => {
+    if (viewMode !== 'time' || !user) {
+      if (viewMode !== 'time') {
+        prevViewModeRef.current = viewMode;
+        timeDefaultsUserIdRef.current = null;
+      }
+      return;
+    }
+    const enteredTime = prevViewModeRef.current !== 'time';
+    const userBecameAvailable = timeDefaultsUserIdRef.current !== user.id;
+    if (enteredTime || userBecameAvailable) {
+      applyTimeViewDefaults();
+    }
+    prevViewModeRef.current = viewMode;
+  }, [viewMode, user, applyTimeViewDefaults]);
+
+  const resetAllFilters = useCallback(() => {
+    resetProjectFilter();
     resetIssueFilter();
     setGanttStartValue('');
     setGanttEndValue('');
-  }, [resetIssueFilter]);
-
-  const resetTimeRecordFilter = useCallback(() => {
-    setTimeRecordStartDate('');
-    setTimeRecordEndDate('');
-    setTimeRecordFilterUserIds([]);
-  }, []);
+    if (viewMode === 'time' && user) {
+      const { startDate, endDate } = timeViewRecordDateRange();
+      const { dueDateStart, dueDateEnd } = timeViewTicketDueDateRange();
+      updateIssueFilter({
+        assignedToIds: timeViewAssignedToIds(user.id),
+        dueDateStart,
+        dueDateEnd,
+      });
+      setTimeRecordStartDate(startDate);
+      setTimeRecordEndDate(endDate);
+      setTimeRecordFilterUserIds(timeViewRecordUserIds(user.id));
+    } else {
+      setTimeRecordStartDate('');
+      setTimeRecordEndDate('');
+      setTimeRecordFilterUserIds([]);
+    }
+  }, [resetProjectFilter, resetIssueFilter, viewMode, user, updateIssueFilter]);
 
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState<number | null>(null);
@@ -120,8 +169,8 @@ export default function ProjectListPage() {
 
   const loadTimeData = useCallback(() => {
     const issueParams: Record<string, string | number> = {};
-    if (issueFilter.trackerId) issueParams.trackerId = issueFilter.trackerId;
-    if (issueFilter.statusId) issueParams.statusId = issueFilter.statusId;
+    if (issueFilter.trackerIds.length > 0) issueParams.trackerIds = issueFilter.trackerIds.join(',');
+    if (issueFilter.statusIds.length > 0) issueParams.statusIds = issueFilter.statusIds.join(',');
     if (issueFilter.assignedToIds.length > 0) {
       issueParams.assignedToIds = issueFilter.assignedToIds.join(',');
     }
@@ -141,8 +190,8 @@ export default function ProjectListPage() {
       setTimeEntries(entriesRes.data);
     });
   }, [
-    issueFilter.trackerId,
-    issueFilter.statusId,
+    issueFilter.trackerIds,
+    issueFilter.statusIds,
     issueFilter.assignedToIds,
     timeRecordStartDate,
     timeRecordEndDate,
@@ -267,8 +316,8 @@ export default function ProjectListPage() {
   );
 
   const filteredGanttIssues = useMemo(
-    () => filterIssuesByProjectIds(ganttIssues, projectIds),
-    [ganttIssues, projectIds],
+    () => filterIssues(filterIssuesByProjectIds(ganttIssues, projectIds), issueFilter),
+    [ganttIssues, projectIds, issueFilter],
   );
 
   const kanbanFilteredIssues = useMemo(
@@ -277,14 +326,11 @@ export default function ProjectListPage() {
   );
 
   const timeFilteredIssues = useMemo(
-    () => filterIssuesByProjectIds(timeIssues, projectIds),
-    [timeIssues, projectIds],
+    () => filterIssues(filterIssuesByProjectIds(timeIssues, projectIds), issueFilter),
+    [timeIssues, projectIds, issueFilter],
   );
 
-  const ganttDisplayIssueCount = useMemo(
-    () => filterIssues(filteredGanttIssues, issueFilter).length,
-    [filteredGanttIssues, issueFilter],
-  );
+  const ganttDisplayIssueCount = filteredGanttIssues.length;
 
   return (
     <div>
@@ -335,59 +381,38 @@ export default function ProjectListPage() {
         </div>
       </div>
 
-      <ProjectSearchSection
-        filter={projectFilter}
-        onFilterChange={updateProjectFilter}
-        onResetFilter={resetProjectFilter}
+      <ProjectListFilterPanel
+        viewMode={viewMode}
         companies={companies}
-        totalCount={filteredProjects.length}
+        projectFilter={projectFilter}
+        onProjectFilterChange={updateProjectFilter}
+        issueFilter={issueFilter}
+        onIssueFilterChange={updateIssueFilter}
+        ganttZoom={ganttZoom}
+        ganttStartValue={ganttStartValue}
+        onGanttStartValueChange={setGanttStartValue}
+        ganttEndValue={ganttEndValue}
+        onGanttEndValueChange={setGanttEndValue}
+        timeRecordStartDate={timeRecordStartDate}
+        onTimeRecordStartDateChange={setTimeRecordStartDate}
+        timeRecordEndDate={timeRecordEndDate}
+        onTimeRecordEndDateChange={setTimeRecordEndDate}
+        timeRecordFilterUserIds={timeRecordFilterUserIds}
+        onTimeRecordFilterUserIdsChange={setTimeRecordFilterUserIds}
+        onResetAll={resetAllFilters}
+        projectCount={filteredProjects.length}
+        issueCount={
+          viewMode === 'gantt'
+            ? ganttDisplayIssueCount
+            : viewMode === 'kanban'
+              ? kanbanFilteredIssues.length
+              : viewMode === 'time'
+                ? timeFilteredIssues.length
+                : undefined
+        }
+        entryCount={viewMode === 'time' ? timeEntries.length : undefined}
         onNewProjectClick={openCreateProjectModal}
       />
-
-      {(viewMode === 'gantt' || viewMode === 'kanban' || viewMode === 'time') && (
-        <div className="mb-4">
-          <TicketSearchSection
-            zoom={viewMode === 'gantt' ? ganttZoom : undefined}
-            startValue={viewMode === 'gantt' ? ganttStartValue : undefined}
-            onStartValueChange={viewMode === 'gantt' ? setGanttStartValue : undefined}
-            endValue={viewMode === 'gantt' ? ganttEndValue : undefined}
-            onEndValueChange={viewMode === 'gantt' ? setGanttEndValue : undefined}
-            filterTrackerId={issueFilter.trackerId}
-            onFilterTrackerIdChange={(value) => updateIssueFilter({ trackerId: value })}
-            filterStatusId={issueFilter.statusId}
-            onFilterStatusIdChange={(value) => updateIssueFilter({ statusId: value })}
-            filterAssignedToIds={issueFilter.assignedToIds}
-            onFilterAssignedToIdsChange={(values) => updateIssueFilter({ assignedToIds: values })}
-            dueDateStart={viewMode === 'kanban' ? issueFilter.dueDateStart : undefined}
-            onDueDateStartChange={viewMode === 'kanban' ? (value) => updateIssueFilter({ dueDateStart: value }) : undefined}
-            dueDateEnd={viewMode === 'kanban' ? issueFilter.dueDateEnd : undefined}
-            onDueDateEndChange={viewMode === 'kanban' ? (value) => updateIssueFilter({ dueDateEnd: value }) : undefined}
-            onResetFilter={resetTicketSearchFilter}
-            issueCount={
-              viewMode === 'gantt'
-                ? ganttDisplayIssueCount
-                : viewMode === 'kanban'
-                  ? kanbanFilteredIssues.length
-                  : timeFilteredIssues.length
-            }
-          />
-        </div>
-      )}
-
-      {viewMode === 'time' && (
-        <div className="mb-4">
-          <TimeRecordSearchSection
-            startDate={timeRecordStartDate}
-            onStartDateChange={setTimeRecordStartDate}
-            endDate={timeRecordEndDate}
-            onEndDateChange={setTimeRecordEndDate}
-            filterUserIds={timeRecordFilterUserIds}
-            onFilterUserIdsChange={setTimeRecordFilterUserIds}
-            onResetFilter={resetTimeRecordFilter}
-            entryCount={timeEntries.length}
-          />
-        </div>
-      )}
 
       {viewMode === 'list' && (
         <div className="bg-white rounded-lg shadow">
@@ -456,10 +481,10 @@ export default function ProjectListPage() {
           onStartValueChange={setGanttStartValue}
           endValue={ganttEndValue}
           onEndValueChange={setGanttEndValue}
-          filterTrackerId={issueFilter.trackerId}
-          onFilterTrackerIdChange={(value) => updateIssueFilter({ trackerId: value })}
-          filterStatusId={issueFilter.statusId}
-          onFilterStatusIdChange={(value) => updateIssueFilter({ statusId: value })}
+          filterTrackerIds={issueFilter.trackerIds}
+          onFilterTrackerIdsChange={(values) => updateIssueFilter({ trackerIds: values })}
+          filterStatusIds={issueFilter.statusIds}
+          onFilterStatusIdsChange={(values) => updateIssueFilter({ statusIds: values })}
           filterAssignedToIds={issueFilter.assignedToIds}
           onFilterAssignedToIdsChange={(values) => updateIssueFilter({ assignedToIds: values })}
           collapsedProjects={ganttCollapsedProjects}
@@ -480,7 +505,7 @@ export default function ProjectListPage() {
       {viewMode === 'time' && (
         <TimeRecordTree
           projects={filteredProjects}
-          issues={timeIssues}
+          issues={timeFilteredIssues}
           timeEntries={timeEntries}
           onRefresh={loadTimeData}
         />

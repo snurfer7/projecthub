@@ -13,11 +13,13 @@ router.use(authenticateToken);
 // List issues (with filters)
 router.get('/', requirePermission('projects.issues', 'use'), async (req: AuthRequest, res: Response) => {
   try {
-    const { projectId, statusId, trackerId, priorityId, assignedToId, assignedToIds, assignedToGroupId } = req.query;
+    const { projectId, statusId, statusIds, trackerId, trackerIds, priorityId, assignedToId, assignedToIds, assignedToGroupId } = req.query;
     const where: any = {};
     if (projectId && !isNaN(Number(projectId))) where.projectId = Number(projectId);
-    if (statusId && String(statusId).trim() !== '' && !isNaN(Number(statusId))) where.statusId = Number(statusId);
-    if (trackerId && String(trackerId).trim() !== '' && !isNaN(Number(trackerId))) where.trackerId = Number(trackerId);
+    const filterStatusIds = parseNumericQueryIds(statusIds ?? statusId);
+    if (filterStatusIds.length > 0) where.statusId = { in: filterStatusIds };
+    const filterTrackerIds = parseNumericQueryIds(trackerIds ?? trackerId);
+    if (filterTrackerIds.length > 0) where.trackerId = { in: filterTrackerIds };
     if (priorityId && String(priorityId).trim() !== '' && !isNaN(Number(priorityId))) where.priorityId = Number(priorityId);
     const assigneeIds = parseNumericQueryIds(assignedToIds ?? assignedToId);
     if (assigneeIds.length > 0) where.assignedToId = { in: assigneeIds };
