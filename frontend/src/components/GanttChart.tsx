@@ -32,6 +32,8 @@ interface GanttChartProps {
   onFilterStatusIdsChange?: (values: (number | string)[]) => void;
   filterAssignedToIds?: (number | string)[];
   onFilterAssignedToIdsChange?: (values: (number | string)[]) => void;
+  filterAssignedToGroupIds?: (number | string)[];
+  filterAssignedToGroupMemberIds?: (number | string)[];
   collapsedProjects?: Set<number>;
   onCollapsedProjectsChange?: (collapsed: Set<number>) => void;
 }
@@ -358,6 +360,8 @@ export default function GanttChart({
   onFilterStatusIdsChange,
   filterAssignedToIds: propsFilterAssignedToIds = [],
   onFilterAssignedToIdsChange,
+  filterAssignedToGroupIds: propsFilterAssignedToGroupIds = [],
+  filterAssignedToGroupMemberIds: propsFilterAssignedToGroupMemberIds = [],
   collapsedProjects: propsCollapsedProjects = new Set(),
   onCollapsedProjectsChange,
 }: GanttChartProps) {
@@ -414,7 +418,9 @@ export default function GanttChart({
     setInternalFilterAssignedToIds(v);
     onFilterAssignedToIdsChange?.(v);
   };
-  
+  const filterAssignedToGroupIds = propsFilterAssignedToGroupIds;
+  const filterAssignedToGroupMemberIds = propsFilterAssignedToGroupMemberIds;
+
   const collapsedProjects = propsCollapsedProjects ?? internalCollapsedProjects;
   const setCollapsedProjects = (c: Set<number>) => {
     setInternalCollapsedProjects(c);
@@ -617,21 +623,30 @@ export default function GanttChart({
       if (filterTrackerIds.length > 0 && !filterTrackerIds.some((id) => String(id) === String(issue.trackerId))) {
         return false;
       }
-      if (filterAssignedToIds.length > 0) {
-        const assigneeId = issue.assignedToId;
-        if (
-          assigneeId == null ||
-          !filterAssignedToIds.some((id) => String(id) === String(assigneeId))
-        ) {
-          return false;
-        }
+      const hasUserFilter = filterAssignedToIds.length > 0;
+      const hasGroupFilter = filterAssignedToGroupIds != null && filterAssignedToGroupIds.length > 0;
+      const hasGroupMemberFilter = filterAssignedToGroupMemberIds != null && filterAssignedToGroupMemberIds.length > 0;
+      if (hasUserFilter || hasGroupFilter || hasGroupMemberFilter) {
+        const userMatch =
+          hasUserFilter &&
+          issue.assignedToId != null &&
+          filterAssignedToIds.some((id) => String(id) === String(issue.assignedToId));
+        const groupMemberMatch =
+          hasGroupMemberFilter &&
+          issue.assignedToId != null &&
+          filterAssignedToGroupMemberIds!.some((id) => String(id) === String(issue.assignedToId));
+        const groupMatch =
+          hasGroupFilter &&
+          issue.assignedToGroupId != null &&
+          filterAssignedToGroupIds!.some((id) => String(id) === String(issue.assignedToGroupId));
+        if (!userMatch && !groupMemberMatch && !groupMatch) return false;
       }
       if (filterStatusIds.length > 0 && !filterStatusIds.some((id) => String(id) === String(issue.statusId))) {
         return false;
       }
       return true;
     });
-  }, [issues, filterTrackerIds, filterAssignedToIds, filterStatusIds]);
+  }, [issues, filterTrackerIds, filterAssignedToIds, filterAssignedToGroupIds, filterAssignedToGroupMemberIds, filterStatusIds]);
 
   const trackerColorMap = useMemo(() => {
     const map: Record<number, string> = {};

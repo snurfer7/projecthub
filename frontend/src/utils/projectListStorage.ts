@@ -73,10 +73,18 @@ function parseIssueFilter(o: unknown): IssueFilterCriteria | null {
   if (trackerIds === null || statusIds === null || assignedToIds === null) return null;
   if (typeof f.dueDateStart !== 'string') return null;
   if (typeof f.dueDateEnd !== 'string') return null;
+  const assignedToGroupIds = Array.isArray(f.assignedToGroupIds)
+    ? (f.assignedToGroupIds as (number | string)[])
+    : [];
+  const assignedToGroupMemberIds = Array.isArray(f.assignedToGroupMemberIds)
+    ? (f.assignedToGroupMemberIds as (number | string)[])
+    : [];
   return {
     trackerIds,
     statusIds,
     assignedToIds,
+    assignedToGroupIds,
+    assignedToGroupMemberIds,
     dueDateStart: f.dueDateStart,
     dueDateEnd: f.dueDateEnd,
   };

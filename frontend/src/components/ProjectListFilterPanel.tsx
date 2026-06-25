@@ -95,6 +95,7 @@ export default function ProjectListFilterPanel({
   const [trackers, setTrackers] = useState<Tracker[]>([]);
   const [statuses, setStatuses] = useState<IssueStatus[]>([]);
   const [users, setUsers] = useState<{ id: number; firstName: string; lastName: string }[]>([]);
+  const [groups, setGroups] = useState<{ id: number; name: string; members: { userId: number }[] }[]>([]);
 
   useEffect(() => {
     if (viewMode === 'list') return;
@@ -102,6 +103,7 @@ export default function ProjectListFilterPanel({
       setTrackers(res.data.trackers);
       setStatuses(res.data.statuses);
       setUsers(res.data.users);
+      setGroups(res.data.groups ?? []);
     });
   }, [viewMode]);
 
@@ -133,6 +135,7 @@ export default function ProjectListFilterPanel({
     issueFilter.trackerIds.length > 0 ||
     issueFilter.statusIds.length > 0 ||
     issueFilter.assignedToIds.length > 0 ||
+    issueFilter.assignedToGroupIds.length > 0 ||
     issueFilter.dueDateStart !== '' ||
     issueFilter.dueDateEnd !== '' ||
     ganttStartValue !== '' ||
@@ -308,9 +311,27 @@ export default function ProjectListFilterPanel({
             />
             <Combobox
               label="担当者"
-              value={issueFilter.assignedToIds}
-              options={users.map((u) => ({ value: u.id.toString(), label: `${u.lastName} ${u.firstName}` }))}
-              onChange={(values) => onIssueFilterChange({ assignedToIds: values })}
+              value={[
+                ...issueFilter.assignedToIds.map((id) => String(id)),
+                ...issueFilter.assignedToGroupIds.map((id) => `g:${id}`),
+              ]}
+              options={[
+                ...users.map((u) => ({ value: u.id.toString(), label: `${u.lastName} ${u.firstName}` })),
+                ...groups.map((g) => ({ value: `g:${g.id}`, label: `[グループ] ${g.name}` })),
+              ]}
+              onChange={(values) => {
+                const groupIds = values.filter((v) => String(v).startsWith('g:')).map((v) => String(v).slice(2));
+                const userIds = values.filter((v) => !String(v).startsWith('g:'));
+                const memberIds = Array.from(
+                  new Set(
+                    groupIds.flatMap((gid) => {
+                      const g = groups.find((grp) => String(grp.id) === String(gid));
+                      return g ? g.members.map((m) => String(m.userId)) : [];
+                    }),
+                  ),
+                );
+                onIssueFilterChange({ assignedToIds: userIds, assignedToGroupIds: groupIds, assignedToGroupMemberIds: memberIds });
+              }}
               placeholder="全員"
               isMulti={true}
               size="small"

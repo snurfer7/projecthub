@@ -82,7 +82,7 @@ router.get('/meta/options', requirePermission('projects.issues', 'use'), async (
     ]);
 
     let users: { id: number; firstName: string; lastName: string }[] = [];
-    let groups: { id: number; name: string }[] = [];
+    let groups: { id: number; name: string; members: { userId: number }[] }[] = [];
 
     if (projectId) {
       // Get explicit members and users who are in groups assigned to this project
@@ -93,7 +93,11 @@ router.get('/meta/options', requirePermission('projects.issues', 'use'), async (
         }),
         (prisma as any).projectGroup.findMany({
           where: { projectId: Number(projectId) },
-          include: { group: { select: { id: true, name: true } } }
+          include: {
+            group: {
+              include: { members: { select: { userId: true } } },
+            },
+          },
         })
       ]);
 
@@ -104,7 +108,13 @@ router.get('/meta/options', requirePermission('projects.issues', 'use'), async (
       users = Array.from(userMap.values());
       groups = projectGroups.map((pg: any) => pg.group);
     } else {
-      users = await prisma.user.findMany({ select: { id: true, firstName: true, lastName: true, status: true } });
+      [users, groups] = await Promise.all([
+        prisma.user.findMany({ select: { id: true, firstName: true, lastName: true, status: true } }),
+        (prisma as any).group.findMany({
+          include: { members: { select: { userId: true } } },
+          orderBy: { name: 'asc' },
+        }),
+      ]);
     }
 
     res.json({ trackers, statuses, priorities, users, groups });

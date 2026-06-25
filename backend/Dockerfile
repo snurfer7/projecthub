@@ -9,6 +9,7 @@ COPY backend ./backend/
 
 WORKDIR /app/backend
 RUN npm install
+RUN npm run build
 
 # Generate Prisma Client (schema lives under backend/prisma in the repo)
 RUN npx prisma generate --schema=./prisma/schema.prisma

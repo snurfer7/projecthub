@@ -487,6 +487,8 @@ export default function ProjectListPage() {
           onFilterStatusIdsChange={(values) => updateIssueFilter({ statusIds: values })}
           filterAssignedToIds={issueFilter.assignedToIds}
           onFilterAssignedToIdsChange={(values) => updateIssueFilter({ assignedToIds: values })}
+          filterAssignedToGroupIds={issueFilter.assignedToGroupIds}
+          filterAssignedToGroupMemberIds={issueFilter.assignedToGroupMemberIds}
           collapsedProjects={ganttCollapsedProjects}
           onCollapsedProjectsChange={setGanttCollapsedProjects}
         />

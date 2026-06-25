@@ -20,6 +20,7 @@ type PermissionCatalogModule = {
 export function loadPermissionCatalog(): PermissionCatalogModule {
   const candidates = [
     path.join(__dirname, '../../dist/constants/permissionCatalog'),
+    path.join(__dirname, '../../src/constants/permissionCatalog'),
     path.join(__dirname, '../../constants/permissionCatalog'),
   ];
   for (const candidate of candidates) {
