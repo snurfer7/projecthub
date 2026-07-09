@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef, FormEvent } from 're
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { List, BarChart2, Kanban, Clock } from 'lucide-react';
 import api from '../api/client';
-import { Project, Company, Issue, IssueStatus, TimeEntry } from '../types';
+import { Project, Company, Issue, IssueStatus, TimeEntry, SavedSearch } from '../types';
 import Modal from '../components/Modal';
 import GanttChart from '../components/GanttChart';
 import ProjectListFilterPanel from '../components/ProjectListFilterPanel';
@@ -33,9 +33,11 @@ export default function ProjectListPage() {
     viewMode,
     setViewMode,
     projectFilter,
+    setProjectFilter,
     updateProjectFilter,
     resetProjectFilter,
     issueFilter,
+    setIssueFilter,
     updateIssueFilter,
     resetIssueFilter,
     ganttZoom,
@@ -67,6 +69,9 @@ export default function ProjectListPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const { user } = useAuth();
 
+  // 保存済み検索
+  const [activeSavedSearchId, setActiveSavedSearchId] = useState<number | null>(null);
+
   const [timeIssues, setTimeIssues] = useState<Issue[]>([]);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [timeRecordStartDate, setTimeRecordStartDate] = useState('');
@@ -90,6 +95,48 @@ export default function ProjectListPage() {
     timeDefaultsUserIdRef.current = user.id;
   }, [user, updateIssueFilter]);
 
+  /** 保存済み検索条件を画面状態に反映する（日付項目は保持） */
+  const applyFilter = useCallback(
+    (search: SavedSearch) => {
+      const f = search.filter;
+      if (f.projectFilter) setProjectFilter((prev) => ({ ...prev, ...f.projectFilter }));
+      if (f.issueFilter) setIssueFilter((prev) => ({ ...prev, ...f.issueFilter }));
+      if (f.ganttZoom) setGanttZoom(f.ganttZoom);
+      if (f.timeRecordFilterUserIds !== undefined) setTimeRecordFilterUserIds(f.timeRecordFilterUserIds);
+      setActiveSavedSearchId(search.id);
+    },
+    [setProjectFilter, setIssueFilter, setGanttZoom],
+  );
+
+  /** 保存済み検索のデフォルトを自動適用（表示モード切替時） */
+  const applyDefaultSavedSearch = useCallback(
+    async (mode: ProjectListViewMode) => {
+      try {
+        const res = await api.get('/saved-searches', { params: { viewMode: mode } });
+        const list: SavedSearch[] = res.data;
+        const def = list.find((s) => s.isDefault);
+        if (def) applyFilter(def);
+      } catch {
+        // 接続エラーは無視
+      }
+    },
+    [applyFilter],
+  );
+
+  // ビュー切替時: 条件リセット → デフォルト保存済み検索を適用
+  // ※ 時間タブ初期値エフェクトより先に定義することで、React のエフェクト実行順（定義順）に従い
+  //   このリセットが先に走り、その後に時間タブ初期値が上書きされる形になる
+  const prevViewModeForSavedRef = useRef<ProjectListViewMode | null>(null);
+  useEffect(() => {
+    if (prevViewModeForSavedRef.current === viewMode) return;
+    prevViewModeForSavedRef.current = viewMode;
+    resetProjectFilter();
+    resetIssueFilter();
+    setActiveSavedSearchId(null);
+    applyDefaultSavedSearch(viewMode);
+  }, [viewMode, resetProjectFilter, resetIssueFilter, applyDefaultSavedSearch]);
+
+  // 時間タブの初期値を適用（保存済みデフォルト検索がない場合のみ）
   useEffect(() => {
     if (viewMode !== 'time' || !user) {
       if (viewMode !== 'time') {
@@ -100,17 +147,18 @@ export default function ProjectListPage() {
     }
     const enteredTime = prevViewModeRef.current !== 'time';
     const userBecameAvailable = timeDefaultsUserIdRef.current !== user.id;
-    if (enteredTime || userBecameAvailable) {
+    if ((enteredTime || userBecameAvailable) && activeSavedSearchId == null) {
       applyTimeViewDefaults();
     }
     prevViewModeRef.current = viewMode;
-  }, [viewMode, user, applyTimeViewDefaults]);
+  }, [viewMode, user, applyTimeViewDefaults, activeSavedSearchId]);
 
   const resetAllFilters = useCallback(() => {
     resetProjectFilter();
     resetIssueFilter();
     setGanttStartValue('');
     setGanttEndValue('');
+    setActiveSavedSearchId(null);
     if (viewMode === 'time' && user) {
       const { startDate, endDate } = timeViewRecordDateRange();
       const { dueDateStart, dueDateEnd } = timeViewTicketDueDateRange();
@@ -385,20 +433,26 @@ export default function ProjectListPage() {
         viewMode={viewMode}
         companies={companies}
         projectFilter={projectFilter}
-        onProjectFilterChange={updateProjectFilter}
+        onProjectFilterChange={(patch) => {
+          updateProjectFilter(patch);
+          setActiveSavedSearchId(null);
+        }}
         issueFilter={issueFilter}
-        onIssueFilterChange={updateIssueFilter}
+        onIssueFilterChange={(patch) => {
+          updateIssueFilter(patch);
+          setActiveSavedSearchId(null);
+        }}
         ganttZoom={ganttZoom}
         ganttStartValue={ganttStartValue}
-        onGanttStartValueChange={setGanttStartValue}
+        onGanttStartValueChange={(v) => { setGanttStartValue(v); setActiveSavedSearchId(null); }}
         ganttEndValue={ganttEndValue}
-        onGanttEndValueChange={setGanttEndValue}
+        onGanttEndValueChange={(v) => { setGanttEndValue(v); setActiveSavedSearchId(null); }}
         timeRecordStartDate={timeRecordStartDate}
-        onTimeRecordStartDateChange={setTimeRecordStartDate}
+        onTimeRecordStartDateChange={(v) => { setTimeRecordStartDate(v); setActiveSavedSearchId(null); }}
         timeRecordEndDate={timeRecordEndDate}
-        onTimeRecordEndDateChange={setTimeRecordEndDate}
+        onTimeRecordEndDateChange={(v) => { setTimeRecordEndDate(v); setActiveSavedSearchId(null); }}
         timeRecordFilterUserIds={timeRecordFilterUserIds}
-        onTimeRecordFilterUserIdsChange={setTimeRecordFilterUserIds}
+        onTimeRecordFilterUserIdsChange={(v) => { setTimeRecordFilterUserIds(v); setActiveSavedSearchId(null); }}
         onResetAll={resetAllFilters}
         projectCount={filteredProjects.length}
         issueCount={
@@ -412,6 +466,8 @@ export default function ProjectListPage() {
         }
         entryCount={viewMode === 'time' ? timeEntries.length : undefined}
         onNewProjectClick={openCreateProjectModal}
+        activeSavedSearchId={activeSavedSearchId}
+        onLoadSavedSearch={applyFilter}
       />
 
       {viewMode === 'list' && (
@@ -482,11 +538,11 @@ export default function ProjectListPage() {
           endValue={ganttEndValue}
           onEndValueChange={setGanttEndValue}
           filterTrackerIds={issueFilter.trackerIds}
-          onFilterTrackerIdsChange={(values) => updateIssueFilter({ trackerIds: values })}
+          onFilterTrackerIdsChange={(values) => { updateIssueFilter({ trackerIds: values }); setActiveSavedSearchId(null); }}
           filterStatusIds={issueFilter.statusIds}
-          onFilterStatusIdsChange={(values) => updateIssueFilter({ statusIds: values })}
+          onFilterStatusIdsChange={(values) => { updateIssueFilter({ statusIds: values }); setActiveSavedSearchId(null); }}
           filterAssignedToIds={issueFilter.assignedToIds}
-          onFilterAssignedToIdsChange={(values) => updateIssueFilter({ assignedToIds: values })}
+          onFilterAssignedToIdsChange={(values) => { updateIssueFilter({ assignedToIds: values }); setActiveSavedSearchId(null); }}
           filterAssignedToGroupIds={issueFilter.assignedToGroupIds}
           filterAssignedToGroupMemberIds={issueFilter.assignedToGroupMemberIds}
           collapsedProjects={ganttCollapsedProjects}

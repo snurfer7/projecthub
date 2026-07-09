@@ -31,6 +31,8 @@
 - 管理画面のメール設定は `GET/PUT admin/settings/email`、`POST admin/settings/email/test`（Body: `toEmail`）を使用する。SMTP パスワードは PUT でのみ送り、GET では `smtpPasswordSet` のみ参照する。
 - 活動履歴からファイルを付ける場合は、活動保存後に `api.post('companies/:companyId/comments', { sourceActivityId })` でファイル用コメントを紐づけ、続けて `companyCommentId` 付きでアップロードする。一覧・編集では `GET /crm/activities?companyId=...` の `fileComment.attachments` を使い、`attachments/token/:id` と `attachments/file/:id?downloadToken=` でダウンロード、`DELETE attachments/:id` で削除する（コメントタブの添付一覧とも同期）。活動削除は `api.delete('crm/activities/:id', { params: { deleteLinkedComment: 'true' | 'false' } })` — ファイル用コメントがあるとき `true` でコメント・添付も削除、`false` で活動のみ削除（未指定は API 仕様どおりコメントは残す）。コメント一覧から活動への強調表示は `?tab=activities&activity=<id>` を利用する。
 
+- 保存済み検索条件は `api.get('saved-searches', { params: { viewMode } })` で取得（`SavedSearch[]`）。作成は `api.post('saved-searches', { viewMode, name, filter, isDefault? })`、更新は `api.put('saved-searches/:id', { name?, filter?, isDefault? })`、削除は `api.delete('saved-searches/:id')`。契約は `API_SPEC.md` の `/api/saved-searches` を参照。
+
 ## 開発時のプロキシ
 
 Vite で `/api` をバックエンド（例: `http://localhost:3000`）にプロキシする設定を推奨。`vite.config.ts` の `server.proxy` で `/api` → バックエンド URL に転送する。

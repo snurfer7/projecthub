@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import api from '../api/client';
-import { Company, IssueStatus, Tracker } from '../types';
+import { Company, IssueStatus, Tracker, SavedSearch } from '../types';
 import type { ProjectFilterCriteria } from '../utils/projectFilter';
 import type { IssueFilterCriteria } from '../utils/issueFilter';
 import type { ProjectListViewMode } from '../utils/projectListStorage';
@@ -9,6 +9,7 @@ import Combobox from './Combobox';
 import TextInput from './TextInput';
 import DateInput from './DateInput';
 import CustomDatePicker from './CustomDatePicker';
+import SavedSearchDropdown from './SavedSearchDropdown';
 import { formatDateToYYYYMMDD } from '../utils/format';
 
 interface ProjectListFilterPanelProps {
@@ -34,6 +35,10 @@ interface ProjectListFilterPanelProps {
   issueCount?: number;
   entryCount?: number;
   onNewProjectClick: () => void;
+  /** 保存済み検索: 現在アクティブな ID */
+  activeSavedSearchId: number | null;
+  /** 保存済み検索をロードしたときのコールバック */
+  onLoadSavedSearch: (search: SavedSearch) => void;
 }
 
 function FilterRow({ label, children }: { label: string; children: React.ReactNode }) {
@@ -91,6 +96,8 @@ export default function ProjectListFilterPanel({
   issueCount,
   entryCount,
   onNewProjectClick,
+  activeSavedSearchId,
+  onLoadSavedSearch,
 }: ProjectListFilterPanelProps) {
   const [trackers, setTrackers] = useState<Tracker[]>([]);
   const [statuses, setStatuses] = useState<IssueStatus[]>([]);
@@ -132,6 +139,7 @@ export default function ProjectListFilterPanel({
     projectFilter.dueDateStart !== '' ||
     projectFilter.dueDateEnd !== '' ||
     projectFilter.companyIds.length > 0 ||
+    projectFilter.statuses.length > 0 ||
     issueFilter.trackerIds.length > 0 ||
     issueFilter.statusIds.length > 0 ||
     issueFilter.assignedToIds.length > 0 ||
@@ -210,6 +218,23 @@ export default function ProjectListFilterPanel({
     </>
   );
 
+  const currentFilter: SavedSearch['filter'] = {
+    projectFilter: {
+      searchQuery: projectFilter.searchQuery,
+      companyIds: projectFilter.companyIds,
+      statuses: projectFilter.statuses,
+    },
+    issueFilter: {
+      trackerIds: issueFilter.trackerIds,
+      statusIds: issueFilter.statusIds,
+      assignedToIds: issueFilter.assignedToIds,
+      assignedToGroupIds: issueFilter.assignedToGroupIds,
+      assignedToGroupMemberIds: issueFilter.assignedToGroupMemberIds,
+    },
+    ganttZoom,
+    timeRecordFilterUserIds,
+  };
+
   return (
     <div className="bg-white rounded-lg shadow mb-4 overflow-hidden">
       <div className="flex flex-wrap items-center gap-3 p-3 border-b border-gray-100">
@@ -224,6 +249,12 @@ export default function ProjectListFilterPanel({
             className="pl-9 w-full"
           />
         </div>
+        <SavedSearchDropdown
+          viewMode={viewMode}
+          activeId={activeSavedSearchId}
+          currentFilter={currentFilter}
+          onLoad={onLoadSavedSearch}
+        />
         <button
           type="button"
           onClick={onNewProjectClick}
@@ -255,6 +286,20 @@ export default function ProjectListFilterPanel({
               className="w-[10.5rem]"
             />
           </div>
+          <Combobox
+            label="ステータス"
+            options={[
+              { value: 'active', label: '有効' },
+              { value: 'closed', label: '終了' },
+              { value: 'archived', label: 'アーカイブ' },
+            ]}
+            value={projectFilter.statuses}
+            onChange={(values) => onProjectFilterChange({ statuses: values as string[] })}
+            placeholder="全て"
+            className="w-[13.5rem]"
+            isMulti={true}
+            size="small"
+          />
           <Combobox
             label="企業"
             options={companies.map((c) => ({ value: c.id, label: c.name }))}
@@ -319,12 +364,12 @@ export default function ProjectListFilterPanel({
                 ...users.map((u) => ({ value: u.id.toString(), label: `${u.lastName} ${u.firstName}` })),
                 ...groups.map((g) => ({ value: `g:${g.id}`, label: `[グループ] ${g.name}` })),
               ]}
-              onChange={(values) => {
+              onChange={(values: (string | number)[]) => {
                 const groupIds = values.filter((v) => String(v).startsWith('g:')).map((v) => String(v).slice(2));
                 const userIds = values.filter((v) => !String(v).startsWith('g:'));
-                const memberIds = Array.from(
+                const memberIds: string[] = Array.from(
                   new Set(
-                    groupIds.flatMap((gid) => {
+                    groupIds.flatMap((gid: string) => {
                       const g = groups.find((grp) => String(grp.id) === String(gid));
                       return g ? g.members.map((m) => String(m.userId)) : [];
                     }),

@@ -12,6 +12,7 @@ import ganttRoutes from './routes/gantt';
 import companyRoutes from './routes/companies';
 import crmRoutes from './routes/crm';
 import homeRoutes from './routes/home';
+import savedSearchRoutes from './routes/savedSearches';
 import { errorHandler } from './middleware/error';
 
 
@@ -33,6 +34,7 @@ app.use('/api/gantt', ganttRoutes);
 app.use('/api/companies', companyRoutes);
 app.use('/api/crm', crmRoutes);
 app.use('/api/home', homeRoutes);
+app.use('/api/saved-searches', savedSearchRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });

@@ -5,6 +5,7 @@ export type ProjectFilterCriteria = {
   dueDateStart: string;
   dueDateEnd: string;
   companyIds: (number | string)[];
+  statuses: string[];
 };
 
 export function defaultProjectFilterCriteria(): ProjectFilterCriteria {
@@ -13,6 +14,7 @@ export function defaultProjectFilterCriteria(): ProjectFilterCriteria {
     dueDateStart: '',
     dueDateEnd: '',
     companyIds: [],
+    statuses: ['active'],
   };
 }
 
@@ -47,6 +49,10 @@ export function matchesProjectFilter(project: Project, criteria: ProjectFilterCr
       ) ??
         false);
     if (!hasMatchingCompany) return false;
+  }
+
+  if (criteria.statuses.length > 0 && !criteria.statuses.includes(project.status)) {
+    return false;
   }
 
   const { dueDateStart, dueDateEnd } = criteria;

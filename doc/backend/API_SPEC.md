@@ -142,6 +142,35 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 ---
 
+## Saved Searches — `/api/saved-searches`
+
+認証必須。操作は常にログイン中ユーザーのデータのみ対象。
+
+| メソッド | パス | 概要 | 権限 |
+|----------|------|------|------|
+| GET | `/` | 一覧。Query: `viewMode`（必須: `list` \| `gantt` \| `kanban` \| `time`）| 認証のみ |
+| POST | `/` | 作成。Body: `{ viewMode, name, filter, isDefault? }` | 認証のみ |
+| PUT | `/:id` | 更新。Body: `{ name?, filter?, isDefault? }` | 認証のみ（他ユーザーのデータは 404） |
+| DELETE | `/:id` | 削除 | 認証のみ（他ユーザーのデータは 404） |
+
+**isDefault の挙動**: `isDefault: true` で作成・更新した場合、同一ユーザー × 同一 viewMode の他の保存済み検索条件の `isDefault` を自動的に `false` に更新する。
+
+**レスポンス形状**（SavedSearch オブジェクト）:
+```json
+{
+  "id": 1,
+  "userId": 2,
+  "viewMode": "list",
+  "name": "有効プロジェクトのみ",
+  "isDefault": true,
+  "filter": { "projectFilter": { ... }, "issueFilter": { ... } },
+  "createdAt": "...",
+  "updatedAt": "..."
+}
+```
+
+---
+
 ## Gantt — `/api/gantt`
 
 | メソッド | パス | 概要 |

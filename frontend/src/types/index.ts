@@ -454,6 +454,36 @@ export interface SystemSetting {
   conversionTimes: number[];
 }
 
+export type ProjectListViewMode = 'list' | 'gantt' | 'kanban' | 'time';
+
+export interface SavedSearchFilter {
+  projectFilter?: {
+    searchQuery: string;
+    companyIds: (number | string)[];
+    statuses: string[];
+  };
+  issueFilter?: {
+    trackerIds: (number | string)[];
+    statusIds: (number | string)[];
+    assignedToIds: (number | string)[];
+    assignedToGroupIds: (number | string)[];
+    assignedToGroupMemberIds: (number | string)[];
+  };
+  ganttZoom?: 'day' | 'month' | 'year';
+  timeRecordFilterUserIds?: (number | string)[];
+}
+
+export interface SavedSearch {
+  id: number;
+  userId: number;
+  viewMode: ProjectListViewMode;
+  name: string;
+  isDefault: boolean;
+  filter: SavedSearchFilter;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** GET /admin/settings/email */
 export interface EmailSettings {
   emailTransport: 'ses' | 'smtp';

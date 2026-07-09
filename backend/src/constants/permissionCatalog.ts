@@ -40,6 +40,7 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
       { code: 'projects.gantt', name: 'ガント', position: 5 },
       { code: 'projects.time-entries', name: '工数', position: 6 },
       { code: 'projects.members', name: 'メンバー', position: 7 },
+      { code: 'projects.saved-searches', name: '保存済み検索', position: 8 },
     ],
   },
   {

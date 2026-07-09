@@ -42,11 +42,13 @@ function parseProjectFilter(o: unknown): ProjectFilterCriteria | null {
   if (typeof f.dueDateStart !== 'string') return null;
   if (typeof f.dueDateEnd !== 'string') return null;
   if (!Array.isArray(f.companyIds)) return null;
+  const statuses = Array.isArray(f.statuses) ? (f.statuses as string[]) : [];
   return {
     searchQuery: f.searchQuery,
     dueDateStart: f.dueDateStart,
     dueDateEnd: f.dueDateEnd,
     companyIds: f.companyIds,
+    statuses,
   };
 }
 

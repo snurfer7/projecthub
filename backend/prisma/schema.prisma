@@ -37,6 +37,7 @@ model User {
   authoredIssues   Issue[]           @relation("IssueAuthor")
   projectComments  ProjectComment[]
   projectMembers   ProjectMember[]
+  savedSearches    SavedSearch[]
   timeEntries      TimeEntry[]
   wikiPages        WikiPage[]
 
@@ -617,6 +618,20 @@ model CompanyWikiPage {
 
   @@unique([companyId, title])
   @@map("company_wiki_pages")
+}
+
+model SavedSearch {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  viewMode  String   @map("view_mode")
+  name      String
+  isDefault Boolean  @default(false) @map("is_default")
+  filter    Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("saved_searches")
 }
 
 model SystemSetting {

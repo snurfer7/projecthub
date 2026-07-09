@@ -47,6 +47,11 @@
 - **Attachment** — id, filename, contentType, fileSize, filePath, 紐づきID（projectId, issueId, issueCommentId 等）, authorId, createdAt, author。
 - **TimeEntry** — id, projectId, issueId, userId, hours, activity, spentOn, comments, project, issue, user。
 
+## 保存済み検索
+
+- **SavedSearch** — id, userId, viewMode（`list` | `gantt` | `kanban` | `time`）, name, isDefault, filter（`SavedSearchFilter`）, createdAt, updatedAt。
+- **SavedSearchFilter** — `projectFilter?`（ProjectFilterCriteria）, `issueFilter?`（IssueFilterCriteria）, `ganttZoom?`（`day`|`month`|`year`）, `ganttStartValue?`, `ganttEndValue?`, `timeRecordStartDate?`, `timeRecordEndDate?`, `timeRecordFilterUserIds?`（(number|string)[]）。
+
 ## システム
 
 - **SystemSetting** — id, startTime, endTime, managementTimes, conversionTimes。メール関連: emailTransport（`ses` \| `smtp`）, emailFromOverride, smtpHost, smtpPort, smtpUser, smtpSecure（API の GET ではパスワードは含めず `smtpPasswordSet` を別途返す）。
