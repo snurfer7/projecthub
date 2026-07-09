@@ -33,6 +33,7 @@
 | `/projects/:projectId/kanban` | KanbanPage | カンバン |
 | `/projects/:projectId/gantt` | GanttPage | ガント（プロジェクト単位） |
 | `/projects/:projectId/time-entries` | TimeEntriesPage | 工数一覧 |
+| `/projects/:projectId/activities` | ProjectActivitiesPage | 活動履歴一覧（企業活動履歴との紐づき）。表示条件: `projects.activities` canUse |
 | `/issues/:id` | IssueDetailPage | チケット詳細 |
 | `/issues/:id/edit` | IssueFormPage | チケット編集 |
 | `/companies` | CompaniesPage | 会社一覧（API ページング・サーバー側検索。ページサイズ変更・前後ページ）。検索語・ページ・件数・法人格表示の有無は `sessionStorage` に保持し、企業詳細から一覧へ戻った際に復元する。ヘッダー（トップバー）の「企業」をクリックしたときは当該保持を削除し条件を初期化する |

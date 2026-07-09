@@ -110,10 +110,11 @@ export default function CompanyDetailPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
-  const [activityForm, setActivityForm] = useState({ type: 'call', subject: '', description: '', contactId: '', dealId: '', assignedToId: '', dueDate: '', completed: false });
+  const [activityForm, setActivityForm] = useState({ type: 'call', subject: '', description: '', contactId: '', dealId: '', projectId: '', assignedToId: '', dueDate: '', completed: false });
   const [activityFiles, setActivityFiles] = useState<File[]>([]);
   const [activityError, setActivityError] = useState('');
   const activityHighlightRef = useRef<HTMLDivElement | null>(null);
+  const [companyProjects, setCompanyProjects] = useState<{ id: number; name: string; identifier: string }[]>([]);
 
   // Associations
   const [masterAssociations, setMasterAssociations] = useState<Association[]>([]);
@@ -135,6 +136,7 @@ export default function CompanyDetailPage() {
   const loadCompany = () => api.get(`/companies/${id}`).then((res) => {
     setCompany(res.data);
     setAssignedAssociations(res.data.associations || []);
+    setCompanyProjects(res.data.projects || []);
   });
   const loadContacts = () => api.get(`/crm/contacts?companyId=${id}`).then((res) => setContacts(res.data));
   const loadDeals = () => api.get(`/crm/deals?companyId=${id}`).then((res) => setDeals(res.data));
@@ -322,7 +324,7 @@ export default function CompanyDetailPage() {
   // ========== Activity handlers ==========
   const openCreateActivity = () => {
     setEditingActivity(null);
-    setActivityForm({ type: 'call', subject: '', description: '', contactId: '', dealId: '', assignedToId: '', dueDate: '', completed: false });
+    setActivityForm({ type: 'call', subject: '', description: '', contactId: '', dealId: '', projectId: '', assignedToId: '', dueDate: '', completed: false });
     setActivityFiles([]);
     setActivityError('');
     setShowActivityModal(true);
@@ -336,6 +338,7 @@ export default function CompanyDetailPage() {
       description: a.description || '',
       contactId: a.contactId?.toString() || '',
       dealId: a.dealId?.toString() || '',
+      projectId: a.projectId?.toString() || '',
       assignedToId: a.assignedToId?.toString() || '',
       dueDate: a.dueDate?.split('T')[0] || '',
       completed: a.completed,
@@ -354,6 +357,7 @@ export default function CompanyDetailPage() {
         description: activityForm.description || null,
         contactId: activityForm.contactId ? parseInt(activityForm.contactId) : null,
         dealId: activityForm.dealId ? parseInt(activityForm.dealId) : null,
+        projectId: activityForm.projectId ? parseInt(activityForm.projectId) : null,
         assignedToId: activityForm.assignedToId ? parseInt(activityForm.assignedToId) : null,
         dueDate: activityForm.dueDate || null,
         completed: activityForm.completed,
@@ -396,6 +400,7 @@ export default function CompanyDetailPage() {
     await api.put(`/crm/activities/${a.id}`, {
       contactId: a.contactId,
       dealId: a.dealId,
+      projectId: a.projectId ?? null,
       assignedToId: a.assignedToId,
       type: a.type,
       subject: a.subject,
@@ -675,6 +680,11 @@ export default function CompanyDetailPage() {
                       <span className={`font-medium text-sm ${a.completed ? 'line-through text-gray-400' : 'text-slate-800'}`}>{a.subject}</span>
                       <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{getActivityLabel(a.type)}</span>
                       {a.deal && <span className="text-xs text-indigo-500">📊 {a.deal.name}</span>}
+                      {a.project && (
+                        <Link to={`/projects/${a.project.id}`} className="text-xs text-sky-600 hover:underline bg-sky-50 px-1.5 py-0.5 rounded" onClick={(e) => e.stopPropagation()}>
+                          🗂 {a.project.name}
+                        </Link>
+                      )}
                     </div>
                     {a.description && <p className="text-sm text-gray-600 mt-1">{a.description}</p>}
                     {a.fileComment && a.fileComment.attachments.length > 0 && (
@@ -1136,6 +1146,12 @@ export default function CompanyDetailPage() {
               onChange={(val) => setActivityForm({ ...activityForm, dealId: val })}
             />
           </div>
+          <Combobox
+            label="関連プロジェクト"
+            value={activityForm.projectId}
+            options={companyProjects.map(p => ({ value: p.id.toString(), label: p.name }))}
+            onChange={(val) => setActivityForm({ ...activityForm, projectId: val })}
+          />
           <Combobox
             label="自社担当者"
             value={activityForm.assignedToId}

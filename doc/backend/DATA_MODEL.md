@@ -38,14 +38,14 @@
 - **Association** — 団体（業界団体等）。CompanyAssociation で Company と多対多。
 - **CompanyAssociation** — Company と Association の多対多。
 - **Deal** — 商談。Company, Contact, User（assignedTo）, Activity と関連。
-- **Activity** — CRM アクティビティ。`type`（文字列・活動種別。標準値は API_SPEC の Activity.type を参照）, subject, description, dueDate, completed 等。Company, Contact（**先方担当者**）, Deal, User（作成者 `user` / **自社担当者** `assignedTo`）, **fileComment**（Prisma リレーション）と関連。**`fileCommentId`（任意・ユニーク）** — 活動に紐づく「ファイル用」会社コメント。API 応答では `fileComment.attachments` を含め、UI からダウンロード・削除に使う。添付レコードは `Attachment.companyCommentId` でコメントと共有する。
+- **Activity** — CRM アクティビティ。`type`（文字列・活動種別。標準値は API_SPEC の Activity.type を参照）, subject, description, dueDate, completed 等。Company, Contact（**先方担当者**）, Deal, User（作成者 `user` / **自社担当者** `assignedTo`）, **fileComment**（Prisma リレーション）, **Project**（任意・紐づくプロジェクト）と関連。**`fileCommentId`（任意・ユニーク）** — 活動に紐づく「ファイル用」会社コメント。**`projectId`（任意）** — 活動をプロジェクトに関連付ける FK。API 応答では `project: { id, name, identifier }` を含む。添付レコードは `Attachment.companyCommentId` でコメントと共有する。
 - **CompanyComment** — 会社へのコメント。Attachment 可。活動のファイル用コメントの場合、API 応答に **紐づく活動**（`activityFileFor` 等、id・subject）を含め、コメント一覧から活動履歴へ辿れるようにする。
 - **CompanyWikiPage** — 会社用 Wiki。親子階層（parentId）。
 - **ContactComment** — コンタクトへのコメント。Attachment 可。
 
 ## プロジェクト・チケット・Wiki・工数
 
-- **Project** — プロジェクト。identifier（ユニーク）, status, company/location/contact（主契約・拠点・担当）, parent（親プロジェクト）。Issue, WikiPage, TimeEntry, ProjectComment, ProjectMember, ProjectGroup, ProjectRelatedCompany, Attachment と関連。
+- **Project** — プロジェクト。identifier（ユニーク）, status, company/location/contact（主契約・拠点・担当）, parent（親プロジェクト）。Issue, WikiPage, TimeEntry, ProjectComment, ProjectMember, ProjectGroup, ProjectRelatedCompany, Attachment, **Activity**（企業活動履歴との紐づけ）と関連。
 - **ProjectMember** — プロジェクトメンバー。User と Project の多対多。ProjectMemberRole でロールを持つ。
 - **ProjectMemberRole** — メンバーのロール。Role と Group（sourceGroupId、グループ経由で付与した場合）と関連。
 - **ProjectGroup** — プロジェクトに紐づくグループ。
@@ -69,6 +69,7 @@
 | code | name | resourceType | 親 |
 |------|------|--------------|-----|
 | `projects.saved-searches` | 保存済み検索 | feature | `projects` |
+| `projects.activities` | 活動履歴 | feature | `projects` |
 
 ## クライアントとの整合
 

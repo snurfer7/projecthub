@@ -9,10 +9,9 @@ COPY backend ./backend/
 
 WORKDIR /app/backend
 RUN npm install
-RUN npm run build
-
-# Generate Prisma Client (schema lives under backend/prisma in the repo)
+# Generate Prisma Client before TypeScript compilation so types are available
 RUN npx prisma generate --schema=./prisma/schema.prisma
+RUN npm run build
 
 RUN chmod +x /app/backend/start.sh
 

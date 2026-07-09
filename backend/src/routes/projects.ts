@@ -623,6 +623,34 @@ router.put('/:id/comments/:commentId', requirePermission('projects.comments', 'i
   }
 });
 
-// Delete project comment
+// Get activities linked to project
+router.get('/:id/activities', requirePermission('projects.activities', 'use'), async (req: AuthRequest, res: Response) => {
+  try {
+    const activities = await prisma.activity.findMany({
+      where: { projectId: Number(req.params.id) },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true } },
+        assignedTo: { select: { id: true, firstName: true, lastName: true } },
+        contact: { select: { id: true, firstName: true, lastName: true } },
+        deal: { select: { id: true, name: true } },
+        company: { select: { id: true, name: true } },
+        project: { select: { id: true, name: true, identifier: true } },
+        fileComment: {
+          select: {
+            id: true,
+            attachments: {
+              select: { id: true, filename: true, contentType: true, fileSize: true },
+              orderBy: { id: 'asc' as const },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(activities);
+  } catch (e) {
+    res.status(500).json({ error: '活動履歴の取得に失敗しました' });
+  }
+});
 
 export default router;

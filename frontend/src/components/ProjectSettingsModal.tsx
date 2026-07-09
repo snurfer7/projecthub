@@ -220,6 +220,7 @@ export default function ProjectSettingsModal({ projectId, isOpen, onClose, onUpd
                             onChange={(e) => setRemarks(e.target.value)}
                             rows={2}
                         />
+
                     </div>
 
                     <div className="mt-10 mb-6 border-t pt-6">

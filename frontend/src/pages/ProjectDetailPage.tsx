@@ -1,15 +1,19 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link, Outlet, useLocation } from 'react-router-dom';
+import { useParams, Outlet, useLocation } from 'react-router-dom';
 import api from '../api/client';
 import { Project } from '../types';
 import ProjectSettingsModal from '../components/ProjectSettingsModal';
 import Tabs from '../components/Tabs';
+import { usePermissions } from '../hooks/usePermissions';
+import { useAuth } from '../hooks/useAuth';
 
 export default function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const [project, setProject] = useState<Project | null>(null);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const location = useLocation();
+  const { user } = useAuth();
+  const { canUse } = usePermissions(user?.permissions);
 
   const loadProject = () => {
     api.get(`/projects/${projectId}`).then((res) => setProject(res.data));
@@ -29,6 +33,7 @@ export default function ProjectDetailPage() {
     { label: 'Wiki', path: `/projects/${projectId}/wiki`, count: project._count?.wikiPages },
     { label: 'コメント', path: `/projects/${projectId}/comments`, count: project._count?.comments },
     { label: '時間記録', path: `/projects/${projectId}/time-entries`, count: project._count?.timeEntries },
+    ...(canUse('projects.activities') ? [{ label: '活動履歴', path: `/projects/${projectId}/activities`, count: undefined }] : []),
   ];
 
   return (

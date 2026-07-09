@@ -37,6 +37,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | GET | `/:id/comments` | コメント一覧 |
 | POST | `/:id/comments` | コメント追加 |
 | PUT | `/:id/comments/:commentId` | コメント更新 |
+| GET | `/:id/activities` | プロジェクトに紐づく活動履歴一覧。権限: `projects.activities` use |
 
 ---
 
@@ -238,7 +239,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | GET/POST/PUT/DELETE | `/contacts`, `/contacts/:id` | コンタクト。**GET `/contacts`**: Query `companyId`（任意）— 企業別絞り込み。Query `page` あり — ページング応答 `{ items, total, page, pageSize, totalPages }`。Query `q`（任意）— 氏名・企業名・備考・連絡先詳細（所属・役職・電話・メール・拠点名）の部分一致（大文字小文字無視）。`page` なし — 配列（ドロップダウン・企業詳細タブ用） |
 | GET/POST/PUT/DELETE | `/contacts/:id/comments`, `/:commentId` | コンタクトコメント |
 | GET/POST/PUT/DELETE | `/deals`, `/deals/:id` | 商談 |
-| GET/POST/PUT/DELETE | `/activities`, `/activities/:id` | アクティビティ。`assignedToId` は**自社担当者**（User）。`contactId` は**先方担当者**（当該企業の連絡先 Contact を選択、任意）。レスポンスは `assignedTo`・`contact` を含む。`fileCommentId`（任意）— ファイル用 **会社コメント** の ID。`fileComment`（任意、`fileCommentId` があるとき）— `{ id, attachments: [{ id, filename, contentType, fileSize }] }`。ダウンロードは `POST /api/attachments/token/:id` と `GET /api/attachments/file/:id?downloadToken=...` を利用する。**DELETE `/activities/:id`**: Query `deleteLinkedComment` — `true` / `1` で紐づくファイル用会社コメントも削除（添付はカスケード）。`false` / `0` または未指定は活動のみ削除しコメントは残す |
+| GET/POST/PUT/DELETE | `/activities`, `/activities/:id` | アクティビティ。`assignedToId` は**自社担当者**（User）。`contactId` は**先方担当者**（当該企業の連絡先 Contact を選択、任意）。**`projectId`**（任意）— 紐づくプロジェクト ID。レスポンスは `assignedTo`・`contact`・`project`（`{ id, name, identifier }` または `null`）を含む。`fileCommentId`（任意）— ファイル用 **会社コメント** の ID。`fileComment`（任意、`fileCommentId` があるとき）— `{ id, attachments: [{ id, filename, contentType, fileSize }] }`。ダウンロードは `POST /api/attachments/token/:id` と `GET /api/attachments/file/:id?downloadToken=...` を利用する。**GET `/activities`**: Query `projectId`（任意）— プロジェクト ID による絞り込み。**DELETE `/activities/:id`**: Query `deleteLinkedComment` — `true` / `1` で紐づくファイル用会社コメントも削除（添付はカスケード）。`false` / `0` または未指定は活動のみ削除しコメントは残す |
 
 **Activity.type（活動種別の標準値）**: `call`（電話）, `email`（メール）, `visit`（訪問）, `meeting`（会議）, `memo`（メモ）, `lead`（引合）, `estimate`（見積り）, `inquiry`（問合せ）, `maintenance`（メンテ）, `claim`（クレーム）。フィールドは文字列のため、上記以外の値も保存され得る（レガシー移行データ等）。
 

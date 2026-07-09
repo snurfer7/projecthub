@@ -23,6 +23,7 @@ const WikiListPage = lazy(() => import('./pages/WikiListPage'));
 const GanttPage = lazy(() => import('./pages/GanttPage'));
 const KanbanPage = lazy(() => import('./pages/KanbanPage'));
 const TimeEntriesPage = lazy(() => import('./pages/TimeEntriesPage'));
+const ProjectActivitiesPage = lazy(() => import('./pages/ProjectActivitiesPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
 const CompaniesPage = lazy(() => import('./pages/CompaniesPage'));
 const CompanyDetailPage = lazy(() => import('./pages/CompanyDetailPage'));
@@ -89,6 +90,7 @@ function App() {
             <Route path="kanban" element={<KanbanPage />} />
             <Route path="gantt" element={<GanttPage />} />
             <Route path="time-entries" element={<TimeEntriesPage />} />
+            <Route path="activities" element={<ProjectActivitiesPage />} />
           </Route>
           <Route path="/issues/:id" element={<IssueDetailPage user={user} />} />
           <Route path="/issues/:id/edit" element={<IssueFormPage />} />

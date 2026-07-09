@@ -19,6 +19,7 @@ const activityInclude = {
   assignedTo: { select: { id: true, firstName: true, lastName: true } },
   contact: { select: { id: true, firstName: true, lastName: true } },
   deal: { select: { id: true, name: true } },
+  project: { select: { id: true, name: true, identifier: true } },
   fileComment: {
     select: {
       id: true,
@@ -434,11 +435,12 @@ router.delete('/deals/:id', requirePermission('companies.deals', 'input'), async
 
 router.get('/activities', requirePermission('companies.activities', 'use'), async (req: AuthRequest, res: Response) => {
   try {
-    const { companyId, contactId, dealId } = req.query;
+    const { companyId, contactId, dealId, projectId } = req.query;
     const where: any = {};
     if (companyId) where.companyId = Number(companyId);
     if (contactId) where.contactId = Number(contactId);
     if (dealId) where.dealId = Number(dealId);
+    if (projectId) where.projectId = Number(projectId);
 
     const activities = await prisma.activity.findMany({
       where,
@@ -454,7 +456,7 @@ router.get('/activities', requirePermission('companies.activities', 'use'), asyn
 
 router.post('/activities', requirePermission('companies.activities', 'input'), async (req: AuthRequest, res: Response) => {
   try {
-    const { companyId, contactId, dealId, assignedToId, type, subject, description, dueDate, completed } = req.body;
+    const { companyId, contactId, dealId, projectId, assignedToId, type, subject, description, dueDate, completed } = req.body;
     if (assignedToId) {
       const user = await prisma.user.findUnique({ where: { id: Number(assignedToId) } });
       if (user && (user.status === 'pending' || user.status === 'inactive')) {
@@ -464,7 +466,9 @@ router.post('/activities', requirePermission('companies.activities', 'input'), a
 
     const activity = await prisma.activity.create({
       data: {
-        companyId, contactId, dealId, userId: req.userId!,
+        companyId, contactId, dealId,
+        projectId: projectId ? Number(projectId) : null,
+        userId: req.userId!,
         assignedToId,
         type, subject, description,
         dueDate: dueDate ? new Date(dueDate) : null,
@@ -481,7 +485,7 @@ router.post('/activities', requirePermission('companies.activities', 'input'), a
 
 router.put('/activities/:id', requirePermission('companies.activities', 'input'), async (req: AuthRequest, res: Response) => {
   try {
-    const { contactId, dealId, assignedToId, type, subject, description, dueDate, completed } = req.body;
+    const { contactId, dealId, projectId, assignedToId, type, subject, description, dueDate, completed } = req.body;
     if (assignedToId) {
       const user = await prisma.user.findUnique({ where: { id: Number(assignedToId) } });
       if (user && (user.status === 'pending' || user.status === 'inactive')) {
@@ -492,7 +496,9 @@ router.put('/activities/:id', requirePermission('companies.activities', 'input')
     const activity = await prisma.activity.update({
       where: { id: Number(req.params.id) },
       data: {
-        contactId, dealId, assignedToId, type, subject, description,
+        contactId, dealId,
+        projectId: projectId !== undefined ? (projectId ? Number(projectId) : null) : undefined,
+        assignedToId, type, subject, description,
         dueDate: dueDate ? new Date(dueDate) : null,
         completed,
       },
