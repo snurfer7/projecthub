@@ -14,6 +14,7 @@ import crmRoutes from './routes/crm';
 import homeRoutes from './routes/home';
 import savedSearchRoutes from './routes/savedSearches';
 import { errorHandler } from './middleware/error';
+import { syncPermissionCatalog } from './services/syncPermissionCatalog';
 
 
 const app = express();
@@ -45,6 +46,12 @@ app.get('/api/health', (_req, res) => {
 app.use(errorHandler);
 
 
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`Server running on port ${PORT}`);
+  try {
+    await syncPermissionCatalog();
+    console.log('Permission catalog synced.');
+  } catch (e) {
+    console.error('Permission catalog sync failed:', e);
+  }
 });

@@ -7,7 +7,7 @@ import { clearCompaniesListPersistedFromHeader } from '../utils/companiesListSto
 import { clearProjectListPersistedFromHeader } from '../utils/projectListStorage';
 import {
   Menu, Database, Building2, Settings, LogOut,
-  Briefcase, ChevronDown, ChevronRight, Users, Contact
+  Briefcase, ChevronDown, ChevronRight, Users, Contact, Handshake
 } from 'lucide-react';
 
 interface Props {
@@ -44,6 +44,7 @@ const TREE_MENU: TreeItem[] = [
     icon: Building2,
     key: 'company',
     children: [
+      { label: '商談', path: '/deals', icon: Handshake, key: 'deals' },
       { label: '連絡先', path: '/contacts', icon: Contact, key: 'contacts' },
       { label: '協会', path: '/associations', icon: Users, key: 'associations' },
       { label: '法人格', path: '/legal-entity-statuses', icon: Database, key: 'legal-entity-statuses' },
@@ -61,6 +62,7 @@ const TREE_MENU: TreeItem[] = [
 const PERM_BY_MENU_KEY: Record<string, string> = {
   projects: 'projects',
   company: 'companies',
+  deals: 'deals',
   contacts: 'contacts',
   associations: 'associations',
   'legal-entity-statuses': 'legal-entity-statuses',

@@ -4,6 +4,7 @@ const ROUTE_CANDIDATES: Array<{ path: string; code: string }> = [
   { path: '/home', code: 'home' },
   { path: '/projects', code: 'projects' },
   { path: '/companies', code: 'companies' },
+  { path: '/deals', code: 'deals' },
   { path: '/contacts', code: 'contacts' },
   { path: '/settings', code: 'settings' },
   { path: '/admin', code: 'admin' },

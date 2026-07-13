@@ -28,6 +28,7 @@ const AdminPage = lazy(() => import('./pages/AdminPage'));
 const CompaniesPage = lazy(() => import('./pages/CompaniesPage'));
 const CompanyDetailPage = lazy(() => import('./pages/CompanyDetailPage'));
 const ContactsPage = lazy(() => import('./pages/ContactsPage'));
+const DealsPage = lazy(() => import('./pages/DealsPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const AssociationsPage = lazy(() => import('./pages/AssociationsPage'));
 const LegalEntityStatusesPage = lazy(() => import('./pages/LegalEntityStatusesPage'));
@@ -98,6 +99,7 @@ function App() {
           <Route path="/legal-entity-statuses" element={<PermissionRoute code="legal-entity-statuses" permissions={user.permissions}><LegalEntityStatusesPage /></PermissionRoute>} />
           <Route path="/companies" element={<PermissionRoute code="companies" permissions={user.permissions}><CompaniesPage /></PermissionRoute>} />
           <Route path="/companies/:id" element={<PermissionRoute code="companies" permissions={user.permissions}><CompanyDetailPage /></PermissionRoute>} />
+          <Route path="/deals" element={<PermissionRoute code="deals" permissions={user.permissions}><DealsPage /></PermissionRoute>} />
           <Route path="/contacts" element={<PermissionRoute code="contacts" permissions={user.permissions}><ContactsPage /></PermissionRoute>} />
           <Route path="/settings" element={<PermissionRoute code="settings" permissions={user.permissions}><SettingsPage user={user} refreshUser={refreshUser} /></PermissionRoute>} />
           <Route path="/admin" element={<PermissionRoute code="admin" permissions={user.permissions}><AdminPage user={user} /></PermissionRoute>} />

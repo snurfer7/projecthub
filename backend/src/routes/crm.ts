@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { AuthRequest, authenticateToken } from '../middleware/auth';
 import { requirePermission, requireAnyPermission } from '../middleware/permissions';
+import { parseStringQueryValues } from '../utils/queryParams';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -324,24 +325,72 @@ router.delete('/contacts/:id/comments/:commentId', async (req: AuthRequest, res:
 
 // ========== Deals ==========
 
-router.get('/deals', async (req: AuthRequest, res: Response) => {
+router.get('/deals', requirePermission('deals', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const { companyId, status, assignedToId } = req.query;
-    const where: any = {};
+    const pageRaw = req.query.page;
+    const usePagination =
+      pageRaw !== undefined && pageRaw !== null && String(pageRaw).trim() !== '';
+
+    const statusValues = parseStringQueryValues(status);
+    const where: Prisma.DealWhereInput = {};
     if (companyId) where.companyId = Number(companyId);
-    if (status) where.status = status;
+    if (statusValues.length === 1) {
+      where.status = statusValues[0];
+    } else if (statusValues.length > 1) {
+      where.status = { in: statusValues };
+    }
     if (assignedToId) where.assignedToId = Number(assignedToId);
 
-    const deals = await prisma.deal.findMany({
-      where,
-      include: {
-        company: { select: { id: true, name: true } },
-        contact: { select: { id: true, firstName: true, lastName: true } },
-        assignedTo: { select: { id: true, firstName: true, lastName: true } },
-      },
-      orderBy: { updatedAt: 'desc' },
-    });
-    res.json(deals);
+    if (!usePagination) {
+      const deals = await prisma.deal.findMany({
+        where,
+        include: {
+          company: { select: { id: true, name: true } },
+          contact: { select: { id: true, firstName: true, lastName: true } },
+          assignedTo: { select: { id: true, firstName: true, lastName: true } },
+        },
+        orderBy: { updatedAt: 'desc' },
+      });
+      return res.json(deals);
+    }
+
+    const pageParsed = parseInt(String(pageRaw), 10);
+    const page = Number.isFinite(pageParsed) && pageParsed >= 1 ? pageParsed : 1;
+    const sizeParsed = parseInt(String(req.query.pageSize ?? '50'), 10);
+    const pageSize = Number.isFinite(sizeParsed) ? Math.min(100, Math.max(1, sizeParsed)) : 50;
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+
+    if (q) {
+      const contains = { contains: q, mode: 'insensitive' as const };
+      const qWhere: Prisma.DealWhereInput = {
+        OR: [
+          { name: contains },
+          { company: { name: contains } },
+        ],
+      };
+      where.AND = [qWhere];
+    }
+
+    const dealInclude = {
+      company: { select: { id: true, name: true } },
+      contact: { select: { id: true, firstName: true, lastName: true } },
+      assignedTo: { select: { id: true, firstName: true, lastName: true } },
+    } satisfies Prisma.DealInclude;
+
+    const [total, items] = await Promise.all([
+      prisma.deal.count({ where }),
+      prisma.deal.findMany({
+        where,
+        include: dealInclude,
+        orderBy: { updatedAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    const totalPages = total === 0 ? 1 : Math.ceil(total / pageSize);
+    return res.json({ items, total, page, pageSize, totalPages });
   } catch {
     res.status(500).json({ error: '商談の取得に失敗しました' });
   }

@@ -36,6 +36,8 @@ export default function LoginPage({ onLogin }: Props) {
             <TextInput
               label="メールアドレス"
               type="email"
+              name="email"
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -45,6 +47,8 @@ export default function LoginPage({ onLogin }: Props) {
             <TextInput
               label="パスワード"
               type="password"
+              name="password"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required

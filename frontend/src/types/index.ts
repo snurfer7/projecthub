@@ -337,6 +337,15 @@ export interface PaginatedContactsResponse {
   totalPages: number;
 }
 
+/** GET /crm/deals?page=… のレスポンス */
+export interface PaginatedDealsResponse {
+  items: Deal[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
 export interface ContactComment {
   id: number;
   contactId: number;

@@ -85,9 +85,10 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
       { code: 'companies.merge', name: '統合', position: 11 },
     ],
   },
-  { code: 'contacts', name: '連絡先一覧', position: 21 },
-  { code: 'associations', name: '協会', position: 22 },
-  { code: 'legal-entity-statuses', name: '法人格', position: 23 },
+  { code: 'deals', name: '商談一覧', position: 21 },
+  { code: 'contacts', name: '連絡先一覧', position: 22 },
+  { code: 'associations', name: '協会', position: 23 },
+  { code: 'legal-entity-statuses', name: '法人格', position: 24 },
   {
     code: 'admin',
     name: '管理',
