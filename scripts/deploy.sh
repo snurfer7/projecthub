@@ -152,6 +152,7 @@ if [[ "${DEPLOY_BACKEND}" == "true" && "${SKIP_BUILD}" == "false" ]]; then
   step "Backend ビルド"
   cd "${PROJECT_ROOT}/backend"
   npm install
+  npx prisma generate
   npm run build
   success "Backend ビルド完了"
   cd "${PROJECT_ROOT}"
