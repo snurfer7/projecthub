@@ -1,8 +1,9 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { Link } from 'react-router-dom';
+import { RefreshCw } from 'lucide-react';
 import api from '../api/client';
 import { Project, Company } from '../types';
-import { formatCompanyName } from '../utils/format';
+import { formatCompanyName, generateIdentifier } from '../utils/format';
 import Combobox from '../components/Combobox';
 import TextInput from '../components/TextInput';
 
@@ -48,7 +49,7 @@ export default function DashboardPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-slate-800">プロジェクト</h1>
-        <button onClick={() => setShowForm(!showForm)}
+        <button onClick={() => { setShowForm(!showForm); if (!showForm) setIdentifier(generateIdentifier()); }}
           className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">
           新規プロジェクト
         </button>
@@ -77,6 +78,16 @@ export default function DashboardPage() {
                 required
                 pattern="[a-z0-9-]+"
                 title="小文字英数字とハイフンのみ"
+                endAdornment={
+                  <button
+                    type="button"
+                    onClick={() => setIdentifier(generateIdentifier())}
+                    className="p-1 text-gray-400 hover:text-gray-600 focus:outline-none"
+                    title="識別子を再生成"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                }
               />
             </div>
             <div className="grid grid-cols-2 gap-4 mb-4">

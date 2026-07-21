@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { List, BarChart2, Kanban, Clock } from 'lucide-react';
+import { List, BarChart2, Kanban, Clock, RefreshCw } from 'lucide-react';
 import api from '../api/client';
 import { Project, Company, Issue, IssueStatus, TimeEntry, SavedSearch } from '../types';
 import Modal from '../components/Modal';
@@ -24,6 +24,7 @@ import {
   timeViewTicketDueDateRange,
 } from '../utils/projectListTimeDefaults';
 import type { ProjectListViewMode } from '../utils/projectListStorage';
+import { generateIdentifier } from '../utils/format';
 
 export default function ProjectListPage() {
   const navigate = useNavigate();
@@ -260,7 +261,7 @@ export default function ProjectListPage() {
   const openCreateProjectModal = () => {
     setEditingProjectId(null);
     setProjectName('');
-    setProjectIdentifier('');
+    setProjectIdentifier(generateIdentifier());
     setProjectDescription('');
     setProjectCompanyId('');
     setProjectParentId('');
@@ -604,6 +605,16 @@ export default function ProjectListPage() {
               required
               pattern="[a-z0-9-]+"
               title="小文字英数字とハイフンのみ"
+              endAdornment={
+                <button
+                  type="button"
+                  onClick={() => setProjectIdentifier(generateIdentifier())}
+                  className="p-1 text-gray-400 hover:text-gray-600 focus:outline-none"
+                  title="識別子を再生成"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              }
             />
           </div>
           <div className="grid grid-cols-2 gap-4 mb-4">

@@ -73,6 +73,17 @@ export function formatPostalCode(value: string): string {
     return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}`;
 }
 
+/**
+ * Generates a random project identifier of the given length using [a-z0-9].
+ * Default length is 12. With 36^12 ≈ 4.7e18 combinations, collisions are negligible.
+ */
+export function generateIdentifier(length = 12): string {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    const array = new Uint8Array(length);
+    crypto.getRandomValues(array);
+    return Array.from(array, (b) => chars[b % chars.length]).join('');
+}
+
 /** 連絡先の氏名（姓・名）。名が空のときは姓のみ。両方空なら「-」。 */
 export function formatContactDisplayName(lastName: string, firstName: string): string {
     const last = (lastName ?? '').trim();

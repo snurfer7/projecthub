@@ -145,6 +145,9 @@ router.post('/', requirePermission('projects', 'input'), async (req: AuthRequest
     });
     res.status(201).json(project);
   } catch (e: any) {
+    if (e?.code === 'P2002') {
+      return res.status(409).json({ error: 'この識別子は既に使用されています。再生成してください。' });
+    }
     res.status(500).json({ error: 'プロジェクトの作成に失敗しました', details: e.message });
   }
 });
