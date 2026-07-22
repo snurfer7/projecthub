@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { List, BarChart2, Kanban, Clock, RefreshCw } from 'lucide-react';
+import { List, BarChart2, Kanban, Clock, RefreshCw, ChevronRight, ChevronDown } from 'lucide-react';
 import api from '../api/client';
 import { Project, Company, Issue, IssueStatus, TimeEntry, SavedSearch } from '../types';
 import Modal from '../components/Modal';
@@ -18,6 +18,7 @@ import { useProjectListFilters } from '../hooks/useProjectListFilters';
 import { filterProjects, filteredProjectIdSet } from '../utils/projectFilter';
 import { filterIssues, filterIssuesByProjectIds } from '../utils/issueFilter';
 import { isLeafIssue } from '../utils/issueTree';
+import { buildProjectTreeDisplayRows } from '../utils/projectTree';
 import {
   timeViewAssignedToIds,
   timeViewRecordDateRange,
@@ -63,6 +64,7 @@ export default function ProjectListPage() {
   const [ganttStartValue, setGanttStartValue] = useState('');
   const [ganttEndValue, setGanttEndValue] = useState('');
   const [ganttCollapsedProjects, setGanttCollapsedProjects] = useState<Set<number>>(new Set());
+  const [listCollapsedIds, setListCollapsedIds] = useState<Set<number>>(() => new Set());
 
   const [kanbanIssues, setKanbanIssues] = useState<Issue[]>([]);
   const [kanbanStatuses, setKanbanStatuses] = useState<IssueStatus[]>([]);
@@ -355,6 +357,20 @@ export default function ProjectListPage() {
     [projects, projectFilter],
   );
 
+  const listDisplayRows = useMemo(
+    () => buildProjectTreeDisplayRows(filteredProjects, listCollapsedIds),
+    [filteredProjects, listCollapsedIds],
+  );
+
+  const toggleListCollapse = (id: number) => {
+    setListCollapsedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const projectIds = useMemo(
     () => filteredProjectIdSet(projects, projectFilter),
     [projects, projectFilter],
@@ -491,13 +507,48 @@ export default function ProjectListPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredProjects.map((project) => (
+              {listDisplayRows.map(({ project, depth, hasChildren }) => (
                 <tr
                   key={project.id}
                   className="border-t hover:bg-gray-50 cursor-pointer"
                   onClick={() => navigate(`/projects/${project.id}`)}
                 >
-                  <td className="px-4 py-3 text-sky-600 font-medium">{project.name}</td>
+                  <td className="px-4 py-3">
+                    <div
+                      className="flex items-center min-w-0"
+                      style={depth > 0 ? { paddingLeft: depth * 20 } : undefined}
+                    >
+                      <span className="w-5 flex-shrink-0 flex items-center justify-center mr-0.5">
+                        {hasChildren ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleListCollapse(project.id);
+                            }}
+                            className="p-0.5 text-gray-500 hover:text-gray-800 rounded"
+                            title={listCollapsedIds.has(project.id) ? '展開' : '折りたたむ'}
+                            aria-expanded={!listCollapsedIds.has(project.id)}
+                          >
+                            {listCollapsedIds.has(project.id) ? (
+                              <ChevronRight size={14} />
+                            ) : (
+                              <ChevronDown size={14} />
+                            )}
+                          </button>
+                        ) : (
+                          <span className="w-3.5" />
+                        )}
+                      </span>
+                      <span
+                        className={`text-sky-600 truncate min-w-0 ${
+                          hasChildren ? 'font-semibold' : 'font-medium'
+                        }`}
+                      >
+                        {project.name}
+                      </span>
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-gray-600">{project.identifier}</td>
                   <td className="px-4 py-3 text-gray-600">{project.company?.name || '-'}</td>
                   <td className="px-4 py-3 text-gray-600">

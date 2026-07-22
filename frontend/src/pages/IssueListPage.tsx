@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Pencil, Trash2, Users, List, ListTree, ChevronRight, ChevronDown } from 'lucide-react';
+import { Pencil, Trash2, Users, ChevronRight, ChevronDown } from 'lucide-react';
 import api from '../api/client';
 import { Issue, IssueMetaOptions } from '../types';
 import { IssueFormModal } from '../components/IssueForm';
@@ -10,20 +10,6 @@ import { useAuth } from '../hooks/useAuth';
 import { usePermissions } from '../hooks/usePermissions';
 import PermissionGate from '../components/PermissionGate';
 import Combobox from '../components/Combobox';
-
-type IssueListViewMode = 'list' | 'tree';
-
-const VIEW_STORAGE_KEY = 'projecthub.issueList.viewMode';
-
-function loadViewMode(): IssueListViewMode {
-  try {
-    const v = sessionStorage.getItem(VIEW_STORAGE_KEY);
-    if (v === 'list' || v === 'tree') return v;
-  } catch {
-    /* ignore */
-  }
-  return 'tree';
-}
 
 type TreeDisplayRow = {
   issue: Issue;
@@ -91,7 +77,6 @@ export default function IssueListPage() {
   const [meta, setMeta] = useState<IssueMetaOptions | null>(null);
   const [filterStatus, setFilterStatus] = useState('');
   const [filterTracker, setFilterTracker] = useState('');
-  const [viewMode, setViewMode] = useState<IssueListViewMode>(loadViewMode);
   const [collapsedIds, setCollapsedIds] = useState<Set<number>>(() => new Set());
   const [editingIssueId, setEditingIssueId] = useState<string | null>(null);
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
@@ -113,24 +98,10 @@ export default function IssueListPage() {
     fetchIssues();
   }, [projectId, filterStatus, filterTracker]);
 
-  useEffect(() => {
-    try {
-      sessionStorage.setItem(VIEW_STORAGE_KEY, viewMode);
-    } catch {
-      /* ignore */
-    }
-  }, [viewMode]);
-
-  const displayRows = useMemo(() => {
-    if (viewMode === 'list') {
-      return issues.map((issue) => ({
-        issue,
-        depth: 0,
-        hasChildren: false,
-      }));
-    }
-    return buildTreeDisplayRows(issues, collapsedIds);
-  }, [issues, viewMode, collapsedIds]);
+  const displayRows = useMemo(
+    () => buildTreeDisplayRows(issues, collapsedIds),
+    [issues, collapsedIds]
+  );
 
   const toggleCollapse = (id: number) => {
     setCollapsedIds((prev) => {
@@ -162,42 +133,14 @@ export default function IssueListPage() {
       <div className="mb-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-semibold text-slate-700">チケット一覧</h2>
-          <div className="flex items-center gap-3">
-            <div className="inline-flex rounded-md border border-gray-300 overflow-hidden shadow-sm">
-              <button
-                type="button"
-                onClick={() => setViewMode('list')}
-                className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors ${
-                  viewMode === 'list'
-                    ? 'bg-sky-600 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                <List size={15} />
-                一覧
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('tree')}
-                className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-l border-gray-300 transition-colors ${
-                  viewMode === 'tree'
-                    ? 'bg-sky-600 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                <ListTree size={15} />
-                ツリー
-              </button>
-            </div>
-            <PermissionGate code="projects.issues" action="input" permissions={user?.permissions}>
-              <button
-                onClick={() => setIsNewIssueModalOpen(true)}
-                className="bg-sky-600 text-white px-4 py-2 rounded-md text-sm hover:bg-sky-700 cursor-pointer"
-              >
-                新規チケット
-              </button>
-            </PermissionGate>
-          </div>
+          <PermissionGate code="projects.issues" action="input" permissions={user?.permissions}>
+            <button
+              onClick={() => setIsNewIssueModalOpen(true)}
+              className="bg-sky-600 text-white px-4 py-2 rounded-md text-sm hover:bg-sky-700 cursor-pointer"
+            >
+              新規チケット
+            </button>
+          </PermissionGate>
         </div>
 
         <div className="bg-white rounded-lg shadow p-4 mb-6 flex gap-4">
@@ -251,30 +194,28 @@ export default function IssueListPage() {
                   <td className="px-4 py-3">
                     <div
                       className="flex items-center min-w-0"
-                      style={viewMode === 'tree' && depth > 0 ? { paddingLeft: depth * 20 } : undefined}
+                      style={depth > 0 ? { paddingLeft: depth * 20 } : undefined}
                     >
-                      {viewMode === 'tree' && (
-                        <span className="w-5 flex-shrink-0 flex items-center justify-center mr-0.5">
-                          {hasChildren ? (
-                            <button
-                              type="button"
-                              onClick={() => toggleCollapse(issue.id)}
-                              className="p-0.5 text-gray-500 hover:text-gray-800 rounded"
-                              title={collapsedIds.has(issue.id) ? '展開' : '折りたたむ'}
-                              aria-expanded={!collapsedIds.has(issue.id)}
-                            >
-                              {collapsedIds.has(issue.id) ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                            </button>
-                          ) : (
-                            <span className="w-3.5" />
-                          )}
-                        </span>
-                      )}
+                      <span className="w-5 flex-shrink-0 flex items-center justify-center mr-0.5">
+                        {hasChildren ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleCollapse(issue.id)}
+                            className="p-0.5 text-gray-500 hover:text-gray-800 rounded"
+                            title={collapsedIds.has(issue.id) ? '展開' : '折りたたむ'}
+                            aria-expanded={!collapsedIds.has(issue.id)}
+                          >
+                            {collapsedIds.has(issue.id) ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                          </button>
+                        ) : (
+                          <span className="w-3.5" />
+                        )}
+                      </span>
                       <button
                         type="button"
                         onClick={() => setSelectedIssueId(String(issue.id))}
                         className={`text-sky-600 hover:underline font-medium cursor-pointer text-left truncate min-w-0 ${
-                          viewMode === 'tree' && hasChildren ? 'font-semibold' : ''
+                          hasChildren ? 'font-semibold' : ''
                         }`}
                       >
                         {issue.subject}
