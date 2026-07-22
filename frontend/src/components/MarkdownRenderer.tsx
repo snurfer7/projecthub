@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 
 const Mermaid = lazy(() => import('./Mermaid'));
@@ -15,7 +16,7 @@ const MermaidFallback = () => (
 const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) => {
     return (
         <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
+            remarkPlugins={[remarkGfm, remarkBreaks]}
             components={{
                 table: ({ children }) => (
                     <div className="overflow-x-auto mb-6 rounded-lg border border-slate-300 shadow-sm">

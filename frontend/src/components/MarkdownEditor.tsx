@@ -54,6 +54,57 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
         }, 0);
     };
 
+    /** 箇条書き・番号付きリスト行で Enter 時に次行へマーカーを継続する */
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return;
+
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+
+        const cursor = textarea.selectionStart;
+        if (cursor !== textarea.selectionEnd) return;
+
+        const lineStart = value.lastIndexOf('\n', cursor - 1) + 1;
+        const currentLine = value.substring(lineStart, cursor);
+
+        // インデント + 箇条書き (- * +) または番号付きリスト (1. )
+        const listMatch = currentLine.match(/^(\s*)([-*+]|\d+\.)\s(.*)$/);
+        if (!listMatch) return;
+
+        e.preventDefault();
+
+        const [, indent, marker, content] = listMatch;
+
+        // マーカーのみの空行 → リスト終了（マーカーを削除して空行にする）
+        if (content === '') {
+            const newValue = value.substring(0, lineStart) + value.substring(cursor);
+            onChange(newValue);
+            setTimeout(() => {
+                textarea.focus();
+                textarea.setSelectionRange(lineStart, lineStart);
+            }, 0);
+            return;
+        }
+
+        let nextMarker: string;
+        if (/^\d+\.$/.test(marker)) {
+            nextMarker = `${parseInt(marker, 10) + 1}.`;
+        } else {
+            nextMarker = marker;
+        }
+
+        const insertion = `\n${indent}${nextMarker} `;
+        const newValue =
+            value.substring(0, cursor) + insertion + value.substring(cursor);
+        onChange(newValue);
+
+        const newCursor = cursor + insertion.length;
+        setTimeout(() => {
+            textarea.focus();
+            textarea.setSelectionRange(newCursor, newCursor);
+        }, 0);
+    };
+
     const toolbarButtons = [
         {
             title: '太字',
@@ -158,6 +209,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
                     ref={textareaRef}
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
+                    onKeyDown={handleKeyDown}
                     rows={rows}
                     placeholder={placeholder}
                     disabled={disabled}
