@@ -46,6 +46,48 @@ const ZOOM_CONFIG: Record<ZoomLevel, { dayWidth: number; label: string }> = {
   year: { dayWidth: 1.5, label: '年' },
 };
 
+/** 行コンテンツ高さ (px)。タイムラインセルの height */
+const GANTT_ROW_CONTENT_HEIGHT = 24;
+/** 行の border-b (1px) を含む実際の行の高さ */
+const GANTT_ROW_HEIGHT = GANTT_ROW_CONTENT_HEIGHT + 1;
+/** バーの top オフセット (tailwind top-1 = 4px) */
+const GANTT_BAR_TOP = 4;
+/** バー高さ */
+const GANTT_BAR_HEIGHT = 16;
+/** 行上端からバー縦中央までのオフセット */
+const GANTT_BAR_CENTER_OFFSET = GANTT_BAR_TOP + GANTT_BAR_HEIGHT / 2;
+/** sticky ヘッダーの border-b */
+const GANTT_HEADER_BORDER = 1;
+
+function ganttHeaderHeight(zoom: ZoomLevel): number {
+  // 日: 30+24+24+24 / 月: 30+24 / 年: 30  + sticky の border-b
+  const content = zoom === 'day' ? 102 : zoom === 'month' ? 54 : 30;
+  return content + GANTT_HEADER_BORDER;
+}
+
+/** 関係線: S字・かぎ足の水平スタブ長 (px) */
+const RELATION_LINE_STUB = 12;
+
+/**
+ * 先行バー右端中央 (x1,y1) → 後続バー左端中央 (x2,y2) を直交線で結ぶ。
+ * - 隙間が十分: 隙間中央のかぎ足
+ * - 終了と開始が同じ／近い: 行間を通る S 字
+ */
+function buildRelationLinePoints(x1: number, y1: number, x2: number, y2: number): string {
+  const gap = x2 - x1;
+
+  if (gap >= RELATION_LINE_STUB * 2) {
+    const midX = x1 + gap / 2;
+    return `${x1},${y1} ${midX},${y1} ${midX},${y2} ${x2},${y2}`;
+  }
+
+  // S字: 先行右へ出る → 行間で横切る → 後続左外側から中央へ入る
+  const midY = (y1 + y2) / 2;
+  const exitX = x1 + RELATION_LINE_STUB;
+  const entryX = x2 - RELATION_LINE_STUB;
+  return `${x1},${y1} ${exitX},${y1} ${exitX},${midY} ${entryX},${midY} ${entryX},${y2} ${x2},${y2}`;
+}
+
 const TRACKER_COLORS: string[] = [
   '#0EA5E9', '#8B5CF6', '#F59E0B', '#10B981', '#EF4444', '#EC4899', '#6366F1', '#14B8A6',
 ];
@@ -1005,15 +1047,11 @@ export default function GanttChart({
       group.issues.forEach((issue) => {
         const bar = getBarPosition(issue);
         if (bar) {
-          // ヘッダーの高さを考慮
-          // 日表示: 30 (年) + 24 (月) + 24 (日) + 24 (曜日) = 102
-          // 月表示: 30 (年) + 24 (月) = 54
-          // 年表示: 30 (年) = 30
-          const headerHeight = zoom === 'day' ? 102 : zoom === 'month' ? 54 : 30;
           pos[issue.id] = {
             left: bar.left,
             width: bar.width,
-            top: headerHeight + currentIndex * 24 + 12, // 12 is bar center
+            // バー縦方向の中央（右端・左端の接続点）
+            top: ganttHeaderHeight(zoom) + currentIndex * GANTT_ROW_HEIGHT + GANTT_BAR_CENTER_OFFSET,
           };
         }
         currentIndex++;
@@ -1340,7 +1378,7 @@ export default function GanttChart({
                 <div
                   style={{
                     width: leftColWidth,
-                    height: zoom === 'day' ? 102 : zoom === 'month' ? 54 : 30,
+                    height: ganttHeaderHeight(zoom) - GANTT_HEADER_BORDER,
                   }}
                   className="flex-shrink-0 bg-gray-50 border-r sticky left-0 z-40 flex flex-col justify-start items-start gap-1 pt-1 px-2"
                 >
@@ -1454,7 +1492,7 @@ export default function GanttChart({
                   const indentPx = group.depth * 16;
                   const isCollapsed = collapsedProjects.has(group.projectId);
                   return (
-                    <div className="flex border-b bg-slate-100 group">
+                    <div className="flex border-b bg-slate-100 group" style={{ height: GANTT_ROW_HEIGHT, boxSizing: 'border-box' }}>
                       <div style={{ width: leftColWidth }} className="flex-shrink-0 py-0.5 text-xs font-semibold text-slate-700 border-r truncate flex items-center sticky left-0 z-20 bg-slate-100 group-hover:bg-slate-200" title={group.projectName}>
                         <span style={{ paddingLeft: indentPx + 4 }} className="flex items-center gap-1 min-w-0">
                           {group.hasChildren ? (
@@ -1472,7 +1510,7 @@ export default function GanttChart({
                           <Link to={`/projects/${group.projectId}`} className="hover:text-sky-600 truncate">{group.projectName}</Link>
                         </span>
                       </div>
-                      <div className="relative flex-1 cursor-pointer group-hover:bg-slate-200 transition-colors" title="クリックしてチケット追加" style={{ height: 24 }} onClick={(e) => handleProjectRowClick(e, group.projectId)}>
+                      <div className="relative flex-1 cursor-pointer group-hover:bg-slate-200 transition-colors" title="クリックしてチケット追加" style={{ height: GANTT_ROW_CONTENT_HEIGHT }} onClick={(e) => handleProjectRowClick(e, group.projectId)}>
                         {/* グリッド線 */}
                         {gridLines.map((line, i) => (
                           <div key={i} className="absolute top-0 bottom-0" style={{
@@ -1486,8 +1524,15 @@ export default function GanttChart({
                         )}
                         {/* チケット期間バー */}
                         {projectIssuesBar && (
-                          <div className="absolute top-1 rounded"
-                            style={{ left: projectIssuesBar.left, width: projectIssuesBar.width, height: 16, backgroundColor: '#475569', zIndex: 10 }}
+                          <div className="absolute rounded"
+                            style={{
+                              left: projectIssuesBar.left,
+                              width: projectIssuesBar.width,
+                              top: GANTT_BAR_TOP,
+                              height: GANTT_BAR_HEIGHT,
+                              backgroundColor: '#475569',
+                              zIndex: 10,
+                            }}
                           />
                         )}
                         {/* プロジェクト期限日マーカー */}
@@ -1512,7 +1557,7 @@ export default function GanttChart({
                   const issueDepth = issueDepthById.get(issue.id) ?? 0;
 
                   return (
-                    <div key={issue.id} className="flex border-b group hover:bg-gray-50 text-[11px]">
+                    <div key={issue.id} className="flex border-b group hover:bg-gray-50 text-[11px]" style={{ height: GANTT_ROW_HEIGHT, boxSizing: 'border-box' }}>
                       <div style={{ width: leftColWidth }} className="flex-shrink-0 px-2 py-0.5 text-xs truncate border-r flex items-center sticky left-0 z-20 bg-white group-hover:bg-gray-50" data-issue-id={issue.id}>
                         {showProject && <span className="inline-block w-4 flex-shrink-0" />}
                         <span className="inline-block flex-shrink-0" style={{ width: issueDepth * 12 }} />
@@ -1538,7 +1583,7 @@ export default function GanttChart({
                           </button>
                         )}
                       </div>
-                      <div className={`relative flex-1 ${relationDrag?.toIssueId === issue.id ? 'bg-sky-50' : ''}`} style={{ height: 24 }} data-issue-id={issue.id}>
+                      <div className={`relative flex-1 ${relationDrag?.toIssueId === issue.id ? 'bg-sky-50' : ''}`} style={{ height: GANTT_ROW_CONTENT_HEIGHT }} data-issue-id={issue.id}>
                         {/* グリッド線 */}
                         {gridLines.map((line, i) => (
                           <div key={i} className="absolute top-0 bottom-0" style={{
@@ -1555,8 +1600,15 @@ export default function GanttChart({
                         {/* バー */}
                         {bar && (
                           <div
-                            className={`absolute top-1 rounded group ${isDragging ? 'opacity-80' : ''} ${isParent ? 'ring-1 ring-black/10' : ''}`}
-                            style={{ left: bar.left, width: bar.width, height: 16, backgroundColor: isParent ? '#64748B' : color, zIndex: 10 }}
+                            className={`absolute rounded group ${isDragging ? 'opacity-80' : ''} ${isParent ? 'ring-1 ring-black/10' : ''}`}
+                            style={{
+                              left: bar.left,
+                              width: bar.width,
+                              top: GANTT_BAR_TOP,
+                              height: GANTT_BAR_HEIGHT,
+                              backgroundColor: isParent ? '#64748B' : color,
+                              zIndex: 10,
+                            }}
                             onMouseEnter={(e) => handleBarHover(e, issue)}
                             onMouseLeave={() => !drag && setTooltip(null)}
                             onMouseMove={(e) => !drag && setTooltip({ issue, x: e.clientX, y: e.clientY })}
@@ -1662,19 +1714,15 @@ export default function GanttChart({
                         const predPos = isPredecessorFrom ? fromPos : toPos;
                         const succPos = isPredecessorFrom ? toPos : fromPos;
 
-                        // 始点: 先行チケットの終端 (右端)
+                        // 始点: 先行チケットの終端 (右端) / 終点: 後行チケットの始端 (左端)
                         const x1 = predPos.left + predPos.width;
                         const y1 = predPos.top;
-                        // 終点: 後行チケットの始端 (左端)
                         const x2 = succPos.left;
                         const y2 = succPos.top;
 
-                        // かぎ足の曲がり角: 先行チケットの右側 10px か、中間点
-                        const midX = Math.max(x1 + 10, x1 + (x2 - x1) / 2);
-
                         return (
                           <polyline
-                            points={`${x1},${y1} ${midX},${y1} ${midX},${y2} ${x2},${y2}`}
+                            points={buildRelationLinePoints(x1, y1, x2, y2)}
                             fill="none"
                             stroke="#64748b"
                             strokeWidth="1.5"
