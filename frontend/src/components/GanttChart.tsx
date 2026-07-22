@@ -1102,7 +1102,7 @@ export default function GanttChart({
 
     if (offset < 0 || offset > totalDays) return null;
 
-    // 期限日は縦線で表示
+    // 期限日は1日分を覆う網掛けで表示
     return { left: offset * dayWidth };
   }, [getOffset, dayWidth, totalDays]);
 
@@ -1535,10 +1535,16 @@ export default function GanttChart({
                             }}
                           />
                         )}
-                        {/* プロジェクト期限日マーカー */}
+                        {/* プロジェクト期限日マーカー（1日分を覆う赤い網掛け） */}
                         {projectDueDateBar && (
                           <div className="absolute top-0 bottom-0 cursor-help"
-                            style={{ left: projectDueDateBar.left, width: 6, backgroundColor: '#EF4444', zIndex: 15 }}
+                            style={{
+                              left: projectDueDateBar.left,
+                              width: dayWidth,
+                              backgroundImage:
+                                'repeating-linear-gradient(45deg, rgba(239,68,68,0.5) 0, rgba(239,68,68,0.5) 3px, transparent 3px, transparent 6px)',
+                              zIndex: 15,
+                            }}
                             onMouseEnter={(e) => setTooltip({ projectDueDate: group.projectDueDate, x: e.clientX, y: e.clientY })}
                             onMouseLeave={() => setTooltip(null)}
                             onMouseMove={(e) => setTooltip({ projectDueDate: group.projectDueDate, x: e.clientX, y: e.clientY })}
@@ -1662,15 +1668,23 @@ export default function GanttChart({
                           </div>
                         )}
 
-                        {/* 期日マーカー（赤い縦線） */}
+                        {/* 期日マーカー（1日分を覆う赤い網掛け） */}
                         {!isDragging && issue.dueDate && (() => {
                           const d = new Date(issue.dueDate);
-                          const left = daysBetween(chartStart, d);
+                          d.setHours(0, 0, 0, 0);
+                          const start = new Date(chartStart);
+                          start.setHours(0, 0, 0, 0);
+                          const left = Math.round((d.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
                           if (left < 0 || left > totalDays) return null;
                           return (
                             <div
-                              className="absolute top-0 bottom-0 w-1 bg-red-500 z-[11]"
-                              style={{ left: left * dayWidth }}
+                              className="absolute top-0 bottom-0 z-[11] pointer-events-none"
+                              style={{
+                                left: left * dayWidth,
+                                width: dayWidth,
+                                backgroundImage:
+                                  'repeating-linear-gradient(45deg, rgba(239,68,68,0.5) 0, rgba(239,68,68,0.5) 3px, transparent 3px, transparent 6px)',
+                              }}
                               title={`期日: ${new Date(issue.dueDate).toLocaleDateString('ja-JP')}`}
                             />
                           );
