@@ -133,79 +133,85 @@ export default function TicketSearchSection({
     (onDueDateStartChange != null && ((dueDateStart ?? '') !== '' || (dueDateEnd ?? '') !== '')) ||
     (onStartValueChange != null && ((startValue ?? '') !== '' || (endValue ?? '') !== ''));
 
+  const showPeriod = onStartValueChange != null && onEndValueChange != null;
+
   return (
     <div className="bg-white rounded-lg shadow p-3 flex flex-wrap items-center gap-3">
-      {/* 期間指定 */}
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-gray-500">期間:</span>
-        {zoom === 'year' ? (
-          <div className="flex items-center gap-1">
-            <CustomDatePicker
-              value={startValue || ''}
-              onChange={handleStartValueChange}
-              size="small"
-              showFloatingLabel={false}
-              placeholder="開始"
-              className="w-36"
-              selectMode="year"
-            />
-            <span className="text-gray-400">〜</span>
-            <CustomDatePicker
-              value={endValue || ''}
-              onChange={handleEndValueChange}
-              size="small"
-              showFloatingLabel={false}
-              placeholder="終了"
-              className="w-36"
-              selectMode="year"
-            />
+      {/* 期間指定（ガント表示範囲など。ハンドラ未指定時は非表示） */}
+      {showPeriod && (
+        <>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">期間:</span>
+            {zoom === 'year' ? (
+              <div className="flex items-center gap-1">
+                <CustomDatePicker
+                  value={startValue || ''}
+                  onChange={handleStartValueChange}
+                  size="small"
+                  showFloatingLabel={false}
+                  placeholder="開始"
+                  className="w-36"
+                  selectMode="year"
+                />
+                <span className="text-gray-400">〜</span>
+                <CustomDatePicker
+                  value={endValue || ''}
+                  onChange={handleEndValueChange}
+                  size="small"
+                  showFloatingLabel={false}
+                  placeholder="終了"
+                  className="w-36"
+                  selectMode="year"
+                />
+              </div>
+            ) : zoom === 'month' ? (
+              <div className="flex items-center gap-1">
+                <CustomDatePicker
+                  value={startValue || ''}
+                  onChange={handleStartValueChange}
+                  size="small"
+                  showFloatingLabel={false}
+                  placeholder="開始"
+                  className="w-48"
+                  selectMode="month"
+                />
+                <span className="text-gray-400">〜</span>
+                <CustomDatePicker
+                  value={endValue || ''}
+                  onChange={handleEndValueChange}
+                  size="small"
+                  showFloatingLabel={false}
+                  placeholder="終了"
+                  className="w-48"
+                  selectMode="month"
+                />
+              </div>
+            ) : (
+              <div className="flex items-center gap-1">
+                <CustomDatePicker
+                  value={startValue || ''}
+                  onChange={handleStartValueChange}
+                  size="small"
+                  showFloatingLabel={false}
+                  placeholder="開始"
+                  className="w-48"
+                />
+                <span className="text-gray-400">〜</span>
+                <CustomDatePicker
+                  value={endValue || ''}
+                  onChange={handleEndValueChange}
+                  size="small"
+                  showFloatingLabel={false}
+                  placeholder="終了"
+                  className="w-48"
+                />
+              </div>
+            )}
           </div>
-        ) : zoom === 'month' ? (
-          <div className="flex items-center gap-1">
-            <CustomDatePicker
-              value={startValue || ''}
-              onChange={handleStartValueChange}
-              size="small"
-              showFloatingLabel={false}
-              placeholder="開始"
-              className="w-48"
-              selectMode="month"
-            />
-            <span className="text-gray-400">〜</span>
-            <CustomDatePicker
-              value={endValue || ''}
-              onChange={handleEndValueChange}
-              size="small"
-              showFloatingLabel={false}
-              placeholder="終了"
-              className="w-48"
-              selectMode="month"
-            />
-          </div>
-        ) : (
-          <div className="flex items-center gap-1">
-            <CustomDatePicker
-              value={startValue || ''}
-              onChange={handleStartValueChange}
-              size="small"
-              showFloatingLabel={false}
-              placeholder="開始"
-              className="w-48"
-            />
-            <span className="text-gray-400">〜</span>
-            <CustomDatePicker
-              value={endValue || ''}
-              onChange={handleEndValueChange}
-              size="small"
-              showFloatingLabel={false}
-              placeholder="終了"
-              className="w-48"
-            />
-          </div>
-        )}
-      </div>
 
-      <div className="w-px h-6 bg-gray-200" />
+          <div className="w-px h-6 bg-gray-200" />
+        </>
+      )}
 
       {onDueDateStartChange && onDueDateEndChange && (
         <>

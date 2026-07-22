@@ -18,6 +18,8 @@ export default function KanbanPage() {
   const [filterTrackerIds, setFilterTrackerIds] = useState<(number | string)[]>([]);
   const [filterStatusIds, setFilterStatusIds] = useState<(number | string)[]>([]);
   const [filterAssignedToIds, setFilterAssignedToIds] = useState<(number | string)[]>([]);
+  const [dueDateStart, setDueDateStart] = useState('');
+  const [dueDateEnd, setDueDateEnd] = useState('');
   const [isNewIssueModalOpen, setIsNewIssueModalOpen] = useState(false);
   const [newIssueStatusId, setNewIssueStatusId] = useState<number | undefined>(undefined);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -58,9 +60,15 @@ export default function KanbanPage() {
           && filterAssignedToIds.some((id) => String(id) === String(issue.assignedToId));
         if (!matchUser) return false;
       }
+      if (dueDateStart || dueDateEnd) {
+        if (!issue.dueDate) return false;
+        const due = issue.dueDate.slice(0, 10);
+        if (dueDateStart && due < dueDateStart) return false;
+        if (dueDateEnd && due > dueDateEnd) return false;
+      }
       return true;
     });
-  }, [issues, filterTrackerIds, filterStatusIds, filterAssignedToIds]);
+  }, [issues, filterTrackerIds, filterStatusIds, filterAssignedToIds, dueDateStart, dueDateEnd]);
 
   const handleDrop = async (issueId: number, targetStatusId: number) => {
     const issueToUpdate = issues.find(i => i.id === issueId);
@@ -100,6 +108,8 @@ export default function KanbanPage() {
     setFilterTrackerIds([]);
     setFilterStatusIds([]);
     setFilterAssignedToIds([]);
+    setDueDateStart('');
+    setDueDateEnd('');
   }, []);
 
   return (
@@ -122,6 +132,10 @@ export default function KanbanPage() {
           onFilterStatusIdsChange={setFilterStatusIds}
           filterAssignedToIds={filterAssignedToIds}
           onFilterAssignedToIdsChange={setFilterAssignedToIds}
+          dueDateStart={dueDateStart}
+          onDueDateStartChange={setDueDateStart}
+          dueDateEnd={dueDateEnd}
+          onDueDateEndChange={setDueDateEnd}
           onResetFilter={resetTicketSearchFilter}
           issueCount={leafIssues.length}
         />

@@ -30,7 +30,7 @@
 | `/projects/:projectId/issues/new` | IssueFormPage | チケット新規作成。親チケット選択可（`projects.issues.fields.parent`）。子を持つ編集時はステータス・開始日・開始時刻・終了日・終了時刻は入力不可で子孫集約値を表示（ステータスは position 最小） |
 | `/projects/:projectId/wiki` | WikiListPage | Wiki 一覧 |
 | `/projects/:projectId/comments` | ProjectCommentsPage | プロジェクトコメント |
-| `/projects/:projectId/kanban` | KanbanPage | カンバン。**子を持つチケットは非表示**（末端のみ）。親がある末端チケットはカード上に最上位親までのツリーを表示 |
+| `/projects/:projectId/kanban` | KanbanPage | カンバン。**子を持つチケットは非表示**（末端のみ）。親がある末端チケットはカード上に最上位親までのツリーを表示。検索条件にトラッカー・ステータス・担当者・チケット期限（期間）を指定可能 |
 | `/projects/:projectId/gantt` | GanttPage | ガント（プロジェクト単位）。親チケットは子孫の期間を集約表示しバーの移動・リサイズ不可。子はインデント表示 |
 | `/projects/:projectId/time-entries` | TimeEntriesPage | 工数一覧 |
 | `/projects/:projectId/activities` | ProjectActivitiesPage | 活動履歴一覧（企業活動との N:N 紐づき）。表示条件: `projects.activities` canUse。既存活動の紐づけ追加・解除は `companies.activities` canInput。候補は主企業・関連企業の、当該プロジェクト未紐づけの活動。企業が未設定の場合は紐づけ不可。活動の新規作成は不可（企業詳細側で作成） |
