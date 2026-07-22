@@ -273,6 +273,9 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                             <span className="bg-slate-100 px-2 py-0.5 rounded text-xs font-medium">{issue.tracker?.name}</span>
                             <span className={`px-2 py-0.5 rounded text-xs font-medium ${issue.status?.isClosed ? 'bg-gray-100 text-gray-600' : 'bg-green-100 text-green-700'
                                 }`}>{issue.status?.name}</span>
+                            {(issue.children?.length ?? issue._count?.children ?? 0) > 0 && (
+                                <span className="text-xs text-gray-400">（子から算出）</span>
+                            )}
                         </div>
                         <h1 className="text-xl font-bold text-slate-800">{issue.subject}</h1>
                     </div>
@@ -315,11 +318,31 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                         <span className="ml-1">{issue.author?.lastName} {issue.author?.firstName}</span>
                     </div>
                     <div>
+                        <span className="text-gray-500">親チケット:</span>
+                        <span className="ml-1">
+                            {issue.parent ? (
+                                <Link to={`/issues/${issue.parent.id}`} className="text-sky-600 hover:underline">
+                                    #{issue.parent.id} {issue.parent.subject}
+                                </Link>
+                            ) : 'なし'}
+                        </span>
+                    </div>
+                    <div>
                         <span className="text-gray-500">進捗:</span>
                         <span className="ml-1">{issue.doneRatio}%</span>
                     </div>
-                    {issue.startDate && <div><span className="text-gray-500">開始日時:</span><span className="ml-1">{new Date(issue.startDate).toLocaleString('ja-JP')}</span></div>}
-                    {issue.endDate && <div><span className="text-gray-500">終了日時:</span><span className="ml-1">{new Date(issue.endDate).toLocaleString('ja-JP')}</span></div>}
+                    {issue.startDate && (
+                        <div>
+                            <span className="text-gray-500">開始日時{(issue.children?.length ?? issue._count?.children ?? 0) > 0 ? '（子から算出）' : ''}:</span>
+                            <span className="ml-1">{new Date(issue.startDate).toLocaleString('ja-JP')}</span>
+                        </div>
+                    )}
+                    {issue.endDate && (
+                        <div>
+                            <span className="text-gray-500">終了日時{(issue.children?.length ?? issue._count?.children ?? 0) > 0 ? '（子から算出）' : ''}:</span>
+                            <span className="ml-1">{new Date(issue.endDate).toLocaleString('ja-JP')}</span>
+                        </div>
+                    )}
                     {issue.estimatedHours && (
                         <div>
                             <span className="text-gray-500">予定工数:</span>

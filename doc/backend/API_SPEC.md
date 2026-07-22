@@ -45,11 +45,11 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 | メソッド | パス | 概要 |
 |----------|------|------|
-| GET | `/` | チケット一覧。Query: `projectId`, `statusId` / `statusIds`（複数）, `trackerId` / `trackerIds`（複数）, `priorityId`, `assignedToId` / `assignedToIds`（複数担当者）, `assignedToGroupId`。複数 ID はカンマ区切りまたは配列 |
+| GET | `/` | チケット一覧。Query: `projectId`, `statusId` / `statusIds`（複数）, `trackerId` / `trackerIds`（複数）, `priorityId`, `assignedToId` / `assignedToIds`（複数担当者）, `assignedToGroupId`。複数 ID はカンマ区切りまたは配列。応答に `parentId` / `parent` / `_count.children` を含み、子を持つチケットの `startDate` / `endDate` / `statusId`（`status`）は子孫から集約した値（ステータスは position 最小） |
 | GET | `/meta/options` | メタ（trackers, statuses, priorities, users, groups）。Query: `projectId`（任意）。`projectId` 指定時はプロジェクトメンバー・紐付きグループのみ返す。未指定時は全ユーザー・全グループを返す |
-| GET | `/:id` | チケット詳細 |
-| POST | `/` | チケット作成 |
-| PUT | `/:id` | チケット更新 |
+| GET | `/:id` | チケット詳細。`parent` / `children`（id, subject, startDate, endDate）を含む。子がある場合 `startDate` / `endDate` / `status` は集約値 |
+| POST | `/` | チケット作成。Body に `parentId`（任意・同一プロジェクト・循環不可）。権限: 項目 `projects.issues.fields.parent`（`parentId` 指定時） |
+| PUT | `/:id` | チケット更新。Body に `parentId`（任意・null で解除）。子チケットがある場合 `startDate` / `endDate` / `statusId` の更新は 400。権限: `projects.issues.fields.parent` |
 | DELETE | `/:id` | チケット削除 |
 | PUT | `/reorder` | 順序更新。Body: `issues: [{ id, position }]` |
 | POST | `/:id/relations` | 関連追加 |
@@ -57,6 +57,8 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | POST | `/:id/comments` | コメント追加 |
 | PUT | `/:id/comments/:commentId` | コメント更新 |
 | DELETE | `/:id/comments/:commentId` | コメント削除 |
+
+親チケットの開始・終了日時およびステータスは子から導出するため、子があるチケットへの `startDate` / `endDate` / `statusId` 書き込みは拒否する。
 
 ---
 
@@ -176,8 +178,8 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 | メソッド | パス | 概要 |
 |----------|------|------|
-| GET | `/project/:projectId` | 指定プロジェクトのガント用データ |
-| GET | `/all` | 全プロジェクトのガント用データ |
+| GET | `/project/:projectId` | 指定プロジェクトのガント用データ。チケットに `parentId` を含み、親の開始・終了は子孫から集約 |
+| GET | `/all` | 全プロジェクトのガント用データ（同上） |
 
 ---
 

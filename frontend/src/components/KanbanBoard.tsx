@@ -1,11 +1,15 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Users, Plus } from 'lucide-react';
 import { Issue, IssueStatus } from '../types';
+import { buildIssueByIdMap, getAncestorChain, isLeafIssue } from '../utils/issueTree';
 
 interface KanbanBoardProps {
     statuses: IssueStatus[];
+    /** 表示対象候補（フィルタ適用後）。子を持つチケットはボード上では除外される */
     issues: Issue[];
+    /** 祖先解決用。未指定時は issues を使う */
+    hierarchyIssues?: Issue[];
     onDrop: (issueId: number, targetStatusId: number) => void;
     onNewIssue?: (statusId: number) => void;
     onIssueClick?: (issueId: number) => void;
@@ -37,8 +41,60 @@ function getPriorityClass(name: string) {
     return PRIORITY_COLORS[name] || 'bg-gray-100 text-gray-600 border-gray-200';
 }
 
+function AncestorTree({
+    ancestors,
+    onIssueClick,
+}: {
+    ancestors: { id: number; subject: string }[];
+    onIssueClick?: (issueId: number) => void;
+}) {
+    if (ancestors.length === 0) return null;
+    return (
+        <div className="mb-1.5 text-[11px] text-gray-500 leading-tight">
+            {ancestors.map((ancestor, index) => (
+                <div
+                    key={ancestor.id}
+                    className="flex items-center min-w-0"
+                    style={{ paddingLeft: index * 12 }}
+                >
+                    {index > 0 && (
+                        <span className="relative flex-shrink-0 w-3 h-3 mr-0.5" aria-hidden>
+                            <span className="absolute left-1.5 top-0 bottom-1/2 w-px bg-gray-300" />
+                            <span className="absolute left-1.5 top-1/2 right-0 h-px bg-gray-300" />
+                        </span>
+                    )}
+                    <button
+                        type="button"
+                        className="hover:text-sky-600 hover:underline text-left truncate min-w-0"
+                        title={`#${ancestor.id} ${ancestor.subject}`}
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onIssueClick?.(ancestor.id);
+                        }}
+                    >
+                        <span className="text-gray-400 mr-0.5">#{ancestor.id}</span>
+                        {ancestor.subject}
+                    </button>
+                </div>
+            ))}
+            <div
+                className="flex items-center"
+                style={{ paddingLeft: ancestors.length * 12 }}
+                aria-hidden
+            >
+                <span className="relative flex-shrink-0 w-3 h-2.5 mr-0.5">
+                    <span className="absolute left-1.5 top-0 bottom-0 w-px bg-gray-300" />
+                    <span className="absolute left-1.5 bottom-0 right-0 h-px bg-gray-300" />
+                </span>
+            </div>
+        </div>
+    );
+}
+
 const IssueCard = React.forwardRef<HTMLDivElement, {
     issue: Issue,
+    ancestors: { id: number; subject: string }[],
     showProjectName?: boolean,
     isDragging: boolean,
     onDragStart: () => void,
@@ -46,7 +102,7 @@ const IssueCard = React.forwardRef<HTMLDivElement, {
     onMouseEnter: () => void,
     onMouseLeave: () => void,
     onIssueClick?: (issueId: number) => void;
-}>(({ issue, showProjectName, isDragging, onDragStart, onDragEnd, onMouseEnter, onMouseLeave, onIssueClick }, ref) => {
+}>(({ issue, ancestors, showProjectName, isDragging, onDragStart, onDragEnd, onMouseEnter, onMouseLeave, onIssueClick }, ref) => {
     const assigneeName = issue.assignedToGroup
         ? issue.assignedToGroup.name
         : issue.assignedTo
@@ -68,6 +124,8 @@ const IssueCard = React.forwardRef<HTMLDivElement, {
                 <span className={`w-2 h-2 rounded-full flex-shrink-0 ${getTrackerColor(issue.tracker?.name || '')}`} />
                 <span className="text-xs font-medium text-gray-400 capitalize">{issue.tracker?.name} #{issue.id}</span>
             </div>
+
+            <AncestorTree ancestors={ancestors} onIssueClick={onIssueClick} />
 
             <Link
                 to={`/issues/${issue.id}`}
@@ -117,13 +175,21 @@ const IssueCard = React.forwardRef<HTMLDivElement, {
 
 IssueCard.displayName = 'IssueCard';
 
-export default function KanbanBoard({ statuses, issues, onDrop, onNewIssue, onIssueClick, showProjectName }: KanbanBoardProps) {
+export default function KanbanBoard({ statuses, issues, hierarchyIssues, onDrop, onNewIssue, onIssueClick, showProjectName }: KanbanBoardProps) {
     const [draggingIssueId, setDraggingIssueId] = useState<number | null>(null);
     const [dragOverStatusId, setDragOverStatusId] = useState<number | null>(null);
     const [hoveredIssueId, setHoveredIssueId] = useState<number | null>(null);
     const dragCounter = useRef<Record<number, number>>({});
     const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
     const containerRef = useRef<HTMLDivElement>(null);
+
+    const hierarchy = hierarchyIssues ?? issues;
+    const byId = useMemo(() => buildIssueByIdMap(hierarchy), [hierarchy]);
+
+    const leafIssues = useMemo(
+        () => issues.filter((issue) => isLeafIssue(issue, hierarchy)),
+        [issues, hierarchy]
+    );
 
     const handleDragStart = (issueId: number) => {
         setDraggingIssueId(issueId);
@@ -157,13 +223,13 @@ export default function KanbanBoard({ statuses, issues, onDrop, onNewIssue, onIs
         handleDragEnd();
     };
 
-    const hoveredIssue = issues.find(i => i.id === hoveredIssueId);
+    const hoveredIssue = leafIssues.find(i => i.id === hoveredIssueId);
 
     return (
         <div className="flex-1 overflow-x-auto bg-slate-50 relative custom-scrollbar">
             <div ref={containerRef} className="flex gap-6 h-full min-w-max relative" style={{ isolation: 'isolate' }}>
                 {statuses.map((status) => {
-                    const columnIssues = issues.filter((i) => i.statusId === status.id);
+                    const columnIssues = leafIssues.filter((i) => i.statusId === status.id);
                     return (
                         <div
                             key={status.id}
@@ -202,6 +268,7 @@ export default function KanbanBoard({ statuses, issues, onDrop, onNewIssue, onIs
                                     <IssueCard
                                         key={issue.id}
                                         issue={issue}
+                                        ancestors={getAncestorChain(issue, byId)}
                                         showProjectName={showProjectName}
                                         onDragStart={() => handleDragStart(issue.id)}
                                         onDragEnd={handleDragEnd}
@@ -225,7 +292,6 @@ export default function KanbanBoard({ statuses, issues, onDrop, onNewIssue, onIs
                     );
                 })}
 
-                {/* SVG Overlay */}
                 <svg className="absolute top-0 left-0 pointer-events-none w-full h-full z-20">
                     {hoveredIssue && (
                         <>
@@ -244,9 +310,6 @@ export default function KanbanBoard({ statuses, issues, onDrop, onNewIssue, onIs
                                 const fromRect = fromEl.getBoundingClientRect();
                                 const toRect = toEl.getBoundingClientRect();
 
-                                // Relation is always from -> to.
-                                // If hovered is "from", line goes from hovered to target.
-                                // If hovered is "to", line goes from target to hovered.
                                 const issueFromRect = isFromHovered ? fromRect : toRect;
                                 const issueToRect = isFromHovered ? toRect : fromRect;
 
@@ -255,14 +318,12 @@ export default function KanbanBoard({ statuses, issues, onDrop, onNewIssue, onIs
                                 const endX = issueToRect.left - parentRect.left + issueToRect.width / 2;
                                 const endY = issueToRect.top - parentRect.top + issueToRect.height / 2;
 
-                                // Adjust end point to be exactly at the card's edge
                                 const dx = endX - startX;
                                 const dy = endY - startY;
 
                                 const halfW = issueToRect.width / 2;
                                 const halfH = issueToRect.height / 2;
 
-                                // Find intersection t with rectangle boundary: |t*dx| = halfW or |t*dy| = halfH
                                 const tx = dx !== 0 ? halfW / Math.abs(dx) : Infinity;
                                 const ty = dy !== 0 ? halfH / Math.abs(dy) : Infinity;
                                 const t = Math.min(tx, ty);

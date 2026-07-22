@@ -274,6 +274,65 @@ function resolveIssueSchedule(issue: Issue, settings?: SystemSetting): { start: 
   return { start: end, end };
 }
 
+function issueHasChildren(issue: Issue, allIssues: Issue[]): boolean {
+  if ((issue._count?.children ?? 0) > 0) return true;
+  return allIssues.some((i) => i.parentId === issue.id);
+}
+
+/** 親チケットは子のスケジュールを集約（表示上の子があればそちら優先、なければ API 集約値） */
+function resolveIssueScheduleWithChildren(
+  issue: Issue,
+  allIssues: Issue[],
+  settings?: SystemSetting,
+  memo: Map<number, { start: Date; end: Date } | null> = new Map()
+): { start: Date; end: Date } | null {
+  if (memo.has(issue.id)) return memo.get(issue.id)!;
+  const children = allIssues.filter((i) => i.parentId === issue.id);
+  if (children.length === 0) {
+    const result = resolveIssueSchedule(issue, settings);
+    memo.set(issue.id, result);
+    return result;
+  }
+  let minStart: Date | null = null;
+  let maxEnd: Date | null = null;
+  for (const child of children) {
+    const schedule = resolveIssueScheduleWithChildren(child, allIssues, settings, memo);
+    if (!schedule) continue;
+    if (!minStart || schedule.start < minStart) minStart = schedule.start;
+    if (!maxEnd || schedule.end > maxEnd) maxEnd = schedule.end;
+  }
+  const result = minStart || maxEnd ? { start: minStart || maxEnd!, end: maxEnd || minStart! } : null;
+  memo.set(issue.id, result);
+  return result;
+}
+
+function orderIssuesHierarchically(issues: Issue[]): { issue: Issue; depth: number }[] {
+  const byId = new Map(issues.map((i) => [i.id, i]));
+  const childrenMap = new Map<number, Issue[]>();
+  for (const issue of issues) {
+    if (issue.parentId != null && byId.has(issue.parentId)) {
+      const list = childrenMap.get(issue.parentId) ?? [];
+      list.push(issue);
+      childrenMap.set(issue.parentId, list);
+    }
+  }
+  const roots = issues.filter((i) => i.parentId == null || !byId.has(i.parentId));
+  const result: { issue: Issue; depth: number }[] = [];
+  const visited = new Set<number>();
+  const visit = (issue: Issue, depth: number) => {
+    if (visited.has(issue.id)) return;
+    visited.add(issue.id);
+    result.push({ issue, depth });
+    const children = (childrenMap.get(issue.id) ?? []).sort((a, b) => a.id - b.id);
+    children.forEach((c) => visit(c, depth + 1));
+  };
+  roots.sort((a, b) => a.id - b.id).forEach((r) => visit(r, 0));
+  issues.forEach((i) => {
+    if (!visited.has(i.id)) visit(i, 0);
+  });
+  return result;
+}
+
 function convertRangeOnZoomChange(
   fromZoom: ZoomLevel,
   toZoom: ZoomLevel,
@@ -793,7 +852,7 @@ export default function GanttChart({
       return { left, width };
     }
 
-    const schedule = resolveIssueSchedule(issue, systemSettings);
+    const schedule = resolveIssueScheduleWithChildren(issue, filteredIssues, systemSettings);
     if (!schedule) return null;
     const { start, end } = schedule;
 
@@ -812,7 +871,7 @@ export default function GanttChart({
     if (visibleWidth <= 0) return null;
 
     return { left: visibleLeft, width: visibleWidth };
-  }, [getOffset, dayWidth, drag, totalDays, systemSettings]);
+  }, [getOffset, dayWidth, drag, totalDays, systemSettings, filteredIssues]);
 
   // グリッド線
   const gridLines = useMemo(() => {
@@ -834,12 +893,27 @@ export default function GanttChart({
   }, [chartStart, totalDays, dayWidth, zoom]);
 
   // showProject時にプロジェクトごとにグループ化（ツリー表示対応）
-  const groupedIssues = useMemo(() => {
-    if (!showProject) return [{ projectName: '', projectId: 0, projectDueDate: null, issues: filteredIssues, depth: 0, hasChildren: false }];
+  const { groupedIssues, issueDepthById } = useMemo(() => {
+    const depthMap = new Map<number, number>();
+
+    if (!showProject) {
+      const ordered = orderIssuesHierarchically(filteredIssues);
+      ordered.forEach(({ issue, depth }) => depthMap.set(issue.id, depth));
+      return {
+        groupedIssues: [{
+          projectName: '',
+          projectId: 0,
+          projectDueDate: null,
+          issues: ordered.map((o) => o.issue),
+          depth: 0,
+          hasChildren: false,
+        }],
+        issueDepthById: depthMap,
+      };
+    }
 
     const groups: Record<number, { projectName: string; projectId: number; projectDueDate: string | null; issues: Issue[]; depth: number }> = {};
 
-    // Initialize all projects (even those without issues)
     projects.forEach((project) => {
       groups[project.id] = {
         projectName: project.name,
@@ -850,7 +924,6 @@ export default function GanttChart({
       };
     });
 
-    // Add filtered issues to their projects
     filteredIssues.forEach((issue) => {
       const pid = issue.projectId;
       if (!groups[pid]) {
@@ -865,25 +938,28 @@ export default function GanttChart({
       groups[pid].issues.push(issue);
     });
 
+    Object.values(groups).forEach((group) => {
+      const ordered = orderIssuesHierarchically(group.issues);
+      group.issues = ordered.map((o) => o.issue);
+      ordered.forEach(({ issue, depth }) => depthMap.set(issue.id, depth));
+    });
+
     // Build parent -> children map
     const childrenMap: Record<number, number[]> = {};
     const projectIds = new Set(Object.keys(groups).map(Number));
     projects.forEach((project) => {
       const parentId = project.parentId;
-      // Only link if both parent and child exist in our groups
       if (parentId && projectIds.has(parentId)) {
         if (!childrenMap[parentId]) childrenMap[parentId] = [];
         childrenMap[parentId].push(project.id);
       }
     });
 
-    // Identify root projects (no parent, or parent not in the list)
     const rootIds = projects
       .filter((p) => !p.parentId || !projectIds.has(p.parentId))
       .map((p) => p.id)
       .filter((id) => projectIds.has(id));
 
-    // DFS traversal to produce ordered flat list with depth
     const result: { projectName: string; projectId: number; projectDueDate: string | null; issues: Issue[]; depth: number; hasChildren: boolean }[] = [];
     const visited = new Set<number>();
 
@@ -908,12 +984,11 @@ export default function GanttChart({
       (groups[a]?.projectName || '').localeCompare(groups[b]?.projectName || '')
     ).forEach((id) => traverse(id, 0, false));
 
-    // Append any projects not reachable (edge case)
     Object.keys(groups).map(Number).forEach((id) => {
       if (!visited.has(id)) result.push({ ...groups[id], depth: 0, hasChildren: false });
     });
 
-    return result;
+    return { groupedIssues: result, issueDepthById: depthMap };
   }, [filteredIssues, projects, showProject, collapsedProjects]);
 
   // 各チケットの絶対位置を計算（線引き用）
@@ -952,7 +1027,7 @@ export default function GanttChart({
     let minStartOffset: number | null = null;
     let maxEndOffset: number | null = null;
     groupIssues.forEach((issue) => {
-      const schedule = resolveIssueSchedule(issue, systemSettings);
+      const schedule = resolveIssueScheduleWithChildren(issue, filteredIssues, systemSettings);
       if (!schedule) return;
       const { start, end } = schedule;
 
@@ -979,7 +1054,7 @@ export default function GanttChart({
     if (visibleWidth <= 0) return null;
 
     return { left: visibleLeft, width: visibleWidth };
-  }, [getOffset, dayWidth, totalDays]);
+  }, [getOffset, dayWidth, totalDays, filteredIssues, systemSettings]);
 
   // プロジェクト期限日バーの位置を算出（赤）
   const getProjectDueDateBar = useCallback((projectDueDate: string | null) => {
@@ -997,7 +1072,8 @@ export default function GanttChart({
   const handleMouseDown = useCallback((e: React.MouseEvent, issue: Issue, type: 'move' | 'resize-left' | 'resize-right') => {
     e.preventDefault();
     e.stopPropagation();
-    const schedule = resolveIssueSchedule(issue, systemSettings);
+    if (issueHasChildren(issue, filteredIssues)) return;
+    const schedule = resolveIssueScheduleWithChildren(issue, filteredIssues, systemSettings);
     if (!schedule) return;
     const { start, end } = schedule;
 
@@ -1011,7 +1087,7 @@ export default function GanttChart({
       currentDueDate: end,
     });
     setTooltip(null);
-  }, [systemSettings]);
+  }, [systemSettings, filteredIssues]);
 
   useEffect(() => {
     if (!drag) return;
@@ -1432,11 +1508,14 @@ export default function GanttChart({
                   const bar = getBarPosition(issue);
                   const color = issue.status?.isClosed ? '#9CA3AF' : (trackerColorMap[issue.trackerId] || '#0EA5E9');
                   const isDragging = drag?.issueId === issue.id;
+                  const isParent = issueHasChildren(issue, filteredIssues);
+                  const issueDepth = issueDepthById.get(issue.id) ?? 0;
 
                   return (
                     <div key={issue.id} className="flex border-b group hover:bg-gray-50 text-[11px]">
                       <div style={{ width: leftColWidth }} className="flex-shrink-0 px-2 py-0.5 text-xs truncate border-r flex items-center sticky left-0 z-20 bg-white group-hover:bg-gray-50" data-issue-id={issue.id}>
                         {showProject && <span className="inline-block w-4 flex-shrink-0" />}
+                        <span className="inline-block flex-shrink-0" style={{ width: issueDepth * 12 }} />
                         <span className="text-gray-400 mr-1 flex-shrink-0">#{issue.id}</span>
                         {issue.tracker && (
                           <span className="text-[10px] px-1 py-0 rounded mr-1 text-white flex-shrink-0" style={{ backgroundColor: trackerColorMap[issue.trackerId] || '#0EA5E9' }}>
@@ -1445,7 +1524,7 @@ export default function GanttChart({
                         )}
                         <button
                           onClick={(e) => handleTicketClick(e, issue.id)}
-                          className="text-sky-600 hover:underline truncate text-left"
+                          className={`text-sky-600 hover:underline truncate text-left ${isParent ? 'font-semibold' : ''}`}
                         >
                           {issue.subject}
                         </button>
@@ -1476,8 +1555,8 @@ export default function GanttChart({
                         {/* バー */}
                         {bar && (
                           <div
-                            className={`absolute top-1 rounded group ${isDragging ? 'opacity-80' : ''}`}
-                            style={{ left: bar.left, width: bar.width, height: 16, backgroundColor: color, zIndex: 10 }}
+                            className={`absolute top-1 rounded group ${isDragging ? 'opacity-80' : ''} ${isParent ? 'ring-1 ring-black/10' : ''}`}
+                            style={{ left: bar.left, width: bar.width, height: 16, backgroundColor: isParent ? '#64748B' : color, zIndex: 10 }}
                             onMouseEnter={(e) => handleBarHover(e, issue)}
                             onMouseLeave={() => !drag && setTooltip(null)}
                             onMouseMove={(e) => !drag && setTooltip({ issue, x: e.clientX, y: e.clientY })}
@@ -1496,20 +1575,31 @@ export default function GanttChart({
                               >
                                 <GripVertical size={10} className="text-white/70" />
                               </div>
-                              <div
-                                className="flex-1 h-full cursor-grab active:cursor-grabbing"
-                                onMouseDown={(e) => handleMouseDown(e, issue, 'move')}
-                                title="ドラッグして移動（日付変更）"
-                              />
+                              {isParent ? (
+                                <div
+                                  className="flex-1 h-full cursor-default"
+                                  title="親チケットの期間は子チケットから算出（変更不可）"
+                                />
+                              ) : (
+                                <div
+                                  className="flex-1 h-full cursor-grab active:cursor-grabbing"
+                                  onMouseDown={(e) => handleMouseDown(e, issue, 'move')}
+                                  title="ドラッグして移動（日付変更）"
+                                />
+                              )}
                             </div>
 
                             {/* ドラッグ: 左リサイズ */}
-                            <div className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize"
-                              onMouseDown={(e) => handleMouseDown(e, issue, 'resize-left')} />
+                            {!isParent && (
+                              <div className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize"
+                                onMouseDown={(e) => handleMouseDown(e, issue, 'resize-left')} />
+                            )}
 
                             {/* ドラッグ: 右リサイズ */}
-                            <div className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize"
-                              onMouseDown={(e) => handleMouseDown(e, issue, 'resize-right')} />
+                            {!isParent && (
+                              <div className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize"
+                                onMouseDown={(e) => handleMouseDown(e, issue, 'resize-right')} />
+                            )}
 
                             {/* ドラッグ日付プレビュー */}
                             {isDragging && drag && (
@@ -1700,10 +1790,18 @@ export default function GanttChart({
               <div className="font-semibold mb-1">{tooltip.issue.subject}</div>
               <div className="space-y-0.5 text-slate-300">
                 {tooltip.issue.tracker && <div>トラッカー: {tooltip.issue.tracker.name}</div>}
-                {tooltip.issue.startDate && <div>開始日時: {formatDateDisplay(new Date(tooltip.issue.startDate))}</div>}
+                {tooltip.issue.startDate && (
+                  <div>
+                    開始日時{issueHasChildren(tooltip.issue, filteredIssues) ? '（子から算出）' : ''}: {formatDateDisplay(new Date(tooltip.issue.startDate))}
+                  </div>
+                )}
                 {(() => {
-                  const schedule = resolveIssueSchedule(tooltip.issue, systemSettings);
-                  return schedule ? <div>終了日時: {formatDateDisplay(schedule.end)}</div> : null;
+                  const schedule = resolveIssueScheduleWithChildren(tooltip.issue, filteredIssues, systemSettings);
+                  return schedule ? (
+                    <div>
+                      終了日時{issueHasChildren(tooltip.issue, filteredIssues) ? '（子から算出）' : ''}: {formatDateDisplay(schedule.end)}
+                    </div>
+                  ) : null;
                 })()}
                 {tooltip.issue.dueDate && <div>期日: {new Date(tooltip.issue.dueDate).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })}</div>}
                 {tooltip.issue.assignedTo && <div>担当: {tooltip.issue.assignedTo.lastName} {tooltip.issue.assignedTo.firstName}</div>}

@@ -50,7 +50,7 @@
 - **ProjectMemberRole** — メンバーのロール。Role と Group（sourceGroupId、グループ経由で付与した場合）と関連。
 - **ProjectGroup** — プロジェクトに紐づくグループ。
 - **ProjectRelatedCompany** — プロジェクトと関連会社（Company + Location + Contact の組み合わせ）。
-- **Issue** — チケット。Project, Tracker, IssueStatus, IssuePriority, User（author, assignedTo）, Group（assignedToGroup）, IssueRelation, IssueComment, TimeEntry, Attachment と関連。スケジュール用に `startDate`（開始日時）, `endDate`（終了日時）, `dueDate`（期日）, `estimatedHours`（予定工数）を持つ。ガントチャートのバーは `startDate`〜`endDate` で表示する。
+- **Issue** — チケット。Project, Tracker, IssueStatus, IssuePriority, User（author, assignedTo）, Group（assignedToGroup）, IssueRelation, IssueComment, TimeEntry, Attachment と関連。**親子階層**（`parentId` → 同一プロジェクト内の親チケット。循環参照不可）。スケジュール用に `startDate`（開始日時）, `endDate`（終了日時）, `dueDate`（期日）, `estimatedHours`（予定工数）を持つ。**子チケットを持つ親チケット**の `startDate` / `endDate` は入力不可で、全子孫チケットの開始の最小・終了の最大を表示する。**ステータス**も入力不可で、子孫のステータスのうち `IssueStatus.position` が最小（一覧で一番上）のものを表示する（API 応答でも集約値を返す。DB 上の親自身の日時・ステータスは子がある場合更新しない）。ガントチャートのバーも同様に集約表示し、親バーのドラッグ／リサイズは不可。
 - **IssueRelation** — チケット間関連。relationType（例: precedes）。
 - **IssueComment** — チケットコメント。Attachment 可。
 - **WikiPage** — プロジェクト Wiki。親子階層（parentId）。author, project と関連。
@@ -70,6 +70,7 @@
 |------|------|--------------|-----|
 | `projects.saved-searches` | 保存済み検索 | feature | `projects` |
 | `projects.activities` | 活動履歴 | feature | `projects` |
+| `projects.issues.fields.parent` | 親チケット | field | `projects.issues` |
 
 ## クライアントとの整合
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import api from '../api/client';
@@ -9,6 +9,7 @@ import KanbanBoard from '../components/KanbanBoard';
 import IssueDetail from '../components/IssueDetail';
 import { useAuth } from '../hooks/useAuth';
 import TicketSearchSection from '../components/TicketSearchSection';
+import { isLeafIssue } from '../utils/issueTree';
 
 export default function KanbanPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -26,13 +27,9 @@ export default function KanbanPage() {
 
   const fetchData = async () => {
     try {
-      const params: any = { projectId };
-      if (filterTrackerIds.length > 0) params.trackerIds = filterTrackerIds.join(',');
-      if (filterStatusIds.length > 0) params.statusIds = filterStatusIds.join(',');
-      if (filterAssignedToIds.length > 0) params.assignedToIds = filterAssignedToIds.join(',');
-
+      // 祖先解決のためプロジェクト内の全チケットを取得（フィルタはクライアント側）
       const [issuesRes, metaRes] = await Promise.all([
-        api.get('/issues', { params }),
+        api.get('/issues', { params: { projectId } }),
         api.get('/issues/meta/options', { params: { projectId } }),
       ]);
 
@@ -45,13 +42,30 @@ export default function KanbanPage() {
 
   useEffect(() => {
     fetchData();
-  }, [projectId, filterTrackerIds, filterStatusIds, filterAssignedToIds]);
+  }, [projectId]);
+
+  const leafIssues = useMemo(() => {
+    return issues.filter((issue) => {
+      if (!isLeafIssue(issue, issues)) return false;
+      if (filterTrackerIds.length > 0 && !filterTrackerIds.some((id) => String(id) === String(issue.trackerId))) {
+        return false;
+      }
+      if (filterStatusIds.length > 0 && !filterStatusIds.some((id) => String(id) === String(issue.statusId))) {
+        return false;
+      }
+      if (filterAssignedToIds.length > 0) {
+        const matchUser = issue.assignedToId != null
+          && filterAssignedToIds.some((id) => String(id) === String(issue.assignedToId));
+        if (!matchUser) return false;
+      }
+      return true;
+    });
+  }, [issues, filterTrackerIds, filterStatusIds, filterAssignedToIds]);
 
   const handleDrop = async (issueId: number, targetStatusId: number) => {
     const issueToUpdate = issues.find(i => i.id === issueId);
     if (!issueToUpdate || issueToUpdate.statusId === targetStatusId) return;
 
-    // Optimistic update
     setIssues(prev => prev.map(i => i.id === issueId ? { ...i, statusId: targetStatusId } : i));
 
     try {
@@ -90,7 +104,6 @@ export default function KanbanPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden">
-      {/* Header */}
       <div className="px-6 pb-3 flex-shrink-0">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-slate-700">カンバンボード</h2>
@@ -110,13 +123,14 @@ export default function KanbanPage() {
           filterAssignedToIds={filterAssignedToIds}
           onFilterAssignedToIdsChange={setFilterAssignedToIds}
           onResetFilter={resetTicketSearchFilter}
-          issueCount={issues.length}
+          issueCount={leafIssues.length}
         />
       </div>
 
       <KanbanBoard
         statuses={statuses}
-        issues={issues}
+        issues={leafIssues}
+        hierarchyIssues={issues}
         onDrop={handleDrop}
         onNewIssue={openNewIssueForColumn}
         onIssueClick={handleIssueClick}

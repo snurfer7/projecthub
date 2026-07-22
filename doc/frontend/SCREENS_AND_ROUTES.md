@@ -26,16 +26,16 @@
 | `/projects` | ProjectListPage | プロジェクト一覧。一覧／ガントチャート／カンバン／時間の4表示を切替可能。上部に統合フィルタパネル1つ（テキスト検索＋表示モードに応じた条件行：プロジェクト／チケット／ガント表示期間／時間記録）。プロジェクト条件行にはステータス（`active`＝有効・`closed`＝終了・`archived`＝アーカイブ）の複数選択フィルタがある。**時間**タブへ切替時のチケット検索初期値は担当者＝ログインユーザー・チケット期限＝当日〜当日。時間記録は記録期間＝当日〜当日・記録者＝ログインユーザー。件数サマリーと「条件をすべてクリア」で一括リセット（時間タブ中は上記時間向け初期値に戻す）。表示モード・検索条件は `sessionStorage` に保持し、詳細画面から戻った際に復元する。ヘッダー（トップバー）の「プロジェクト」をクリックしたときは当該保持を削除し条件を初期化する。ランディング用にクエリ `view=gantt` でガントを初期表示（表示確定後にクエリは除去）。**保存済み検索条件**（`projects.saved-searches` canUse）: フィルタパネルに「保存済み」ドロップダウン表示。各表示モードごとに名称付きで複数保存可能。デフォルト1件設定可（★アイコンで切替）。表示モード切替時に対応 viewMode のデフォルト検索条件を自動適用。canInput でのみ保存・更新・削除・デフォルト変更が可能 |
 | `/projects/:projectId` | ProjectDetailPage | プロジェクト詳細（子ルートあり） |
 | `/projects/:projectId/` (index) | ProjectOverview | 概要タブ |
-| `/projects/:projectId/issues` | IssueListPage | チケット一覧 |
-| `/projects/:projectId/issues/new` | IssueFormPage | チケット新規作成 |
+| `/projects/:projectId/issues` | IssueListPage | チケット一覧。**一覧／ツリー**表示を切替可能（デフォルトはツリー。切替は `sessionStorage` に保持）。ツリー表示では親子階層でインデント・罫線を表示し、子を持つ行は折りたたみ可能 |
+| `/projects/:projectId/issues/new` | IssueFormPage | チケット新規作成。親チケット選択可（`projects.issues.fields.parent`）。子を持つ編集時はステータス・開始日・開始時刻・終了日・終了時刻は入力不可で子孫集約値を表示（ステータスは position 最小） |
 | `/projects/:projectId/wiki` | WikiListPage | Wiki 一覧 |
 | `/projects/:projectId/comments` | ProjectCommentsPage | プロジェクトコメント |
-| `/projects/:projectId/kanban` | KanbanPage | カンバン |
-| `/projects/:projectId/gantt` | GanttPage | ガント（プロジェクト単位） |
+| `/projects/:projectId/kanban` | KanbanPage | カンバン。**子を持つチケットは非表示**（末端のみ）。親がある末端チケットはカード上に最上位親までのツリーを表示 |
+| `/projects/:projectId/gantt` | GanttPage | ガント（プロジェクト単位）。親チケットは子孫の期間を集約表示しバーの移動・リサイズ不可。子はインデント表示 |
 | `/projects/:projectId/time-entries` | TimeEntriesPage | 工数一覧 |
 | `/projects/:projectId/activities` | ProjectActivitiesPage | 活動履歴一覧（企業活動履歴との紐づき）。表示条件: `projects.activities` canUse |
-| `/issues/:id` | IssueDetailPage | チケット詳細 |
-| `/issues/:id/edit` | IssueFormPage | チケット編集 |
+| `/issues/:id` | IssueDetailPage | チケット詳細。親チケットへのリンクを表示。子がある場合の開始・終了・ステータスは集約値 |
+| `/issues/:id/edit` | IssueFormPage | チケット編集（親チケット・開始/終了の挙動は新規作成と同様） |
 | `/companies` | CompaniesPage | 会社一覧（API ページング・サーバー側検索。ページサイズ変更・前後ページ）。検索語・ページ・件数・法人格表示の有無は `sessionStorage` に保持し、企業詳細から一覧へ戻った際に復元する。ヘッダー（トップバー）の「企業」をクリックしたときは当該保持を削除し条件を初期化する |
 | `/deals` | DealsPage | 商談一覧（全企業横断）。`GET /crm/deals`（`page`, `pageSize`, `q`, `status`）でサーバー側ページング・検索。ステータス絞り込みドロップダウン付き。行クリックで `/companies/:id?tab=deals` へ遷移。表示条件: `deals` canUse |
 | `/contacts` | ContactsPage | 連絡先一覧（全企業横断）。`GET /crm/contacts`（`page`, `pageSize`, `q`）でサーバー側ページング・検索。ページサイズ変更・前後ページ。**CSV 出力**は一覧と同じ検索語 `q` を適用し、表示ページに関係なく一致する全件をページング取得して UTF-8 BOM 付き CSV でダウンロード（検索語なしのときは全件）。行クリックまたは企業名リンクで `/companies/:id?tab=contacts` へ遷移 |

@@ -135,6 +135,9 @@ export default function IssueForm({
     const [estimatedHours, setEstimatedHours] = useState('');
     const [doneRatio, setDoneRatio] = useState('0');
     const [currentProjectId, setCurrentProjectId] = useState(projectId || '');
+    const [parentId, setParentId] = useState('');
+    const [parentOptions, setParentOptions] = useState<{ id: number; subject: string; parentId?: number | null }[]>([]);
+    const [hasChildren, setHasChildren] = useState(false);
     const [error, setError] = useState('');
     const [systemStartTime, setSystemStartTime] = useState('09:00');
     const [systemEndTime, setSystemEndTime] = useState('18:00');
@@ -187,6 +190,17 @@ export default function IssueForm({
     }, [isEdit, currentProjectId]);
 
     useEffect(() => {
+        if (!currentProjectId) {
+            setParentOptions([]);
+            return;
+        }
+        api.get('/issues', { params: { projectId: currentProjectId } }).then((res) => {
+            const list: Issue[] = res.data || [];
+            setParentOptions(list.map((i) => ({ id: i.id, subject: i.subject, parentId: i.parentId })));
+        }).catch(() => setParentOptions([]));
+    }, [currentProjectId]);
+
+    useEffect(() => {
         if (isEdit) {
             api.get(`/issues/${issueId}`).then((res) => {
                 const issue: Issue = res.data;
@@ -202,6 +216,9 @@ export default function IssueForm({
                 setEstimatedHours(issue.estimatedHours ? String(issue.estimatedHours) : '');
                 setDoneRatio(String(issue.doneRatio));
                 setCurrentProjectId(String(issue.projectId));
+                setParentId(issue.parentId ? String(issue.parentId) : '');
+                const childCount = issue.children?.length ?? issue._count?.children ?? 0;
+                setHasChildren(childCount > 0);
             }).catch((err) => {
                 setError('チケットの取得に失敗しました');
             });
@@ -222,18 +239,23 @@ export default function IssueForm({
 
             const data: any = {
                 trackerId: Number(trackerId),
-                statusId: Number(statusId),
                 priorityId: Number(priorityId),
                 assignedToId: extractedUserId,
                 assignedToGroupId: extractedGroupId,
                 subject,
                 description,
-                startDate: startDate ? new Date(startDate).toISOString() : null,
-                endDate: endDate ? new Date(endDate).toISOString() : null,
                 dueDate: dueDate ? new Date(dueDate).toISOString() : null,
                 estimatedHours: estimatedHours ? Math.round(Number(estimatedHours)) : null,
                 doneRatio: Number(doneRatio),
             };
+            if (!fieldDisabled('projects.issues.fields.parent')) {
+                data.parentId = parentId ? Number(parentId) : null;
+            }
+            if (!hasChildren) {
+                data.statusId = Number(statusId);
+                data.startDate = startDate ? new Date(startDate).toISOString() : null;
+                data.endDate = endDate ? new Date(endDate).toISOString() : null;
+            }
             if (!isEdit) data.projectId = Number(currentProjectId);
 
             if (isEdit) {
@@ -251,6 +273,29 @@ export default function IssueForm({
     if (!meta) return <div className="text-center py-12 text-gray-500">読み込み中...</div>;
 
     const formClassName = inModal ? 'space-y-4' : 'bg-white rounded-lg shadow p-6 space-y-4';
+    const scheduleLocked = hasChildren;
+    const parentOptionIds = (() => {
+        const exclude = new Set<number>();
+        if (issueId) {
+            const selfId = Number(issueId);
+            exclude.add(selfId);
+            const byParent = new Map<number | null, number[]>();
+            for (const opt of parentOptions) {
+                const pid = opt.parentId ?? null;
+                const list = byParent.get(pid) ?? [];
+                list.push(opt.id);
+                byParent.set(pid, list);
+            }
+            const stack = [...(byParent.get(selfId) ?? [])];
+            while (stack.length > 0) {
+                const id = stack.pop()!;
+                if (exclude.has(id)) continue;
+                exclude.add(id);
+                stack.push(...(byParent.get(id) ?? []));
+            }
+        }
+        return parentOptions.filter((o) => !exclude.has(o.id));
+    })();
 
     return (
         <div>
@@ -279,11 +324,11 @@ export default function IssueForm({
                             disabled={fieldDisabled('projects.issues.fields.tracker')}
                         />
                         <Combobox
-                            label="ステータス"
+                            label={scheduleLocked ? 'ステータス（子チケットから算出）' : 'ステータス'}
                             options={meta.statuses.map((s) => ({ value: String(s.id), label: s.name }))}
                             value={statusId}
                             onChange={setStatusId}
-                            disabled={fieldDisabled('projects.issues.fields.status')}
+                            disabled={scheduleLocked || fieldDisabled('projects.issues.fields.status')}
                         />
                         <Combobox
                             label="優先度"
@@ -304,6 +349,16 @@ export default function IssueForm({
                             onChange={setAssignedToPrincipal}
                             disabled={fieldDisabled('projects.issues.fields.assignee')}
                         />
+                        <Combobox
+                            label="親チケット"
+                            options={[
+                                { value: '', label: '（なし）' },
+                                ...parentOptionIds.map((o) => ({ value: String(o.id), label: `#${o.id} ${o.subject}` })),
+                            ]}
+                            value={parentId}
+                            onChange={setParentId}
+                            disabled={fieldDisabled('projects.issues.fields.parent')}
+                        />
                     </div>
 
                     <div>
@@ -314,14 +369,14 @@ export default function IssueForm({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="grid grid-cols-[1fr_100px] gap-2">
                             <DateInput
-                                label="開始日"
+                                label={scheduleLocked ? '開始日（子チケットから算出）' : '開始日'}
                                 id="start-date"
                                 value={startDate ? startDate.slice(0, 10) : ''}
                                 onChange={(val) => {
                                     const t = startDate ? startDate.slice(11, 16) : systemStartTime;
                                     setStartDate(val ? `${val}T${t}` : '');
                                 }}
-                                disabled={fieldDisabled('projects.issues.fields.startDateTime')}
+                                disabled={scheduleLocked || fieldDisabled('projects.issues.fields.startDateTime')}
                             />
                             <CustomTimePicker
                                 label="開始時刻"
@@ -330,19 +385,19 @@ export default function IssueForm({
                                     const d = startDate ? startDate.slice(0, 10) : new Date().toISOString().slice(0, 10);
                                     setStartDate(`${d}T${val}`);
                                 }}
-                                disabled={!startDate || fieldDisabled('projects.issues.fields.startDateTime')}
+                                disabled={scheduleLocked || !startDate || fieldDisabled('projects.issues.fields.startDateTime')}
                             />
                         </div>
                         <div className="grid grid-cols-[1fr_100px] gap-2">
                             <DateInput
-                                label="終了日"
+                                label={scheduleLocked ? '終了日（子チケットから算出）' : '終了日'}
                                 id="end-date"
                                 value={endDate ? endDate.slice(0, 10) : ''}
                                 onChange={(val) => {
                                     const t = endDate ? endDate.slice(11, 16) : systemEndTime;
                                     setEndDate(val ? `${val}T${t}` : '');
                                 }}
-                                disabled={fieldDisabled('projects.issues.fields.endDateTime')}
+                                disabled={scheduleLocked || fieldDisabled('projects.issues.fields.endDateTime')}
                             />
                             <CustomTimePicker
                                 label="終了時刻"
@@ -351,7 +406,7 @@ export default function IssueForm({
                                     const d = endDate ? endDate.slice(0, 10) : (startDate ? startDate.slice(0, 10) : new Date().toISOString().slice(0, 10));
                                     setEndDate(`${d}T${val}`);
                                 }}
-                                disabled={!endDate || fieldDisabled('projects.issues.fields.endDateTime')}
+                                disabled={scheduleLocked || !endDate || fieldDisabled('projects.issues.fields.endDateTime')}
                             />
                         </div>
                     </div>

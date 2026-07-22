@@ -17,6 +17,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useProjectListFilters } from '../hooks/useProjectListFilters';
 import { filterProjects, filteredProjectIdSet } from '../utils/projectFilter';
 import { filterIssues, filterIssuesByProjectIds } from '../utils/issueFilter';
+import { isLeafIssue } from '../utils/issueTree';
 import {
   timeViewAssignedToIds,
   timeViewRecordDateRange,
@@ -369,9 +370,14 @@ export default function ProjectListPage() {
     [ganttIssues, projectIds, issueFilter],
   );
 
+  const kanbanProjectIssues = useMemo(
+    () => filterIssuesByProjectIds(kanbanIssues, projectIds),
+    [kanbanIssues, projectIds],
+  );
+
   const kanbanFilteredIssues = useMemo(
-    () => filterIssues(filterIssuesByProjectIds(kanbanIssues, projectIds), issueFilter),
-    [kanbanIssues, projectIds, issueFilter],
+    () => filterIssues(kanbanProjectIssues, issueFilter).filter((issue) => isLeafIssue(issue, kanbanProjectIssues)),
+    [kanbanProjectIssues, issueFilter],
   );
 
   const timeFilteredIssues = useMemo(
@@ -555,6 +561,7 @@ export default function ProjectListPage() {
         <KanbanBoard
           statuses={kanbanStatuses}
           issues={kanbanFilteredIssues}
+          hierarchyIssues={kanbanProjectIssues}
           onDrop={handleKanbanDrop}
           onIssueClick={handleIssueClick}
           showProjectName={true}

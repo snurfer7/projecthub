@@ -4,9 +4,44 @@ import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
 import { assertFieldPermissions, assertDatetimeFieldPermissions, resolveUserPermissions } from '../services/permissions';
 import { parseNumericQueryIds } from '../utils/queryParams';
+import {
+  applyAggregatedParentFields,
+  issueHasChildren,
+  validateIssueParentId,
+} from '../utils/issueParent';
 
 const router = Router();
 const prisma = new PrismaClient();
+
+const parentSelect = { id: true, subject: true };
+const childSelect = { id: true, subject: true, startDate: true, endDate: true, dueDate: true, parentId: true, statusId: true };
+
+async function loadParentAggregations(projectIds: number[]) {
+  if (projectIds.length === 0) {
+    return new Map<number, { startDate: Date | null; endDate: Date | null; statusId: number | null; status: { id: number; name: string; isClosed: boolean; position: number } | null }>();
+  }
+  const [rows, statuses] = await Promise.all([
+    prisma.issue.findMany({
+      where: { projectId: { in: projectIds } },
+      select: { id: true, parentId: true, startDate: true, endDate: true, dueDate: true, statusId: true },
+    }),
+    prisma.issueStatus.findMany({ select: { id: true, name: true, isClosed: true, position: true } }),
+  ]);
+  const statusById = new Map(statuses.map((s) => [s.id, s]));
+  const positionById = new Map(statuses.map((s) => [s.id, s.position]));
+  const aggregated = applyAggregatedParentFields(rows, positionById);
+  return new Map(
+    aggregated.map((r) => [
+      r.id,
+      {
+        startDate: (r.startDate as Date | null) ?? null,
+        endDate: (r.endDate as Date | null) ?? null,
+        statusId: r.statusId ?? null,
+        status: r.statusId != null ? statusById.get(r.statusId) ?? null : null,
+      },
+    ])
+  );
+}
 
 router.use(authenticateToken);
 
@@ -35,12 +70,32 @@ router.get('/', requirePermission('projects.issues', 'use'), async (req: AuthReq
         author: { select: { id: true, firstName: true, lastName: true } },
         assignedTo: { select: { id: true, firstName: true, lastName: true } },
         assignedToGroup: { select: { id: true, name: true } },
+        parent: { select: parentSelect },
         relationsFrom: true,
         relationsTo: true,
+        _count: { select: { children: true, comments: true } },
       },
       orderBy: { updatedAt: 'desc' },
     });
-    res.json(issues);
+
+    // 同一プロジェクト内の全チケットで親子集約（フィルタで子が落ちても親の期間・ステータスを正しく出す）
+    const projectIds = [...new Set(issues.map((i) => i.projectId))];
+    const aggById = await loadParentAggregations(projectIds);
+
+    res.json(
+      issues.map((issue) => {
+        if ((issue._count?.children ?? 0) === 0) return issue;
+        const agg = aggById.get(issue.id);
+        if (!agg) return issue;
+        return {
+          ...issue,
+          startDate: agg.startDate,
+          endDate: agg.endDate,
+          statusId: agg.statusId ?? issue.statusId,
+          status: agg.status ?? issue.status,
+        };
+      })
+    );
   } catch (e) {
     console.error('Issue list error:', e);
     res.status(500).json({ error: 'チケットの取得に失敗しました' });
@@ -137,6 +192,8 @@ router.get('/:id', requirePermission('projects.issues', 'use'), async (req: Auth
         author: { select: { id: true, firstName: true, lastName: true } },
         assignedTo: { select: { id: true, firstName: true, lastName: true } },
         assignedToGroup: { select: { id: true, name: true } },
+        parent: { select: parentSelect },
+        children: { select: childSelect, orderBy: [{ position: 'asc' }, { id: 'asc' }] },
         comments: {
           include: {
             user: { select: { id: true, firstName: true, lastName: true } },
@@ -161,11 +218,27 @@ router.get('/:id', requirePermission('projects.issues', 'use'), async (req: Auth
             }
           }
         },
+        _count: { select: { children: true, comments: true } },
       },
     });
     if (!issue) {
       res.status(404).json({ error: 'チケットが見つかりません' });
       return;
+    }
+
+    if (issue.children.length > 0) {
+      const aggById = await loadParentAggregations([issue.projectId]);
+      const agg = aggById.get(issue.id);
+      if (agg) {
+        res.json({
+          ...issue,
+          startDate: agg.startDate,
+          endDate: agg.endDate,
+          statusId: agg.statusId ?? issue.statusId,
+          status: agg.status ?? issue.status,
+        });
+        return;
+      }
     }
     res.json(issue);
   } catch (e) {
@@ -219,7 +292,17 @@ router.post('/', requirePermission('projects.issues', 'input'), async (req: Auth
       res.status(403).json({ error: `フィールドの編集権限がありません: ${deniedDt}` });
       return;
     }
-    const { projectId, trackerId, statusId, priorityId, assignedToId, assignedToGroupId, subject, description, startDate, endDate, dueDate, estimatedHours } = req.body;
+    const deniedParent = assertFieldPermissions(
+      permissions,
+      req.body,
+      { parentId: 'projects.issues.fields.parent' },
+      {}
+    );
+    if (deniedParent) {
+      res.status(403).json({ error: `フィールドの編集権限がありません: ${deniedParent}` });
+      return;
+    }
+    const { projectId, trackerId, statusId, priorityId, assignedToId, assignedToGroupId, subject, description, startDate, endDate, dueDate, estimatedHours, parentId } = req.body;
     if (estimatedHours !== undefined && estimatedHours !== null && !Number.isInteger(Number(estimatedHours))) {
       return res.status(400).json({ error: '予定工数は整数で入力してください' });
     }
@@ -231,6 +314,14 @@ router.post('/', requirePermission('projects.issues', 'input'), async (req: Auth
       }
     }
 
+    const parentError = await validateIssueParentId(prisma, {
+      parentId: parentId === undefined || parentId === null || parentId === '' ? null : Number(parentId),
+      projectId: Number(projectId),
+    });
+    if (parentError) {
+      return res.status(400).json({ error: parentError });
+    }
+
     const issue = await prisma.issue.create({
       data: {
         projectId,
@@ -240,6 +331,7 @@ router.post('/', requirePermission('projects.issues', 'input'), async (req: Auth
         authorId: req.userId!,
         assignedToId: assignedToId || null,
         assignedToGroupId: assignedToGroupId || null,
+        parentId: parentId ? Number(parentId) : null,
         subject,
         description,
         startDate: startDate ? new Date(startDate) : null,
@@ -252,6 +344,7 @@ router.post('/', requirePermission('projects.issues', 'input'), async (req: Auth
         status: true,
         priority: true,
         author: { select: { id: true, firstName: true, lastName: true } },
+        parent: { select: parentSelect },
       },
     });
     res.status(201).json(issue);
@@ -268,6 +361,7 @@ router.put('/:id', requirePermission('projects.issues', 'input'), async (req: Au
     const existingIssue = await prisma.issue.findUnique({
       where: { id: issueId },
       select: {
+        projectId: true,
         subject: true,
         trackerId: true,
         statusId: true,
@@ -280,6 +374,7 @@ router.put('/:id', requirePermission('projects.issues', 'input'), async (req: Au
         dueDate: true,
         estimatedHours: true,
         doneRatio: true,
+        parentId: true,
       },
     });
     if (!existingIssue) {
@@ -287,6 +382,15 @@ router.put('/:id', requirePermission('projects.issues', 'input'), async (req: Au
       return;
     }
     const permissions = await resolveUserPermissions(req.userId!);
+    const hasChildren = await issueHasChildren(prisma, issueId);
+    if (hasChildren && (req.body.startDate !== undefined || req.body.endDate !== undefined)) {
+      res.status(400).json({ error: '子チケットがあるため開始・終了日時は変更できません' });
+      return;
+    }
+    if (hasChildren && req.body.statusId !== undefined) {
+      res.status(400).json({ error: '子チケットがあるためステータスは変更できません' });
+      return;
+    }
     const deniedDt = assertDatetimeFieldPermissions(permissions, req.body, existingIssue);
     if (deniedDt) {
       res.status(403).json({ error: `フィールドの編集権限がありません: ${deniedDt}` });
@@ -306,6 +410,7 @@ router.put('/:id', requirePermission('projects.issues', 'input'), async (req: Au
         estimatedHours: 'projects.issues.fields.estimatedHours',
         dueDate: 'projects.issues.fields.dueDate',
         doneRatio: 'projects.issues.fields.doneRatio',
+        parentId: 'projects.issues.fields.parent',
       },
       existingIssue as Record<string, unknown>
     );
@@ -313,7 +418,7 @@ router.put('/:id', requirePermission('projects.issues', 'input'), async (req: Au
       res.status(403).json({ error: `フィールドの編集権限がありません: ${denied}` });
       return;
     }
-    const { trackerId, statusId, priorityId, assignedToId, assignedToGroupId, subject, description, startDate, endDate, dueDate, estimatedHours, doneRatio } = req.body;
+    const { trackerId, statusId, priorityId, assignedToId, assignedToGroupId, subject, description, startDate, endDate, dueDate, estimatedHours, doneRatio, parentId } = req.body;
     const data: any = {};
     if (estimatedHours !== undefined && estimatedHours !== null && !Number.isInteger(Number(estimatedHours))) {
       return res.status(400).json({ error: '予定工数は整数で入力してください' });
@@ -331,6 +436,18 @@ router.put('/:id', requirePermission('projects.issues', 'input'), async (req: Au
     if (dueDate !== undefined) data.dueDate = dueDate ? new Date(dueDate) : null;
     if (estimatedHours !== undefined) data.estimatedHours = estimatedHours ? Math.round(Number(estimatedHours)) : null;
     if (doneRatio !== undefined) data.doneRatio = Number(doneRatio);
+    if (parentId !== undefined) {
+      const nextParentId = parentId === null || parentId === '' ? null : Number(parentId);
+      const parentError = await validateIssueParentId(prisma, {
+        parentId: nextParentId,
+        projectId: existingIssue.projectId,
+        issueId,
+      });
+      if (parentError) {
+        return res.status(400).json({ error: parentError });
+      }
+      data.parentId = nextParentId;
+    }
 
     if (assignedToId) {
       const user = await prisma.user.findUnique({ where: { id: Number(assignedToId) } });
@@ -349,8 +466,25 @@ router.put('/:id', requirePermission('projects.issues', 'input'), async (req: Au
         author: { select: { id: true, firstName: true, lastName: true } },
         assignedTo: { select: { id: true, firstName: true, lastName: true } },
         assignedToGroup: { select: { id: true, name: true } },
+        parent: { select: parentSelect },
+        _count: { select: { children: true } },
       },
     });
+
+    if ((issue._count?.children ?? 0) > 0) {
+      const aggById = await loadParentAggregations([existingIssue.projectId]);
+      const agg = aggById.get(issue.id);
+      if (agg) {
+        res.json({
+          ...issue,
+          startDate: agg.startDate,
+          endDate: agg.endDate,
+          statusId: agg.statusId ?? issue.statusId,
+          status: agg.status ?? issue.status,
+        });
+        return;
+      }
+    }
     res.json(issue);
   } catch (e) {
     console.error('チケット更新エラー:', e);

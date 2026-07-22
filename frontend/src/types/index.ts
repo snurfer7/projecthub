@@ -214,6 +214,7 @@ export interface Issue {
   authorId: number;
   assignedToId?: number;
   assignedToGroupId?: number;
+  parentId?: number | null;
   subject: string;
   description?: string;
   startDate?: string;
@@ -230,12 +231,14 @@ export interface Issue {
   author?: { id: number; firstName: string; lastName: string };
   assignedTo?: { id: number; firstName: string; lastName: string } | null;
   assignedToGroup?: { id: number; name: string } | null;
+  parent?: { id: number; subject: string } | null;
+  children?: { id: number; subject: string; startDate?: string | null; endDate?: string | null; dueDate?: string | null; parentId?: number | null }[];
   comments?: IssueComment[];
   attachments?: Attachment[];
   timeEntries?: TimeEntry[];
   relationsFrom?: IssueRelation[];
   relationsTo?: IssueRelation[];
-  _count?: { comments: number };
+  _count?: { comments?: number; children?: number };
 }
 
 export interface IssueRelation {
