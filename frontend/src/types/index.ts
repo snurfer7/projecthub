@@ -395,7 +395,6 @@ export interface Activity {
   companyId: number;
   contactId?: number | null;
   dealId?: number | null;
-  projectId?: number | null;
   userId: number;
   assignedToId?: number | null;
   fileCommentId?: number | null;
@@ -414,7 +413,8 @@ export interface Activity {
   assignedTo?: { id: number; firstName: string; lastName: string } | null;
   contact?: { id: number; firstName: string; lastName: string } | null;
   deal?: { id: number; name: string } | null;
-  project?: { id: number; name: string; identifier: string } | null;
+  /** N:N で紐づくプロジェクト一覧 */
+  projects?: { id: number; name: string; identifier: string }[];
   company?: { id: number; name: string } | null;
 }
 

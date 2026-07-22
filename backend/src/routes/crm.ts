@@ -20,7 +20,11 @@ const activityInclude = {
   assignedTo: { select: { id: true, firstName: true, lastName: true } },
   contact: { select: { id: true, firstName: true, lastName: true } },
   deal: { select: { id: true, name: true } },
-  project: { select: { id: true, name: true, identifier: true } },
+  projectLinks: {
+    include: {
+      project: { select: { id: true, name: true, identifier: true } },
+    },
+  },
   fileComment: {
     select: {
       id: true,
@@ -31,6 +35,80 @@ const activityInclude = {
     },
   },
 } satisfies Prisma.ActivityInclude;
+
+function serializeActivity<T extends { projectLinks?: { project: { id: number; name: string; identifier: string } }[] }>(
+  activity: T,
+) {
+  const { projectLinks, ...rest } = activity;
+  return {
+    ...rest,
+    projects: (projectLinks || []).map((link) => link.project),
+  };
+}
+
+function parseProjectIds(raw: unknown): number[] | undefined {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw)) return undefined;
+  return raw.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
+}
+
+/** projectId 指定時、companyId がそのプロジェクトの主企業または関連企業であること */
+async function assertProjectBelongsToCompany(
+  projectId: number,
+  companyId: number,
+): Promise<string | null> {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: {
+      companyId: true,
+      relatedCompanies: { select: { companyId: true } },
+    },
+  });
+  if (!project) {
+    return '指定されたプロジェクトが見つかりません';
+  }
+  const allowed = new Set<number>();
+  if (project.companyId != null) allowed.add(project.companyId);
+  for (const rc of project.relatedCompanies) allowed.add(rc.companyId);
+  if (!allowed.has(companyId)) {
+    return 'プロジェクトは指定された企業の主企業または関連企業である必要があります';
+  }
+  return null;
+}
+
+async function assertProjectIdsForCompany(
+  projectIds: number[],
+  companyId: number,
+): Promise<string | null> {
+  for (const projectId of projectIds) {
+    const mismatch = await assertProjectBelongsToCompany(projectId, companyId);
+    if (mismatch) return mismatch;
+  }
+  return null;
+}
+
+async function syncActivityProjectLinks(
+  activityId: number,
+  projectIds: number[],
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await tx.activityProject.deleteMany({
+      where: {
+        activityId,
+        ...(projectIds.length > 0 ? { projectId: { notIn: projectIds } } : {}),
+      },
+    });
+    for (const projectId of projectIds) {
+      await tx.activityProject.upsert({
+        where: {
+          activityId_projectId: { activityId, projectId },
+        },
+        create: { activityId, projectId },
+        update: {},
+      });
+    }
+  });
+}
 
 router.use(authenticateToken);
 
@@ -485,18 +563,20 @@ router.delete('/deals/:id', requirePermission('companies.deals', 'input'), async
 router.get('/activities', requirePermission('companies.activities', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const { companyId, contactId, dealId, projectId } = req.query;
-    const where: any = {};
+    const where: Prisma.ActivityWhereInput = {};
     if (companyId) where.companyId = Number(companyId);
     if (contactId) where.contactId = Number(contactId);
     if (dealId) where.dealId = Number(dealId);
-    if (projectId) where.projectId = Number(projectId);
+    if (projectId) {
+      where.projectLinks = { some: { projectId: Number(projectId) } };
+    }
 
     const activities = await prisma.activity.findMany({
       where,
       include: activityInclude,
       orderBy: { createdAt: 'desc' },
     });
-    res.json(activities);
+    res.json(activities.map(serializeActivity));
   } catch (e) {
     console.error('Activity fetch error:', e);
     res.status(500).json({ error: getActivityPersistenceErrorMessage(e, '活動の取得に失敗しました') });
@@ -505,7 +585,7 @@ router.get('/activities', requirePermission('companies.activities', 'use'), asyn
 
 router.post('/activities', requirePermission('companies.activities', 'input'), async (req: AuthRequest, res: Response) => {
   try {
-    const { companyId, contactId, dealId, projectId, assignedToId, type, subject, description, dueDate, completed } = req.body;
+    const { companyId, contactId, dealId, projectIds, assignedToId, type, subject, description, dueDate, completed } = req.body;
     if (assignedToId) {
       const user = await prisma.user.findUnique({ where: { id: Number(assignedToId) } });
       if (user && (user.status === 'pending' || user.status === 'inactive')) {
@@ -513,19 +593,34 @@ router.post('/activities', requirePermission('companies.activities', 'input'), a
       }
     }
 
+    const resolvedProjectIds = parseProjectIds(projectIds) ?? [];
+    if (projectIds !== undefined && !Array.isArray(projectIds)) {
+      return res.status(400).json({ error: 'projectIds は配列で指定してください' });
+    }
+    const mismatch = await assertProjectIdsForCompany(resolvedProjectIds, Number(companyId));
+    if (mismatch) {
+      return res.status(400).json({ error: mismatch });
+    }
+
     const activity = await prisma.activity.create({
       data: {
-        companyId, contactId, dealId,
-        projectId: projectId ? Number(projectId) : null,
+        companyId,
+        contactId,
+        dealId,
         userId: req.userId!,
         assignedToId,
-        type, subject, description,
+        type,
+        subject,
+        description,
         dueDate: dueDate ? new Date(dueDate) : null,
         completed: completed || false,
+        projectLinks: {
+          create: resolvedProjectIds.map((projectId) => ({ projectId })),
+        },
       },
       include: activityInclude,
     });
-    res.status(201).json(activity);
+    res.status(201).json(serializeActivity(activity));
   } catch (e) {
     console.error('Activity create error:', e);
     res.status(500).json({ error: getActivityPersistenceErrorMessage(e, '活動の作成に失敗しました') });
@@ -534,7 +629,7 @@ router.post('/activities', requirePermission('companies.activities', 'input'), a
 
 router.put('/activities/:id', requirePermission('companies.activities', 'input'), async (req: AuthRequest, res: Response) => {
   try {
-    const { contactId, dealId, projectId, assignedToId, type, subject, description, dueDate, completed } = req.body;
+    const { contactId, dealId, projectIds, assignedToId, type, subject, description, dueDate, completed } = req.body;
     if (assignedToId) {
       const user = await prisma.user.findUnique({ where: { id: Number(assignedToId) } });
       if (user && (user.status === 'pending' || user.status === 'inactive')) {
@@ -542,18 +637,43 @@ router.put('/activities/:id', requirePermission('companies.activities', 'input')
       }
     }
 
+    const activityId = Number(req.params.id);
+    const existing = await prisma.activity.findUnique({
+      where: { id: activityId },
+      select: { id: true, companyId: true },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: '活動が見つかりません' });
+    }
+
+    let resolvedProjectIds: number[] | undefined;
+    if (projectIds !== undefined) {
+      if (!Array.isArray(projectIds)) {
+        return res.status(400).json({ error: 'projectIds は配列で指定してください' });
+      }
+      resolvedProjectIds = parseProjectIds(projectIds) ?? [];
+      const mismatch = await assertProjectIdsForCompany(resolvedProjectIds, existing.companyId);
+      if (mismatch) {
+        return res.status(400).json({ error: mismatch });
+      }
+      await syncActivityProjectLinks(activityId, resolvedProjectIds);
+    }
+
     const activity = await prisma.activity.update({
-      where: { id: Number(req.params.id) },
+      where: { id: activityId },
       data: {
-        contactId, dealId,
-        projectId: projectId !== undefined ? (projectId ? Number(projectId) : null) : undefined,
-        assignedToId, type, subject, description,
-        dueDate: dueDate ? new Date(dueDate) : null,
-        completed,
+        ...(contactId !== undefined ? { contactId } : {}),
+        ...(dealId !== undefined ? { dealId } : {}),
+        ...(assignedToId !== undefined ? { assignedToId } : {}),
+        ...(type !== undefined ? { type } : {}),
+        ...(subject !== undefined ? { subject } : {}),
+        ...(description !== undefined ? { description } : {}),
+        ...(dueDate !== undefined ? { dueDate: dueDate ? new Date(dueDate) : null } : {}),
+        ...(completed !== undefined ? { completed } : {}),
       },
       include: activityInclude,
     });
-    res.json(activity);
+    res.json(serializeActivity(activity));
   } catch (e) {
     console.error('Activity update error:', e);
     res.status(500).json({ error: getActivityPersistenceErrorMessage(e, '活動の更新に失敗しました') });

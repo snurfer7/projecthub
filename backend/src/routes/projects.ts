@@ -626,18 +626,23 @@ router.put('/:id/comments/:commentId', requirePermission('projects.comments', 'i
   }
 });
 
-// Get activities linked to project
+// Get activities linked to project (N:N)
 router.get('/:id/activities', requirePermission('projects.activities', 'use'), async (req: AuthRequest, res: Response) => {
   try {
+    const projectId = Number(req.params.id);
     const activities = await prisma.activity.findMany({
-      where: { projectId: Number(req.params.id) },
+      where: { projectLinks: { some: { projectId } } },
       include: {
         user: { select: { id: true, firstName: true, lastName: true } },
         assignedTo: { select: { id: true, firstName: true, lastName: true } },
         contact: { select: { id: true, firstName: true, lastName: true } },
         deal: { select: { id: true, name: true } },
         company: { select: { id: true, name: true } },
-        project: { select: { id: true, name: true, identifier: true } },
+        projectLinks: {
+          include: {
+            project: { select: { id: true, name: true, identifier: true } },
+          },
+        },
         fileComment: {
           select: {
             id: true,
@@ -650,9 +655,82 @@ router.get('/:id/activities', requirePermission('projects.activities', 'use'), a
       },
       orderBy: { createdAt: 'desc' },
     });
-    res.json(activities);
+    res.json(
+      activities.map(({ projectLinks, ...rest }) => ({
+        ...rest,
+        projects: projectLinks.map((link) => link.project),
+      })),
+    );
   } catch (e) {
     res.status(500).json({ error: '活動履歴の取得に失敗しました' });
+  }
+});
+
+// Link existing activity to project
+router.post('/:id/activities', requirePermission('companies.activities', 'input'), async (req: AuthRequest, res: Response) => {
+  try {
+    const projectId = Number(req.params.id);
+    const activityId = Number(req.body.activityId);
+    if (!Number.isFinite(activityId) || activityId <= 0) {
+      return res.status(400).json({ error: 'activityId が必要です' });
+    }
+
+    const [project, activity] = await Promise.all([
+      prisma.project.findUnique({
+        where: { id: projectId },
+        select: {
+          id: true,
+          companyId: true,
+          relatedCompanies: { select: { companyId: true } },
+        },
+      }),
+      prisma.activity.findUnique({
+        where: { id: activityId },
+        select: { id: true, companyId: true },
+      }),
+    ]);
+
+    if (!project) {
+      return res.status(404).json({ error: 'プロジェクトが見つかりません' });
+    }
+    if (!activity) {
+      return res.status(404).json({ error: '活動が見つかりません' });
+    }
+
+    const allowed = new Set<number>();
+    if (project.companyId != null) allowed.add(project.companyId);
+    for (const rc of project.relatedCompanies) allowed.add(rc.companyId);
+    if (!allowed.has(activity.companyId)) {
+      return res.status(400).json({
+        error: 'プロジェクトは指定された企業の主企業または関連企業である必要があります',
+      });
+    }
+
+    await prisma.activityProject.upsert({
+      where: { activityId_projectId: { activityId, projectId } },
+      create: { activityId, projectId },
+      update: {},
+    });
+
+    res.status(201).json({ message: '活動をプロジェクトに紐づけました', activityId, projectId });
+  } catch (e) {
+    console.error('Project activity link error:', e);
+    res.status(500).json({ error: '活動の紐づけに失敗しました' });
+  }
+});
+
+// Unlink activity from project
+router.delete('/:id/activities/:activityId', requirePermission('companies.activities', 'input'), async (req: AuthRequest, res: Response) => {
+  try {
+    const projectId = Number(req.params.id);
+    const activityId = Number(req.params.activityId);
+    await prisma.activityProject.deleteMany({
+      where: { projectId, activityId },
+    });
+    res.json({ message: '活動の紐づけを解除しました' });
+  } catch (e) {
+    console.error('Project activity unlink error:', e);
+    res.status(500).json({ error: '活動の紐づけ解除に失敗しました' });
   }
 });
 
