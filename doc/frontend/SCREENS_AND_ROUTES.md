@@ -26,7 +26,7 @@
 | `/projects` | ProjectListPage | プロジェクト一覧。一覧／ガントチャート／カンバン／時間の4表示を切替可能。上部に統合フィルタパネル1つ（テキスト検索＋表示モードに応じた条件行：プロジェクト／チケット／ガント表示期間／時間記録）。プロジェクト条件行にはステータス（`active`＝有効・`closed`＝終了・`archived`＝アーカイブ）の複数選択フィルタがある。**時間**タブへ切替時のチケット検索初期値は担当者＝ログインユーザー・チケット期限＝当日〜当日。時間記録は記録期間＝当日〜当日・記録者＝ログインユーザー。件数サマリーと「条件をすべてクリア」で一括リセット（時間タブ中は上記時間向け初期値に戻す）。表示モード・検索条件は `sessionStorage` に保持し、詳細画面から戻った際に復元する。ヘッダー（トップバー）の「プロジェクト」をクリックしたときは当該保持を削除し条件を初期化する。ランディング用にクエリ `view=gantt` でガントを初期表示（表示確定後にクエリは除去）。**保存済み検索条件**（`projects.saved-searches` canUse）: フィルタパネルに「保存済み」ドロップダウン表示。各表示モードごとに名称付きで複数保存可能。デフォルト1件設定可（★アイコンで切替）。表示モード切替時に対応 viewMode のデフォルト検索条件を自動適用。canInput でのみ保存・更新・削除・デフォルト変更が可能 |
 | `/projects/:projectId` | ProjectDetailPage | プロジェクト詳細（子ルートあり） |
 | `/projects/:projectId/` (index) | ProjectOverview | 概要タブ |
-| `/projects/:projectId/issues` | IssueListPage | チケット一覧。**一覧／ツリー**表示を切替可能（デフォルトはツリー。切替は `sessionStorage` に保持）。ツリー表示では親子階層でインデント・罫線を表示し、子を持つ行は折りたたみ可能 |
+| `/projects/:projectId/issues` | IssueListPage | チケット一覧。**一覧／ツリー**表示を切替可能（デフォルトはツリー。切替は `sessionStorage` に保持）。ツリー表示では親子階層でインデントし、子を持つ行は折りたたみ可能 |
 | `/projects/:projectId/issues/new` | IssueFormPage | チケット新規作成。親チケット選択可（`projects.issues.fields.parent`）。子を持つ編集時はステータス・開始日・開始時刻・終了日・終了時刻は入力不可で子孫集約値を表示（ステータスは position 最小） |
 | `/projects/:projectId/wiki` | WikiListPage | Wiki 一覧 |
 | `/projects/:projectId/comments` | ProjectCommentsPage | プロジェクトコメント |

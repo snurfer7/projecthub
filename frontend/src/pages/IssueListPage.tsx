@@ -29,9 +29,6 @@ type TreeDisplayRow = {
   issue: Issue;
   depth: number;
   hasChildren: boolean;
-  isLastSibling: boolean;
-  /** 各祖先レベルで、その先に兄弟が続くか（縦線を伸ばすか） */
-  ancestorHasMore: boolean[];
 };
 
 function buildTreeDisplayRows(issues: Issue[], collapsedIds: Set<number>): TreeDisplayRow[] {
@@ -54,7 +51,15 @@ function buildTreeDisplayRows(issues: Issue[], collapsedIds: Set<number>): TreeD
   const result: TreeDisplayRow[] = [];
   const visited = new Set<number>();
 
-  const visit = (issue: Issue, depth: number, ancestorHasMore: boolean[], isLastSibling: boolean) => {
+  const markDescendantsVisited = (id: number) => {
+    for (const child of childrenMap.get(id) ?? []) {
+      if (visited.has(child.id)) continue;
+      visited.add(child.id);
+      markDescendantsVisited(child.id);
+    }
+  };
+
+  const visit = (issue: Issue, depth: number) => {
     if (visited.has(issue.id)) return;
     visited.add(issue.id);
     const children = childrenMap.get(issue.id) ?? [];
@@ -62,81 +67,20 @@ function buildTreeDisplayRows(issues: Issue[], collapsedIds: Set<number>): TreeD
       issue,
       depth,
       hasChildren: children.length > 0,
-      isLastSibling,
-      ancestorHasMore,
     });
-    if (collapsedIds.has(issue.id)) return;
-    children.forEach((child, index) => {
-      visit(child, depth + 1, [...ancestorHasMore, !isLastSibling], index === children.length - 1);
-    });
+    if (collapsedIds.has(issue.id)) {
+      // 折りたたみ中の子孫を orphan フォールバックで再表示しない
+      markDescendantsVisited(issue.id);
+      return;
+    }
+    children.forEach((child) => visit(child, depth + 1));
   };
 
-  roots.forEach((root, index) => {
-    visit(root, 0, [], index === roots.length - 1);
-  });
+  roots.forEach((root) => visit(root, 0));
   issues.forEach((i) => {
-    if (!visited.has(i.id)) visit(i, 0, [], true);
+    if (!visited.has(i.id)) visit(i, 0);
   });
   return result;
-}
-
-const TREE_GUTTER = 16;
-
-function TreeGuideLines({
-  depth,
-  ancestorHasMore,
-  isLastSibling,
-}: {
-  depth: number;
-  ancestorHasMore: boolean[];
-  isLastSibling: boolean;
-}) {
-  if (depth <= 0) return null;
-  return (
-    <span className="flex flex-shrink-0 self-stretch" aria-hidden>
-      {Array.from({ length: depth }, (_, level) => {
-        const isLeafLevel = level === depth - 1;
-        const continueDown = isLeafLevel ? !isLastSibling : ancestorHasMore[level];
-        return (
-          <span key={level} className="relative flex-shrink-0 self-stretch" style={{ width: TREE_GUTTER }}>
-            {/* 祖先の継続縦線 / 接続部の上半分 */}
-            {(isLeafLevel || continueDown) && (
-              <span
-                className="absolute left-1/2 w-px bg-gray-300"
-                style={{
-                  top: 0,
-                  height: isLeafLevel ? '50%' : '100%',
-                  transform: 'translateX(-0.5px)',
-                }}
-              />
-            )}
-            {/* 最終兄弟でなければ下へ伸ばす */}
-            {isLeafLevel && continueDown && (
-              <span
-                className="absolute left-1/2 w-px bg-gray-300"
-                style={{
-                  top: '50%',
-                  bottom: 0,
-                  transform: 'translateX(-0.5px)',
-                }}
-              />
-            )}
-            {/* 横線（自分への枝） */}
-            {isLeafLevel && (
-              <span
-                className="absolute top-1/2 h-px bg-gray-300"
-                style={{
-                  left: '50%',
-                  right: 0,
-                  transform: 'translateY(-0.5px)',
-                }}
-              />
-            )}
-          </span>
-        );
-      })}
-    </span>
-  );
 }
 
 export default function IssueListPage() {
@@ -155,7 +99,7 @@ export default function IssueListPage() {
   const [deletingIssueId, setDeletingIssueId] = useState<number | null>(null);
 
   const fetchIssues = () => {
-    const params: any = { projectId };
+    const params: Record<string, string | undefined> = { projectId };
     if (filterStatus) params.statusId = filterStatus;
     if (filterTracker) params.trackerId = filterTracker;
     api.get('/issues', { params }).then((res) => setIssues(res.data));
@@ -183,8 +127,6 @@ export default function IssueListPage() {
         issue,
         depth: 0,
         hasChildren: false,
-        isLastSibling: true,
-        ancestorHasMore: [] as boolean[],
       }));
     }
     return buildTreeDisplayRows(issues, collapsedIds);
@@ -204,7 +146,7 @@ export default function IssueListPage() {
       await api.delete(`/issues/${id}`);
       setDeletingIssueId(null);
       fetchIssues();
-    } catch (err) {
+    } catch {
       alert('削除に失敗しました');
     }
   };
@@ -264,7 +206,7 @@ export default function IssueListPage() {
               label="ステータス"
               options={[
                 { value: '', label: '全て' },
-                ...(meta?.statuses || []).map(s => ({ value: String(s.id), label: s.name }))
+                ...(meta?.statuses || []).map((s) => ({ value: String(s.id), label: s.name })),
               ]}
               value={filterStatus}
               onChange={setFilterStatus}
@@ -276,7 +218,7 @@ export default function IssueListPage() {
               label="トラッカー"
               options={[
                 { value: '', label: '全て' },
-                ...(meta?.trackers || []).map(t => ({ value: String(t.id), label: t.name }))
+                ...(meta?.trackers || []).map((t) => ({ value: String(t.id), label: t.name })),
               ]}
               value={filterTracker}
               onChange={setFilterTracker}
@@ -300,29 +242,26 @@ export default function IssueListPage() {
               </tr>
             </thead>
             <tbody>
-              {displayRows.map(({ issue, depth, hasChildren, isLastSibling, ancestorHasMore }) => (
+              {displayRows.map(({ issue, depth, hasChildren }) => (
                 <tr key={issue.id} className="border-t hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-500">{issue.id}</td>
                   <td className="px-4 py-3">
                     <span className="bg-slate-100 px-2 py-0.5 rounded text-xs">{issue.tracker?.name}</span>
                   </td>
-                  <td className="px-4 py-0">
-                    <div className="flex items-stretch min-h-[2.75rem]">
-                      {viewMode === 'tree' && (
-                        <TreeGuideLines
-                          depth={depth}
-                          ancestorHasMore={ancestorHasMore}
-                          isLastSibling={isLastSibling}
-                        />
-                      )}
+                  <td className="px-4 py-3">
+                    <div
+                      className="flex items-center min-w-0"
+                      style={viewMode === 'tree' && depth > 0 ? { paddingLeft: depth * 20 } : undefined}
+                    >
                       {viewMode === 'tree' && (
                         <span className="w-5 flex-shrink-0 flex items-center justify-center mr-0.5">
                           {hasChildren ? (
                             <button
                               type="button"
                               onClick={() => toggleCollapse(issue.id)}
-                              className="p-0.5 text-gray-500 hover:text-gray-800 rounded relative z-10 bg-white"
+                              className="p-0.5 text-gray-500 hover:text-gray-800 rounded"
                               title={collapsedIds.has(issue.id) ? '展開' : '折りたたむ'}
+                              aria-expanded={!collapsedIds.has(issue.id)}
                             >
                               {collapsedIds.has(issue.id) ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
                             </button>
@@ -332,8 +271,9 @@ export default function IssueListPage() {
                         </span>
                       )}
                       <button
+                        type="button"
                         onClick={() => setSelectedIssueId(String(issue.id))}
-                        className={`text-sky-600 hover:underline font-medium cursor-pointer text-left truncate self-center py-3 ${
+                        className={`text-sky-600 hover:underline font-medium cursor-pointer text-left truncate min-w-0 ${
                           viewMode === 'tree' && hasChildren ? 'font-semibold' : ''
                         }`}
                       >
@@ -342,8 +282,11 @@ export default function IssueListPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${issue.status?.isClosed ? 'bg-gray-100 text-gray-600' : 'bg-green-100 text-green-700'
-                      }`}>
+                    <span
+                      className={`px-2 py-0.5 rounded text-xs font-medium ${
+                        issue.status?.isClosed ? 'bg-gray-100 text-gray-600' : 'bg-green-100 text-green-700'
+                      }`}
+                    >
                       {issue.status?.name}
                     </span>
                   </td>
@@ -352,10 +295,14 @@ export default function IssueListPage() {
                   </td>
                   <td className="px-4 py-3 text-gray-600">
                     {issue.assignedToGroup ? (
-                      <span className="inline-flex items-center gap-1"><Users className="w-3.5 h-3.5 text-indigo-400" /> {issue.assignedToGroup.name}</span>
+                      <span className="inline-flex items-center gap-1">
+                        <Users className="w-3.5 h-3.5 text-indigo-400" /> {issue.assignedToGroup.name}
+                      </span>
                     ) : issue.assignedTo ? (
                       `${issue.assignedTo.lastName} ${issue.assignedTo.firstName}`
-                    ) : '-'}
+                    ) : (
+                      '-'
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -369,6 +316,7 @@ export default function IssueListPage() {
                     {canInput('projects.issues') && (
                       <>
                         <button
+                          type="button"
                           onClick={() => setEditingIssueId(String(issue.id))}
                           className="text-sky-600 hover:text-sky-800 mr-4 cursor-pointer"
                           title="編集"
@@ -376,6 +324,7 @@ export default function IssueListPage() {
                           <Pencil size={18} />
                         </button>
                         <button
+                          type="button"
                           onClick={() => setDeletingIssueId(issue.id)}
                           className="text-red-500 hover:text-red-700 cursor-pointer"
                           title="削除"
