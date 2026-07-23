@@ -58,6 +58,35 @@ const GANTT_BAR_HEIGHT = 16;
 const GANTT_BAR_CENTER_OFFSET = GANTT_BAR_TOP + GANTT_BAR_HEIGHT / 2;
 /** sticky ヘッダーの border-b */
 const GANTT_HEADER_BORDER = 1;
+/** 左右スクロールでバーが枠外に出たときに残す末端の幅 (px) */
+const GANTT_BAR_EDGE_TIP = 8;
+
+/**
+ * スクロール可視範囲に合わせてバー位置を調整する。
+ * 枠外に完全に出たバーは、可視領域の端に末端の一部だけ残す（表示専用のヒント）。
+ * 可視範囲と重なるバーはそのまま（スクロールの overflow で自然にクリップ）。
+ */
+function clampBarToScrollViewport(
+  left: number,
+  width: number,
+  viewLeft: number,
+  viewRight: number,
+  tipPx: number = GANTT_BAR_EDGE_TIP,
+): { left: number; width: number; edgeTip: 'left' | 'right' | null } {
+  if (viewRight <= viewLeft) return { left, width, edgeTip: null };
+
+  const right = left + width;
+  const tip = Math.min(tipPx, width, viewRight - viewLeft);
+
+  if (right <= viewLeft) {
+    return { left: viewLeft, width: tip, edgeTip: 'left' };
+  }
+  if (left >= viewRight) {
+    return { left: viewRight - tip, width: tip, edgeTip: 'right' };
+  }
+
+  return { left, width, edgeTip: null };
+}
 
 function ganttHeaderHeight(zoom: ZoomLevel): number {
   // 日: 30+24+24+24 / 月: 30+24 / 年: 30  + sticky の border-b
@@ -560,6 +589,19 @@ export default function GanttChart({
 
   const chartRef = useRef<HTMLDivElement>(null);
   const dayWidth = ZOOM_CONFIG[zoom].dayWidth;
+  const leftColWidth = customLeftColWidth !== null ? customLeftColWidth : (showProject ? 360 : 300);
+  /** タイムライン領域の横スクロール可視範囲（タイムライン座標） */
+  const [scrollView, setScrollView] = useState({ left: 0, right: 0 });
+
+  const syncScrollView = useCallback(() => {
+    const el = chartRef.current;
+    if (!el) return;
+    const viewLeft = el.scrollLeft;
+    const viewRight = el.scrollLeft + Math.max(0, el.clientWidth - leftColWidth);
+    setScrollView((prev) =>
+      prev.left === viewLeft && prev.right === viewRight ? prev : { left: viewLeft, right: viewRight }
+    );
+  }, [leftColWidth]);
 
   // Extract working hours
   const { workStartMinutes, workEndMinutes, snapMinutes } = useMemo(() => {
@@ -897,7 +939,7 @@ export default function GanttChart({
       let width = (dragEndOffset - dragStartOffset) * dayWidth;
 
       if (width < Math.max(0.1, 0.1 * dayWidth)) width = Math.max(0.1, 0.1 * dayWidth);
-      return { left, width };
+      return { left, width, edgeTip: null as 'left' | 'right' | null };
     }
 
     const schedule = resolveIssueScheduleWithChildren(issue, filteredIssues, systemSettings);
@@ -918,8 +960,8 @@ export default function GanttChart({
 
     if (visibleWidth <= 0) return null;
 
-    return { left: visibleLeft, width: visibleWidth };
-  }, [getOffset, dayWidth, drag, totalDays, systemSettings, filteredIssues]);
+    return clampBarToScrollViewport(visibleLeft, visibleWidth, scrollView.left, scrollView.right);
+  }, [getOffset, dayWidth, drag, totalDays, systemSettings, filteredIssues, scrollView]);
 
   // グリッド線
   const gridLines = useMemo(() => {
@@ -1041,7 +1083,7 @@ export default function GanttChart({
 
   // 各チケットの絶対位置を計算（線引き用）
   const issuePositions = useMemo(() => {
-    const pos: Record<number, { left: number; width: number; top: number }> = {};
+    const pos: Record<number, { left: number; width: number; top: number; edgeTip: 'left' | 'right' | null }> = {};
     let currentIndex = 0;
 
     groupedIssues.forEach((group) => {
@@ -1056,6 +1098,7 @@ export default function GanttChart({
           pos[issue.id] = {
             left: bar.left,
             width: bar.width,
+            edgeTip: bar.edgeTip,
             // バー縦方向の中央（右端・左端の接続点）
             top: ganttHeaderHeight(zoom) + currentIndex * GANTT_ROW_HEIGHT + GANTT_BAR_CENTER_OFFSET,
           };
@@ -1097,8 +1140,8 @@ export default function GanttChart({
 
     if (visibleWidth <= 0) return null;
 
-    return { left: visibleLeft, width: visibleWidth };
-  }, [getOffset, dayWidth, totalDays, filteredIssues, systemSettings]);
+    return clampBarToScrollViewport(visibleLeft, visibleWidth, scrollView.left, scrollView.right);
+  }, [getOffset, dayWidth, totalDays, filteredIssues, systemSettings, scrollView]);
 
   // プロジェクト期限日バーの位置を算出（赤）
   const getProjectDueDateBar = useCallback((projectDueDate: string | null) => {
@@ -1288,12 +1331,23 @@ export default function GanttChart({
     };
   }, [relationDrag, onRelationCreated, issues, onIssueCreated]);
 
+  useEffect(() => {
+    const el = chartRef.current;
+    if (!el) return;
+    syncScrollView();
+    el.addEventListener('scroll', syncScrollView, { passive: true });
+    const ro = new ResizeObserver(syncScrollView);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', syncScrollView);
+      ro.disconnect();
+    };
+  }, [syncScrollView, groupedIssues.length, totalDays, dayWidth]);
+
   const handleBarHover = useCallback((e: React.MouseEvent, issue: Issue) => {
     if (drag) return;
     setTooltip({ issue, x: e.clientX, y: e.clientY });
   }, [drag]);
-
-  const leftColWidth = customLeftColWidth !== null ? customLeftColWidth : (showProject ? 360 : 300);
 
   // プロジェクト行クリック時のハンドラー
   const handleProjectRowClick = useCallback((e: React.MouseEvent, projectId: number) => {
@@ -1600,10 +1654,10 @@ export default function GanttChart({
                           }} />
                         ))}
 
-                        {/* バー */}
+                        {/* バー（枠外ヒントは表示専用・操作不可） */}
                         {bar && (
                           <div
-                            className={`absolute rounded group ${isDragging ? 'opacity-80' : ''} ${isParent ? 'ring-1 ring-black/10' : ''}`}
+                            className={`absolute rounded group ${isDragging ? 'opacity-80' : ''} ${isParent ? 'ring-1 ring-black/10' : ''} ${bar.edgeTip ? 'pointer-events-none' : ''}`}
                             style={{
                               left: bar.left,
                               width: bar.width,
@@ -1612,55 +1666,60 @@ export default function GanttChart({
                               backgroundColor: isParent ? '#64748B' : color,
                               zIndex: 10,
                             }}
-                            onMouseEnter={(e) => handleBarHover(e, issue)}
-                            onMouseLeave={() => !drag && setTooltip(null)}
-                            onMouseMove={(e) => !drag && setTooltip({ issue, x: e.clientX, y: e.clientY })}
+                            title={bar.edgeTip === 'left' ? '表示期間より前に設定' : bar.edgeTip === 'right' ? '表示期間より後に設定' : undefined}
+                            onMouseEnter={bar.edgeTip ? undefined : (e) => handleBarHover(e, issue)}
+                            onMouseLeave={bar.edgeTip ? undefined : () => !drag && setTooltip(null)}
+                            onMouseMove={bar.edgeTip ? undefined : (e) => !drag && setTooltip({ issue, x: e.clientX, y: e.clientY })}
                           >
-                            {/* 進捗 */}
-                            {issue.doneRatio > 0 && (
-                              <div className="h-full rounded-l bg-black/20" style={{ width: `${issue.doneRatio}%` }} />
-                            )}
+                            {!bar.edgeTip && (
+                              <>
+                                {/* 進捗 */}
+                                {issue.doneRatio > 0 && (
+                                  <div className="h-full rounded-l bg-black/20" style={{ width: `${issue.doneRatio}%` }} />
+                                )}
 
-                            {/* ドラッグハンドル & 移動用透明エリア & 関係ドラッグ */}
-                            <div className="absolute inset-0 flex items-center">
-                              <div
-                                className="h-full w-4 flex items-center justify-center cursor-crosshair hover:bg-black/10 rounded-l"
-                                onMouseDown={(e) => handleRelationMouseDown(e, issue)}
-                                title="ドラッグして関連チケットを設定"
-                              >
-                                <GripVertical size={10} className="text-white/70" />
-                              </div>
-                              {isParent ? (
-                                <div
-                                  className="flex-1 h-full cursor-default"
-                                  title="親チケットの期間は子チケットから算出（変更不可）"
-                                />
-                              ) : (
-                                <div
-                                  className="flex-1 h-full cursor-grab active:cursor-grabbing"
-                                  onMouseDown={(e) => handleMouseDown(e, issue, 'move')}
-                                  title="ドラッグして移動（日付変更）"
-                                />
-                              )}
-                            </div>
+                                {/* ドラッグハンドル & 移動用透明エリア & 関係ドラッグ */}
+                                <div className="absolute inset-0 flex items-center">
+                                  <div
+                                    className="h-full w-4 flex items-center justify-center cursor-crosshair hover:bg-black/10 rounded-l"
+                                    onMouseDown={(e) => handleRelationMouseDown(e, issue)}
+                                    title="ドラッグして関連チケットを設定"
+                                  >
+                                    <GripVertical size={10} className="text-white/70" />
+                                  </div>
+                                  {isParent ? (
+                                    <div
+                                      className="flex-1 h-full cursor-default"
+                                      title="親チケットの期間は子チケットから算出（変更不可）"
+                                    />
+                                  ) : (
+                                    <div
+                                      className="flex-1 h-full cursor-grab active:cursor-grabbing"
+                                      onMouseDown={(e) => handleMouseDown(e, issue, 'move')}
+                                      title="ドラッグして移動（日付変更）"
+                                    />
+                                  )}
+                                </div>
 
-                            {/* ドラッグ: 左リサイズ */}
-                            {!isParent && (
-                              <div className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize"
-                                onMouseDown={(e) => handleMouseDown(e, issue, 'resize-left')} />
-                            )}
+                                {/* ドラッグ: 左リサイズ */}
+                                {!isParent && (
+                                  <div className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize"
+                                    onMouseDown={(e) => handleMouseDown(e, issue, 'resize-left')} />
+                                )}
 
-                            {/* ドラッグ: 右リサイズ */}
-                            {!isParent && (
-                              <div className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize"
-                                onMouseDown={(e) => handleMouseDown(e, issue, 'resize-right')} />
-                            )}
+                                {/* ドラッグ: 右リサイズ */}
+                                {!isParent && (
+                                  <div className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize"
+                                    onMouseDown={(e) => handleMouseDown(e, issue, 'resize-right')} />
+                                )}
 
-                            {/* ドラッグ日付プレビュー */}
-                            {isDragging && drag && (
-                              <div className="absolute -top-5 left-0 text-[10px] bg-slate-800 text-white px-1.5 py-0.5 rounded whitespace-nowrap z-20">
-                                {formatDateDisplay(drag.currentStartDate)} 〜 {formatDateDisplay(drag.currentDueDate)}
-                              </div>
+                                {/* ドラッグ日付プレビュー */}
+                                {isDragging && drag && (
+                                  <div className="absolute -top-5 left-0 text-[10px] bg-slate-800 text-white px-1.5 py-0.5 rounded whitespace-nowrap z-20">
+                                    {formatDateDisplay(drag.currentStartDate)} 〜 {formatDateDisplay(drag.currentDueDate)}
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
                         )}
@@ -1717,6 +1776,8 @@ export default function GanttChart({
                 return issue.relationsFrom.map((rel) => {
                   const toPos = issuePositions[rel.issueToId];
                   if (!toPos) return null;
+                  // 両方とも枠外ヒントのみのときは紐づけ線を出さない
+                  if (fromPos.edgeTip && toPos.edgeTip) return null;
 
                   return (
                     <g key={`${issue.id}-${rel.issueToId}`}>
