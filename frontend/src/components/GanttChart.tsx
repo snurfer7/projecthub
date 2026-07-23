@@ -65,6 +65,12 @@ function ganttHeaderHeight(zoom: ZoomLevel): number {
   return content + GANTT_HEADER_BORDER;
 }
 
+/** ヘッダー内で日付表示行が始まる位置（年・月行を除いた上端オフセット） */
+function ganttDateRowTop(zoom: ZoomLevel): number {
+  // 日: 年(30)+月(24) を除いた日付・曜日行から / 月: 年(30) を除いた月行から / 年: 年行そのもの
+  return zoom === 'day' ? 54 : zoom === 'month' ? 30 : 0;
+}
+
 /** 関係線: S字・かぎ足の水平スタブ長 (px) */
 const RELATION_LINE_STUB = 12;
 
@@ -1518,10 +1524,6 @@ export default function GanttChart({
                             backgroundColor: line.bold ? '#D1D5DB' : '#E5E7EB',
                           }} />
                         ))}
-                        {/* 今日の線 */}
-                        {todayOffset !== null && (
-                          <div className="absolute top-0 bottom-0" style={{ left: todayOffset, width: 2, backgroundColor: '#EF4444', zIndex: 5 }} />
-                        )}
                         {/* チケット期間バー */}
                         {projectIssuesBar && (
                           <div className="absolute rounded"
@@ -1597,11 +1599,6 @@ export default function GanttChart({
                             backgroundColor: line.bold ? '#D1D5DB' : '#E5E7EB',
                           }} />
                         ))}
-
-                        {/* 今日の線 */}
-                        {todayOffset !== null && (
-                          <div className="absolute top-0 bottom-0" style={{ left: todayOffset, width: 2, backgroundColor: '#EF4444', zIndex: 5 }} />
-                        )}
 
                         {/* バー */}
                         {bar && (
@@ -1751,11 +1748,28 @@ export default function GanttChart({
               })}
             </svg>
 
-            {/* ヘッダー部の今日ラベル */}
+            {/* 今日の列を囲む枠（ヘッダーの日付・曜日行を含む） */}
             {todayOffset !== null && (
-              <div className="absolute top-0 z-40" style={{ left: todayOffset + leftColWidth - 12 }}>
-                <span className="text-xs bg-red-500 text-white px-1 rounded shadow-sm">今日</span>
-              </div>
+              <>
+                <div
+                  className="absolute bottom-0 pointer-events-none"
+                  style={{
+                    left: todayOffset + leftColWidth,
+                    width: dayWidth,
+                    top: ganttDateRowTop(zoom),
+                    border: '2px solid #3B82F6',
+                    borderRadius: 6,
+                    boxSizing: 'border-box',
+                    zIndex: 35,
+                  }}
+                />
+                <div
+                  className="absolute z-40 flex items-center justify-center"
+                  style={{ left: todayOffset + leftColWidth, top: 0, width: dayWidth, height: 30 }}
+                >
+                  <span className="text-xs bg-blue-500 text-white px-1 rounded shadow-sm whitespace-nowrap">今日</span>
+                </div>
+              </>
             )}
           </div>
         </div>
