@@ -1544,7 +1544,7 @@ export default function GanttChart({
                               left: projectDueDateBar.left,
                               width: dayWidth,
                               backgroundImage:
-                                'repeating-linear-gradient(45deg, rgba(239,68,68,0.5) 0, rgba(239,68,68,0.5) 3px, transparent 3px, transparent 6px)',
+                                'repeating-linear-gradient(45deg, rgba(239,68,68,0.7) 0, rgba(239,68,68,0.7) 3px, transparent 3px, transparent 6px)',
                               zIndex: 15,
                             }}
                             onMouseEnter={(e) => setTooltip({ projectDueDate: group.projectDueDate, x: e.clientX, y: e.clientY })}
@@ -1680,7 +1680,7 @@ export default function GanttChart({
                                 left: left * dayWidth,
                                 width: dayWidth,
                                 backgroundImage:
-                                  'repeating-linear-gradient(45deg, rgba(239,68,68,0.5) 0, rgba(239,68,68,0.5) 3px, transparent 3px, transparent 6px)',
+                                  'repeating-linear-gradient(45deg, rgba(239,68,68,0.7) 0, rgba(239,68,68,0.7) 3px, transparent 3px, transparent 6px)',
                               }}
                               title={`期日: ${new Date(issue.dueDate).toLocaleDateString('ja-JP')}`}
                             />
