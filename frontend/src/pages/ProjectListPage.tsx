@@ -745,6 +745,7 @@ export default function ProjectListPage() {
           onClose={closeIssueModal}
           title="チケット編集"
           issueId={String(selectedIssueId)}
+          permissions={user?.permissions}
           onSuccess={() => {
             setIsEditModalOpen(false);
             loadKanbanData();

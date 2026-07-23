@@ -1813,6 +1813,7 @@ export default function GanttChart({
         projectId={String(addModal.projectId)}
         initialStartDate={addModal.initialStartDate}
         initialDueDate={addModal.initialDueDate}
+        permissions={user?.permissions}
         onSuccess={() => {
           setAddModal({ ...addModal, isOpen: false });
           onIssueCreated?.();
@@ -1849,6 +1850,7 @@ export default function GanttChart({
           onClose={() => setEditIssueId(null)}
           title="チケットの編集"
           issueId={String(editIssueId)}
+          permissions={user?.permissions}
           onSuccess={() => {
             setEditIssueId(null);
             onIssueCreated?.();
