@@ -18,7 +18,7 @@ import { useProjectListFilters } from '../hooks/useProjectListFilters';
 import { filterProjects, filteredProjectIdSet } from '../utils/projectFilter';
 import { filterIssues, filterIssuesByProjectIds } from '../utils/issueFilter';
 import { isLeafIssue } from '../utils/issueTree';
-import { buildProjectTreeDisplayRows } from '../utils/projectTree';
+import { buildProjectTreeDisplayRows, filterProjectsKeepingAncestorsOfTicketed } from '../utils/projectTree';
 import {
   timeViewAssignedToIds,
   timeViewRecordDateRange,
@@ -397,7 +397,7 @@ export default function ProjectListPage() {
   const ganttDisplayProjectCount = useMemo(() => {
     if (showEmptyProjects) return filteredGanttProjects.length;
     const idsWithIssues = new Set(filteredGanttIssues.map((i) => i.projectId));
-    return filteredGanttProjects.filter((p) => idsWithIssues.has(p.id)).length;
+    return filterProjectsKeepingAncestorsOfTicketed(filteredGanttProjects, idsWithIssues).length;
   }, [showEmptyProjects, filteredGanttProjects, filteredGanttIssues]);
 
   const kanbanProjectIssues = useMemo(

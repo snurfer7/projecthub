@@ -11,6 +11,7 @@ import { useAuth } from '../hooks/useAuth';
 import { formatEstimatedHours, formatDateToYYYYMMDD } from '../utils/format';
 import Combobox from './Combobox';
 import CustomDatePicker from './CustomDatePicker';
+import { filterProjectsKeepingAncestorsOfTicketed } from '../utils/projectTree';
 
 interface GanttChartProps {
   issues: Issue[];
@@ -1032,11 +1033,20 @@ export default function GanttChart({
     });
 
     if (!showEmptyProjects) {
+      const idsWithIssues = new Set(
+        Object.keys(groups)
+          .map(Number)
+          .filter((id) => groups[id].issues.length > 0),
+      );
+      const kept = filterProjectsKeepingAncestorsOfTicketed(
+        projects.filter((p) => groups[p.id]),
+        idsWithIssues,
+      );
+      const keepIds = new Set(kept.map((p) => p.id));
+      idsWithIssues.forEach((id) => keepIds.add(id));
       Object.keys(groups).forEach((key) => {
         const id = Number(key);
-        if (groups[id].issues.length === 0) {
-          delete groups[id];
-        }
+        if (!keepIds.has(id)) delete groups[id];
       });
     }
 

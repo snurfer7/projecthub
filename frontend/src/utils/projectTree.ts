@@ -61,3 +61,41 @@ export function buildProjectTreeDisplayRows(
   });
   return result;
 }
+
+/**
+ * チケットがあるプロジェクト、およびその祖先を残す（チケットなしの末端は除外）。
+ * ガントの「チケットなしプロジェクト非表示」時の件数・表示対象に使う。
+ */
+export function filterProjectsKeepingAncestorsOfTicketed(
+  projects: Project[],
+  projectIdsWithIssues: Set<number>,
+): Project[] {
+  const byId = new Map(projects.map((p) => [p.id, p]));
+  const childrenMap = new Map<number, number[]>();
+  for (const project of projects) {
+    if (project.parentId != null && byId.has(project.parentId)) {
+      const list = childrenMap.get(project.parentId) ?? [];
+      list.push(project.id);
+      childrenMap.set(project.parentId, list);
+    }
+  }
+
+  const keep = new Set<number>();
+  const visited = new Set<number>();
+  const markKeep = (id: number): boolean => {
+    if (visited.has(id)) return keep.has(id);
+    visited.add(id);
+    if (!byId.has(id)) return false;
+    let childKept = false;
+    for (const childId of childrenMap.get(id) ?? []) {
+      if (markKeep(childId)) childKept = true;
+    }
+    if (projectIdsWithIssues.has(id) || childKept) {
+      keep.add(id);
+      return true;
+    }
+    return false;
+  };
+  projects.forEach((p) => markKeep(p.id));
+  return projects.filter((p) => keep.has(p.id));
+}
