@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import api from '../api/client';
 import { Company, IssueStatus, Tracker, SavedSearch } from '../types';
-import type { ProjectFilterCriteria } from '../utils/projectFilter';
+import { SELF_COMPANY_FILTER_VALUE, type ProjectFilterCriteria } from '../utils/projectFilter';
 import type { IssueFilterCriteria } from '../utils/issueFilter';
 import type { ProjectListViewMode } from '../utils/projectListStorage';
 import Combobox from './Combobox';
@@ -302,7 +302,10 @@ export default function ProjectListFilterPanel({
           />
           <Combobox
             label="企業"
-            options={companies.map((c) => ({ value: c.id, label: c.name }))}
+            options={[
+              { value: SELF_COMPANY_FILTER_VALUE, label: '自社', divider: true },
+              ...companies.map((c) => ({ value: c.id, label: c.name })),
+            ]}
             value={projectFilter.companyIds}
             onChange={(values) => onProjectFilterChange({ companyIds: values })}
             placeholder="全企業"

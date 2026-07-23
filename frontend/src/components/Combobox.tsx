@@ -5,6 +5,8 @@ import Portal from './Portal';
 export interface ComboboxOption {
     value: string | number;
     label: string;
+    /** trueの場合、この選択肢の下に区切り線を表示する */
+    divider?: boolean;
 }
 
 interface ComboboxProps {
@@ -276,6 +278,8 @@ export default function Combobox({
                                             onMouseDown={(e) => e.preventDefault()}
                                             onClick={() => handleSelect(option)}
                                             className={`px-3 py-2 text-sm cursor-pointer transition-colors flex items-center justify-between ${
+                                                option.divider ? 'border-b border-gray-200' : ''
+                                            } ${
                                                 isSelected
                                                 ? 'bg-sky-50 text-sky-700 font-medium'
                                                 : 'text-gray-700 hover:bg-sky-50'

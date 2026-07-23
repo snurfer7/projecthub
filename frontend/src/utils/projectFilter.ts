@@ -1,5 +1,10 @@
 import { Project } from '../types';
 
+/**
+ * 企業フィルタで「自社」（企業が未設定のプロジェクト）を表す特別な選択肢の値。
+ */
+export const SELF_COMPANY_FILTER_VALUE = '__self__';
+
 export type ProjectFilterCriteria = {
   searchQuery: string;
   dueDateStart: string;
@@ -41,14 +46,25 @@ export function matchesProjectFilter(project: Project, criteria: ProjectFilterCr
   }
 
   if (criteria.companyIds.length > 0) {
-    const hasMatchingCompany =
-      (project.companyId != null &&
-        criteria.companyIds.some((id) => String(id) === String(project.companyId))) ||
-      (project.relatedCompanies?.some((rc) =>
-        criteria.companyIds.some((id) => String(id) === String(rc.companyId)),
-      ) ??
-        false);
-    if (!hasMatchingCompany) return false;
+    const includesSelf = criteria.companyIds.some(
+      (id) => String(id) === SELF_COMPANY_FILTER_VALUE,
+    );
+    const companyIds = criteria.companyIds.filter(
+      (id) => String(id) !== SELF_COMPANY_FILTER_VALUE,
+    );
+
+    // 「自社」= 企業が未設定のプロジェクト
+    const matchesSelf = includesSelf && project.companyId == null;
+    const matchesSelectedCompany =
+      companyIds.length > 0 &&
+      ((project.companyId != null &&
+        companyIds.some((id) => String(id) === String(project.companyId))) ||
+        (project.relatedCompanies?.some((rc) =>
+          companyIds.some((id) => String(id) === String(rc.companyId)),
+        ) ??
+          false));
+
+    if (!matchesSelf && !matchesSelectedCompany) return false;
   }
 
   if (criteria.statuses.length > 0 && !criteria.statuses.includes(project.status)) {
