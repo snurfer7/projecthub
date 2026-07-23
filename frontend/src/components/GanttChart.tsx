@@ -1598,7 +1598,7 @@ export default function GanttChart({
                               left: projectDueDateBar.left,
                               width: dayWidth,
                               backgroundImage:
-                                'repeating-linear-gradient(45deg, rgba(239,68,68,0.7) 0, rgba(239,68,68,0.7) 3px, transparent 3px, transparent 6px)',
+                                'repeating-linear-gradient(45deg, rgba(220,38,38,0.8) 0, rgba(220,38,38,0.8) 3px, transparent 3px, transparent 6px)',
                               zIndex: 15,
                             }}
                             onMouseEnter={(e) => setTooltip({ projectDueDate: group.projectDueDate, x: e.clientX, y: e.clientY })}
@@ -1724,7 +1724,7 @@ export default function GanttChart({
                           </div>
                         )}
 
-                        {/* 期日マーカー（1日分を覆う赤い網掛け） */}
+                        {/* 期日マーカー（1日分を覆う黄色い網掛け） */}
                         {!isDragging && issue.dueDate && (() => {
                           const d = new Date(issue.dueDate);
                           d.setHours(0, 0, 0, 0);
@@ -1739,7 +1739,7 @@ export default function GanttChart({
                                 left: left * dayWidth,
                                 width: dayWidth,
                                 backgroundImage:
-                                  'repeating-linear-gradient(45deg, rgba(239,68,68,0.7) 0, rgba(239,68,68,0.7) 3px, transparent 3px, transparent 6px)',
+                                  'repeating-linear-gradient(45deg, rgba(250,204,21,0.8) 0, rgba(250,204,21,0.8) 3px, transparent 3px, transparent 6px)',
                               }}
                               title={`期日: ${new Date(issue.dueDate).toLocaleDateString('ja-JP')}`}
                             />
