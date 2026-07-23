@@ -16,6 +16,8 @@ export type PersistedProjectList = {
   projectFilter: ProjectFilterCriteria;
   issueFilter: IssueFilterCriteria;
   ganttZoom: 'day' | 'month' | 'year';
+  /** ガント: チケットなしのプロジェクトを表示するか */
+  showEmptyProjects: boolean;
 };
 
 export function defaultPersistedProjectList(): Omit<PersistedProjectList, 'v'> {
@@ -24,6 +26,7 @@ export function defaultPersistedProjectList(): Omit<PersistedProjectList, 'v'> {
     projectFilter: defaultProjectFilterCriteria(),
     issueFilter: defaultIssueFilterCriteria(),
     ganttZoom: 'day',
+    showEmptyProjects: true,
   };
 }
 
@@ -108,6 +111,7 @@ export function readPersistedProjectList(): Omit<PersistedProjectList, 'v'> | nu
       projectFilter,
       issueFilter,
       ganttZoom: o.ganttZoom,
+      showEmptyProjects: typeof o.showEmptyProjects === 'boolean' ? o.showEmptyProjects : true,
     };
   } catch {
     return null;

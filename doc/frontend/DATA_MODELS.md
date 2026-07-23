@@ -50,7 +50,7 @@
 ## 保存済み検索
 
 - **SavedSearch** — id, userId, viewMode（`list` | `gantt` | `kanban` | `time`）, name, isDefault, filter（`SavedSearchFilter`）, createdAt, updatedAt。
-- **SavedSearchFilter** — `projectFilter?`（ProjectFilterCriteria）, `issueFilter?`（IssueFilterCriteria）, `ganttZoom?`（`day`|`month`|`year`）, `ganttStartValue?`, `ganttEndValue?`, `timeRecordStartDate?`, `timeRecordEndDate?`, `timeRecordFilterUserIds?`（(number|string)[]）。
+- **SavedSearchFilter** — `projectFilter?`（ProjectFilterCriteria）, `issueFilter?`（IssueFilterCriteria）, `ganttZoom?`（`day`|`month`|`year`）, `showEmptyProjects?`（boolean。ガントでチケットなしプロジェクトを表示するか。省略時は true）, `ganttStartValue?`, `ganttEndValue?`, `timeRecordStartDate?`, `timeRecordEndDate?`, `timeRecordFilterUserIds?`（(number|string)[]）。
 
 ## システム
 

@@ -24,6 +24,8 @@ interface ProjectListFilterPanelProps {
   onGanttStartValueChange: (value: string) => void;
   ganttEndValue: string;
   onGanttEndValueChange: (value: string) => void;
+  showEmptyProjects: boolean;
+  onShowEmptyProjectsChange: (value: boolean) => void;
   timeRecordStartDate: string;
   onTimeRecordStartDateChange: (value: string) => void;
   timeRecordEndDate: string;
@@ -85,6 +87,8 @@ export default function ProjectListFilterPanel({
   onGanttStartValueChange,
   ganttEndValue,
   onGanttEndValueChange,
+  showEmptyProjects,
+  onShowEmptyProjectsChange,
   timeRecordStartDate,
   onTimeRecordStartDateChange,
   timeRecordEndDate,
@@ -232,6 +236,7 @@ export default function ProjectListFilterPanel({
       assignedToGroupMemberIds: issueFilter.assignedToGroupMemberIds,
     },
     ganttZoom,
+    showEmptyProjects,
     timeRecordFilterUserIds,
   };
 
@@ -394,6 +399,15 @@ export default function ProjectListFilterPanel({
               <span className="text-xs text-gray-400 shrink-0">表示期間</span>
               {ganttRangePickers}
             </div>
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showEmptyProjects}
+                onChange={(e) => onShowEmptyProjectsChange(e.target.checked)}
+                className="rounded border-gray-300 text-sky-600 focus:ring-sky-500 w-3.5 h-3.5"
+              />
+              <span className="text-xs text-gray-600">チケットなしのプロジェクトを表示</span>
+            </label>
           </FilterRow>
         )}
 

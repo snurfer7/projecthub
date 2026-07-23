@@ -16,6 +16,8 @@ interface GanttChartProps {
   issues: Issue[];
   projects?: Project[];
   showProject?: boolean;
+  /** showProject 時、チケット0件のプロジェクト行を表示するか（既定 true） */
+  showEmptyProjects?: boolean;
   onUpdateIssue: (id: number, data: { startDate?: string; endDate?: string; dueDate?: string }) => Promise<void>;
   onIssueCreated?: () => void;
   onRelationCreated?: (fromId: number, toId: number) => Promise<void>;
@@ -479,7 +481,8 @@ function convertRangeOnZoomChange(
 export default function GanttChart({
   issues, 
   projects = [], 
-  showProject, 
+  showProject,
+  showEmptyProjects = true,
   onUpdateIssue, 
   onIssueCreated, 
   onRelationCreated, 
@@ -1028,6 +1031,15 @@ export default function GanttChart({
       groups[pid].issues.push(issue);
     });
 
+    if (!showEmptyProjects) {
+      Object.keys(groups).forEach((key) => {
+        const id = Number(key);
+        if (groups[id].issues.length === 0) {
+          delete groups[id];
+        }
+      });
+    }
+
     Object.values(groups).forEach((group) => {
       const ordered = orderIssuesHierarchically(group.issues);
       group.issues = ordered.map((o) => o.issue);
@@ -1039,16 +1051,15 @@ export default function GanttChart({
     const projectIds = new Set(Object.keys(groups).map(Number));
     projects.forEach((project) => {
       const parentId = project.parentId;
-      if (parentId && projectIds.has(parentId)) {
+      if (parentId && projectIds.has(parentId) && projectIds.has(project.id)) {
         if (!childrenMap[parentId]) childrenMap[parentId] = [];
         childrenMap[parentId].push(project.id);
       }
     });
 
     const rootIds = projects
-      .filter((p) => !p.parentId || !projectIds.has(p.parentId))
-      .map((p) => p.id)
-      .filter((id) => projectIds.has(id));
+      .filter((p) => projectIds.has(p.id) && (!p.parentId || !projectIds.has(p.parentId)))
+      .map((p) => p.id);
 
     const result: { projectName: string; projectId: number; projectDueDate: string | null; issues: Issue[]; depth: number; hasChildren: boolean }[] = [];
     const visited = new Set<number>();
@@ -1079,7 +1090,7 @@ export default function GanttChart({
     });
 
     return { groupedIssues: result, issueDepthById: depthMap };
-  }, [filteredIssues, projects, showProject, collapsedProjects]);
+  }, [filteredIssues, projects, showProject, showEmptyProjects, collapsedProjects]);
 
   // 各チケットの絶対位置を計算（線引き用）
   const issuePositions = useMemo(() => {

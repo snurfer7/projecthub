@@ -45,6 +45,8 @@ export default function ProjectListPage() {
     resetIssueFilter,
     ganttZoom,
     setGanttZoom,
+    showEmptyProjects,
+    setShowEmptyProjects,
   } = useProjectListFilters(initialViewMode);
 
   useEffect(() => {
@@ -106,10 +108,11 @@ export default function ProjectListPage() {
       if (f.projectFilter) setProjectFilter((prev) => ({ ...prev, ...f.projectFilter }));
       if (f.issueFilter) setIssueFilter((prev) => ({ ...prev, ...f.issueFilter }));
       if (f.ganttZoom) setGanttZoom(f.ganttZoom);
+      if (f.showEmptyProjects !== undefined) setShowEmptyProjects(f.showEmptyProjects);
       if (f.timeRecordFilterUserIds !== undefined) setTimeRecordFilterUserIds(f.timeRecordFilterUserIds);
       setActiveSavedSearchId(search.id);
     },
-    [setProjectFilter, setIssueFilter, setGanttZoom],
+    [setProjectFilter, setIssueFilter, setGanttZoom, setShowEmptyProjects],
   );
 
   /** 保存済み検索のデフォルトを自動適用（表示モード切替時）。古い応答は破棄する */
@@ -391,6 +394,12 @@ export default function ProjectListPage() {
     [ganttIssues, projectIds, issueFilter],
   );
 
+  const ganttDisplayProjectCount = useMemo(() => {
+    if (showEmptyProjects) return filteredGanttProjects.length;
+    const idsWithIssues = new Set(filteredGanttIssues.map((i) => i.projectId));
+    return filteredGanttProjects.filter((p) => idsWithIssues.has(p.id)).length;
+  }, [showEmptyProjects, filteredGanttProjects, filteredGanttIssues]);
+
   const kanbanProjectIssues = useMemo(
     () => filterIssuesByProjectIds(kanbanIssues, projectIds),
     [kanbanIssues, projectIds],
@@ -475,6 +484,8 @@ export default function ProjectListPage() {
         onGanttStartValueChange={(v) => { setGanttStartValue(v); setActiveSavedSearchId(null); }}
         ganttEndValue={ganttEndValue}
         onGanttEndValueChange={(v) => { setGanttEndValue(v); setActiveSavedSearchId(null); }}
+        showEmptyProjects={showEmptyProjects}
+        onShowEmptyProjectsChange={(v) => { setShowEmptyProjects(v); setActiveSavedSearchId(null); }}
         timeRecordStartDate={timeRecordStartDate}
         onTimeRecordStartDateChange={(v) => { setTimeRecordStartDate(v); setActiveSavedSearchId(null); }}
         timeRecordEndDate={timeRecordEndDate}
@@ -482,7 +493,7 @@ export default function ProjectListPage() {
         timeRecordFilterUserIds={timeRecordFilterUserIds}
         onTimeRecordFilterUserIdsChange={(v) => { setTimeRecordFilterUserIds(v); setActiveSavedSearchId(null); }}
         onResetAll={resetAllFilters}
-        projectCount={filteredProjects.length}
+        projectCount={viewMode === 'gantt' ? ganttDisplayProjectCount : filteredProjects.length}
         issueCount={
           viewMode === 'gantt'
             ? ganttDisplayIssueCount
@@ -590,6 +601,7 @@ export default function ProjectListPage() {
           issues={filteredGanttIssues}
           projects={filteredGanttProjects}
           showProject
+          showEmptyProjects={showEmptyProjects}
           systemSettings={systemSettings}
           onUpdateIssue={handleUpdateIssue}
           onIssueCreated={loadGanttData}

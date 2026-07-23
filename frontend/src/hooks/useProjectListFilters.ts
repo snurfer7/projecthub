@@ -29,6 +29,9 @@ export function useProjectListFilters(initialViewMode?: ProjectListViewMode) {
   const [ganttZoom, setGanttZoom] = useState<'day' | 'month' | 'year'>(
     () => persisted?.ganttZoom ?? defaults.ganttZoom,
   );
+  const [showEmptyProjects, setShowEmptyProjects] = useState(
+    () => persisted?.showEmptyProjects ?? defaults.showEmptyProjects,
+  );
 
   useEffect(() => {
     try {
@@ -38,12 +41,13 @@ export function useProjectListFilters(initialViewMode?: ProjectListViewMode) {
         projectFilter,
         issueFilter,
         ganttZoom,
+        showEmptyProjects,
       };
       sessionStorage.setItem(PROJECT_LIST_STORAGE_KEY, JSON.stringify(payload));
     } catch {
       // ignore quota / private mode
     }
-  }, [viewMode, projectFilter, issueFilter, ganttZoom]);
+  }, [viewMode, projectFilter, issueFilter, ganttZoom, showEmptyProjects]);
 
   useEffect(() => {
     const onReset = () => {
@@ -52,6 +56,7 @@ export function useProjectListFilters(initialViewMode?: ProjectListViewMode) {
       setProjectFilter(d.projectFilter);
       setIssueFilter(d.issueFilter);
       setGanttZoom(d.ganttZoom);
+      setShowEmptyProjects(d.showEmptyProjects);
     };
     window.addEventListener(PROJECT_LIST_RESET_EVENT, onReset);
     return () => window.removeEventListener(PROJECT_LIST_RESET_EVENT, onReset);
@@ -86,5 +91,7 @@ export function useProjectListFilters(initialViewMode?: ProjectListViewMode) {
     resetIssueFilter,
     ganttZoom,
     setGanttZoom,
+    showEmptyProjects,
+    setShowEmptyProjects,
   };
 }

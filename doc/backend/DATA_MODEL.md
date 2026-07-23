@@ -63,7 +63,7 @@
 - **Attachment** — 添付ファイル。project, issue, issueComment, projectComment, companyComment, contactComment のいずれかに紐づく。author, filePath, contentType, fileSize 等。
 - **HomePage** — ホームページの HTML 等コンテンツ（1 レコード想定）。
 - **SystemSetting** — システム設定（id: "default"）。startTime, endTime, managementTimes, conversionTimes に加え、**メール**: `emailTransport`（`ses` \| `smtp`）, `emailFromOverride`（任意・送信元上書き）, `smtpHost`, `smtpPort`, `smtpUser`, `smtpPasswordEnc`（暗号化済み）, `smtpSecure`（465 番相当の TLS 用）。
-- **SavedSearch** — 保存済み検索条件。userId, viewMode（`list` \| `gantt` \| `kanban` \| `time`）, name（名称）, isDefault（対象 viewMode のデフォルト、1 ユーザー × 1 viewMode = 最大 1 件）, filter（JSON。projectFilter・issueFilter・ganttZoom・ganttStartValue・ganttEndValue・timeRecordStartDate・timeRecordEndDate・timeRecordFilterUserIds を含む）, createdAt, updatedAt。User と多対多（1 ユーザーが複数保存可能）。**isDefault の一意制約はアプリ層で管理**（デフォルト設定時に同一ユーザー × viewMode の他レコードを false にする）。
+- **SavedSearch** — 保存済み検索条件。userId, viewMode（`list` \| `gantt` \| `kanban` \| `time`）, name（名称）, isDefault（対象 viewMode のデフォルト、1 ユーザー × 1 viewMode = 最大 1 件）, filter（JSON。projectFilter・issueFilter・ganttZoom・showEmptyProjects・ganttStartValue・ganttEndValue・timeRecordStartDate・timeRecordEndDate・timeRecordFilterUserIds を含む）, createdAt, updatedAt。User と多対多（1 ユーザーが複数保存可能）。**isDefault の一意制約はアプリ層で管理**（デフォルト設定時に同一ユーザー × viewMode の他レコードを false にする）。
 
 ### PermissionResource 追加
 

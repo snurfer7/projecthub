@@ -485,6 +485,8 @@ export interface SavedSearchFilter {
     assignedToGroupMemberIds: (number | string)[];
   };
   ganttZoom?: 'day' | 'month' | 'year';
+  /** ガント: チケットなしのプロジェクトを表示するか（省略時 true） */
+  showEmptyProjects?: boolean;
   timeRecordFilterUserIds?: (number | string)[];
 }
 
