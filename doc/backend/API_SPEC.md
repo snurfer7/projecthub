@@ -180,8 +180,8 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 | メソッド | パス | 概要 |
 |----------|------|------|
-| GET | `/project/:projectId` | 指定プロジェクトのガント用データ。チケットに `parentId` を含み、親の開始・終了は子孫から集約 |
-| GET | `/all` | 全プロジェクトのガント用データ（同上） |
+| GET | `/project/:projectId` | 指定プロジェクトのガント用データ。チケットに `parentId` を含み、親の開始・終了は子孫から集約。`startDate` / `endDate` / `dueDate` がすべて未設定のチケットも含む |
+| GET | `/all` | 有効（`active`）プロジェクトのガント用データ（同上。日付未設定チケットも含む） |
 
 ---
 

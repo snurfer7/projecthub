@@ -75,14 +75,10 @@ async function loadGanttIssues(where: Record<string, unknown>) {
     ])
   );
 
-  // 表示対象: 元の issues + 祖先。親は集約後に期間があるもののみ
+  // 表示対象: 元の issues + 祖先（日付未設定の親も含め階層を保つ）
   const resultIds = new Set(issues.map((i) => i.id));
   for (const issue of byId.values()) {
-    if (resultIds.has(issue.id)) continue;
-    const agg = aggById.get(issue.id);
-    if (agg?.startDate || agg?.endDate) {
-      resultIds.add(issue.id);
-    }
+    if (!resultIds.has(issue.id)) resultIds.add(issue.id);
   }
 
   return [...resultIds]
@@ -129,7 +125,6 @@ router.get('/project/:projectId', requirePermission('projects.gantt', 'use'), as
 
     const where: any = {
       projectId: projectId,
-      OR: [{ startDate: { not: null } }, { endDate: { not: null } }, { dueDate: { not: null } }],
     };
     const filterTrackerIds = parseNumericQueryIds(trackerIds ?? trackerId);
     if (filterTrackerIds.length > 0) where.trackerId = { in: filterTrackerIds };
@@ -166,8 +161,9 @@ router.get('/all', requirePermission('projects.gantt', 'use'), async (req: AuthR
       orderBy: { name: 'asc' },
     });
 
+    // 有効プロジェクト配下のみ（日付未設定チケットも含む）
     const where: any = {
-      OR: [{ startDate: { not: null } }, { endDate: { not: null } }, { dueDate: { not: null } }],
+      projectId: { in: projects.map((p) => p.id) },
     };
     const filterTrackerIds = parseNumericQueryIds(trackerIds ?? trackerId);
     if (filterTrackerIds.length > 0) where.trackerId = { in: filterTrackerIds };
@@ -176,7 +172,7 @@ router.get('/all', requirePermission('projects.gantt', 'use'), async (req: AuthR
     const filterStatusIds = parseNumericQueryIds(statusIds ?? statusId);
     if (filterStatusIds.length > 0) where.statusId = { in: filterStatusIds };
 
-    const issues = await loadGanttIssues(where);
+    const issues = projects.length === 0 ? [] : await loadGanttIssues(where);
     res.json({ projects, issues });
   } catch (e) {
     console.error('Gantt all error:', e);

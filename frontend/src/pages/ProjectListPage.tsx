@@ -112,11 +112,14 @@ export default function ProjectListPage() {
     [setProjectFilter, setIssueFilter, setGanttZoom],
   );
 
-  /** 保存済み検索のデフォルトを自動適用（表示モード切替時） */
+  /** 保存済み検索のデフォルトを自動適用（表示モード切替時）。古い応答は破棄する */
+  const savedSearchRequestGenRef = useRef(0);
   const applyDefaultSavedSearch = useCallback(
     async (mode: ProjectListViewMode) => {
+      const gen = ++savedSearchRequestGenRef.current;
       try {
         const res = await api.get('/saved-searches', { params: { viewMode: mode } });
+        if (gen !== savedSearchRequestGenRef.current) return;
         const list: SavedSearch[] = res.data;
         const def = list.find((s) => s.isDefault);
         if (def) applyFilter(def);
@@ -130,10 +133,12 @@ export default function ProjectListPage() {
   // ビュー切替時: 条件リセット → デフォルト保存済み検索を適用
   // ※ 時間タブ初期値エフェクトより先に定義することで、React のエフェクト実行順（定義順）に従い
   //   このリセットが先に走り、その後に時間タブ初期値が上書きされる形になる
+  // ※ 時間タブの期限・担当者初期値がガント等に残らないよう、切替時は必ず issueFilter をリセットする
   const prevViewModeForSavedRef = useRef<ProjectListViewMode | null>(null);
   useEffect(() => {
     if (prevViewModeForSavedRef.current === viewMode) return;
     prevViewModeForSavedRef.current = viewMode;
+    savedSearchRequestGenRef.current += 1;
     resetProjectFilter();
     resetIssueFilter();
     setActiveSavedSearchId(null);
