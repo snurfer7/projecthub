@@ -163,6 +163,13 @@ DATABASE_URL=postgresql://projecthub_user:secure_password_here@localhost:5432/pr
 # JWT
 JWT_SECRET=your_strong_random_secret_here
 
+# Microsoft 365 / Entra ID SSO（利用する場合）
+# MICROSOFT_TENANT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+# MICROSOFT_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+# MICROSOFT_CLIENT_SECRET=your_client_secret
+# MICROSOFT_REDIRECT_URI=https://your-domain.example/api/auth/microsoft/callback
+# FRONTEND_URL=https://your-domain.example
+
 # AWS
 AWS_REGION=ap-northeast-1
 AWS_ACCESS_KEY_ID=your_aws_access_key_id
@@ -179,6 +186,24 @@ PORT=3000
 EOF
 
 chmod 600 /var/www/projecthub/backend/.env
+```
+
+---
+
+## 4.1 Microsoft 365 SSO（Entra ID）の設定
+
+パスワードログインに加え、Microsoft 365 による SSO を使う場合の手順です。**詳細な設定・ローカルテスト手順は [MICROSOFT_SSO.md](MICROSOFT_SSO.md) を参照**してください。
+
+要点のみ:
+
+- **自動プロビジョニングなし**（未登録ユーザーは SSO 不可）。メール不一致は設定画面からの明示連携
+- Entra で単一テナントのアプリ登録、リダイレクト URI: `https://<公開ドメイン>/api/auth/microsoft/callback`
+- 環境変数: `MICROSOFT_TENANT_ID` / `MICROSOFT_CLIENT_ID` / `MICROSOFT_CLIENT_SECRET` / `MICROSOFT_REDIRECT_URI` / `FRONTEND_URL`
+- 権限 seed 後、`settings.fields.authMethod` / `settings.fields.microsoftAccount` に入力権限を付与
+
+```bash
+cd /var/www/projecthub/backend
+npm run prisma:seed:permissions:prod
 ```
 
 ---
@@ -534,6 +559,7 @@ pm2 logs projecthub-backend --lines 100
 - [ ] **JWT_SECRET** が強力でランダムな値になっている
 - [ ] **DATABASE_URL** のパスワードが変更されている
 - [ ] **`.env` ファイル**のパーミッションが `600`（`chmod 600 .env`）
+- [ ] **Microsoft SSO 利用時** `MICROSOFT_*` / `FRONTEND_URL` が設定され、Entra のリダイレクト URI と一致している
 - [ ] **AWS 認証情報**が最小限の権限を持つ IAM ユーザーのもの
 - [ ] **Lightsail ファイアウォール**で不要なポートが閉じている
 - [ ] **HTTPS/SSL** が有効で、HTTP は HTTPS にリダイレクト

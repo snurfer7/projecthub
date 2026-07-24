@@ -42,7 +42,7 @@ const PageFallback = () => (
 );
 
 function App() {
-  const { user, loading, login, logout, refreshUser } = useAuth();
+  const { user, loading, login, loginWithSsoCode, logout, refreshUser } = useAuth();
 
   if (loading) {
     return <div className="flex items-center justify-center h-screen"><div className="text-lg text-gray-500">読み込み中...</div></div>;
@@ -52,7 +52,7 @@ function App() {
     return (
       <Suspense fallback={<PageFallback />}>
         <Routes>
-          <Route path="/login" element={<LoginPage onLogin={login} />} />
+          <Route path="/login" element={<LoginPage onLogin={login} onSsoLogin={loginWithSsoCode} />} />
 
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>

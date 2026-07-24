@@ -47,6 +47,8 @@ export interface User {
   showCompanyMenu: boolean;
   showAdminMenu: boolean;
   status: string;
+  authMethod?: 'password' | 'sso';
+  microsoftLinked?: boolean;
   permissions?: PermissionMap;
 }
 

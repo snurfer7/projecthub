@@ -4,7 +4,7 @@
 
 ## 認証・ユーザー
 
-- **User** — ユーザー。email, passwordHash, firstName, lastName, role, isAdmin, landingPage, show*Menu。GroupMember, ProjectMember, Issue（author/assignedTo）, TimeEntry, WikiPage, 各種 Comment 等と関連。**API アクセスはグループ経由の権限設定で制御**（`isAdmin` / `role=admin` でもバイパスしない）。
+- **User** — ユーザー。email, passwordHash, firstName, lastName, role, isAdmin, landingPage, show*Menu。**認証**: `authMethod`（`password` \| `sso`）, `microsoftOid`（Entra object id・ユニーク・任意）, `microsoftTenantId`（任意）。Microsoft 連携の主キーはメールではなく `microsoftOid`（同一テナント内のドメイン変更に追従）。GroupMember, ProjectMember, Issue（author/assignedTo）, TimeEntry, WikiPage, 各種 Comment 等と関連。**API アクセスはグループ経由の権限設定で制御**（`isAdmin` / `role=admin` でもバイパスしない）。
 - **Group** — グループ。GroupMember で User と多対多。Issue の担当グループ、ProjectGroup、ProjectMemberRole の sourceGroup として使用。**`permissionSetId`（任意）** で PermissionSet を参照（1 グループ = 最大 1 権限設定）。
 - **GroupMember** — Group と User の多対多中間。ユーザーは複数グループに所属可能。
 - **PermissionResource** — 権限カタログ（機能・項目）。code（例: `projects.issues.fields.subject`）, name, resourceType（`feature` \| `field`）, parentId, position。親子ツリー構造。
@@ -72,6 +72,8 @@
 | `projects.saved-searches` | 保存済み検索 | feature | `projects` |
 | `projects.activities` | 活動履歴 | feature | `projects` |
 | `projects.issues.fields.parent` | 親チケット | field | `projects.issues` |
+| `settings.fields.authMethod` | 認証方式 | field | `settings` |
+| `settings.fields.microsoftAccount` | Microsoft アカウント連携 | field | `settings` |
 
 ## クライアントとの整合
 

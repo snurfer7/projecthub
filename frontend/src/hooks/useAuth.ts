@@ -36,7 +36,13 @@ export function useAuth() {
     return res.data.user;
   }, []);
 
-
+  const loginWithSsoCode = useCallback(async (code: string) => {
+    const res = await api.post('/auth/microsoft/exchange', { code });
+    localStorage.setItem('token', res.data.token);
+    localStorage.setItem('user', JSON.stringify(res.data.user));
+    setUser(res.data.user);
+    return res.data.user;
+  }, []);
 
   const logout = useCallback(() => {
     localStorage.removeItem('token');
@@ -51,5 +57,5 @@ export function useAuth() {
     return res.data;
   }, []);
 
-  return { user, loading, login, logout, refreshUser };
+  return { user, loading, login, loginWithSsoCode, logout, refreshUser };
 }

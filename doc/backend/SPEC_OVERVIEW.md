@@ -13,7 +13,7 @@ PostgreSQL + Prisma で永続化し、JWT で認証する。
 | フレームワーク | Express |
 | ORM | Prisma |
 | DB | PostgreSQL |
-| 認証 | JWT (Bearer) |
+| 認証 | JWT (Bearer)。任意で Microsoft Entra ID（Microsoft 365）OIDC SSO |
 | ファイルストレージ | ローカル / S3 互換 (MinIO) |
 
 ## アーキテクチャ
@@ -27,7 +27,7 @@ PostgreSQL + Prisma で永続化し、JWT で認証する。
 
 | プレフィックス | ファイル | 主な機能 |
 |----------------|----------|----------|
-| `/api/auth` | auth.ts | ログイン・登録・me・パスワード・ランディング・メニュー設定 |
+| `/api/auth` | auth.ts | ログイン・登録・me・パスワード・ランディング・メニュー設定・認証方式・Microsoft SSO |
 | `/api/projects` | projects.ts | プロジェクト CRUD、メンバー・グループ・コメント |
 | `/api/issues` | issues.ts | チケット CRUD、コメント、関連、メタ（tracker/status/priority） |
 | `/api/wiki` | wiki.ts | プロジェクト Wiki の CRUD・移動 |
@@ -41,7 +41,9 @@ PostgreSQL + Prisma で永続化し、JWT で認証する。
 
 ## 認証・権限
 
-- **ログイン**: `POST /api/auth/login` — `email`, `password` → `token`, `user`
+- **パスワードログイン**: `POST /api/auth/login` — `email`, `password` → `token`, `user`。ユーザーの `authMethod` が `sso` のときは拒否
+- **Microsoft SSO（Web）**: Entra ID OIDC（Authorization Code + PKCE）。`GET /api/auth/microsoft/start` → callback → ワンタイム code → `POST /api/auth/microsoft/exchange`。紐付け主キーは `microsoftOid`（メール不一致時は明示連携が必要。自動プロビジョニングなし）
+- **認証方式**: 個人設定で `password` \| `sso` の二択（`PUT /api/auth/auth-method`）。SSO 利用前に Microsoft アカウント連携が必要
 - **登録**: `POST /api/auth/register` — `email`, `password`, `firstName`, `lastName` → `token`, `user`
 - **認証が必要なリクエスト**: ヘッダー `Authorization: Bearer <token>`
 - **トークン取得**: `auth.ts` 内の `generateToken(userId, role, isAdmin)`（JWT、要 `JWT_SECRET` 環境変数）
@@ -69,6 +71,7 @@ PostgreSQL + Prisma で永続化し、JWT で認証する。
 - `JWT_SECRET`: JWT 署名用シークレット
 - `UPLOAD_DIR`: アップロードファイル保存先（省略時は `../../uploads`）
 - S3 利用時: `AWS_*`, `S3_BUCKET_NAME` 等（`backend/src/services/s3.ts` 参照）
+- Microsoft SSO: `MICROSOFT_TENANT_ID`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_REDIRECT_URI`, `FRONTEND_URL`
 
 ## ヘルスチェック
 

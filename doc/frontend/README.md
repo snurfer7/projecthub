@@ -11,6 +11,7 @@ React + Vite による Web フロントエンドの仕様です。
 | [SCREENS_AND_ROUTES.md](SCREENS_AND_ROUTES.md) | 画面一覧、URL ルート、表示条件 |
 | [DATA_MODELS.md](DATA_MODELS.md) | TypeScript 型定義（`types/index.ts`）の概要 |
 | [API_USAGE.md](API_USAGE.md) | API クライアント（axios）、認証ヘッダー、利用方針 |
+| [../MICROSOFT_SSO.md](../MICROSOFT_SSO.md) | Microsoft 365 SSO の設定・ローカルテスト |
 
 ## 関連リポジトリパス
 

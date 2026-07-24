@@ -183,3 +183,4 @@ curl http://localhost:5173/
 
 - [S3 File Storage Setup Guide](S3_SETUP.md): S3ストレージの詳細設定方法
 - [AWS Lightsail へのデプロイガイド](doc/LIGHTSAIL_DEPLOYMENT.md): Lightsail上でのプロダクション環境構築手順（Frontend、Backend、PostgreSQL を同一サーバー内で動作させる場合）
+- [Microsoft 365 SSO 設定・ローカルテスト](doc/MICROSOFT_SSO.md): Entra ID アプリ登録、環境変数、ローカルでの確認手順

@@ -30,7 +30,7 @@ ProjectHub の Web クライアント。プロジェクト・チケット・Wiki
 
 ## メニュー表示制御
 
-`user.showProjectsMenu`, `showGanttMenu`, `showCompanyMenu`, `showAdminMenu` でサイドメニュー項目の表示/非表示を制御。設定は `PUT /api/auth/menu-settings` で更新。
+`user.showProjectsMenu`, `showGanttMenu`, `showCompanyMenu`, `showAdminMenu` でサイドメニュー項目の表示/非表示を制御。設定は `PUT /api/auth/menu-settings` で更新。認証方式は `authMethod`（`password` \| `sso`）。Microsoft 365 SSO はログイン画面および設定の明示連携から利用（自動プロビジョニングなし）。
 
 ## 関連パス
 

@@ -1,16 +1,56 @@
-import { useState, FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, FormEvent, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import TextInput from '../components/TextInput';
 
 interface Props {
   onLogin: (email: string, password: string) => Promise<any>;
+  onSsoLogin: (code: string) => Promise<any>;
 }
 
-export default function LoginPage({ onLogin }: Props) {
+export default function LoginPage({ onLogin, onSsoLogin }: Props) {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [ssoEnabled, setSsoEnabled] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/auth/microsoft/status')
+      .then((res) => res.json())
+      .then((data) => setSsoEnabled(Boolean(data?.enabled)))
+      .catch(() => setSsoEnabled(false));
+  }, []);
+
+  useEffect(() => {
+    const ssoError = searchParams.get('ssoError');
+    const ssoCode = searchParams.get('ssoCode');
+    if (ssoError) {
+      setError(ssoError);
+      setSearchParams({}, { replace: true });
+      return;
+    }
+    if (!ssoCode) return;
+
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    onSsoLogin(ssoCode)
+      .catch((err: any) => {
+        if (!cancelled) {
+          setError(err.response?.data?.error || 'Microsoft ログインに失敗しました');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+          setSearchParams({}, { replace: true });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, onSsoLogin, setSearchParams]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -60,6 +100,24 @@ export default function LoginPage({ onLogin }: Props) {
           </button>
         </form>
 
+        {ssoEnabled && (
+          <div className="mt-4">
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200" />
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-white px-2 text-gray-400">または</span>
+              </div>
+            </div>
+            <a
+              href="/api/auth/microsoft/start"
+              className={`block w-full text-center border border-gray-300 text-slate-700 py-2 rounded-md hover:bg-gray-50 text-sm ${loading ? 'pointer-events-none opacity-50' : ''}`}
+            >
+              Microsoft でログイン
+            </a>
+          </div>
+        )}
 
         {!import.meta.env.PROD && (
           <div className="mt-6 border-t pt-4">

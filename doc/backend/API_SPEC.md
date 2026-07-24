@@ -8,12 +8,27 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 | メソッド | パス | 認証 | 概要 |
 |----------|------|------|------|
-| POST | `/login` | 不要 | ログイン。Body: `email`, `password` → `token`, `user`（`user.status` を含む）。`status === 'inactive'` のユーザーはログイン不可（401） |
+| POST | `/login` | 不要 | パスワードログイン。Body: `email`, `password` → `token`, `user`（`status`, `authMethod`, `microsoftLinked` を含む）。`status === 'inactive'` は 401。`authMethod === 'sso'` のユーザーは 401（Microsoft ログインを案内） |
 | POST | `/register` | 不要 | 登録。Body: `email`, `password`, `firstName`, `lastName` → `token`, `user` |
-| GET | `/me` | 必要 | 現在ユーザー情報（`status`, `permissions` を含む）。`permissions` は `Record<string, { canUse: boolean, canInput: boolean }>`（権限コード → 解決済み権限） |
-| PUT | `/password` | 必要 | パスワード変更。Body: `currentPassword`, `newPassword`。ログイン中ユーザーの `status === 'pending'` の場合、更新完了時に `status` を自動で `active` に更新 |
+| GET | `/me` | 必要 | 現在ユーザー情報（`status`, `authMethod`, `microsoftLinked`, `permissions` を含む）。`permissions` は `Record<string, { canUse: boolean, canInput: boolean }>` |
+| PUT | `/password` | 必要 | パスワード変更。Body: `currentPassword`, `newPassword`。`authMethod === 'sso'` のときは 400。`pending` の場合は更新完了時に `active` へ |
 | PUT | `/landing-page` | 必要 | ランディング設定。Body: `landingPage` (`home` \| `projects` \| `companies`) |
 | PUT | `/menu-settings` | 必要 | メニュー表示。Body: `showProjectsMenu`, `showGanttMenu`, `showCompanyMenu`, `showAdminMenu` |
+| PUT | `/auth-method` | 必要 | 認証方式切替。Body: `authMethod`（`password` \| `sso`）, `newPassword`（`password` へ切替時必須）。権限: `settings` use + `settings.fields.authMethod` input。`sso` へは `microsoftOid` 連携済み必須。`sso` 切替時はパスワードを無効化（ランダムハッシュ） |
+| GET | `/microsoft/start` | 不要 | Microsoft 365（Entra ID）OIDC ログイン開始。Entra へリダイレクト |
+| GET | `/microsoft/callback` | 不要 | OIDC コールバック。成功時はワンタイム `ssoCode` 付きで `FRONTEND_URL/login` へ。失敗時は `ssoError` クエリ付きで同 URL へ。連携フロー成功時は `/settings` へ |
+| POST | `/microsoft/exchange` | 不要 | Body: `code`（ワンタイム）。→ `token`, `user`。コードは短命・単回使用 |
+| GET | `/microsoft/status` | 不要 | `{ enabled: boolean }`。環境変数が揃っているとき `enabled: true`（ログイン画面のボタン表示用） |
+| GET | `/microsoft/link/start` | 必要 | Microsoft アカウント連携開始。権限: `settings` use + `settings.fields.microsoftAccount` input。JSON: `{ authorizationUrl }`（フロントが遷移） |
+| POST | `/microsoft/unlink` | 必要 | 連携解除。権限: 同上 input。`authMethod === 'sso'` のときは不可（先に password へ切替） |
+
+### Microsoft SSO 解決ルール（callback・ログイン）
+
+1. `microsoftOid` 一致かつ `authMethod === 'sso'` → ログイン。メール claim が異なり未使用なら `email` 更新。`pending` なら `active` へ
+2. 未連携・メール完全一致・`authMethod === 'sso'` → `oid` 保存してログイン
+3. それ以外（未登録・メール不一致・`authMethod === 'password'`・他ユーザーに oid 割当済）→ SSO 拒否（自動プロビジョニングなし）
+
+テナントは `MICROSOFT_TENANT_ID` に固定（`common` 不可）。
 
 ---
 

@@ -116,16 +116,18 @@ API 契約（[backend/API_SPEC.md](backend/API_SPEC.md)）を変えた場合は�
 
 ## ドキュメント構成
 
-| ディレクトリ | 対象 | 主な内容 |
+| ディレクトリ / ファイル | 対象 | 主な内容 |
 |-------------|------|----------|
 | [frontend/](frontend/) | Web フロントエンド (React + Vite) | 画面・ルート仕様、型定義、API 利用仕様 |
 | [backend/](backend/) | API サーバー (Node.js + Express + Prisma) | API 仕様、データモデル、認証 |
 | [android/](android/) | Android アプリ (Kotlin + Jetpack Compose) | 画面・ナビゲーション、API 連携 |
+| [MICROSOFT_SSO.md](MICROSOFT_SSO.md) | 共通（運用） | Microsoft 365 SSO の Entra 設定・環境変数・ローカルテスト |
 
 ```
 doc/
 ├── README.md                         # 本ファイル（doc 全体の説明・Agent ルール）
 ├── LIGHTSAIL_DEPLOYMENT.md           # デプロイ手順
+├── MICROSOFT_SSO.md                  # Microsoft 365 SSO 設定・ローカルテスト
 ├── frontend/
 │   ├── README.md                     # 索引
 │   ├── SPEC_OVERVIEW.md              # フロントエンド仕様概要
@@ -154,3 +156,4 @@ doc/
 ## その他のドキュメント
 
 - [LIGHTSAIL_DEPLOYMENT.md](LIGHTSAIL_DEPLOYMENT.md) — AWS Lightsail へのデプロイ手順（Frontend / Backend / PostgreSQL）
+- [MICROSOFT_SSO.md](MICROSOFT_SSO.md) — Microsoft 365 SSO（Entra ID）の設定とローカルテスト手順

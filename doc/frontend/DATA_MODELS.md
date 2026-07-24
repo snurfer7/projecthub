@@ -4,7 +4,7 @@
 
 ## 認証・ユーザー
 
-- **User** — id, email, firstName, lastName, role, isAdmin, landingPage, show*Menu, createdAt, groupMembers, status（`pending` \| `active` \| `inactive`）, **permissions**（`Record<string, PermissionEntry>`）等。
+- **User** — id, email, firstName, lastName, role, isAdmin, landingPage, show*Menu, createdAt, groupMembers, status（`pending` \| `active` \| `inactive`）, **authMethod**（`password` \| `sso`）, **microsoftLinked**（boolean）, **permissions**（`Record<string, PermissionEntry>`）等。
 - **PermissionEntry** — `{ canUse: boolean, canInput: boolean }`。
 - **PermissionResource** — id, code, name, resourceType, parentId, position, children?。
 - **PermissionSet** — id, name, description, createdAt, groups?, permissions?。

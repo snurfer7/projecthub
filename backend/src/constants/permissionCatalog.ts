@@ -9,7 +9,15 @@ export type PermissionCatalogEntry = {
 export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
   { code: 'home', name: 'ホーム', position: 0 },
   { code: 'dashboard', name: 'ダッシュボード', position: 1 },
-  { code: 'settings', name: '設定', position: 2 },
+  {
+    code: 'settings',
+    name: '設定',
+    position: 2,
+    children: [
+      { code: 'settings.fields.authMethod', name: '認証方式', resourceType: 'field', position: 0 },
+      { code: 'settings.fields.microsoftAccount', name: 'Microsoft アカウント連携', resourceType: 'field', position: 1 },
+    ],
+  },
   {
     code: 'projects',
     name: 'プロジェクト',

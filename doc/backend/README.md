@@ -10,6 +10,7 @@ Node.js + Express + Prisma による REST API サーバーの仕様です。
 | [SPEC_OVERVIEW.md](SPEC_OVERVIEW.md) | アーキテクチャ、技術スタック、認証、環境 |
 | [API_SPEC.md](API_SPEC.md) | エンドポイント一覧（メソッド・パス・概要） |
 | [DATA_MODEL.md](DATA_MODEL.md) | Prisma スキーマに基づくエンティティ概要 |
+| [../MICROSOFT_SSO.md](../MICROSOFT_SSO.md) | Microsoft 365 SSO の設定・ローカルテスト |
 
 ## 関連リポジトリパス
 

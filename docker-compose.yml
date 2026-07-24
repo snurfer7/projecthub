@@ -77,6 +77,12 @@ services:
       # SES Configuration
       AWS_SES_ENDPOINT_URL: ${AWS_SES_ENDPOINT_URL:-http://localstack:4566}
       EMAIL_FROM: ${EMAIL_FROM:-noreply@projecthub.local}
+      # Microsoft 365 SSO（任意。.env で上書き）
+      MICROSOFT_TENANT_ID: ${MICROSOFT_TENANT_ID:-}
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
+      MICROSOFT_REDIRECT_URI: ${MICROSOFT_REDIRECT_URI:-http://localhost:3000/api/auth/microsoft/callback}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
     volumes:
       - ./backend/src:/app/backend/src
       - ./backend/prisma:/app/backend/prisma

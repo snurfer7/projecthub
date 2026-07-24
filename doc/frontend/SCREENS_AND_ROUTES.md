@@ -4,7 +4,7 @@
 
 | パス | コンポーネント | 概要 |
 |------|----------------|------|
-| `/login` | LoginPage | ログイン（本番では「テストユーザーでログイン」は非表示） |
+| `/login` | LoginPage | ログイン（メール＋パスワード、および「Microsoft でログイン」）。クエリ `ssoCode` でワンタイム交換、`ssoError` でエラー表示。本番では「テストユーザーでログイン」は非表示 |
 | `/force-password-change` | ForcePasswordChangePage | `user.status === 'pending'` の初回ログイン時に強制表示するパスワード変更画面。変更完了まで他画面へ遷移不可 |
 | `/register` | RegisterPage | 新規登録 |
 | 上記以外 | Navigate to `/login` | 未認証時はログインへ |
@@ -42,7 +42,7 @@
 | `/companies/:id` | CompanyDetailPage | 会社詳細。クエリ `tab` に加え、`activity=<活動ID>` で活動履歴タブ内の該当行を強調、`comment=<コメントID>` でコメントタブを開き該当コメントを強調。概要タブの基本情報では、編集の左に「統合」操作（統合先企業を選ぶモーダル → API で統合元の全関連データの企業 ID を統合先へ付け替え、統合元レコード削除）がある |
 | `/associations` | AssociationsPage | 団体マスタ |
 | `/legal-entity-statuses` | LegalEntityStatusesPage | 法人区分マスタ |
-| `/settings` | SettingsPage | 設定（パスワード・ランディング・メニュー表示）。`user.status === 'pending'` の場合は遷移不可 |
+| `/settings` | SettingsPage | 設定（パスワード・ランディング・メニュー表示・**認証方式**・**Microsoft アカウント連携**）。表示: `settings` canUse。認証方式: `settings.fields.authMethod` canInput。Microsoft 連携: `settings.fields.microsoftAccount` canInput。`authMethod === 'sso'` のときはパスワード変更 UI を非表示。`user.status === 'pending'` の場合は遷移不可 |
 | `/admin` | AdminPage | 管理（ユーザー・トラッカー・ステータス・優先度・グループ・**権限設定**・ロール・会社・法人区分・団体・**メール設定**（SES / SMTP・テスト送信）・時間設定等） |
 
 ### その他

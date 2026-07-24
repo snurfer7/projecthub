@@ -10,36 +10,39 @@ datasource db {
 }
 
 model User {
-  id               Int               @id @default(autoincrement())
-  email            String            @unique
-  passwordHash     String            @map("password_hash")
-  firstName        String            @map("first_name")
-  lastName         String            @map("last_name")
-  role             String            @default("member")
-  status           String            @default("active")
-  createdAt        DateTime          @default(now()) @map("created_at")
-  isAdmin          Boolean           @default(false) @map("is_admin")
-  landingPage      String            @default("home") @map("landing_page")
-  showAdminMenu    Boolean           @default(true) @map("show_admin_menu")
-  showCompanyMenu  Boolean           @default(true) @map("show_company_menu")
-  showGanttMenu    Boolean           @default(true) @map("show_gantt_menu")
-  showProjectsMenu Boolean           @default(true) @map("show_projects_menu")
-  activities       Activity[]
+  id                 Int               @id @default(autoincrement())
+  email              String            @unique
+  passwordHash       String            @map("password_hash")
+  firstName          String            @map("first_name")
+  lastName           String            @map("last_name")
+  role               String            @default("member")
+  status             String            @default("active")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  isAdmin            Boolean           @default(false) @map("is_admin")
+  landingPage        String            @default("home") @map("landing_page")
+  showAdminMenu      Boolean           @default(true) @map("show_admin_menu")
+  showCompanyMenu    Boolean           @default(true) @map("show_company_menu")
+  showGanttMenu      Boolean           @default(true) @map("show_gantt_menu")
+  showProjectsMenu   Boolean           @default(true) @map("show_projects_menu")
+  authMethod         String            @default("password") @map("auth_method")
+  microsoftOid       String?           @unique @map("microsoft_oid")
+  microsoftTenantId  String?           @map("microsoft_tenant_id")
+  activities         Activity[]
   assignedActivities Activity[]        @relation("ActivityAssignee")
-  attachments      Attachment[]
-  companyComments  CompanyComment[]
-  companyWikiPages CompanyWikiPage[]
-  contactComments  ContactComment[]
-  assignedDeals    Deal[]            @relation("DealAssignee")
-  groupMembers     GroupMember[]
-  issueComments    IssueComment[]
-  assignedIssues   Issue[]           @relation("IssueAssignee")
-  authoredIssues   Issue[]           @relation("IssueAuthor")
-  projectComments  ProjectComment[]
-  projectMembers   ProjectMember[]
-  savedSearches    SavedSearch[]
-  timeEntries      TimeEntry[]
-  wikiPages        WikiPage[]
+  attachments        Attachment[]
+  companyComments    CompanyComment[]
+  companyWikiPages   CompanyWikiPage[]
+  contactComments    ContactComment[]
+  assignedDeals      Deal[]            @relation("DealAssignee")
+  groupMembers       GroupMember[]
+  issueComments      IssueComment[]
+  assignedIssues     Issue[]           @relation("IssueAssignee")
+  authoredIssues     Issue[]           @relation("IssueAuthor")
+  projectComments    ProjectComment[]
+  projectMembers     ProjectMember[]
+  savedSearches      SavedSearch[]
+  timeEntries        TimeEntry[]
+  wikiPages          WikiPage[]
 
   @@map("users")
 }
