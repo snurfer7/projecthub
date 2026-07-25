@@ -6,6 +6,7 @@ WORKDIR /app
 
 COPY backend/package.json backend/package-lock.json* ./backend/
 COPY backend ./backend/
+COPY scripts/start.sh ./backend/start.sh
 
 WORKDIR /app/backend
 RUN npm install

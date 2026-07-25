@@ -1,104 +1,60 @@
-# ProjectHub Android アプリ ビルド・デバッグ手順
+# ProjectHub Android アプリ ビルド・デプロイ手順
 
 ## 目次
 
-1. [前提条件](#前提条件)
-2. [開発環境のセットアップ](#開発環境のセットアップ)
+1. [実機へのデプロイ（推奨）](#実機へのデプロイ推奨)
+2. [エミュレーターでのデバッグ（WSL2 + Windows）](#エミュレーターでのデバッグwsl2--windows)
 3. [プロジェクトのビルド](#プロジェクトのビルド)
-4. [WSL2からWindowsエミュレーターを使う](#wsl2からwindowsエミュレーターを使う)
-5. [ワイヤレスデバッグ（実機）](#ワイヤレスデバッグ実機)
-6. [バックエンドへの接続設定](#バックエンドへの接続設定)
-7. [トラブルシューティング](#トラブルシューティング)
+4. [バックエンドへの接続設定](#バックエンドへの接続設定)
+5. [トラブルシューティング](#トラブルシューティング)
+6. [補足: 前提条件・開発環境のセットアップ](#補足-前提条件開発環境のセットアップ)
+7. [補足: ワイヤレスデバッグの初期セットアップ](#補足-ワイヤレスデバッグの初期セットアップ)
+8. [補足: よく使うADBコマンド](#補足-よく使うadbコマンド)
 
 ---
 
-## 前提条件
+## 実機へのデプロイ（推奨）
 
-| 必要なもの | バージョン |
-|-----------|-----------|
-| Android Studio | Hedgehog (2023.1.1) 以降 |
-| JDK | 17 以上 |
-| Android SDK | API 35 (compileSdk) |
-| Android SDK (最低) | API 26 (minSdk = Android 8.0) |
-| 実機 Android OS | 11 以上（ワイヤレスデバッグ対応） |
+プロジェクトルート（`projecthub/`）で `scripts/deploy_device.sh` を実行すると、ビルド → インストール → 起動までを自動で行います。
+Windows側の `adb.exe` を直接呼び出すため、ADBサーバーの二重起動を避けられます。
 
----
+> スクリプト類は `projecthub/scripts/` に集約されています。以降のコマンドはすべてプロジェクトルートで実行してください。
 
-## 開発環境のセットアップ
-
-### 1. Android Studio のインストール
-
-[https://developer.android.com/studio](https://developer.android.com/studio) からダウンロードしてインストールします。
-
-### 2. SDK のインストール
-
-Android Studio 起動後、以下を確認・インストールします。
-
-```
-Android Studio > Settings > Languages & Frameworks > Android SDK
-```
-
-- **SDK Platforms タブ**: Android 14 (API 35) にチェック
-- **SDK Tools タブ**: 以下にチェック
-  - Android SDK Build-Tools 35
-  - Android SDK Platform-Tools
-  - Android Emulator（任意）
-
-### 3. プロジェクトを開く
-
-```
-Android Studio > File > Open
-```
-
-`projecthub/android/` フォルダを選択して開きます。
-
-### 4. Gradle Sync の実行
-
-プロジェクトを開くと自動で Gradle sync が始まります。完了まで待ちます。
-手動で実行する場合:
-
-```
-File > Sync Project with Gradle Files
-```
-
----
-
-## プロジェクトのビルド
-
-### デバッグビルド（開発用）
+### USB接続
 
 ```bash
-# プロジェクトルート（android/）で実行
-./gradlew assembleDebug
+./scripts/deploy_device.sh
 ```
 
-APK の出力先:
-```
-app/build/outputs/apk/debug/app-debug.apk
-```
+実機をUSBでPCに接続してください。「USBデバッグを許可」ダイアログが出たら許可すると、自動で検出・ビルド・インストール・起動まで進みます。
 
-### リリースビルド
+### ワイヤレス接続
 
 ```bash
-./gradlew assembleRelease
+./scripts/deploy_device.sh --wireless
 ```
 
-> **注意**: リリースビルドには署名設定が必要です。`app/build.gradle.kts` に `signingConfigs` を追加してください。
-
-### ビルドのクリーン
-
-ビルドエラーが発生した場合はクリーンを試みます。
+初回はペアリングコードの入力が必要です（スクリプトの指示に従って入力してください）。2回目以降は接続済みの端末が候補として表示され、選ぶだけで接続できます。IP:PORTが分かっていれば直接指定も可能です:
 
 ```bash
-./gradlew clean
-./gradlew assembleDebug
+./scripts/deploy_device.sh --wireless 192.168.1.5:39517
 ```
+
+実機のワイヤレスデバッグを初めて有効化する場合は、[補足: ワイヤレスデバッグの初期セットアップ](#補足-ワイヤレスデバッグの初期セットアップ) を参照してください。
+
+### オプション
+
+| オプション | 説明 |
+|-----------|------|
+| `--wireless [IP:PORT]` | USBの代わりにWi-Fi接続を使う |
+| `--no-launch` | インストールのみ行い、アプリを起動しない |
+| `-h`, `--help` | ヘルプを表示 |
 
 ---
 
-## WSL2からWindowsエミュレーターを使う
+## エミュレーターでのデバッグ（WSL2 + Windows）
 
-WSL2でビルドし、Windowsホスト側のAndroid Studioエミュレーターにデプロイする方法です。
+WSL2でビルドし、Windowsホスト側のAndroid Studioエミュレーターにデプロイする方法です。実機ではなくエミュレーターを使う場合はこちらを使います。
 `debug.sh` スクリプトで一連の操作をまとめています。
 
 ### 事前準備（初回のみ）
@@ -122,162 +78,52 @@ New-NetFirewallRule -DisplayName "ADB WSL2" -Direction Inbound -Protocol TCP -Lo
 
 ### debug.sh の使い方
 
-`android/` ディレクトリで実行します。
+プロジェクトルート（`projecthub/`）で実行します。
 
 ```bash
-# 接続状態・デバイス情報の確認
-./debug.sh status
-
-# WindowsエミュレーターにADB接続
-./debug.sh connect
-
-# ビルド → インストール → アプリ起動（デフォルト動作）
-./debug.sh run
-
-# その他のコマンド
-./debug.sh build       # デバッグビルドのみ
-./debug.sh install     # ビルド & インストール
-./debug.sh logcat      # アプリのLogcatを表示（Ctrl+C で終了）
-./debug.sh clear-log   # Logcatをクリア
-./debug.sh uninstall   # アプリをアンインストール
-./debug.sh disconnect  # ADB接続を切断
-
-# ヘルプ
-./debug.sh help
+./scripts/debug.sh status      # 接続状態・デバイス情報の確認
+./scripts/debug.sh connect     # WindowsエミュレーターにADB接続
+./scripts/debug.sh run         # ビルド → インストール → アプリ起動（デフォルト動作）
+./scripts/debug.sh build       # デバッグビルドのみ
+./scripts/debug.sh install     # ビルド & インストール
+./scripts/debug.sh logcat      # アプリのLogcatを表示（Ctrl+C で終了）
+./scripts/debug.sh clear-log   # Logcatをクリア
+./scripts/debug.sh uninstall   # アプリをアンインストール
+./scripts/debug.sh disconnect  # ADB接続を切断
+./scripts/debug.sh help        # ヘルプ
 ```
 
 > **仕組み**: WSL2はWindowsホストのIPを `/etc/resolv.conf` の nameserver から取得し、そのIP:5555 に ADB 接続します。Windows側の `adb.exe` を直接呼び出すため、ADBサーバーの二重起動を避けられます。
 
 ---
 
-## ワイヤレスデバッグ（実機）
+## プロジェクトのビルド
 
-Android 11 以降の実機で、USB ケーブルなしでデバッグできます。
-**PCと実機が同じ Wi-Fi ネットワークに接続されている**ことが前提です。
+APKを生成するだけで、デプロイまでは不要な場合はこちら。`android/` ディレクトリで実行します（`gradlew` はAndroidプロジェクト側にあるため、`scripts/` ではありません）。
 
----
-
-### 方法 A: Android Studio の Wi-Fi ペアリング（推奨）
-
-#### ステップ 1: 実機の開発者オプションを有効化
-
-1. 設定 → 端末情報 → ビルド番号を **7回タップ**
-2. 「開発者になりました」と表示される
-
-#### ステップ 2: ワイヤレスデバッグを有効化
-
-1. 設定 → 開発者向けオプション → **ワイヤレスデバッグ** をオン
-2. 「ワイヤレスデバッグ」をタップ → **QRコードでデバイスをペアリング** をタップ
-
-#### ステップ 3: Android Studio でペアリング
-
-1. Android Studio のメニューバー右上のデバイスセレクターをクリック
-2. **Pair Devices Using Wi-Fi** をクリック
-3. 表示された QR コードを実機でスキャン
-4. ペアリング成功後、デバイスが一覧に表示される
-
-#### ステップ 4: アプリをデプロイ
-
-1. デバイスセレクターで実機を選択
-2. **Run ▶ ボタン** をクリック（または `Shift+F10`）
-3. アプリが実機にインストールされてデバッグモードで起動
-
----
-
-### 方法 B: adb コマンドでのワイヤレス接続
-
-#### ステップ 1: 初回のみ USB 接続でペアリング（Android 10 以前の方法）
+### デバッグビルド
 
 ```bash
-# USB でデバイスを接続後
-adb devices
-# → デバイスが表示されることを確認
-
-# TCPモードに切り替え（ポート5555）
-adb tcpip 5555
+./gradlew assembleDebug
 ```
 
-#### ステップ 2: Wi-Fi IP アドレスの確認
+APK の出力先: `app/build/outputs/apk/debug/app-debug.apk`
 
-実機で確認:
-```
-設定 → 一般 → Wi-Fi → 接続中のネットワーク詳細 → IP アドレス
-```
-
-または adb で確認:
-```bash
-adb shell ip addr show wlan0 | grep inet
-```
-
-#### ステップ 3: ワイヤレス接続
+### リリースビルド
 
 ```bash
-# USB ケーブルを抜いてから実行
-adb connect <実機のIPアドレス>:5555
-
-# 例
-adb connect 192.168.1.5:5555
+./gradlew assembleRelease
 ```
 
-#### ステップ 4: 接続確認
+> **注意**: リリースビルドには署名設定が必要です。`app/build.gradle.kts` に `signingConfigs` を追加してください。
+
+### ビルドのクリーン
+
+ビルドエラーが発生した場合はクリーンを試みます。
 
 ```bash
-adb devices
-# → 192.168.1.5:5555  device  と表示されれば成功
-```
-
-#### ステップ 5: APK のインストール & 起動
-
-```bash
-# デバッグ APK をビルド＆インストール
-./gradlew installDebug
-
-# またはビルド済み APK を直接インストール
-adb install app/build/outputs/apk/debug/app-debug.apk
-
-# アプリを起動
-adb shell am start -n com.projecthub.android/.MainActivity
-```
-
----
-
-### 方法 C: Android 11 以降の adb pair コマンド（USBなし）
-
-#### ステップ 1: 実機でペアリングコードを表示
-
-```
-設定 → 開発者向けオプション → ワイヤレスデバッグ → ペアリングコードでデバイスをペアリング
-```
-
-ポート番号（例: `37001`）と 6 桁のコードが表示される。
-
-#### ステップ 2: adb pair で接続
-
-```bash
-adb pair <実機のIPアドレス>:<ペアリングポート>
-# 例
-adb pair 192.168.1.5:37001
-# → ペアリングコードの入力を求められる
-# → 6桁のコードを入力して Enter
-```
-
-#### ステップ 3: デバッグ接続
-
-ペアリング後、ワイヤレスデバッグ画面に表示されている **IPアドレスとポート**（ペアリングとは別のポート）で接続:
-
-```bash
-adb connect <実機のIPアドレス>:<デバッグポート>
-# 例
-adb connect 192.168.1.5:39517
-```
-
-#### ステップ 4: 接続確認・デプロイ
-
-```bash
-adb devices
-# → 接続確認
-
-./gradlew installDebug
+./gradlew clean
+./gradlew assembleDebug
 ```
 
 ---
@@ -355,21 +201,20 @@ File > Invalidate Caches > Invalidate and Restart
 
 ### adb でデバイスが認識されない
 
+プロジェクトルートで実行します。
+
 ```bash
 # adb サーバーを再起動
-adb kill-server
-adb start-server
-adb devices
+./scripts/adb-wrapper.sh kill-server
+./scripts/adb-wrapper.sh start-server
+./scripts/adb-wrapper.sh devices
 ```
 
 ### ワイヤレス接続が切れる
 
 ```bash
-# 再接続
-adb connect <IPアドレス>:5555
-
-# それでも繋がらない場合は USB で接続後に再設定
-adb tcpip 5555
+# 再接続（deploy_device.sh --wireless なら自動で再接続を案内します）
+./scripts/adb-wrapper.sh connect <IPアドレス>:<ポート>
 ```
 
 ### アプリが「接続できません」エラーを出す
@@ -395,60 +240,91 @@ Hilt の KSP エラーが多い場合は `app/build.gradle.kts` の Kotlin バ�
 
 ```bash
 # 全ログ
-adb logcat
+./scripts/adb-wrapper.sh logcat
 
 # ProjectHub アプリのログのみ
-adb logcat --pid=$(adb shell pidof com.projecthub.android)
+./scripts/adb-wrapper.sh logcat --pid=$(./scripts/adb-wrapper.sh shell pidof com.projecthub.android)
 
 # タグでフィルタ
-adb logcat -s ProjectHub:D OkHttp:D
+./scripts/adb-wrapper.sh logcat -s ProjectHub:D OkHttp:D
 ```
 
 ---
 
-## よく使う開発コマンド一覧
+## 補足: 前提条件・開発環境のセットアップ
 
-### WSL2 + Windowsエミュレーター（debug.sh）
+### 前提条件
 
-`debug.sh` を使うと一連の操作をワンコマンドで実行できます（→ [WSL2からWindowsエミュレーターを使う](#wsl2からwindowsエミュレーターを使う)）。
+| 必要なもの | バージョン |
+|-----------|-----------|
+| Android Studio | Hedgehog (2023.1.1) 以降 |
+| JDK | 17 以上 |
+| Android SDK | API 35 (compileSdk) |
+| Android SDK (最低) | API 26 (minSdk = Android 8.0) |
+| 実機 Android OS | 11 以上（ワイヤレスデバッグ対応） |
 
-```bash
-./debug.sh run         # ビルド → インストール → 起動
-./debug.sh logcat      # ログ表示
-./debug.sh status      # 接続確認
-```
+### セットアップ手順
 
-### Gradleコマンド（直接実行）
+1. **Android Studio のインストール**
+   [https://developer.android.com/studio](https://developer.android.com/studio) からダウンロードしてインストール。
 
-```bash
-# デバッグビルド
-./gradlew assembleDebug
+2. **SDK のインストール**
+   `Android Studio > Settings > Languages & Frameworks > Android SDK` で以下を確認・インストール:
+   - **SDK Platforms タブ**: Android 14 (API 35) にチェック
+   - **SDK Tools タブ**: Android SDK Build-Tools 35 / Android SDK Platform-Tools / Android Emulator（任意）
 
-# ビルド & インストール
-./gradlew installDebug
+3. **プロジェクトを開く**
+   `Android Studio > File > Open` で `projecthub/android/` フォルダを選択。
 
-# クリーンビルド
-./gradlew clean assembleDebug
-```
+4. **Gradle Sync の実行**
+   プロジェクトを開くと自動で開始。手動実行する場合は `File > Sync Project with Gradle Files`。
 
-### ADBコマンド（直接実行）
+---
+
+## 補足: ワイヤレスデバッグの初期セットアップ
+
+実機のワイヤレスデバッグを初めて使う場合、事前に端末側で以下を有効化しておく必要があります。
+**PCと実機が同じ Wi-Fi ネットワークに接続されている**ことが前提です。
+
+### ステップ 1: 開発者オプションを有効化
+
+設定 → 端末情報 → ビルド番号を **7回タップ** →「開発者になりました」と表示される
+
+### ステップ 2: ワイヤレスデバッグを有効化
+
+設定 → 開発者向けオプション → **ワイヤレスデバッグ** をオン
+
+この状態で `./scripts/deploy_device.sh --wireless` を実行すれば、以降のペアリング・接続はスクリプトが案内します。
+
+### Android Studio の GUI でペアリングしたい場合
+
+1. Android Studio のメニューバー右上のデバイスセレクターをクリック
+2. **Pair Devices Using Wi-Fi** をクリック
+3. 実機の「ワイヤレスデバッグ」画面で **QRコードでデバイスをペアリング** をタップし、表示されたQRコードをスキャン
+4. ペアリング成功後、デバイスセレクターから選択して **Run ▶**（`Shift+F10`）でデプロイ
+
+---
+
+## 補足: よく使うADBコマンド
+
+`adb` を直接実行すると WSL2 上に別の ADB サーバーが立ち上がり、Windows側の `adb.exe` と競合することがあります。以下のように `./scripts/adb-wrapper.sh`（Windows側の `adb.exe` を呼び出すラッパー、プロジェクトルートから実行）経由で実行してください。
 
 ```bash
 # 接続デバイス確認
-adb devices
+./scripts/adb-wrapper.sh devices
 
 # アプリをアンインストール
-adb uninstall com.projecthub.android
+./scripts/adb-wrapper.sh uninstall com.projecthub.android
 
 # アプリ強制停止
-adb shell am force-stop com.projecthub.android
+./scripts/adb-wrapper.sh shell am force-stop com.projecthub.android
 
 # アプリデータ消去（ログアウト状態にリセット）
-adb shell pm clear com.projecthub.android
+./scripts/adb-wrapper.sh shell pm clear com.projecthub.android
 
 # ログ表示
-adb logcat --pid=$(adb shell pidof -s com.projecthub.android)
+./scripts/adb-wrapper.sh logcat --pid=$(./scripts/adb-wrapper.sh shell pidof -s com.projecthub.android)
 
 # スクリーンショット
-adb exec-out screencap -p > screenshot.png
+./scripts/adb-wrapper.sh exec-out screencap -p > screenshot.png
 ```

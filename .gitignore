@@ -7,3 +7,9 @@ backend/migration/legacy-crm/output/
 
 # デプロイ設定（ユーザー固有の情報を含むため Git 管理対象外）
 scripts/deploy.conf
+
+# Android ビルド生成物・Gradle キャッシュ
+android/.gradle/
+android/app/build/
+android/build/
+android/*/build/
