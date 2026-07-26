@@ -22,9 +22,12 @@ import com.projecthub.android.data.api.models.IssueDto
 import com.projecthub.android.data.api.models.IssueStatusDto
 import com.projecthub.android.ui.components.LoadingScreen
 import com.projecthub.android.ui.components.ErrorScreen
+import com.projecthub.android.ui.issues.IssueFilterBottomSheet
 import com.projecthub.android.ui.issues.getPriorityColor
+import com.projecthub.android.ui.issues.toIssueFilterCriteriaOrNull
 import com.projecthub.android.ui.theme.StatusClosed
 import com.projecthub.android.ui.theme.StatusOpen
+import com.projecthub.android.ui.utils.IssueFilterCriteria
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,9 +38,11 @@ fun KanbanScreen(
     viewModel: KanbanViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var showFilterSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(projectId) {
         viewModel.loadKanban(projectId)
+        viewModel.loadSavedSearches()
     }
 
     Scaffold(
@@ -50,6 +55,15 @@ fun KanbanScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showFilterSheet = true }) {
+                        BadgedBox(badge = {
+                            if (uiState.criteria.activeCount > 0) {
+                                Badge { Text(uiState.criteria.activeCount.toString()) }
+                            }
+                        }) {
+                            Icon(Icons.Default.FilterList, contentDescription = "フィルター")
+                        }
+                    }
                     IconButton(onClick = { viewModel.loadKanban(projectId) }) {
                         Icon(Icons.Default.Refresh, contentDescription = "更新")
                     }
@@ -79,6 +93,7 @@ fun KanbanScreen(
                             issues = issues,
                             allStatuses = uiState.metaOptions?.statuses ?: emptyList(),
                             updatingIssueId = uiState.updatingIssueId,
+                            ancestorLabels = uiState.ancestorLabels,
                             onIssueClick = onNavigateToIssue,
                             onMoveIssue = { issue, newStatusId ->
                                 viewModel.moveIssueToStatus(issue, newStatusId, projectId)
@@ -89,6 +104,24 @@ fun KanbanScreen(
             }
         }
     }
+
+    if (showFilterSheet) {
+        IssueFilterBottomSheet(
+            metaOptions = uiState.metaOptions,
+            criteria = uiState.criteria,
+            savedSearchSlot = {
+                com.projecthub.android.ui.issues.SavedSearchSection(
+                    savedSearches = uiState.savedSearches,
+                    onApply = { viewModel.setCriteria(it.filter.toIssueFilterCriteriaOrNull() ?: IssueFilterCriteria()) },
+                    onSetDefault = { viewModel.setSavedSearchDefault(it) },
+                    onDelete = { viewModel.deleteSavedSearch(it) },
+                    onSaveCurrent = { name, isDefault -> viewModel.saveCurrentSearch(name, isDefault) }
+                )
+            },
+            onApply = { viewModel.setCriteria(it) },
+            onDismiss = { showFilterSheet = false }
+        )
+    }
 }
 
 @Composable
@@ -97,6 +130,7 @@ private fun KanbanColumn(
     issues: List<IssueDto>,
     allStatuses: List<IssueStatusDto>,
     updatingIssueId: Int?,
+    ancestorLabels: Map<Int, String>,
     onIssueClick: (Int) -> Unit,
     onMoveIssue: (IssueDto, Int) -> Unit
 ) {
@@ -162,6 +196,7 @@ private fun KanbanColumn(
                     issue = issue,
                     allStatuses = allStatuses,
                     isUpdating = updatingIssueId == issue.id,
+                    ancestorLabel = ancestorLabels[issue.id],
                     onClick = { onIssueClick(issue.id) },
                     onMoveToStatus = { newStatusId -> onMoveIssue(issue, newStatusId) }
                 )
@@ -175,6 +210,7 @@ private fun KanbanCard(
     issue: IssueDto,
     allStatuses: List<IssueStatusDto>,
     isUpdating: Boolean,
+    ancestorLabel: String?,
     onClick: () -> Unit,
     onMoveToStatus: (Int) -> Unit
 ) {
@@ -231,6 +267,14 @@ private fun KanbanCard(
                 }
             }
 
+            if (!ancestorLabel.isNullOrBlank()) {
+                Text(
+                    text = ancestorLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+            }
             Text(
                 text = issue.subject,
                 style = MaterialTheme.typography.bodySmall,

@@ -21,6 +21,8 @@ import com.projecthub.android.ui.components.StatusChip
 import com.projecthub.android.ui.theme.StatusClosed
 import com.projecthub.android.ui.theme.StatusInProgress
 import com.projecthub.android.ui.theme.StatusOpen
+import com.projecthub.android.ui.utils.ProjectTreeDisplayRow
+import com.projecthub.android.ui.utils.buildProjectTreeDisplayRows
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,13 +84,18 @@ fun ProjectListScreen(
                     if (uiState.searchQuery.isNotBlank()) "検索結果がありません" else "プロジェクトがありません"
                 )
                 else -> {
+                    val treeRows = remember(uiState.filteredProjects, uiState.collapsedProjectIds) {
+                        buildProjectTreeDisplayRows(uiState.filteredProjects, uiState.collapsedProjectIds)
+                    }
                     LazyColumn(
                         contentPadding = PaddingValues(vertical = 8.dp)
                     ) {
-                        items(uiState.filteredProjects) { project ->
+                        items(treeRows, key = { it.project.id }) { row ->
                             ProjectListItem(
-                                project = project,
-                                onClick = { onNavigateToProject(project.id) }
+                                row = row,
+                                isCollapsed = row.project.id in uiState.collapsedProjectIds,
+                                onToggleCollapse = { viewModel.toggleProjectCollapsed(row.project.id) },
+                                onClick = { onNavigateToProject(row.project.id) }
                             )
                         }
                     }
@@ -101,13 +108,21 @@ fun ProjectListScreen(
 
 @Composable
 private fun ProjectListItem(
-    project: ProjectDto,
+    row: ProjectTreeDisplayRow,
+    isCollapsed: Boolean,
+    onToggleCollapse: () -> Unit,
     onClick: () -> Unit
 ) {
+    val project = row.project
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .padding(
+                start = 16.dp + (row.depth * 16).dp,
+                end = 16.dp,
+                top = 4.dp,
+                bottom = 4.dp
+            )
             .clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
@@ -117,17 +132,31 @@ private fun ProjectListItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = project.name,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = project.identifier,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.Top) {
+                    if (row.hasChildren) {
+                        IconButton(
+                            onClick = onToggleCollapse,
+                            modifier = Modifier.size(20.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isCollapsed) Icons.Default.KeyboardArrowRight else Icons.Default.KeyboardArrowDown,
+                                contentDescription = if (isCollapsed) "展開" else "折りたたむ"
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = project.name,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = project.identifier,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 StatusChip(
                     text = when (project.status) {
@@ -174,7 +203,25 @@ private fun ProjectListItem(
                         )
                     }
                 }
-                project.parent?.let {
+                if (row.depth == 0) {
+                    project.parent?.let {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.AccountTree,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text(
+                                text = it.name,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                if (row.hasChildren) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             Icons.Default.AccountTree,
@@ -184,7 +231,7 @@ private fun ProjectListItem(
                         )
                         Spacer(modifier = Modifier.width(2.dp))
                         Text(
-                            text = it.name,
+                            text = "子${project.children?.size ?: 0}件",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

@@ -1,5 +1,6 @@
 package com.projecthub.android.ui.issues
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -12,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.projecthub.android.data.api.models.IssueChildDto
 import com.projecthub.android.data.api.models.IssueCommentDto
 import com.projecthub.android.data.api.models.IssueDto
 import com.projecthub.android.ui.components.*
@@ -24,6 +26,7 @@ fun IssueDetailScreen(
     issueId: Int,
     onNavigateBack: () -> Unit,
     onNavigateToEdit: (Int) -> Unit,
+    onNavigateToIssue: (Int) -> Unit = {},
     viewModel: IssueViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.detailUiState.collectAsState()
@@ -79,6 +82,7 @@ fun IssueDetailScreen(
                     },
                     isSaving = uiState.isSaving,
                     successMessage = uiState.successMessage,
+                    onNavigateToIssue = onNavigateToIssue,
                     modifier = Modifier.padding(paddingValues)
                 )
             }
@@ -95,6 +99,7 @@ private fun IssueDetailContent(
     onAddComment: () -> Unit,
     isSaving: Boolean,
     successMessage: String?,
+    onNavigateToIssue: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -120,6 +125,32 @@ private fun IssueDetailContent(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(it, color = MaterialTheme.colorScheme.onSecondaryContainer)
                     }
+                }
+            }
+        }
+
+        // Parent breadcrumb
+        issue.parent?.let { parent ->
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                        .clickable { onNavigateToIssue(parent.id) },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.SubdirectoryArrowLeft,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "親: #${parent.id} ${parent.subject}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
         }
@@ -184,11 +215,26 @@ private fun IssueDetailContent(
                     InfoRow("プロジェクト", issue.project?.name)
                     InfoRow("担当者", issue.assignedTo?.fullName ?: issue.assignedToGroup?.name)
                     InfoRow("作成者", issue.author?.fullName)
-                    InfoRow("開始日", issue.startDate?.take(10))
+                    val hasChildren = (issue.count?.children ?: 0) > 0
+                    val aggregatedSuffix = if (hasChildren) "（子から集計）" else ""
+                    InfoRow("開始日", issue.startDate?.take(10)?.let { "$it$aggregatedSuffix" })
+                    InfoRow("終了日", issue.endDate?.take(10)?.let { "$it$aggregatedSuffix" })
                     InfoRow("期限日", issue.dueDate?.take(10))
                     InfoRow("予定工数", issue.estimatedHours?.let { "${it}h" })
                     InfoRow("進捗", "${issue.doneRatio}%")
                 }
+            }
+        }
+
+        // Children
+        val children = issue.children.orEmpty()
+        if (children.isNotEmpty()) {
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                SectionHeader("子チケット (${children.size})")
+            }
+            items(children) { child ->
+                IssueChildItem(child = child, onClick = { onNavigateToIssue(child.id) })
             }
         }
 
@@ -281,6 +327,35 @@ private fun IssueDetailContent(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun IssueChildItem(child: IssueChildDto, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .clickable(onClick = onClick),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "#${child.id} ${child.subject}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Icon(
+                Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

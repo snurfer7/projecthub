@@ -53,7 +53,9 @@ fun DatePickerField(
     label: String,
     modifier: Modifier = Modifier,
     placeholder: String = "YYYY-MM-DD",
-    singleLine: Boolean = true
+    singleLine: Boolean = true,
+    enabled: Boolean = true,
+    supportingText: String? = null
 ) {
     var showPicker by remember { mutableStateOf(false) }
 
@@ -61,10 +63,12 @@ fun DatePickerField(
         value = value,
         onValueChange = { },
         readOnly = true,
+        enabled = enabled,
         label = { Text(label) },
         placeholder = { Text(placeholder) },
+        supportingText = supportingText?.let { { Text(it) } },
         trailingIcon = {
-            IconButton(onClick = { showPicker = true }) {
+            IconButton(onClick = { showPicker = true }, enabled = enabled) {
                 Icon(
                     imageVector = Icons.Default.CalendarMonth,
                     contentDescription = "日付を選択"
@@ -74,6 +78,7 @@ fun DatePickerField(
         modifier = modifier
             .fillMaxWidth()
             .clickable(
+                enabled = enabled,
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() }
             ) { showPicker = true },

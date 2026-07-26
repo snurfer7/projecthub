@@ -100,6 +100,21 @@ class IssueRepository @Inject constructor(
         }
     }
 
+    suspend fun getProjectGantt(projectId: Int): Result<GanttProjectResponse> {
+        return try {
+            val response = apiServiceProvider.get().getProjectGantt(projectId)
+            if (response.isSuccessful) {
+                Result.Success(response.body()!!)
+            } else if (response.code() == 403) {
+                Result.Error("ガントの閲覧権限がありません")
+            } else {
+                Result.Error("ガントチャートの取得に失敗しました")
+            }
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "ネットワークエラーが発生しました")
+        }
+    }
+
     suspend fun addComment(issueId: Int, content: String): Result<IssueCommentDto> {
         return try {
             val response = apiServiceProvider.get().addComment(issueId, AddCommentRequest(content))

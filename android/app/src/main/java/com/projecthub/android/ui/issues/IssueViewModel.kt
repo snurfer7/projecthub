@@ -5,6 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.projecthub.android.data.api.models.*
 import com.projecthub.android.data.repository.IssueRepository
 import com.projecthub.android.data.repository.Result
+import com.projecthub.android.data.repository.SavedSearchRepository
+import com.projecthub.android.ui.utils.IssueFilterCriteria
+import com.projecthub.android.ui.utils.collectDescendantIds
+import com.projecthub.android.ui.utils.filterIssues
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -12,13 +16,15 @@ import javax.inject.Inject
 
 data class IssueListUiState(
     val isLoading: Boolean = false,
+    val allIssues: List<IssueDto> = emptyList(),
     val issues: List<IssueDto> = emptyList(),
     val metaOptions: IssueMetaOptions? = null,
     val selectedProjectId: Int? = null,
-    val selectedStatusId: Int? = null,
-    val selectedTrackerId: Int? = null,
-    val selectedPriorityId: Int? = null,
-    val error: String? = null
+    val criteria: IssueFilterCriteria = IssueFilterCriteria(),
+    val error: String? = null,
+    val collapsedIssueIds: Set<Int> = emptySet(),
+    val savedSearches: List<SavedSearchDto> = emptyList(),
+    val hasAppliedDefaultSavedSearch: Boolean = false
 )
 
 data class IssueDetailUiState(
@@ -35,12 +41,14 @@ data class IssueFormUiState(
     val metaOptions: IssueMetaOptions? = null,
     val error: String? = null,
     val isSuccess: Boolean = false,
-    val savedIssueId: Int? = null
+    val savedIssueId: Int? = null,
+    val parentCandidates: List<IssueDto> = emptyList()
 )
 
 @HiltViewModel
 class IssueViewModel @Inject constructor(
-    private val issueRepository: IssueRepository
+    private val issueRepository: IssueRepository,
+    private val savedSearchRepository: SavedSearchRepository
 ) : ViewModel() {
 
     private val _listUiState = MutableStateFlow(IssueListUiState())
@@ -54,16 +62,14 @@ class IssueViewModel @Inject constructor(
 
     fun loadIssues(projectId: Int? = null) {
         val state = _listUiState.value
+        val effProjectId = projectId ?: state.selectedProjectId
         viewModelScope.launch {
-            _listUiState.update { it.copy(isLoading = true, error = null) }
-            when (val result = issueRepository.getIssues(
-                projectId = projectId ?: state.selectedProjectId,
-                statusId = state.selectedStatusId,
-                trackerId = state.selectedTrackerId,
-                priorityId = state.selectedPriorityId
-            )) {
+            _listUiState.update { it.copy(isLoading = true, error = null, selectedProjectId = effProjectId) }
+            when (val result = issueRepository.getIssues(projectId = effProjectId)) {
                 is Result.Success -> {
-                    _listUiState.update { it.copy(isLoading = false, issues = result.data) }
+                    _listUiState.update {
+                        it.copy(isLoading = false, allIssues = result.data, issues = filterIssues(result.data, it.criteria, it.metaOptions))
+                    }
                 }
                 is Result.Error -> {
                     _listUiState.update { it.copy(isLoading = false, error = result.message) }
@@ -73,42 +79,69 @@ class IssueViewModel @Inject constructor(
         }
     }
 
+    fun toggleIssueCollapsed(id: Int) {
+        _listUiState.update { state ->
+            val collapsed = state.collapsedIssueIds
+            state.copy(collapsedIssueIds = if (id in collapsed) collapsed - id else collapsed + id)
+        }
+    }
+
     fun setProjectFilter(projectId: Int?) {
-        _listUiState.update { it.copy(selectedProjectId = projectId) }
         loadIssues(projectId)
     }
 
-    fun setStatusFilter(statusId: Int?) {
-        _listUiState.update { it.copy(selectedStatusId = statusId) }
-        loadIssuesWithCurrentFilters()
+    fun setCriteria(criteria: IssueFilterCriteria) {
+        _listUiState.update {
+            it.copy(criteria = criteria, issues = filterIssues(it.allIssues, criteria, it.metaOptions))
+        }
     }
 
-    fun setTrackerFilter(trackerId: Int?) {
-        _listUiState.update { it.copy(selectedTrackerId = trackerId) }
-        loadIssuesWithCurrentFilters()
-    }
-
-    fun setPriorityFilter(priorityId: Int?) {
-        _listUiState.update { it.copy(selectedPriorityId = priorityId) }
-        loadIssuesWithCurrentFilters()
-    }
-
-    private fun loadIssuesWithCurrentFilters() {
-        val state = _listUiState.value
+    fun loadSavedSearches() {
         viewModelScope.launch {
-            _listUiState.update { it.copy(isLoading = true, error = null) }
-            when (val result = issueRepository.getIssues(
-                projectId = state.selectedProjectId,
-                statusId = state.selectedStatusId,
-                trackerId = state.selectedTrackerId,
-                priorityId = state.selectedPriorityId
-            )) {
+            when (val result = savedSearchRepository.getSavedSearches(SAVED_SEARCH_VIEW_MODE_LIST)) {
                 is Result.Success -> {
-                    _listUiState.update { it.copy(isLoading = false, issues = result.data) }
+                    val searches = result.data.androidOnly()
+                    _listUiState.update { it.copy(savedSearches = searches) }
+                    if (!_listUiState.value.hasAppliedDefaultSavedSearch) {
+                        searches.find { it.isDefault }?.filter?.toIssueFilterCriteriaOrNull()?.let { criteria ->
+                            setCriteria(criteria)
+                        }
+                        _listUiState.update { it.copy(hasAppliedDefaultSavedSearch = true) }
+                    }
                 }
-                is Result.Error -> {
-                    _listUiState.update { it.copy(isLoading = false, error = result.message) }
-                }
+                else -> {}
+            }
+        }
+    }
+
+    fun saveCurrentSearch(name: String, isDefault: Boolean) {
+        viewModelScope.launch {
+            val request = CreateSavedSearchRequest(
+                viewMode = SAVED_SEARCH_VIEW_MODE_LIST,
+                name = name,
+                filter = _listUiState.value.criteria.toFilterJson(),
+                isDefault = isDefault
+            )
+            when (savedSearchRepository.createSavedSearch(request)) {
+                is Result.Success -> loadSavedSearches()
+                else -> {}
+            }
+        }
+    }
+
+    fun setSavedSearchDefault(search: SavedSearchDto) {
+        viewModelScope.launch {
+            when (savedSearchRepository.updateSavedSearch(search.id, UpdateSavedSearchRequest(isDefault = true))) {
+                is Result.Success -> loadSavedSearches()
+                else -> {}
+            }
+        }
+    }
+
+    fun deleteSavedSearch(search: SavedSearchDto) {
+        viewModelScope.launch {
+            when (savedSearchRepository.deleteSavedSearch(search.id)) {
+                is Result.Success -> loadSavedSearches()
                 else -> {}
             }
         }
@@ -118,7 +151,9 @@ class IssueViewModel @Inject constructor(
         viewModelScope.launch {
             when (val result = issueRepository.getMetaOptions(projectId)) {
                 is Result.Success -> {
-                    _listUiState.update { it.copy(metaOptions = result.data) }
+                    _listUiState.update {
+                        it.copy(metaOptions = result.data, issues = filterIssues(it.allIssues, it.criteria, result.data))
+                    }
                 }
                 else -> {}
             }
@@ -152,7 +187,7 @@ class IssueViewModel @Inject constructor(
                 is Result.Success -> {
                     _detailUiState.update { it.copy(issue = result.data, successMessage = "ステータスを更新しました") }
                     // Refresh list
-                    loadIssuesWithCurrentFilters()
+                    loadIssues()
                 }
                 is Result.Error -> {
                     _detailUiState.update { it.copy(error = result.message) }
@@ -200,13 +235,31 @@ class IssueViewModel @Inject constructor(
         }
     }
 
+    fun loadParentCandidates(projectId: Int, excludeIssueId: Int?) {
+        viewModelScope.launch {
+            when (val result = issueRepository.getIssues(projectId = projectId)) {
+                is Result.Success -> {
+                    val excluded = if (excludeIssueId != null) {
+                        collectDescendantIds(excludeIssueId, result.data)
+                    } else {
+                        emptySet()
+                    }
+                    _formUiState.update {
+                        it.copy(parentCandidates = result.data.filter { issue -> issue.id !in excluded })
+                    }
+                }
+                else -> {}
+            }
+        }
+    }
+
     fun createIssue(request: CreateIssueRequest) {
         viewModelScope.launch {
             _formUiState.update { it.copy(isSaving = true, error = null) }
             when (val result = issueRepository.createIssue(request)) {
                 is Result.Success -> {
                     _formUiState.update { it.copy(isSaving = false, isSuccess = true, savedIssueId = result.data.id) }
-                    loadIssuesWithCurrentFilters()
+                    loadIssues()
                 }
                 is Result.Error -> {
                     _formUiState.update { it.copy(isSaving = false, error = result.message) }

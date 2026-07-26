@@ -73,6 +73,22 @@ class CompanyRepository @Inject constructor(
         }
     }
 
+    suspend fun mergeCompany(sourceId: Int, targetId: Int): Result<MergeCompanyResponse> {
+        return try {
+            val response = apiServiceProvider.get().mergeCompany(sourceId, MergeCompanyRequest(targetId))
+            if (response.isSuccessful) {
+                Result.Success(response.body()!!)
+            } else if (response.code() == 403) {
+                Result.Error("企業統合の権限がありません")
+            } else {
+                val errorMsg = response.errorBody()?.string() ?: "企業の統合に失敗しました"
+                Result.Error(errorMsg)
+            }
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "ネットワークエラーが発生しました")
+        }
+    }
+
     suspend fun getLegalEntityStatuses(): Result<List<LegalEntityStatusDto>> {
         return try {
             val response = apiServiceProvider.get().getLegalEntityStatuses()
@@ -93,6 +109,34 @@ class CompanyRepository @Inject constructor(
                 Result.Success(response.body()!!)
             } else {
                 Result.Error("連絡先の作成に失敗しました")
+            }
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "ネットワークエラーが発生しました")
+        }
+    }
+
+    suspend fun getContactsPaged(page: Int, q: String?, companyId: Int? = null): Result<PagedResponse<ContactDto>> {
+        return try {
+            val response = apiServiceProvider.get().getContactsPaged(page = page, q = q?.ifBlank { null }, companyId = companyId)
+            if (response.isSuccessful) {
+                Result.Success(response.body()!!)
+            } else {
+                Result.Error("連絡先の取得に失敗しました")
+            }
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "ネットワークエラーが発生しました")
+        }
+    }
+
+    suspend fun getDealsPaged(page: Int, q: String?, companyId: Int? = null): Result<PagedResponse<DealDto>> {
+        return try {
+            val response = apiServiceProvider.get().getDealsPaged(page = page, q = q?.ifBlank { null }, companyId = companyId)
+            if (response.isSuccessful) {
+                Result.Success(response.body()!!)
+            } else if (response.code() == 403) {
+                Result.Error("商談の閲覧権限がありません")
+            } else {
+                Result.Error("商談の取得に失敗しました")
             }
         } catch (e: Exception) {
             Result.Error(e.message ?: "ネットワークエラーが発生しました")

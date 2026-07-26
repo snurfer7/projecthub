@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.projecthub.android.data.api.models.ActivityDto
 import com.projecthub.android.data.api.models.ProjectDto
 import com.projecthub.android.ui.components.*
 import com.projecthub.android.ui.theme.StatusClosed
@@ -26,12 +27,14 @@ fun ProjectDetailScreen(
     onNavigateToIssues: (Int) -> Unit,
     onNavigateToKanban: (Int) -> Unit,
     onNavigateToWiki: (Int) -> Unit,
+    onNavigateToGantt: (Int) -> Unit,
     viewModel: ProjectViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.detailUiState.collectAsState()
 
     LaunchedEffect(projectId) {
         viewModel.loadProject(projectId)
+        viewModel.loadProjectActivities(projectId)
     }
 
     Scaffold(
@@ -63,21 +66,44 @@ fun ProjectDetailScreen(
                     modifier = Modifier.padding(paddingValues),
                     onNavigateToIssues = onNavigateToIssues,
                     onNavigateToKanban = onNavigateToKanban,
-                    onNavigateToWiki = onNavigateToWiki
+                    onNavigateToWiki = onNavigateToWiki,
+                    onNavigateToGantt = onNavigateToGantt,
+                    activities = uiState.activities,
+                    canViewActivities = uiState.canViewActivities,
+                    activityCandidates = uiState.activityCandidates,
+                    isLinkingActivity = uiState.isLinkingActivity,
+                    activityError = uiState.activityError,
+                    onLoadActivityCandidates = { viewModel.loadActivityCandidates(uiState.project!!) },
+                    onLinkActivity = { activityId -> viewModel.linkActivity(projectId, activityId) },
+                    onUnlinkActivity = { activityId -> viewModel.unlinkActivity(projectId, activityId) },
+                    onClearActivityError = { viewModel.clearActivityError() }
                 )
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ProjectDetailContent(
     project: ProjectDto,
     modifier: Modifier = Modifier,
     onNavigateToIssues: (Int) -> Unit,
     onNavigateToKanban: (Int) -> Unit,
-    onNavigateToWiki: (Int) -> Unit
+    onNavigateToWiki: (Int) -> Unit,
+    onNavigateToGantt: (Int) -> Unit,
+    activities: List<ActivityDto> = emptyList(),
+    canViewActivities: Boolean = true,
+    activityCandidates: List<ActivityDto> = emptyList(),
+    isLinkingActivity: Boolean = false,
+    activityError: String? = null,
+    onLoadActivityCandidates: () -> Unit = {},
+    onLinkActivity: (Int) -> Unit = {},
+    onUnlinkActivity: (Int) -> Unit = {},
+    onClearActivityError: () -> Unit = {}
 ) {
+    var showAddActivitySheet by remember { mutableStateOf(false) }
+    var pendingUnlinkActivityId by remember { mutableStateOf<Int?>(null) }
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp)
@@ -156,6 +182,22 @@ private fun ProjectDetailContent(
                     Icon(Icons.Default.ViewKanban, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("カンバン")
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { onNavigateToGantt(project.id) },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.BarChart, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("ガント")
                 }
                 OutlinedButton(
                     onClick = { onNavigateToWiki(project.id) },
@@ -317,6 +359,141 @@ private fun ProjectDetailContent(
                     }
                 }
             }
+        }
+
+        // Related activities
+        if (canViewActivities) {
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SectionHeader("関連活動 (${activities.size})")
+                    val hasLinkableCompany = project.companyId != null || !project.relatedCompanies.isNullOrEmpty()
+                    TextButton(
+                        onClick = {
+                            onLoadActivityCandidates()
+                            showAddActivitySheet = true
+                        },
+                        enabled = hasLinkableCompany
+                    ) {
+                        Text(if (hasLinkableCompany) "追加" else "関連付け可能な企業がありません")
+                    }
+                }
+            }
+            if (activities.isEmpty()) {
+                item {
+                    Text(
+                        text = "関連活動がありません",
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                items(activities, key = { it.id }) { activity ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 2.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(activity.subject, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                                val meta = listOfNotNull(activity.company?.name, activity.dueDate?.take(10)).joinToString(" / ")
+                                if (meta.isNotEmpty()) {
+                                    Text(meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                            IconButton(onClick = { pendingUnlinkActivityId = activity.id }) {
+                                Icon(Icons.Default.LinkOff, contentDescription = "解除")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showAddActivitySheet) {
+        ModalBottomSheet(onDismissRequest = { showAddActivitySheet = false }) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "活動を追加",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                activityError?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                if (activityCandidates.isEmpty()) {
+                    Text(
+                        "紐づけ可能な活動がありません",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 16.dp)
+                    )
+                } else {
+                    LazyColumn(modifier = Modifier.height(360.dp)) {
+                        items(activityCandidates, key = { it.id }) { candidate ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(enabled = !isLinkingActivity) {
+                                        onLinkActivity(candidate.id)
+                                        showAddActivitySheet = false
+                                    }
+                                    .padding(vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(candidate.subject, style = MaterialTheme.typography.bodyMedium)
+                                    candidate.company?.let {
+                                        Text(it.name, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                            }
+                            HorizontalDivider()
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+        }
+    }
+
+    pendingUnlinkActivityId?.let { activityId ->
+        AlertDialog(
+            onDismissRequest = { pendingUnlinkActivityId = null },
+            title = { Text("関連付けの解除") },
+            text = { Text("この活動のプロジェクトへの関連付けを解除しますか？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onUnlinkActivity(activityId)
+                    pendingUnlinkActivityId = null
+                }) { Text("解除する") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingUnlinkActivityId = null }) { Text("キャンセル") }
+            }
+        )
+    }
+
+    LaunchedEffect(activityError) {
+        if (activityError != null) {
+            kotlinx.coroutines.delay(3000)
+            onClearActivityError()
         }
     }
 }

@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.projecthub.android.data.api.models.CreateIssueRequest
 import com.projecthub.android.data.api.models.UpdateIssueRequest
+import com.projecthub.android.data.api.models.parentIdBody
 import com.projecthub.android.ui.components.DatePickerField
 import com.projecthub.android.ui.components.LoadingScreen
 
@@ -46,6 +47,8 @@ fun IssueFormScreen(
 
     // Form state
     val issue = if (isEditMode) detailUiState.issue else null
+    val hasChildren = (issue?.count?.children ?: 0) > 0
+    val effProjectId = projectId ?: issue?.projectId
 
     var subject by remember(issue) { mutableStateOf(issue?.subject ?: "") }
     var description by remember(issue) { mutableStateOf(issue?.description ?: "") }
@@ -53,10 +56,18 @@ fun IssueFormScreen(
     var selectedStatusId by remember(issue) { mutableStateOf(issue?.statusId) }
     var selectedPriorityId by remember(issue) { mutableStateOf(issue?.priorityId) }
     var selectedAssigneeId by remember(issue) { mutableStateOf(issue?.assignedToId) }
+    var selectedParentId by remember(issue) { mutableStateOf(issue?.parentId) }
     var startDate by remember(issue) { mutableStateOf(issue?.startDate?.take(10) ?: "") }
+    var endDate by remember(issue) { mutableStateOf(issue?.endDate?.take(10) ?: "") }
     var dueDate by remember(issue) { mutableStateOf(issue?.dueDate?.take(10) ?: "") }
     var estimatedHours by remember(issue) { mutableStateOf(issue?.estimatedHours?.toString() ?: "") }
     var doneRatio by remember(issue) { mutableStateOf(issue?.doneRatio?.toString() ?: "0") }
+
+    LaunchedEffect(effProjectId, issueId) {
+        if (effProjectId != null) {
+            viewModel.loadParentCandidates(effProjectId, issueId)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -118,7 +129,9 @@ fun IssueFormScreen(
                         label = "ステータス *",
                         options = statuses.map { it.id to it.name },
                         selectedId = selectedStatusId,
-                        onSelect = { selectedStatusId = it }
+                        onSelect = { selectedStatusId = it },
+                        enabled = !hasChildren,
+                        supportingText = if (hasChildren) "子チケットから自動集計されます" else null
                     )
                 }
 
@@ -142,6 +155,16 @@ fun IssueFormScreen(
                     )
                 }
 
+                // Parent issue (only once the project is known)
+                if (effProjectId != null) {
+                    DropdownSelector(
+                        label = "親チケット",
+                        options = listOf(null to "なし") + formUiState.parentCandidates.map { it.id to "#${it.id} ${it.subject}" },
+                        selectedId = selectedParentId,
+                        onSelect = { selectedParentId = it }
+                    )
+                }
+
                 // Dates
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     DatePickerField(
@@ -149,16 +172,27 @@ fun IssueFormScreen(
                         onValueChange = { startDate = it },
                         label = "開始日",
                         modifier = Modifier.weight(1f),
-                        placeholder = "YYYY-MM-DD"
+                        placeholder = "YYYY-MM-DD",
+                        enabled = !hasChildren,
+                        supportingText = if (hasChildren) "子から集計" else null
                     )
                     DatePickerField(
-                        value = dueDate,
-                        onValueChange = { dueDate = it },
-                        label = "期限日",
+                        value = endDate,
+                        onValueChange = { endDate = it },
+                        label = "終了日",
                         modifier = Modifier.weight(1f),
-                        placeholder = "YYYY-MM-DD"
+                        placeholder = "YYYY-MM-DD",
+                        enabled = !hasChildren,
+                        supportingText = if (hasChildren) "子から集計" else null
                     )
                 }
+                DatePickerField(
+                    value = dueDate,
+                    onValueChange = { dueDate = it },
+                    label = "期限日",
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = "YYYY-MM-DD"
+                )
 
                 // Estimated hours
                 OutlinedTextField(
@@ -198,27 +232,29 @@ fun IssueFormScreen(
 
                 Button(
                     onClick = {
-                        val effProjectId = projectId ?: issue?.projectId
                         if (effProjectId == null || subject.isBlank() || selectedTrackerId == null ||
                             selectedStatusId == null || selectedPriorityId == null) {
                             return@Button
                         }
 
                         if (isEditMode && issueId != null) {
+                            val parentChanged = selectedParentId != issue?.parentId
                             viewModel.updateIssue(
                                 issueId,
                                 UpdateIssueRequest(
                                     trackerId = selectedTrackerId,
-                                    statusId = selectedStatusId,
+                                    statusId = if (hasChildren) null else selectedStatusId,
                                     priorityId = selectedPriorityId,
                                     assignedToId = selectedAssigneeId,
                                     assignedToGroupId = null,
                                     subject = subject,
                                     description = description.ifBlank { null },
-                                    startDate = startDate.ifBlank { null },
+                                    startDate = if (hasChildren) null else startDate.ifBlank { null },
+                                    endDate = if (hasChildren) null else endDate.ifBlank { null },
                                     dueDate = dueDate.ifBlank { null },
                                     estimatedHours = estimatedHours.toIntOrNull(),
-                                    doneRatio = doneRatio.toIntOrNull()
+                                    doneRatio = doneRatio.toIntOrNull(),
+                                    parentId = if (parentChanged) parentIdBody(selectedParentId) else null
                                 )
                             )
                         } else {
@@ -233,8 +269,10 @@ fun IssueFormScreen(
                                     subject = subject,
                                     description = description.ifBlank { null },
                                     startDate = startDate.ifBlank { null },
+                                    endDate = endDate.ifBlank { null },
                                     dueDate = dueDate.ifBlank { null },
-                                    estimatedHours = estimatedHours.toIntOrNull()
+                                    estimatedHours = estimatedHours.toIntOrNull(),
+                                    parentId = selectedParentId
                                 )
                             )
                         }
@@ -263,22 +301,26 @@ fun DropdownSelector(
     label: String,
     options: List<Pair<Int?, String>>,
     selectedId: Int?,
-    onSelect: (Int?) -> Unit
+    onSelect: (Int?) -> Unit,
+    enabled: Boolean = true,
+    supportingText: String? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
     val selectedName = options.find { it.first == selectedId }?.second ?: ""
 
     ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = it }
+        expanded = expanded && enabled,
+        onExpandedChange = { if (enabled) expanded = it }
     ) {
         OutlinedTextField(
             value = selectedName,
             onValueChange = {},
             readOnly = true,
+            enabled = enabled,
             label = { Text(label) },
+            supportingText = supportingText?.let { { Text(it) } },
             trailingIcon = {
-                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded && enabled)
             },
             modifier = Modifier
                 .fillMaxWidth()

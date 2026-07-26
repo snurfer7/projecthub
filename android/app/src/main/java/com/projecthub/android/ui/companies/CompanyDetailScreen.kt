@@ -1,5 +1,6 @@
 package com.projecthub.android.ui.companies
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,14 +17,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.projecthub.android.data.api.models.*
 import com.projecthub.android.ui.components.*
 
-private enum class CompanyDetailTab(val label: String) {
-    HOME("概要"),
-    CONTACTS("連絡先"),
-    DEALS("商談"),
-    ACTIVITIES("活動履歴"),
-    WIKI("Wiki"),
-    COMMENTS("コメント"),
-    LOCATIONS("拠点")
+private enum class CompanyDetailTab(val label: String, val queryValue: String) {
+    HOME("概要", "home"),
+    CONTACTS("連絡先", "contacts"),
+    DEALS("商談", "deals"),
+    ACTIVITIES("活動履歴", "activities"),
+    WIKI("Wiki", "wiki"),
+    COMMENTS("コメント", "comments"),
+    LOCATIONS("拠点", "locations")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -36,10 +37,19 @@ fun CompanyDetailScreen(
     onNavigateToActivityCreate: () -> Unit = {},
     onNavigateToCommentCreate: () -> Unit = {},
     onNavigateToLocationCreate: () -> Unit = {},
+    onMergeSuccess: (Int) -> Unit = {},
+    initialTab: String? = null,
     viewModel: CompanyViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.detailUiState.collectAsState()
-    var selectedTab by rememberSaveable { mutableStateOf(CompanyDetailTab.HOME) }
+    val listUiState by viewModel.listUiState.collectAsState()
+    var selectedTab by rememberSaveable {
+        mutableStateOf(CompanyDetailTab.entries.find { it.queryValue == initialTab } ?: CompanyDetailTab.HOME)
+    }
+
+    LaunchedEffect(uiState.mergedIntoId) {
+        uiState.mergedIntoId?.let { onMergeSuccess(it) }
+    }
 
     LaunchedEffect(companyId) {
         viewModel.loadCompany(companyId)
@@ -98,6 +108,11 @@ fun CompanyDetailScreen(
                     onNavigateToActivityCreate = onNavigateToActivityCreate,
                     onNavigateToCommentCreate = onNavigateToCommentCreate,
                     onNavigateToLocationCreate = onNavigateToLocationCreate,
+                    mergeCandidates = listUiState.companies.filter { it.id != companyId },
+                    isMerging = uiState.isMerging,
+                    mergeError = uiState.mergeError,
+                    onMergeCompany = { targetId -> viewModel.mergeCompany(companyId, targetId) },
+                    onClearMergeError = { viewModel.clearMergeState() },
                     modifier = Modifier.padding(paddingValues)
                 )
             }
@@ -121,6 +136,11 @@ private fun CompanyDetailContent(
     onNavigateToActivityCreate: () -> Unit = {},
     onNavigateToCommentCreate: () -> Unit = {},
     onNavigateToLocationCreate: () -> Unit = {},
+    mergeCandidates: List<CompanyDto> = emptyList(),
+    isMerging: Boolean = false,
+    mergeError: String? = null,
+    onMergeCompany: (Int) -> Unit = {},
+    onClearMergeError: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val tabs = CompanyDetailTab.entries
@@ -166,7 +186,14 @@ private fun CompanyDetailContent(
         // Tab content with FAB area
         Box(modifier = Modifier.fillMaxSize()) {
             when (selectedTab) {
-                CompanyDetailTab.HOME -> HomeTabContent(company)
+                CompanyDetailTab.HOME -> HomeTabContent(
+                    company = company,
+                    mergeCandidates = mergeCandidates,
+                    isMerging = isMerging,
+                    mergeError = mergeError,
+                    onMergeCompany = onMergeCompany,
+                    onClearMergeError = onClearMergeError
+                )
                 CompanyDetailTab.CONTACTS -> ContactsTabContent(contacts)
                 CompanyDetailTab.DEALS -> DealsTabContent(deals)
                 CompanyDetailTab.ACTIVITIES -> ActivitiesTabContent(activities)
@@ -212,7 +239,17 @@ private fun CompanyDetailContent(
 // ==============================
 
 @Composable
-private fun HomeTabContent(company: CompanyDto) {
+private fun HomeTabContent(
+    company: CompanyDto,
+    mergeCandidates: List<CompanyDto> = emptyList(),
+    isMerging: Boolean = false,
+    mergeError: String? = null,
+    onMergeCompany: (Int) -> Unit = {},
+    onClearMergeError: () -> Unit = {}
+) {
+    var showMergePicker by remember { mutableStateOf(false) }
+    var mergeTarget by remember { mutableStateOf<CompanyDto?>(null) }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp)
@@ -239,6 +276,15 @@ private fun HomeTabContent(company: CompanyDto) {
                     InfoRow("Webサイト", company.website)
                 }
             }
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { showMergePicker = true },
+                modifier = Modifier.padding(horizontal = 16.dp)
+            ) {
+                Icon(Icons.Default.MergeType, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("統合")
+            }
         }
 
         if (!company.notes.isNullOrBlank()) {
@@ -260,6 +306,116 @@ private fun HomeTabContent(company: CompanyDto) {
             }
         }
     }
+
+    if (showMergePicker) {
+        MergeTargetPickerDialog(
+            candidates = mergeCandidates,
+            onSelect = {
+                mergeTarget = it
+                showMergePicker = false
+            },
+            onDismiss = { showMergePicker = false }
+        )
+    }
+
+    mergeTarget?.let { target ->
+        MergeConfirmDialog(
+            sourceName = company.name,
+            targetName = target.name,
+            isMerging = isMerging,
+            error = mergeError,
+            onConfirm = { onMergeCompany(target.id) },
+            onDismiss = {
+                mergeTarget = null
+                onClearMergeError()
+            }
+        )
+    }
+}
+
+@Composable
+private fun MergeTargetPickerDialog(
+    candidates: List<CompanyDto>,
+    onSelect: (CompanyDto) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(candidates, query) {
+        if (query.isBlank()) candidates else candidates.filter { it.name.contains(query, ignoreCase = true) }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("統合先の企業を選択") },
+        text = {
+            Column(modifier = Modifier.height(360.dp)) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("企業名で検索") },
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    items(filtered, key = { it.id }) { candidate ->
+                        Text(
+                            text = candidate.name,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSelect(candidate) }
+                                .padding(vertical = 12.dp)
+                        )
+                        Divider()
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("キャンセル") }
+        }
+    )
+}
+
+@Composable
+private fun MergeConfirmDialog(
+    sourceName: String,
+    targetName: String,
+    isMerging: Boolean,
+    error: String?,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("企業統合の確認") },
+        text = {
+            Column {
+                Text("「$sourceName」を「$targetName」に統合します。統合元の企業データ（拠点・連絡先・商談・活動・コメント・Wiki）は統合先に移動し、「$sourceName」は削除されます。この操作は取り消せません。")
+                error?.let {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                enabled = !isMerging,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            ) {
+                if (isMerging) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onError)
+                } else {
+                    Text("統合する")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isMerging) { Text("キャンセル") }
+        }
+    )
 }
 
 @Composable

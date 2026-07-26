@@ -115,6 +115,16 @@ data class CreateProjectRequest(
     @SerializedName("dueDate") val dueDate: String? = null
 )
 
+data class LinkActivityRequest(
+    @SerializedName("activityId") val activityId: Int
+)
+
+data class LinkActivityResponse(
+    val message: String? = null,
+    @SerializedName("activityId") val activityId: Int? = null,
+    @SerializedName("projectId") val projectId: Int? = null
+)
+
 data class ProjectCountDto(
     val issues: Int = 0,
     @SerializedName("wikiPages") val wikiPages: Int = 0,

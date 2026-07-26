@@ -26,6 +26,21 @@ interface ApiService {
     @POST("api/projects")
     suspend fun createProject(@Body request: CreateProjectRequest): Response<ProjectDto>
 
+    @GET("api/projects/{id}/activities")
+    suspend fun getProjectActivities(@Path("id") id: Int): Response<List<ActivityDto>>
+
+    @POST("api/projects/{id}/activities")
+    suspend fun linkProjectActivity(
+        @Path("id") id: Int,
+        @Body request: LinkActivityRequest
+    ): Response<LinkActivityResponse>
+
+    @DELETE("api/projects/{id}/activities/{activityId}")
+    suspend fun unlinkProjectActivity(
+        @Path("id") id: Int,
+        @Path("activityId") activityId: Int
+    ): Response<Unit>
+
     // Issues
     @GET("api/issues")
     suspend fun getIssues(
@@ -62,6 +77,10 @@ interface ApiService {
         @Path("id") issueId: Int,
         @Body request: AddCommentRequest
     ): Response<IssueCommentDto>
+
+    // Gantt
+    @GET("api/gantt/project/{projectId}")
+    suspend fun getProjectGantt(@Path("projectId") projectId: Int): Response<GanttProjectResponse>
 
     // Time Entries
     @GET("api/time-entries")
@@ -101,6 +120,12 @@ interface ApiService {
     @DELETE("api/companies/{id}")
     suspend fun deleteCompany(@Path("id") id: Int): Response<Unit>
 
+    @POST("api/companies/{id}/merge")
+    suspend fun mergeCompany(
+        @Path("id") id: Int,
+        @Body request: MergeCompanyRequest
+    ): Response<MergeCompanyResponse>
+
     @GET("api/companies/{companyId}/locations")
     suspend fun getLocations(@Path("companyId") companyId: Int): Response<List<LocationDto>>
 
@@ -130,12 +155,29 @@ interface ApiService {
     @GET("api/crm/contacts")
     suspend fun getContacts(@Query("companyId") companyId: Int? = null): Response<List<ContactDto>>
 
+    @GET("api/crm/contacts")
+    suspend fun getContactsPaged(
+        @Query("page") page: Int,
+        @Query("pageSize") pageSize: Int? = null,
+        @Query("q") q: String? = null,
+        @Query("companyId") companyId: Int? = null
+    ): Response<PagedResponse<ContactDto>>
+
     @POST("api/crm/contacts")
     suspend fun createContact(@Body request: CreateContactRequest): Response<ContactDto>
 
     // CRM - Deals
     @GET("api/crm/deals")
     suspend fun getDeals(@Query("companyId") companyId: Int? = null): Response<List<DealDto>>
+
+    @GET("api/crm/deals")
+    suspend fun getDealsPaged(
+        @Query("page") page: Int,
+        @Query("pageSize") pageSize: Int? = null,
+        @Query("q") q: String? = null,
+        @Query("companyId") companyId: Int? = null,
+        @Query("status") status: String? = null
+    ): Response<PagedResponse<DealDto>>
 
     @POST("api/crm/deals")
     suspend fun createDeal(@Body request: CreateDealRequest): Response<DealDto>
@@ -146,6 +188,22 @@ interface ApiService {
 
     @POST("api/crm/activities")
     suspend fun createActivity(@Body request: CreateActivityRequest): Response<ActivityDto>
+
+    // Saved Searches
+    @GET("api/saved-searches")
+    suspend fun getSavedSearches(@Query("viewMode") viewMode: String): Response<List<SavedSearchDto>>
+
+    @POST("api/saved-searches")
+    suspend fun createSavedSearch(@Body request: CreateSavedSearchRequest): Response<SavedSearchDto>
+
+    @PUT("api/saved-searches/{id}")
+    suspend fun updateSavedSearch(
+        @Path("id") id: Int,
+        @Body request: UpdateSavedSearchRequest
+    ): Response<SavedSearchDto>
+
+    @DELETE("api/saved-searches/{id}")
+    suspend fun deleteSavedSearch(@Path("id") id: Int): Response<Unit>
 
     // Wiki
     @GET("api/wiki/project/{projectId}")

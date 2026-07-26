@@ -19,6 +19,9 @@ import com.projecthub.android.data.api.models.IssueDto
 import com.projecthub.android.data.api.models.IssueStatusDto
 import com.projecthub.android.ui.components.*
 import com.projecthub.android.ui.theme.*
+import com.projecthub.android.ui.utils.IssueFilterCriteria
+import com.projecthub.android.ui.utils.IssueTreeDisplayRow
+import com.projecthub.android.ui.utils.buildIssueTreeDisplayRows
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,6 +41,7 @@ fun IssueListScreen(
             viewModel.loadIssues()
         }
         viewModel.loadMetaOptions(projectId)
+        viewModel.loadSavedSearches()
     }
 
     var showFilterSheet by remember { mutableStateOf(false) }
@@ -55,7 +59,13 @@ fun IssueListScreen(
                 },
                 actions = {
                     IconButton(onClick = { showFilterSheet = true }) {
-                        Icon(Icons.Default.FilterList, contentDescription = "フィルター")
+                        BadgedBox(badge = {
+                            if (uiState.criteria.activeCount > 0) {
+                                Badge { Text(uiState.criteria.activeCount.toString()) }
+                            }
+                        }) {
+                            Icon(Icons.Default.FilterList, contentDescription = "フィルター")
+                        }
                     }
                     IconButton(onClick = { viewModel.loadIssues(projectId) }) {
                         Icon(Icons.Default.Refresh, contentDescription = "更新")
@@ -77,45 +87,49 @@ fun IssueListScreen(
                 .padding(paddingValues)
         ) {
             // Active filters
-            val hasFilters = uiState.selectedStatusId != null ||
-                    uiState.selectedTrackerId != null ||
-                    uiState.selectedPriorityId != null
-
-            if (hasFilters) {
+            if (uiState.criteria.activeCount > 0) {
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    uiState.selectedStatusId?.let { sid ->
-                        val statusName = uiState.metaOptions?.statuses?.find { it.id == sid }?.name ?: "ステータス"
+                    val criteria = uiState.criteria
+                    if (criteria.trackerIds.isNotEmpty()) {
                         item {
-                            FilterChip(
-                                selected = true,
-                                onClick = { viewModel.setStatusFilter(null) },
-                                label = { Text(statusName) },
-                                trailingIcon = { Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            ActiveFilterChip(
+                                label = "トラッカー(${criteria.trackerIds.size})",
+                                onClear = { viewModel.setCriteria(criteria.copy(trackerIds = emptySet())) }
                             )
                         }
                     }
-                    uiState.selectedTrackerId?.let { tid ->
-                        val trackerName = uiState.metaOptions?.trackers?.find { it.id == tid }?.name ?: "トラッカー"
+                    if (criteria.statusIds.isNotEmpty()) {
                         item {
-                            FilterChip(
-                                selected = true,
-                                onClick = { viewModel.setTrackerFilter(null) },
-                                label = { Text(trackerName) },
-                                trailingIcon = { Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            ActiveFilterChip(
+                                label = "ステータス(${criteria.statusIds.size})",
+                                onClear = { viewModel.setCriteria(criteria.copy(statusIds = emptySet())) }
                             )
                         }
                     }
-                    uiState.selectedPriorityId?.let { pid ->
-                        val priorityName = uiState.metaOptions?.priorities?.find { it.id == pid }?.name ?: "優先度"
+                    if (criteria.priorityIds.isNotEmpty()) {
                         item {
-                            FilterChip(
-                                selected = true,
-                                onClick = { viewModel.setPriorityFilter(null) },
-                                label = { Text(priorityName) },
-                                trailingIcon = { Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            ActiveFilterChip(
+                                label = "優先度(${criteria.priorityIds.size})",
+                                onClear = { viewModel.setCriteria(criteria.copy(priorityIds = emptySet())) }
+                            )
+                        }
+                    }
+                    if (criteria.assignedToIds.isNotEmpty() || criteria.assignedToGroupIds.isNotEmpty()) {
+                        item {
+                            ActiveFilterChip(
+                                label = "担当者(${criteria.assignedToIds.size + criteria.assignedToGroupIds.size})",
+                                onClear = { viewModel.setCriteria(criteria.copy(assignedToIds = emptySet(), assignedToGroupIds = emptySet())) }
+                            )
+                        }
+                    }
+                    if (criteria.dueDateStart.isNotBlank() || criteria.dueDateEnd.isNotBlank()) {
+                        item {
+                            ActiveFilterChip(
+                                label = "期限日",
+                                onClear = { viewModel.setCriteria(criteria.copy(dueDateStart = "", dueDateEnd = "")) }
                             )
                         }
                     }
@@ -136,13 +150,18 @@ fun IssueListScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    val treeRows = remember(uiState.issues, uiState.collapsedIssueIds) {
+                        buildIssueTreeDisplayRows(uiState.issues, uiState.collapsedIssueIds)
+                    }
                     LazyColumn(
                         contentPadding = PaddingValues(bottom = 80.dp)
                     ) {
-                        items(uiState.issues) { issue ->
+                        items(treeRows, key = { it.issue.id }) { row ->
                             IssueListItem(
-                                issue = issue,
-                                onClick = { onNavigateToIssue(issue.id) }
+                                row = row,
+                                isCollapsed = row.issue.id in uiState.collapsedIssueIds,
+                                onToggleCollapse = { viewModel.toggleIssueCollapsed(row.issue.id) },
+                                onClick = { onNavigateToIssue(row.issue.id) }
                             )
                         }
                     }
@@ -152,28 +171,51 @@ fun IssueListScreen(
     }
 
     if (showFilterSheet) {
-        FilterBottomSheet(
+        IssueFilterBottomSheet(
             metaOptions = uiState.metaOptions,
-            selectedStatusId = uiState.selectedStatusId,
-            selectedTrackerId = uiState.selectedTrackerId,
-            selectedPriorityId = uiState.selectedPriorityId,
-            onStatusSelected = { viewModel.setStatusFilter(it) },
-            onTrackerSelected = { viewModel.setTrackerFilter(it) },
-            onPrioritySelected = { viewModel.setPriorityFilter(it) },
+            criteria = uiState.criteria,
+            savedSearchSlot = {
+                SavedSearchSection(
+                    savedSearches = uiState.savedSearches,
+                    onApply = { viewModel.setCriteria(it.filter.toIssueFilterCriteriaOrNull() ?: IssueFilterCriteria()) },
+                    onSetDefault = { viewModel.setSavedSearchDefault(it) },
+                    onDelete = { viewModel.deleteSavedSearch(it) },
+                    onSaveCurrent = { name, isDefault -> viewModel.saveCurrentSearch(name, isDefault) }
+                )
+            },
+            onApply = { viewModel.setCriteria(it) },
             onDismiss = { showFilterSheet = false }
         )
     }
 }
 
 @Composable
+private fun ActiveFilterChip(label: String, onClear: () -> Unit) {
+    FilterChip(
+        selected = true,
+        onClick = onClear,
+        label = { Text(label) },
+        trailingIcon = { Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp)) }
+    )
+}
+
+@Composable
 private fun IssueListItem(
-    issue: IssueDto,
+    row: IssueTreeDisplayRow,
+    isCollapsed: Boolean,
+    onToggleCollapse: () -> Unit,
     onClick: () -> Unit
 ) {
+    val issue = row.issue
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .padding(
+                start = 16.dp + (row.depth * 16).dp,
+                end = 16.dp,
+                top = 4.dp,
+                bottom = 4.dp
+            )
             .clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
@@ -183,7 +225,19 @@ private fun IssueListItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.Top) {
+                    if (row.hasChildren) {
+                        IconButton(
+                            onClick = onToggleCollapse,
+                            modifier = Modifier.size(20.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isCollapsed) Icons.Default.KeyboardArrowRight else Icons.Default.KeyboardArrowDown,
+                                contentDescription = if (isCollapsed) "展開" else "折りたたむ"
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
                     Text(
                         text = "#${issue.id} ${issue.subject}",
                         style = MaterialTheme.typography.bodyMedium,
@@ -197,6 +251,15 @@ private fun IssueListItem(
                         color = if (status.isClosed) StatusClosed else StatusOpen
                     )
                 }
+            }
+
+            if (row.hasChildren) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "子${issue.count?.children ?: 0}件・開始/終了日はチケットから自動集計",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -260,122 +323,6 @@ private fun IssueListItem(
                     )
                 }
             }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun FilterBottomSheet(
-    metaOptions: com.projecthub.android.data.api.models.IssueMetaOptions?,
-    selectedStatusId: Int?,
-    selectedTrackerId: Int?,
-    selectedPriorityId: Int?,
-    onStatusSelected: (Int?) -> Unit,
-    onTrackerSelected: (Int?) -> Unit,
-    onPrioritySelected: (Int?) -> Unit,
-    onDismiss: () -> Unit
-) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Text(
-                text = "フィルター",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-
-            metaOptions?.let { options ->
-                // Status filter
-                Text(
-                    text = "ステータス",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    item {
-                        FilterChip(
-                            selected = selectedStatusId == null,
-                            onClick = { onStatusSelected(null) },
-                            label = { Text("すべて") }
-                        )
-                    }
-                    items(options.statuses) { status ->
-                        FilterChip(
-                            selected = selectedStatusId == status.id,
-                            onClick = { onStatusSelected(if (selectedStatusId == status.id) null else status.id) },
-                            label = { Text(status.name) }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Tracker filter
-                Text(
-                    text = "トラッカー",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    item {
-                        FilterChip(
-                            selected = selectedTrackerId == null,
-                            onClick = { onTrackerSelected(null) },
-                            label = { Text("すべて") }
-                        )
-                    }
-                    items(options.trackers) { tracker ->
-                        FilterChip(
-                            selected = selectedTrackerId == tracker.id,
-                            onClick = { onTrackerSelected(if (selectedTrackerId == tracker.id) null else tracker.id) },
-                            label = { Text(tracker.name) }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Priority filter
-                Text(
-                    text = "優先度",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    item {
-                        FilterChip(
-                            selected = selectedPriorityId == null,
-                            onClick = { onPrioritySelected(null) },
-                            label = { Text("すべて") }
-                        )
-                    }
-                    items(options.priorities) { priority ->
-                        FilterChip(
-                            selected = selectedPriorityId == priority.id,
-                            onClick = { onPrioritySelected(if (selectedPriorityId == priority.id) null else priority.id) },
-                            label = { Text(priority.name) }
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Button(
-                onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("適用")
-            }
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }

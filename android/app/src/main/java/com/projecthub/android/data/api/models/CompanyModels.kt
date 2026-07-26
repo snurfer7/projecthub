@@ -22,6 +22,15 @@ data class CompanyDto(
     val contacts: List<ContactDto>?
 )
 
+data class MergeCompanyRequest(
+    @SerializedName("targetCompanyId") val targetCompanyId: Int
+)
+
+data class MergeCompanyResponse(
+    @SerializedName("mergedIntoId") val mergedIntoId: Int,
+    val message: String? = null
+)
+
 data class LegalEntityStatusDto(
     val id: Int,
     val name: String,
@@ -52,7 +61,8 @@ data class ContactDto(
     val position: String?,
     val department: String?,
     val notes: String?,
-    @SerializedName("createdAt") val createdAt: String?
+    @SerializedName("createdAt") val createdAt: String?,
+    val company: CompanyRefDto? = null
 ) {
     /** 表示用: 姓を先に、名が空なら姓のみ */
     val fullName: String get() {
@@ -73,7 +83,10 @@ data class DealDto(
     @SerializedName("contactId") val contactId: Int?,
     @SerializedName("assignedToId") val assignedToId: Int?,
     val notes: String?,
-    @SerializedName("createdAt") val createdAt: String?
+    @SerializedName("createdAt") val createdAt: String?,
+    val company: CompanyRefDto? = null,
+    val contact: ContactRefDto? = null,
+    val assignedTo: UserRefDto? = null
 )
 
 data class ActivityDto(
@@ -86,7 +99,11 @@ data class ActivityDto(
     @SerializedName("dealId") val dealId: Int?,
     @SerializedName("dueDate") val dueDate: String?,
     val completed: Boolean,
-    @SerializedName("createdAt") val createdAt: String?
+    @SerializedName("createdAt") val createdAt: String?,
+    val company: CompanyRefDto? = null,
+    val contact: ContactRefDto? = null,
+    @SerializedName("assignedTo") val assignedTo: UserRefDto? = null,
+    val projects: List<ProjectRefDto>? = null
 )
 
 // --- Create/Update Request models ---

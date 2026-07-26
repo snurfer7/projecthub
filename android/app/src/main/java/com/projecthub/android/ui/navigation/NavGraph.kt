@@ -32,6 +32,7 @@ import com.projecthub.android.ui.home.HomeScreen
 import com.projecthub.android.ui.issues.IssueDetailScreen
 import com.projecthub.android.ui.issues.IssueFormScreen
 import com.projecthub.android.ui.issues.IssueListScreen
+import com.projecthub.android.ui.gantt.GanttScreen
 import com.projecthub.android.ui.kanban.KanbanScreen
 import com.projecthub.android.ui.projects.ProjectDetailScreen
 import com.projecthub.android.ui.projects.ProjectListScreen
@@ -74,15 +75,21 @@ sealed class Screen(val route: String) {
     object Kanban : Screen("project/{projectId}/kanban") {
         fun createRoute(id: Int) = "project/$id/kanban"
     }
+    object Gantt : Screen("project/{projectId}/gantt") {
+        fun createRoute(id: Int) = "project/$id/gantt"
+    }
     object WikiList : Screen("project/{projectId}/wiki") {
         fun createRoute(id: Int) = "project/$id/wiki"
     }
     object WikiDetail : Screen("project/{projectId}/wiki/{pageId}") {
         fun createRoute(projectId: Int, pageId: Int) = "project/$projectId/wiki/$pageId"
     }
-    object CompanyDetail : Screen("company/{companyId}") {
+    object CompanyDetail : Screen("company/{companyId}?tab={tab}") {
         fun createRoute(id: Int) = "company/$id"
+        fun createRoute(id: Int, tab: String) = "company/$id?tab=$tab"
     }
+    object Contacts : Screen("contacts")
+    object Deals : Screen("deals")
     object TimeCreate : Screen("time/create?projectId={projectId}") {
         fun createRoute(projectId: Int? = null) =
             if (projectId != null) "time/create?projectId=$projectId" else "time/create"
@@ -149,7 +156,8 @@ fun ProjectHubNavGraph() {
     val activeBottomNavRoute = when {
         currentRoute == Screen.Home.route -> Screen.Home.route
         currentRoute == Screen.Projects.route || currentRoute?.startsWith("project/") == true -> Screen.Projects.route
-        currentRoute == Screen.Companies.route || currentRoute?.startsWith("company/") == true -> Screen.Companies.route
+        currentRoute == Screen.Companies.route || currentRoute?.startsWith("company/") == true ||
+            currentRoute == Screen.Contacts.route || currentRoute == Screen.Deals.route -> Screen.Companies.route
         currentRoute == Screen.Settings.route -> Screen.Settings.route
         else -> ""
     }
@@ -257,7 +265,9 @@ fun ProjectHubNavGraph() {
                 CompanyListScreen(
                     onNavigateToCompany = { navController.navigate(Screen.CompanyDetail.createRoute(it)) },
                     onNavigateToCreate = { navController.navigate(Screen.CompanyCreate.route) },
-                    onNavigateToBusinessCardScan = { navController.navigate(Screen.BusinessCardScan.route) }
+                    onNavigateToBusinessCardScan = { navController.navigate(Screen.BusinessCardScan.route) },
+                    onNavigateToContacts = { navController.navigate(Screen.Contacts.route) },
+                    onNavigateToDeals = { navController.navigate(Screen.Deals.route) }
                 )
             }
 
@@ -292,7 +302,8 @@ fun ProjectHubNavGraph() {
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToIssues = { navController.navigate(Screen.ProjectIssues.createRoute(it)) },
                     onNavigateToKanban = { navController.navigate(Screen.Kanban.createRoute(it)) },
-                    onNavigateToWiki = { navController.navigate(Screen.WikiList.createRoute(it)) }
+                    onNavigateToWiki = { navController.navigate(Screen.WikiList.createRoute(it)) },
+                    onNavigateToGantt = { navController.navigate(Screen.Gantt.createRoute(it)) }
                 )
             }
 
@@ -319,7 +330,8 @@ fun ProjectHubNavGraph() {
                 IssueDetailScreen(
                     issueId = issueId,
                     onNavigateBack = { navController.popBackStack() },
-                    onNavigateToEdit = { navController.navigate(Screen.IssueEdit.createRoute(it)) }
+                    onNavigateToEdit = { navController.navigate(Screen.IssueEdit.createRoute(it)) },
+                    onNavigateToIssue = { navController.navigate(Screen.IssueDetail.createRoute(it)) }
                 )
             }
 
@@ -373,6 +385,19 @@ fun ProjectHubNavGraph() {
                 )
             }
 
+            // Gantt
+            composable(
+                route = Screen.Gantt.route,
+                arguments = listOf(navArgument("projectId") { type = NavType.IntType })
+            ) { backStack ->
+                val projectId = backStack.arguments?.getInt("projectId") ?: return@composable
+                GanttScreen(
+                    projectId = projectId,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToIssue = { navController.navigate(Screen.IssueDetail.createRoute(it)) }
+                )
+            }
+
             // Wiki list
             composable(
                 route = Screen.WikiList.route,
@@ -406,17 +431,47 @@ fun ProjectHubNavGraph() {
             // Company detail
             composable(
                 route = Screen.CompanyDetail.route,
-                arguments = listOf(navArgument("companyId") { type = NavType.IntType })
+                arguments = listOf(
+                    navArgument("companyId") { type = NavType.IntType },
+                    navArgument("tab") { type = NavType.StringType; nullable = true; defaultValue = null }
+                )
             ) { backStack ->
                 val companyId = backStack.arguments?.getInt("companyId") ?: return@composable
+                val tab = backStack.arguments?.getString("tab")
                 CompanyDetailScreen(
                     companyId = companyId,
+                    initialTab = tab,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToContactCreate = { navController.navigate(Screen.CompanyContactCreate.createRoute(companyId)) },
                     onNavigateToDealCreate = { navController.navigate(Screen.CompanyDealCreate.createRoute(companyId)) },
                     onNavigateToActivityCreate = { navController.navigate(Screen.CompanyActivityCreate.createRoute(companyId)) },
                     onNavigateToCommentCreate = { navController.navigate(Screen.CompanyCommentCreate.createRoute(companyId)) },
-                    onNavigateToLocationCreate = { navController.navigate(Screen.CompanyLocationCreate.createRoute(companyId)) }
+                    onNavigateToLocationCreate = { navController.navigate(Screen.CompanyLocationCreate.createRoute(companyId)) },
+                    onMergeSuccess = { targetId ->
+                        navController.navigate(Screen.CompanyDetail.createRoute(targetId)) {
+                            popUpTo(Screen.Companies.route)
+                        }
+                    }
+                )
+            }
+
+            // Contacts (cross-company)
+            composable(Screen.Contacts.route) {
+                com.projecthub.android.ui.crm.ContactsListScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToCompany = { companyId, tab ->
+                        navController.navigate(Screen.CompanyDetail.createRoute(companyId, tab))
+                    }
+                )
+            }
+
+            // Deals (cross-company)
+            composable(Screen.Deals.route) {
+                com.projecthub.android.ui.crm.DealsListScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToCompany = { companyId, tab ->
+                        navController.navigate(Screen.CompanyDetail.createRoute(companyId, tab))
+                    }
                 )
             }
 

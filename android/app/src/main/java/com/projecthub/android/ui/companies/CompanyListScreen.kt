@@ -22,9 +22,12 @@ fun CompanyListScreen(
     onNavigateToCompany: (Int) -> Unit,
     onNavigateToCreate: () -> Unit = {},
     onNavigateToBusinessCardScan: () -> Unit = {},
+    onNavigateToContacts: () -> Unit = {},
+    onNavigateToDeals: () -> Unit = {},
     viewModel: CompanyViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.listUiState.collectAsState()
+    var showMenu by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -33,6 +36,21 @@ fun CompanyListScreen(
                 actions = {
                     IconButton(onClick = { viewModel.loadCompanies() }) {
                         Icon(Icons.Default.Refresh, contentDescription = "更新")
+                    }
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "その他")
+                        }
+                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("連絡先一覧") },
+                                onClick = { showMenu = false; onNavigateToContacts() }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("商談一覧") },
+                                onClick = { showMenu = false; onNavigateToDeals() }
+                            )
+                        }
                     }
                 }
             )

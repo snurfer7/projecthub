@@ -38,7 +38,10 @@ data class CompanyDetailUiState(
     val comments: List<CompanyCommentDto> = emptyList(),
     val isCommentsLoading: Boolean = false,
     val isCreating: Boolean = false,
-    val createError: String? = null
+    val createError: String? = null,
+    val isMerging: Boolean = false,
+    val mergeError: String? = null,
+    val mergedIntoId: Int? = null
 )
 
 @HiltViewModel
@@ -407,5 +410,24 @@ class CompanyViewModel @Inject constructor(
 
     fun clearDetailCreateError() {
         _detailUiState.update { it.copy(createError = null) }
+    }
+
+    fun mergeCompany(sourceId: Int, targetId: Int) {
+        viewModelScope.launch {
+            _detailUiState.update { it.copy(isMerging = true, mergeError = null) }
+            when (val result = companyRepository.mergeCompany(sourceId, targetId)) {
+                is Result.Success -> {
+                    _detailUiState.update { it.copy(isMerging = false, mergedIntoId = result.data.mergedIntoId) }
+                }
+                is Result.Error -> {
+                    _detailUiState.update { it.copy(isMerging = false, mergeError = result.message) }
+                }
+                else -> _detailUiState.update { it.copy(isMerging = false) }
+            }
+        }
+    }
+
+    fun clearMergeState() {
+        _detailUiState.update { it.copy(mergeError = null, mergedIntoId = null) }
     }
 }

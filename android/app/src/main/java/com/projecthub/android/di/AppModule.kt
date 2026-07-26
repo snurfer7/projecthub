@@ -7,6 +7,7 @@ import com.projecthub.android.data.repository.AuthRepository
 import com.projecthub.android.data.repository.CompanyRepository
 import com.projecthub.android.data.repository.IssueRepository
 import com.projecthub.android.data.repository.ProjectRepository
+import com.projecthub.android.data.repository.SavedSearchRepository
 import com.projecthub.android.data.repository.TimeRepository
 import dagger.Module
 import dagger.Provides
@@ -62,5 +63,11 @@ object AppModule {
     @Singleton
     fun provideCompanyRepository(apiServiceProvider: ApiServiceProvider): CompanyRepository {
         return CompanyRepository(apiServiceProvider)
+    }
+
+    @Provides
+    @Singleton
+    fun provideSavedSearchRepository(apiServiceProvider: ApiServiceProvider): SavedSearchRepository {
+        return SavedSearchRepository(apiServiceProvider)
     }
 }

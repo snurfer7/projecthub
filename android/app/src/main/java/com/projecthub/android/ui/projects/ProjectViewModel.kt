@@ -2,6 +2,7 @@ package com.projecthub.android.ui.projects
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.projecthub.android.data.api.models.ActivityDto
 import com.projecthub.android.data.api.models.CompanyDto
 import com.projecthub.android.data.api.models.CreateProjectRequest
 import com.projecthub.android.data.api.models.ProjectDto
@@ -21,13 +22,19 @@ data class ProjectListUiState(
     val error: String? = null,
     val companies: List<CompanyDto> = emptyList(),
     val isCreating: Boolean = false,
-    val createError: String? = null
+    val createError: String? = null,
+    val collapsedProjectIds: Set<Int> = emptySet()
 )
 
 data class ProjectDetailUiState(
     val isLoading: Boolean = false,
     val project: ProjectDto? = null,
-    val error: String? = null
+    val error: String? = null,
+    val activities: List<ActivityDto> = emptyList(),
+    val canViewActivities: Boolean = true,
+    val activityCandidates: List<ActivityDto> = emptyList(),
+    val isLinkingActivity: Boolean = false,
+    val activityError: String? = null
 )
 
 @HiltViewModel
@@ -135,6 +142,15 @@ class ProjectViewModel @Inject constructor(
         _listUiState.update { it.copy(createError = null) }
     }
 
+    fun toggleProjectCollapsed(id: Int) {
+        _listUiState.update { state ->
+            val collapsed = state.collapsedProjectIds
+            state.copy(
+                collapsedProjectIds = if (id in collapsed) collapsed - id else collapsed + id
+            )
+        }
+    }
+
     fun loadProject(id: Int) {
         viewModelScope.launch {
             _detailUiState.update { it.copy(isLoading = true, error = null) }
@@ -148,5 +164,68 @@ class ProjectViewModel @Inject constructor(
                 else -> {}
             }
         }
+    }
+
+    fun loadProjectActivities(projectId: Int) {
+        viewModelScope.launch {
+            when (val result = projectRepository.getProjectActivities(projectId)) {
+                is Result.Success -> {
+                    _detailUiState.update { it.copy(activities = result.data, canViewActivities = true) }
+                }
+                is Result.Error -> {
+                    _detailUiState.update { it.copy(canViewActivities = false) }
+                }
+                else -> {}
+            }
+        }
+    }
+
+    fun loadActivityCandidates(project: ProjectDto) {
+        viewModelScope.launch {
+            val companyIds = (listOfNotNull(project.companyId) +
+                (project.relatedCompanies?.mapNotNull { it.companyId } ?: emptyList())).distinct()
+            val linkedIds = _detailUiState.value.activities.map { it.id }.toSet()
+            val candidates = companyIds
+                .mapNotNull { id ->
+                    when (val result = companyRepository.getActivities(id)) {
+                        is Result.Success -> result.data
+                        else -> null
+                    }
+                }
+                .flatten()
+                .distinctBy { it.id }
+                .filter { it.id !in linkedIds }
+            _detailUiState.update { it.copy(activityCandidates = candidates) }
+        }
+    }
+
+    fun linkActivity(projectId: Int, activityId: Int) {
+        viewModelScope.launch {
+            _detailUiState.update { it.copy(isLinkingActivity = true, activityError = null) }
+            when (val result = projectRepository.linkProjectActivity(projectId, activityId)) {
+                is Result.Success -> {
+                    _detailUiState.update { it.copy(isLinkingActivity = false) }
+                    loadProjectActivities(projectId)
+                }
+                is Result.Error -> {
+                    _detailUiState.update { it.copy(isLinkingActivity = false, activityError = result.message) }
+                }
+                else -> _detailUiState.update { it.copy(isLinkingActivity = false) }
+            }
+        }
+    }
+
+    fun unlinkActivity(projectId: Int, activityId: Int) {
+        viewModelScope.launch {
+            when (val result = projectRepository.unlinkProjectActivity(projectId, activityId)) {
+                is Result.Success -> loadProjectActivities(projectId)
+                is Result.Error -> _detailUiState.update { it.copy(activityError = result.message) }
+                else -> {}
+            }
+        }
+    }
+
+    fun clearActivityError() {
+        _detailUiState.update { it.copy(activityError = null) }
     }
 }
