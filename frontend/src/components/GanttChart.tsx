@@ -996,6 +996,7 @@ export default function GanttChart({
       return {
         groupedIssues: [{
           projectName: '',
+          companyName: null,
           projectId: 0,
           projectDueDate: null,
           issues: ordered.map((o) => o.issue),
@@ -1006,11 +1007,12 @@ export default function GanttChart({
       };
     }
 
-    const groups: Record<number, { projectName: string; projectId: number; projectDueDate: string | null; issues: Issue[]; depth: number }> = {};
+    const groups: Record<number, { projectName: string; companyName: string | null; projectId: number; projectDueDate: string | null; issues: Issue[]; depth: number }> = {};
 
     projects.forEach((project) => {
       groups[project.id] = {
         projectName: project.name,
+        companyName: project.company?.name ?? null,
         projectId: project.id,
         projectDueDate: project.dueDate || null,
         issues: [],
@@ -1023,6 +1025,7 @@ export default function GanttChart({
       if (!groups[pid]) {
         groups[pid] = {
           projectName: issue.project?.name || `Project ${pid}`,
+          companyName: null,
           projectId: pid,
           projectDueDate: null,
           issues: [],
@@ -1071,7 +1074,7 @@ export default function GanttChart({
       .filter((p) => projectIds.has(p.id) && (!p.parentId || !projectIds.has(p.parentId)))
       .map((p) => p.id);
 
-    const result: { projectName: string; projectId: number; projectDueDate: string | null; issues: Issue[]; depth: number; hasChildren: boolean }[] = [];
+    const result: { projectName: string; companyName: string | null; projectId: number; projectDueDate: string | null; issues: Issue[]; depth: number; hasChildren: boolean }[] = [];
     const visited = new Set<number>();
 
     const traverse = (id: number, depth: number, ancestorCollapsed: boolean) => {
@@ -1574,7 +1577,7 @@ export default function GanttChart({
                   const isCollapsed = collapsedProjects.has(group.projectId);
                   return (
                     <div className="flex border-b bg-slate-100 group" style={{ height: GANTT_ROW_HEIGHT, boxSizing: 'border-box' }}>
-                      <div style={{ width: leftColWidth }} className="flex-shrink-0 py-0.5 text-xs font-semibold text-slate-700 border-r truncate flex items-center sticky left-0 z-20 bg-slate-100 group-hover:bg-slate-200" title={group.projectName}>
+                      <div style={{ width: leftColWidth }} className="flex-shrink-0 py-0.5 text-xs font-semibold text-slate-700 border-r truncate flex items-center sticky left-0 z-20 bg-slate-100 group-hover:bg-slate-200" title={group.companyName ? `${group.companyName} / ${group.projectName}` : group.projectName}>
                         <span style={{ paddingLeft: indentPx + 4 }} className="flex items-center gap-1 min-w-0">
                           {group.hasChildren ? (
                             <button
@@ -1588,7 +1591,10 @@ export default function GanttChart({
                             <span className="flex-shrink-0 w-4" />
                           )}
                           {group.depth > 0 && <span className="text-slate-400 flex-shrink-0">└</span>}
-                          <Link to={`/projects/${group.projectId}`} className="hover:text-sky-600 truncate">{group.projectName}</Link>
+                          <Link to={`/projects/${group.projectId}`} className="hover:text-sky-600 truncate">
+                            {group.companyName && <span className="text-slate-500 font-normal">{group.companyName} / </span>}
+                            {group.projectName}
+                          </Link>
                         </span>
                       </div>
                       <div className="relative flex-1 cursor-pointer group-hover:bg-slate-200 transition-colors" title="クリックしてチケット追加" style={{ height: GANTT_ROW_CONTENT_HEIGHT }} onClick={(e) => handleProjectRowClick(e, group.projectId)}>

@@ -63,7 +63,7 @@ router.get('/', requirePermission('projects.issues', 'use'), async (req: AuthReq
     const issues = await prisma.issue.findMany({
       where,
       include: {
-        project: { select: { id: true, name: true } },
+        project: { select: { id: true, name: true, company: { select: { id: true, name: true } } } },
         tracker: true,
         status: true,
         priority: true,

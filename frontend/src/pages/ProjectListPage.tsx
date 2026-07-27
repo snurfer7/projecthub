@@ -516,7 +516,6 @@ export default function ProjectListPage() {
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">プロジェクト名</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">識別子</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">企業</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">期限</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">チケット数</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">ステータス</th>
@@ -533,6 +532,7 @@ export default function ProjectListPage() {
                     <div
                       className="flex items-center min-w-0"
                       style={depth > 0 ? { paddingLeft: depth * 20 } : undefined}
+                      title={project.company?.name ? `${project.company.name} / ${project.name}` : project.name}
                     >
                       <span className="w-5 flex-shrink-0 flex items-center justify-center mr-0.5">
                         {hasChildren ? (
@@ -561,12 +561,14 @@ export default function ProjectListPage() {
                           hasChildren ? 'font-semibold' : 'font-medium'
                         }`}
                       >
+                        {project.company?.name && (
+                          <span className="text-slate-500 font-normal">{project.company.name} / </span>
+                        )}
                         {project.name}
                       </span>
                     </div>
                   </td>
                   <td className="px-4 py-3 text-gray-600">{project.identifier}</td>
-                  <td className="px-4 py-3 text-gray-600">{project.company?.name || '-'}</td>
                   <td className="px-4 py-3 text-gray-600">
                     {project.dueDate ? new Date(project.dueDate).toLocaleDateString('ja-JP') : '-'}
                   </td>

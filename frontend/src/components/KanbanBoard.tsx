@@ -144,7 +144,12 @@ const IssueCard = React.forwardRef<HTMLDivElement, {
             </Link>
 
             {showProjectName && issue.project && (
-                <div className="text-[10px] text-gray-400 mb-2 truncate">{issue.project.name}</div>
+                <div
+                  className="text-[10px] text-gray-400 mb-2 truncate"
+                  title={issue.project.company?.name ? `${issue.project.company.name} / ${issue.project.name}` : issue.project.name}
+                >
+                    {issue.project.company?.name ? `${issue.project.company.name} / ${issue.project.name}` : issue.project.name}
+                </div>
             )}
 
             <div className="flex items-center justify-between mt-auto">

@@ -212,7 +212,10 @@ export default function TimeRecordTree({ projects, issues, timeEntries, onRefres
           <div className="flex items-center gap-1.5">
             {depth > 0 && <span className="text-gray-300 select-none">{'└'}</span>}
             <Briefcase size={13} className="text-sky-500 shrink-0" />
-            <span className="font-semibold text-gray-700">{project.name}</span>
+            <span className="font-semibold text-gray-700">
+              {project.company?.name && <span className="text-slate-500 font-normal">{project.company.name} / </span>}
+              {project.name}
+            </span>
           </div>
         </td>
         <td></td>

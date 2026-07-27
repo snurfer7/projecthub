@@ -226,7 +226,7 @@ export interface Issue {
   doneRatio: number;
   createdAt: string;
   updatedAt: string;
-  project?: { id: number; name: string };
+  project?: { id: number; name: string; company?: { id: number; name: string } | null };
   tracker?: Tracker;
   status?: IssueStatus;
   priority?: IssuePriority;

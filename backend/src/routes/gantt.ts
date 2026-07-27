@@ -154,6 +154,7 @@ router.get('/all', requirePermission('projects.gantt', 'use'), async (req: AuthR
         dueDate: true,
         parentId: true,
         companyId: true,
+        company: { select: { id: true, name: true } },
         relatedCompanies: {
           select: { companyId: true },
         },

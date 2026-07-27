@@ -62,7 +62,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 | メソッド | パス | 概要 |
 |----------|------|------|
-| GET | `/` | チケット一覧。Query: `projectId`, `statusId` / `statusIds`（複数）, `trackerId` / `trackerIds`（複数）, `priorityId`, `assignedToId` / `assignedToIds`（複数担当者）, `assignedToGroupId`。複数 ID はカンマ区切りまたは配列。応答に `parentId` / `parent` / `_count.children` を含み、子を持つチケットの `startDate` / `endDate` / `statusId`（`status`）は子孫から集約した値（ステータスは position 最小） |
+| GET | `/` | チケット一覧。Query: `projectId`, `statusId` / `statusIds`（複数）, `trackerId` / `trackerIds`（複数）, `priorityId`, `assignedToId` / `assignedToIds`（複数担当者）, `assignedToGroupId`。複数 ID はカンマ区切りまたは配列。応答に `parentId` / `parent` / `_count.children` を含み、子を持つチケットの `startDate` / `endDate` / `statusId`（`status`）は子孫から集約した値（ステータスは position 最小）。`project` は `{ id, name, company: { id, name } \| null }` を含む（カンバン等クロスプロジェクト表示での企業名表示用） |
 | GET | `/meta/options` | メタ（trackers, statuses, priorities, users, groups）。Query: `projectId`（任意）。`projectId` 指定時はプロジェクトメンバー・紐付きグループのみ返す。未指定時は全ユーザー・全グループを返す |
 | GET | `/:id` | チケット詳細。`parent` / `children`（id, subject, startDate, endDate）を含む。子がある場合 `startDate` / `endDate` / `status` は集約値 |
 | POST | `/` | チケット作成。Body に `parentId`（任意・同一プロジェクト・循環不可）。権限: 項目 `projects.issues.fields.parent`（`parentId` 指定時） |
@@ -196,7 +196,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | メソッド | パス | 概要 |
 |----------|------|------|
 | GET | `/project/:projectId` | 指定プロジェクトのガント用データ。チケットに `parentId` を含み、親の開始・終了は子孫から集約。`startDate` / `endDate` / `dueDate` がすべて未設定のチケットも含む |
-| GET | `/all` | 有効（`active`）プロジェクトのガント用データ（同上。日付未設定チケットも含む） |
+| GET | `/all` | 有効（`active`）プロジェクトのガント用データ（同上。日付未設定チケットも含む）。`projects` は `company: { id, name }` を含む（ガントのプロジェクト行で企業名を表示するため） |
 
 ---
 
