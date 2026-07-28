@@ -342,6 +342,9 @@ export default function ProjectListPage() {
       }
       closeProjectModal();
       loadProjects();
+      if (viewMode === 'gantt') loadGanttData();
+      if (viewMode === 'kanban') loadKanbanData();
+      if (viewMode === 'time') loadTimeData();
     } catch (err: any) {
       setProjectError(err.response?.data?.error || (editingProjectId ? '更新に失敗しました' : '作成に失敗しました'));
     }
