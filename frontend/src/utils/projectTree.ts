@@ -6,12 +6,168 @@ export type ProjectTreeDisplayRow = {
   hasChildren: boolean;
 };
 
+export type ProjectListSortKey =
+  | 'companyName'
+  | 'name'
+  | 'identifier'
+  | 'dueDate'
+  | 'issueCount'
+  | 'status';
+
+export type ProjectListSortDirection = 'asc' | 'desc';
+
+/** 省略値（未設定）の配置 */
+export type ProjectListEmptyPlacement = 'first' | 'last';
+
+export type ProjectListSort = {
+  key: ProjectListSortKey;
+  direction: ProjectListSortDirection;
+  /** 省略値の位置。省略可能な項目のみ有効。既定は末尾 */
+  emptyPlacement?: ProjectListEmptyPlacement;
+};
+
+export const PROJECT_LIST_SORT_OPTIONS: {
+  key: ProjectListSortKey;
+  label: string;
+  /** 未設定があり得る項目（企業名・期限） */
+  optional?: boolean;
+}[] = [
+  { key: 'companyName', label: '企業名', optional: true },
+  { key: 'name', label: 'プロジェクト名' },
+  { key: 'identifier', label: '識別子' },
+  { key: 'dueDate', label: '期限', optional: true },
+  { key: 'issueCount', label: 'チケット数' },
+  { key: 'status', label: 'ステータス' },
+];
+
+export const DEFAULT_PROJECT_LIST_SORT: ProjectListSort[] = [
+  { key: 'name', direction: 'asc' },
+];
+
+export function isOptionalSortKey(key: ProjectListSortKey): boolean {
+  return PROJECT_LIST_SORT_OPTIONS.some((o) => o.key === key && o.optional);
+}
+
+export function createSortEntry(
+  key: ProjectListSortKey,
+  direction: ProjectListSortDirection = 'asc',
+): ProjectListSort {
+  if (isOptionalSortKey(key)) {
+    return { key, direction, emptyPlacement: 'last' };
+  }
+  return { key, direction };
+}
+
+const STATUS_ORDER: Record<string, number> = {
+  active: 0,
+  closed: 1,
+  archived: 2,
+};
+
+function compareByName(a: Project, b: Project): number {
+  return a.name.localeCompare(b.name, 'ja');
+}
+
+/** 省略値の比較。両方値ありなら null（通常比較へ） */
+function compareEmpty(
+  aHas: boolean,
+  bHas: boolean,
+  placement: ProjectListEmptyPlacement,
+): number | null {
+  if (aHas && bHas) return null;
+  if (!aHas && !bHas) return 0;
+  if (!aHas) return placement === 'last' ? 1 : -1;
+  return placement === 'last' ? -1 : 1;
+}
+
+function emptyPlacementOf(sort: ProjectListSort): ProjectListEmptyPlacement {
+  return sort.emptyPlacement === 'first' ? 'first' : 'last';
+}
+
+function compareNullableString(
+  aVal: string | null | undefined,
+  bVal: string | null | undefined,
+  sort: ProjectListSort,
+): number {
+  const emptyCmp = compareEmpty(!!aVal, !!bVal, emptyPlacementOf(sort));
+  if (emptyCmp != null) return emptyCmp;
+  return aVal!.localeCompare(bVal!, 'ja') * (sort.direction === 'asc' ? 1 : -1);
+}
+
+/** 単一キーでの比較（等しい場合は 0。名前フォールバックなし） */
+function compareBySortKey(a: Project, b: Project, sort: ProjectListSort): number {
+  const dir = sort.direction === 'asc' ? 1 : -1;
+  let cmp = 0;
+
+  switch (sort.key) {
+    case 'companyName':
+      return compareNullableString(a.company?.name, b.company?.name, sort);
+    case 'name':
+      cmp = a.name.localeCompare(b.name, 'ja');
+      break;
+    case 'identifier':
+      cmp = a.identifier.localeCompare(b.identifier, 'ja');
+      break;
+    case 'dueDate': {
+      const emptyCmp = compareEmpty(!!a.dueDate, !!b.dueDate, emptyPlacementOf(sort));
+      if (emptyCmp != null) return emptyCmp;
+      cmp = a.dueDate!.localeCompare(b.dueDate!);
+      break;
+    }
+    case 'issueCount':
+      cmp = (a._count?.issues ?? 0) - (b._count?.issues ?? 0);
+      break;
+    case 'status':
+      cmp = (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99);
+      break;
+    default:
+      return 0;
+  }
+
+  return cmp * dir;
+}
+
+function compareProjectsBySorts(a: Project, b: Project, sorts: ProjectListSort[]): number {
+  for (const sort of sorts) {
+    const cmp = compareBySortKey(a, b, sort);
+    if (cmp !== 0) return cmp;
+  }
+  return compareByName(a, b);
+}
+
+/** 同一親配下（またはルート同士）の兄弟を listSort で並べ替え */
+export function sortSiblingProjects(
+  projects: Project[],
+  sorts: ProjectListSort[] | undefined,
+): Project[] {
+  const effective =
+    sorts && sorts.length > 0 ? sorts : DEFAULT_PROJECT_LIST_SORT;
+  return [...projects].sort((a, b) => compareProjectsBySorts(a, b, effective));
+}
+
+/** @deprecated 互換用。sortSiblingProjects を使用 */
+export function sortRootProjects(
+  projects: Project[],
+  sorts: ProjectListSort[] | undefined,
+): Project[] {
+  return sortSiblingProjects(projects, sorts);
+}
+
 /** フィルタ済みプロジェクトを親子階層の表示行に並べる（折りたたみ対応） */
 export function buildProjectTreeDisplayRows(
   projects: Project[],
   collapsedIds: Set<number>,
+  sort?: ProjectListSort | ProjectListSort[],
 ): ProjectTreeDisplayRow[] {
   const byId = new Map(projects.map((p) => [p.id, p]));
+  const siblingSorts: ProjectListSort[] = !sort
+    ? DEFAULT_PROJECT_LIST_SORT
+    : Array.isArray(sort)
+      ? sort.length > 0
+        ? sort
+        : DEFAULT_PROJECT_LIST_SORT
+      : [sort];
+
   const childrenMap = new Map<number, Project[]>();
   for (const project of projects) {
     if (project.parentId != null && byId.has(project.parentId)) {
@@ -21,11 +177,11 @@ export function buildProjectTreeDisplayRows(
     }
   }
   for (const [, list] of childrenMap) {
-    list.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+    list.sort((a, b) => compareProjectsBySorts(a, b, siblingSorts));
   }
   const roots = projects
     .filter((p) => p.parentId == null || !byId.has(p.parentId))
-    .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+    .sort((a, b) => compareProjectsBySorts(a, b, siblingSorts));
 
   const result: ProjectTreeDisplayRow[] = [];
   const visited = new Set<number>();

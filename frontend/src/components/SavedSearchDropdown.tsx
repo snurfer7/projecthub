@@ -149,16 +149,16 @@ export default function SavedSearchDropdown({
           setIsOpen((prev) => !prev);
           if (isOpen) resetForm();
         }}
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs font-medium transition-colors ${
+        className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-md border text-sm font-medium shadow-sm transition-all whitespace-nowrap shrink-0 ${
           activeId != null
             ? 'bg-sky-50 border-sky-300 text-sky-700 hover:bg-sky-100'
-            : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+            : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
         }`}
         title="保存済み検索条件"
       >
-        <Bookmark size={13} />
+        <Bookmark size={15} />
         <span className="max-w-[8rem] truncate">{buttonLabel}</span>
-        <ChevronDown size={12} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={14} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (

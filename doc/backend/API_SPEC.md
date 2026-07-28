@@ -183,7 +183,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
   "viewMode": "list",
   "name": "有効プロジェクトのみ",
   "isDefault": true,
-  "filter": { "projectFilter": { ... }, "issueFilter": { ... } },
+  "filter": { "projectFilter": { ... }, "issueFilter": { ... }, "listSort": [{ "key": "name", "direction": "asc" }] },
   "createdAt": "...",
   "updatedAt": "..."
 }

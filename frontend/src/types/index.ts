@@ -490,6 +490,13 @@ export interface SavedSearchFilter {
   /** ガント: チケットなしのプロジェクトを表示するか（省略時 true） */
   showEmptyProjects?: boolean;
   timeRecordFilterUserIds?: (number | string)[];
+  /** 一覧: 複合並び替え（ルートのみ。省略時は既存の並びを維持） */
+  listSort?: {
+    key: string;
+    direction: 'asc' | 'desc';
+    /** 省略値の位置（企業名・期限など。省略時は末尾） */
+    emptyPlacement?: 'first' | 'last';
+  }[];
 }
 
 export interface SavedSearch {

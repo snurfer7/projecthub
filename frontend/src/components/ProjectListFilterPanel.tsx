@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Search, X } from 'lucide-react';
+import { Search, X, ArrowUpDown } from 'lucide-react';
 import api from '../api/client';
 import { Company, IssueStatus, Tracker, SavedSearch } from '../types';
 import { SELF_COMPANY_FILTER_VALUE, type ProjectFilterCriteria } from '../utils/projectFilter';
 import type { IssueFilterCriteria } from '../utils/issueFilter';
 import type { ProjectListViewMode } from '../utils/projectListStorage';
+import type { ProjectListSort } from '../utils/projectTree';
 import Combobox from './Combobox';
 import TextInput from './TextInput';
 import DateInput from './DateInput';
@@ -37,6 +38,10 @@ interface ProjectListFilterPanelProps {
   issueCount?: number;
   entryCount?: number;
   onNewProjectClick: () => void;
+  /** 一覧の並び替えモーダルを開く（list 表示時のみ） */
+  onSortClick?: () => void;
+  /** 一覧の並び替え条件（保存済み検索に含める） */
+  listSort: ProjectListSort[];
   /** 保存済み検索: 現在アクティブな ID */
   activeSavedSearchId: number | null;
   /** 保存済み検索をロードしたときのコールバック */
@@ -100,6 +105,8 @@ export default function ProjectListFilterPanel({
   issueCount,
   entryCount,
   onNewProjectClick,
+  onSortClick,
+  listSort,
   activeSavedSearchId,
   onLoadSavedSearch,
 }: ProjectListFilterPanelProps) {
@@ -238,6 +245,7 @@ export default function ProjectListFilterPanel({
     ganttZoom,
     showEmptyProjects,
     timeRecordFilterUserIds,
+    listSort,
   };
 
   return (
@@ -260,6 +268,16 @@ export default function ProjectListFilterPanel({
           currentFilter={currentFilter}
           onLoad={onLoadSavedSearch}
         />
+        { (viewMode === 'list' || viewMode === 'gantt') && onSortClick && (
+          <button
+            type="button"
+            onClick={onSortClick}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 shadow-sm transition-all whitespace-nowrap shrink-0"
+          >
+            <ArrowUpDown size={15} />
+            並び替え
+          </button>
+        )}
         <button
           type="button"
           onClick={onNewProjectClick}

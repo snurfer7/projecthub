@@ -3,6 +3,15 @@ import {
   type ProjectFilterCriteria,
 } from './projectFilter';
 import { defaultIssueFilterCriteria, type IssueFilterCriteria } from './issueFilter';
+import {
+  DEFAULT_PROJECT_LIST_SORT,
+  createSortEntry,
+  isOptionalSortKey,
+  type ProjectListEmptyPlacement,
+  type ProjectListSort,
+  type ProjectListSortDirection,
+  type ProjectListSortKey,
+} from './projectTree';
 
 export const PROJECT_LIST_STORAGE_KEY = 'projecthub.projectList.v1';
 
@@ -18,6 +27,8 @@ export type PersistedProjectList = {
   ganttZoom: 'day' | 'month' | 'year';
   /** ガント: チケットなしのプロジェクトを表示するか */
   showEmptyProjects: boolean;
+  /** 一覧: 複合列ソート（ルートのみ・優先順） */
+  listSort: ProjectListSort[];
 };
 
 export function defaultPersistedProjectList(): Omit<PersistedProjectList, 'v'> {
@@ -27,7 +38,52 @@ export function defaultPersistedProjectList(): Omit<PersistedProjectList, 'v'> {
     issueFilter: defaultIssueFilterCriteria(),
     ganttZoom: 'day',
     showEmptyProjects: true,
+    listSort: [...DEFAULT_PROJECT_LIST_SORT],
   };
+}
+
+function isListSortKey(v: unknown): v is ProjectListSortKey {
+  return (
+    v === 'companyName' ||
+    v === 'name' ||
+    v === 'identifier' ||
+    v === 'dueDate' ||
+    v === 'issueCount' ||
+    v === 'status'
+  );
+}
+
+function isListSortDirection(v: unknown): v is ProjectListSortDirection {
+  return v === 'asc' || v === 'desc';
+}
+
+function isEmptyPlacement(v: unknown): v is ProjectListEmptyPlacement {
+  return v === 'first' || v === 'last';
+}
+
+function parseListSort(o: Record<string, unknown>): ProjectListSort[] {
+  if (Array.isArray(o.listSort)) {
+    const parsed: ProjectListSort[] = [];
+    const seen = new Set<ProjectListSortKey>();
+    for (const item of o.listSort) {
+      if (!item || typeof item !== 'object') continue;
+      const s = item as Record<string, unknown>;
+      if (!isListSortKey(s.key) || !isListSortDirection(s.direction)) continue;
+      if (seen.has(s.key)) continue;
+      seen.add(s.key);
+      const entry = createSortEntry(s.key, s.direction);
+      if (isOptionalSortKey(s.key) && isEmptyPlacement(s.emptyPlacement)) {
+        entry.emptyPlacement = s.emptyPlacement;
+      }
+      parsed.push(entry);
+    }
+    if (parsed.length > 0) return parsed;
+  }
+  // 旧形式（単一キー）からの移行
+  if (isListSortKey(o.listSortKey) && isListSortDirection(o.listSortDirection)) {
+    return [createSortEntry(o.listSortKey, o.listSortDirection)];
+  }
+  return [...DEFAULT_PROJECT_LIST_SORT];
 }
 
 function isViewMode(v: unknown): v is ProjectListViewMode {
@@ -99,7 +155,10 @@ export function readPersistedProjectList(): Omit<PersistedProjectList, 'v'> | nu
   try {
     const raw = sessionStorage.getItem(PROJECT_LIST_STORAGE_KEY);
     if (!raw) return null;
-    const o = JSON.parse(raw) as PersistedProjectList;
+    const o = JSON.parse(raw) as PersistedProjectList & {
+      listSortKey?: unknown;
+      listSortDirection?: unknown;
+    };
     if (o?.v !== 1) return null;
     if (!isViewMode(o.viewMode)) return null;
     const projectFilter = parseProjectFilter(o.projectFilter);
@@ -112,6 +171,7 @@ export function readPersistedProjectList(): Omit<PersistedProjectList, 'v'> | nu
       issueFilter,
       ganttZoom: o.ganttZoom,
       showEmptyProjects: typeof o.showEmptyProjects === 'boolean' ? o.showEmptyProjects : true,
+      listSort: parseListSort(o as unknown as Record<string, unknown>),
     };
   } catch {
     return null;

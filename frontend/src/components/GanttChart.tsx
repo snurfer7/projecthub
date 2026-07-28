@@ -11,7 +11,7 @@ import { useAuth } from '../hooks/useAuth';
 import { formatEstimatedHours, formatDateToYYYYMMDD } from '../utils/format';
 import Combobox from './Combobox';
 import CustomDatePicker from './CustomDatePicker';
-import { filterProjectsKeepingAncestorsOfTicketed } from '../utils/projectTree';
+import { filterProjectsKeepingAncestorsOfTicketed, sortSiblingProjects, type ProjectListSort } from '../utils/projectTree';
 
 interface GanttChartProps {
   issues: Issue[];
@@ -19,6 +19,8 @@ interface GanttChartProps {
   showProject?: boolean;
   /** showProject 時、チケット0件のプロジェクト行を表示するか（既定 true） */
   showEmptyProjects?: boolean;
+  /** プロジェクトの並び替え（兄弟間。親子のまとまりは維持） */
+  projectSort?: ProjectListSort[];
   onUpdateIssue: (id: number, data: { startDate?: string; endDate?: string; dueDate?: string }) => Promise<void>;
   onIssueCreated?: () => void;
   onRelationCreated?: (fromId: number, toId: number) => Promise<void>;
@@ -484,6 +486,7 @@ export default function GanttChart({
   projects = [], 
   showProject,
   showEmptyProjects = true,
+  projectSort,
   onUpdateIssue, 
   onIssueCreated, 
   onRelationCreated, 
@@ -1070,12 +1073,43 @@ export default function GanttChart({
       }
     });
 
-    const rootIds = projects
-      .filter((p) => projectIds.has(p.id) && (!p.parentId || !projectIds.has(p.parentId)))
-      .map((p) => p.id);
+    const projectById = new Map(projects.map((p) => [p.id, p]));
+
+    const rootIds = sortSiblingProjects(
+      projects.filter((p) => projectIds.has(p.id) && (!p.parentId || !projectIds.has(p.parentId))),
+      projectSort,
+    ).map((p) => p.id);
+
+    // groups にだけ存在し projects に無い孤立 ID もルートとして扱う
+    const rootIdSet = new Set(rootIds);
+    Object.keys(groups).map(Number).forEach((id) => {
+      if (!projects.some((p) => p.id === id) && !rootIdSet.has(id)) {
+        rootIds.push(id);
+        rootIdSet.add(id);
+      }
+    });
 
     const result: { projectName: string; companyName: string | null; projectId: number; projectDueDate: string | null; issues: Issue[]; depth: number; hasChildren: boolean }[] = [];
     const visited = new Set<number>();
+
+    const sortChildIds = (ids: number[]) =>
+      sortSiblingProjects(
+        ids.map((id) => {
+          const fromProjects = projectById.get(id);
+          if (fromProjects) return fromProjects;
+          const g = groups[id];
+          return {
+            id,
+            name: g?.projectName ?? '',
+            identifier: '',
+            status: 'active',
+            dueDate: g?.projectDueDate ?? null,
+            company: g?.companyName ? { id: 0, name: g.companyName } : null,
+            _count: { issues: g?.issues.length ?? 0 },
+          } as Project;
+        }),
+        projectSort,
+      ).map((p) => p.id);
 
     const traverse = (id: number, depth: number, ancestorCollapsed: boolean) => {
       if (visited.has(id)) return;
@@ -1083,9 +1117,7 @@ export default function GanttChart({
       const group = groups[id];
       if (!group) return;
       group.depth = depth;
-      const children = (childrenMap[id] || []).sort((a, b) =>
-        (groups[a]?.projectName || '').localeCompare(groups[b]?.projectName || '')
-      );
+      const children = sortChildIds(childrenMap[id] || []);
       const hasChildren = children.length > 0 || group.issues.length > 0;
       if (!ancestorCollapsed) {
         result.push({ ...group, hasChildren });
@@ -1094,16 +1126,14 @@ export default function GanttChart({
       children.forEach((childId) => traverse(childId, depth + 1, ancestorCollapsed || isCollapsed));
     };
 
-    rootIds.sort((a, b) =>
-      (groups[a]?.projectName || '').localeCompare(groups[b]?.projectName || '')
-    ).forEach((id) => traverse(id, 0, false));
+    rootIds.forEach((id) => traverse(id, 0, false));
 
     Object.keys(groups).map(Number).forEach((id) => {
       if (!visited.has(id)) result.push({ ...groups[id], depth: 0, hasChildren: false });
     });
 
     return { groupedIssues: result, issueDepthById: depthMap };
-  }, [filteredIssues, projects, showProject, showEmptyProjects, collapsedProjects]);
+  }, [filteredIssues, projects, showProject, showEmptyProjects, collapsedProjects, projectSort]);
 
   // 各チケットの絶対位置を計算（線引き用）
   const issuePositions = useMemo(() => {

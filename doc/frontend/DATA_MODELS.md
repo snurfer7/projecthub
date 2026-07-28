@@ -50,7 +50,7 @@
 ## 保存済み検索
 
 - **SavedSearch** — id, userId, viewMode（`list` | `gantt` | `kanban` | `time`）, name, isDefault, filter（`SavedSearchFilter`）, createdAt, updatedAt。
-- **SavedSearchFilter** — `projectFilter?`（ProjectFilterCriteria）, `issueFilter?`（IssueFilterCriteria）, `ganttZoom?`（`day`|`month`|`year`）, `showEmptyProjects?`（boolean。ガントでチケットなしプロジェクトを表示するか。省略時は true）, `ganttStartValue?`, `ganttEndValue?`, `timeRecordStartDate?`, `timeRecordEndDate?`, `timeRecordFilterUserIds?`（(number|string)[]）。
+- **SavedSearchFilter** — `projectFilter?`（ProjectFilterCriteria）, `issueFilter?`（IssueFilterCriteria）, `ganttZoom?`（`day`|`month`|`year`）, `showEmptyProjects?`（boolean。ガントでチケットなしプロジェクトを表示するか。省略時は true）, `ganttStartValue?`, `ganttEndValue?`, `timeRecordStartDate?`, `timeRecordEndDate?`, `timeRecordFilterUserIds?`（(number|string)[]）, `listSort?`（`{ key, direction, emptyPlacement? }[]`。一覧の複合並び替え。`key` は `companyName`|`name`|`identifier`|`dueDate`|`issueCount`|`status`、`direction` は `asc`|`desc`、`emptyPlacement` は省略可能な項目向けに `first`|`last`（未設定値の位置。省略時は末尾）。省略時は適用しない）。
 
 ## システム
 

@@ -6,6 +6,7 @@ import { Project, Company, Issue, IssueStatus, TimeEntry, SavedSearch } from '..
 import Modal from '../components/Modal';
 import GanttChart from '../components/GanttChart';
 import ProjectListFilterPanel from '../components/ProjectListFilterPanel';
+import ProjectListSortModal from '../components/ProjectListSortModal';
 import KanbanBoard from '../components/KanbanBoard';
 import IssueDetail from '../components/IssueDetail';
 import { IssueFormModal } from '../components/IssueForm';
@@ -18,7 +19,17 @@ import { useProjectListFilters } from '../hooks/useProjectListFilters';
 import { filterProjects, filteredProjectIdSet } from '../utils/projectFilter';
 import { filterIssues, filterIssuesByProjectIds } from '../utils/issueFilter';
 import { isLeafIssue } from '../utils/issueTree';
-import { buildProjectTreeDisplayRows, filterProjectsKeepingAncestorsOfTicketed } from '../utils/projectTree';
+import {
+  buildProjectTreeDisplayRows,
+  filterProjectsKeepingAncestorsOfTicketed,
+  PROJECT_LIST_SORT_OPTIONS,
+  createSortEntry,
+  isOptionalSortKey,
+  type ProjectListEmptyPlacement,
+  type ProjectListSort,
+  type ProjectListSortDirection,
+  type ProjectListSortKey,
+} from '../utils/projectTree';
 import {
   timeViewAssignedToIds,
   timeViewRecordDateRange,
@@ -47,6 +58,8 @@ export default function ProjectListPage() {
     setGanttZoom,
     showEmptyProjects,
     setShowEmptyProjects,
+    listSort,
+    setListSort,
   } = useProjectListFilters(initialViewMode);
 
   useEffect(() => {
@@ -67,6 +80,7 @@ export default function ProjectListPage() {
   const [ganttEndValue, setGanttEndValue] = useState('');
   const [ganttCollapsedProjects, setGanttCollapsedProjects] = useState<Set<number>>(new Set());
   const [listCollapsedIds, setListCollapsedIds] = useState<Set<number>>(() => new Set());
+  const [showSortModal, setShowSortModal] = useState(false);
 
   const [kanbanIssues, setKanbanIssues] = useState<Issue[]>([]);
   const [kanbanStatuses, setKanbanStatuses] = useState<IssueStatus[]>([]);
@@ -110,9 +124,31 @@ export default function ProjectListPage() {
       if (f.ganttZoom) setGanttZoom(f.ganttZoom);
       if (f.showEmptyProjects !== undefined) setShowEmptyProjects(f.showEmptyProjects);
       if (f.timeRecordFilterUserIds !== undefined) setTimeRecordFilterUserIds(f.timeRecordFilterUserIds);
+      if (Array.isArray(f.listSort)) {
+        const validKeys = new Set(PROJECT_LIST_SORT_OPTIONS.map((o) => o.key));
+        const parsed: ProjectListSort[] = [];
+        const seen = new Set<ProjectListSortKey>();
+        for (const item of f.listSort) {
+          if (!item || typeof item !== 'object') continue;
+          const key = item.key as ProjectListSortKey;
+          const direction = item.direction as ProjectListSortDirection;
+          if (!validKeys.has(key) || (direction !== 'asc' && direction !== 'desc')) continue;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const entry = createSortEntry(key, direction);
+          if (
+            isOptionalSortKey(key) &&
+            (item.emptyPlacement === 'first' || item.emptyPlacement === 'last')
+          ) {
+            entry.emptyPlacement = item.emptyPlacement as ProjectListEmptyPlacement;
+          }
+          parsed.push(entry);
+        }
+        if (parsed.length > 0) setListSort(parsed);
+      }
       setActiveSavedSearchId(search.id);
     },
-    [setProjectFilter, setIssueFilter, setGanttZoom, setShowEmptyProjects],
+    [setProjectFilter, setIssueFilter, setGanttZoom, setShowEmptyProjects, setListSort],
   );
 
   /** 保存済み検索のデフォルトを自動適用（表示モード切替時）。古い応答は破棄する */
@@ -366,8 +402,8 @@ export default function ProjectListPage() {
   );
 
   const listDisplayRows = useMemo(
-    () => buildProjectTreeDisplayRows(filteredProjects, listCollapsedIds),
-    [filteredProjects, listCollapsedIds],
+    () => buildProjectTreeDisplayRows(filteredProjects, listCollapsedIds, listSort),
+    [filteredProjects, listCollapsedIds, listSort],
   );
 
   const toggleListCollapse = (id: number) => {
@@ -505,6 +541,8 @@ export default function ProjectListPage() {
         }
         entryCount={viewMode === 'time' ? timeEntries.length : undefined}
         onNewProjectClick={openCreateProjectModal}
+        onSortClick={() => setShowSortModal(true)}
+        listSort={listSort}
         activeSavedSearchId={activeSavedSearchId}
         onLoadSavedSearch={applyFilter}
       />
@@ -604,6 +642,7 @@ export default function ProjectListPage() {
           projects={filteredGanttProjects}
           showProject
           showEmptyProjects={showEmptyProjects}
+          projectSort={listSort}
           systemSettings={systemSettings}
           onUpdateIssue={handleUpdateIssue}
           onIssueCreated={loadGanttData}
@@ -646,6 +685,16 @@ export default function ProjectListPage() {
           onRefresh={loadTimeData}
         />
       )}
+
+      <ProjectListSortModal
+        isOpen={showSortModal}
+        onClose={() => setShowSortModal(false)}
+        value={listSort}
+        onApply={(sort) => {
+          setListSort(sort);
+          setActiveSavedSearchId(null);
+        }}
+      />
 
       <Modal
         isOpen={showProjectModal}

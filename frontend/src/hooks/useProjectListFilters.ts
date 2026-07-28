@@ -12,6 +12,7 @@ import {
   type PersistedProjectList,
   type ProjectListViewMode,
 } from '../utils/projectListStorage';
+import type { ProjectListSort } from '../utils/projectTree';
 
 export function useProjectListFilters(initialViewMode?: ProjectListViewMode) {
   const persisted = useMemo(() => readPersistedProjectList(), []);
@@ -32,6 +33,9 @@ export function useProjectListFilters(initialViewMode?: ProjectListViewMode) {
   const [showEmptyProjects, setShowEmptyProjects] = useState(
     () => persisted?.showEmptyProjects ?? defaults.showEmptyProjects,
   );
+  const [listSort, setListSort] = useState<ProjectListSort[]>(
+    () => persisted?.listSort ?? defaults.listSort,
+  );
 
   useEffect(() => {
     try {
@@ -42,12 +46,13 @@ export function useProjectListFilters(initialViewMode?: ProjectListViewMode) {
         issueFilter,
         ganttZoom,
         showEmptyProjects,
+        listSort,
       };
       sessionStorage.setItem(PROJECT_LIST_STORAGE_KEY, JSON.stringify(payload));
     } catch {
       // ignore quota / private mode
     }
-  }, [viewMode, projectFilter, issueFilter, ganttZoom, showEmptyProjects]);
+  }, [viewMode, projectFilter, issueFilter, ganttZoom, showEmptyProjects, listSort]);
 
   useEffect(() => {
     const onReset = () => {
@@ -57,6 +62,7 @@ export function useProjectListFilters(initialViewMode?: ProjectListViewMode) {
       setIssueFilter(d.issueFilter);
       setGanttZoom(d.ganttZoom);
       setShowEmptyProjects(d.showEmptyProjects);
+      setListSort(d.listSort);
     };
     window.addEventListener(PROJECT_LIST_RESET_EVENT, onReset);
     return () => window.removeEventListener(PROJECT_LIST_RESET_EVENT, onReset);
@@ -93,5 +99,7 @@ export function useProjectListFilters(initialViewMode?: ProjectListViewMode) {
     setGanttZoom,
     showEmptyProjects,
     setShowEmptyProjects,
+    listSort,
+    setListSort,
   };
 }
