@@ -24,7 +24,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 ### Microsoft SSO 解決ルール（callback・ログイン）
 
-1. `microsoftOid` 一致かつ `authMethod === 'sso'` → ログイン。メール claim が異なり未使用なら `email` 更新。`pending` なら `active` へ
+1. `microsoftOid` 一致かつ `authMethod === 'sso'` → ログイン。Entra のログイン ID（UPN = トークンの `preferred_username`。無ければ `email` claim）が現在の `User.email` と異なり、他ユーザー未使用なら `email` をその値に更新。`pending` なら `active` へ
 2. 未連携・メール完全一致・`authMethod === 'sso'` → `oid` 保存してログイン
 3. それ以外（未登録・メール不一致・`authMethod === 'password'`・他ユーザーに oid 割当済）→ SSO 拒否（自動プロビジョニングなし）
 

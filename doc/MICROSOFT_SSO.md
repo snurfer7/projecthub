@@ -14,8 +14,9 @@ Web 向け Microsoft Entra ID（Microsoft 365）SSO の設定手順と、ロー�
 | 項目 | 内容 |
 |------|------|
 | 認証方式 | ユーザーごとに `password`（パスワードのみ）または `sso`（Microsoft のみ） |
-| 紐付けキー | Entra の object id（`microsoftOid`）。同一テナント内のドメイン変更でも継続 |
-| メール不一致 | SSO ログインでは拒否。パスワードで入り、設定から明示連携すれば可 |
+| 紐付けキー | Entra の object id（`microsoftOid`）。UPN / ドメイン変更後も継続 |
+| メール同期 | oid 一致の SSO 成功時、`User.email` を Entra のログイン ID（UPN = `preferred_username`）へ自動更新。他ユーザーと衝突時はスキップ。ProjectHub の表示メールを `@nippoh.jp` 等にしたい場合は Entra 側の UPN をそのドメインにする |
+| メール不一致 | 未連携時の SSO はメール一致が必要。不一致はパスワードで入り、設定から明示連携すれば可 |
 | ログインボタン | 環境変数が揃っているときのみ「Microsoft でログイン」を表示 |
 
 ### 推奨ユーザーフロー

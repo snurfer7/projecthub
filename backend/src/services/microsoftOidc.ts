@@ -207,11 +207,12 @@ export async function handleOidcCallback(query: {
     return { ok: false, error: '許可されていないテナントです' };
   }
 
+  // Entra のログイン ID は UPN（preferred_username）。email claim はメール属性で異なることがあるため UPN を優先する。
   const emailClaim =
-    (typeof payload.email === 'string' && payload.email) ||
     (typeof payload.preferred_username === 'string' && payload.preferred_username.includes('@')
       ? payload.preferred_username
-      : null);
+      : null) ||
+    (typeof payload.email === 'string' && payload.email ? payload.email : null);
 
   return {
     ok: true,
