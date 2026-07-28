@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Bookmark, Star, Trash2, ChevronDown, Check, Plus, Save } from 'lucide-react';
+import { Bookmark, Star, Trash2, ChevronDown, Check, Plus, Save, Pencil } from 'lucide-react';
 import api from '../api/client';
 import type { SavedSearch, ProjectListViewMode } from '../types';
 
@@ -28,6 +28,11 @@ export default function SavedSearchDropdown({
   const [saveName, setSaveName] = useState('');
   const [showSaveForm, setShowSaveForm] = useState(false);
   const [saveError, setSaveError] = useState('');
+  /** 名称変更中の保存済み検索 ID */
+  const [renamingId, setRenamingId] = useState<number | null>(null);
+  const [renameName, setRenameName] = useState('');
+  const [renameError, setRenameError] = useState('');
+  const [renaming, setRenaming] = useState(false);
   /** API が 403 を返した場合は input 不可とみなす */
   const [canInputSaved, setCanInputSaved] = useState(true);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -70,6 +75,9 @@ export default function SavedSearchDropdown({
     setShowSaveForm(false);
     setSaveName('');
     setSaveError('');
+    setRenamingId(null);
+    setRenameName('');
+    setRenameError('');
   }
 
   const handleToggleDefault = async (e: React.MouseEvent, search: SavedSearch) => {
@@ -109,6 +117,48 @@ export default function SavedSearchDropdown({
       resetForm();
     } catch (err: any) {
       if (err?.response?.status === 403) setCanInputSaved(false);
+    }
+  };
+
+  const startRename = (e: React.MouseEvent, search: SavedSearch) => {
+    e.stopPropagation();
+    setShowSaveForm(false);
+    setSaveError('');
+    setRenamingId(search.id);
+    setRenameName(search.name);
+    setRenameError('');
+  };
+
+  const handleRename = async (search: SavedSearch) => {
+    const trimmed = renameName.trim();
+    if (!trimmed) {
+      setRenameError('名称を入力してください');
+      return;
+    }
+    if (trimmed === search.name) {
+      setRenamingId(null);
+      setRenameName('');
+      setRenameError('');
+      return;
+    }
+    setRenaming(true);
+    setRenameError('');
+    try {
+      const res = await api.put(`/saved-searches/${search.id}`, { name: trimmed });
+      const updated: SavedSearch = res.data;
+      setSearches((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      setRenamingId(null);
+      setRenameName('');
+      onListChange?.();
+    } catch (err: any) {
+      if (err?.response?.status === 403) {
+        setCanInputSaved(false);
+        setRenameError('名称変更の権限がありません');
+      } else {
+        setRenameError(err.response?.data?.error || '名称の変更に失敗しました');
+      }
+    } finally {
+      setRenaming(false);
     }
   };
 
@@ -176,61 +226,113 @@ export default function SavedSearchDropdown({
             <ul className="py-1 max-h-60 overflow-y-auto">
               {searches.map((s) => (
                 <li key={s.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onLoad(s);
-                      setIsOpen(false);
-                      resetForm();
-                    }}
-                    className="w-full flex items-center gap-1.5 px-3 py-2 text-xs text-left hover:bg-gray-50"
-                  >
-                    {s.isDefault && (
-                      <Star size={11} className="text-amber-400 shrink-0" fill="currentColor" />
-                    )}
-                    <span className="flex-1 truncate">{s.name}</span>
-                    {s.id === activeId && (
-                      <Check size={12} className="text-sky-600 shrink-0" />
-                    )}
-                    {canInputSaved && (
-                      <span className="flex items-center gap-0.5 ml-1">
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          onClick={(e) => handleOverwrite(e, s)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleOverwrite(e as any, s)}
-                          title="現在の条件で上書き"
-                          className="p-0.5 rounded text-gray-300 hover:text-sky-500 transition-colors"
+                  {renamingId === s.id ? (
+                    <div className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="text"
+                        autoFocus
+                        value={renameName}
+                        onChange={(e) => setRenameName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleRename(s);
+                          if (e.key === 'Escape') {
+                            setRenamingId(null);
+                            setRenameName('');
+                            setRenameError('');
+                          }
+                        }}
+                        className="w-full border border-gray-300 rounded px-2 py-1 text-xs mb-1 focus:outline-none focus:ring-1 focus:ring-sky-400"
+                      />
+                      {renameError && <p className="text-red-500 text-xs mb-1">{renameError}</p>}
+                      <div className="flex justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRenamingId(null);
+                            setRenameName('');
+                            setRenameError('');
+                          }}
+                          className="px-2 py-1 text-xs rounded text-gray-500 hover:bg-gray-100"
                         >
-                          <Save size={12} />
-                        </span>
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          onClick={(e) => handleToggleDefault(e, s)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleToggleDefault(e as any, s)}
-                          title={s.isDefault ? 'デフォルト解除' : 'デフォルトに設定'}
-                          className={`p-0.5 rounded transition-colors ${
-                            s.isDefault
-                              ? 'text-amber-400 hover:text-gray-400'
-                              : 'text-gray-300 hover:text-amber-400'
-                          }`}
+                          キャンセル
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRename(s)}
+                          disabled={renaming}
+                          className="px-2 py-1 text-xs rounded bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-50"
                         >
-                          <Star size={12} fill={s.isDefault ? 'currentColor' : 'none'} />
+                          変更
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onLoad(s);
+                        setIsOpen(false);
+                        resetForm();
+                      }}
+                      className="w-full flex items-center gap-1.5 px-3 py-2 text-xs text-left hover:bg-gray-50"
+                    >
+                      {s.isDefault && (
+                        <Star size={11} className="text-amber-400 shrink-0" fill="currentColor" />
+                      )}
+                      <span className="flex-1 truncate">{s.name}</span>
+                      {s.id === activeId && (
+                        <Check size={12} className="text-sky-600 shrink-0" />
+                      )}
+                      {canInputSaved && (
+                        <span className="flex items-center gap-0.5 ml-1">
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            onClick={(e) => startRename(e, s)}
+                            onKeyDown={(e) => e.key === 'Enter' && startRename(e as any, s)}
+                            title="名称を変更"
+                            className="p-0.5 rounded text-gray-300 hover:text-sky-500 transition-colors"
+                          >
+                            <Pencil size={12} />
+                          </span>
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            onClick={(e) => handleOverwrite(e, s)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleOverwrite(e as any, s)}
+                            title="現在の条件で上書き"
+                            className="p-0.5 rounded text-gray-300 hover:text-sky-500 transition-colors"
+                          >
+                            <Save size={12} />
+                          </span>
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            onClick={(e) => handleToggleDefault(e, s)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleToggleDefault(e as any, s)}
+                            title={s.isDefault ? 'デフォルト解除' : 'デフォルトに設定'}
+                            className={`p-0.5 rounded transition-colors ${
+                              s.isDefault
+                                ? 'text-amber-400 hover:text-gray-400'
+                                : 'text-gray-300 hover:text-amber-400'
+                            }`}
+                          >
+                            <Star size={12} fill={s.isDefault ? 'currentColor' : 'none'} />
+                          </span>
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            onClick={(e) => handleDelete(e, s)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleDelete(e as any, s)}
+                            title="削除"
+                            className="p-0.5 rounded text-gray-300 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 size={12} />
+                          </span>
                         </span>
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          onClick={(e) => handleDelete(e, s)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleDelete(e as any, s)}
-                          title="削除"
-                          className="p-0.5 rounded text-gray-300 hover:text-red-500 transition-colors"
-                        >
-                          <Trash2 size={12} />
-                        </span>
-                      </span>
-                    )}
-                  </button>
+                      )}
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -287,7 +389,12 @@ export default function SavedSearchDropdown({
                   )}
                   <button
                     type="button"
-                    onClick={() => setShowSaveForm(true)}
+                    onClick={() => {
+                      setRenamingId(null);
+                      setRenameName('');
+                      setRenameError('');
+                      setShowSaveForm(true);
+                    }}
                     className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 font-medium ${activeSearch ? 'text-gray-500' : 'text-sky-600 hover:bg-sky-50'}`}
                   >
                     <Plus size={13} />

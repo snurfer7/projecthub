@@ -249,7 +249,7 @@ export default function ProjectListFilterPanel({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow mb-4 overflow-hidden">
+    <div className="bg-white rounded-lg shadow mb-4">
       <div className="flex flex-wrap items-center gap-3 p-3 border-b border-gray-100">
         <div className="relative flex-1 min-w-[300px]">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
