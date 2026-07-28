@@ -1924,7 +1924,7 @@ export default function GanttChart({
               })}
             </svg>
 
-            {/* 今日の列を囲む枠（本体側） */}
+            {/* 今日の列を囲む枠（本体側）。ヘッダー(z-30)・左列(z-20)より背面、バーより前面 */}
             {todayOffset !== null && (
               <div
                 className="absolute top-0 bottom-0 pointer-events-none"
@@ -1935,7 +1935,7 @@ export default function GanttChart({
                   borderTop: 'none',
                   borderRadius: '0 0 6px 6px',
                   boxSizing: 'border-box',
-                  zIndex: 35,
+                  zIndex: 16,
                 }}
               />
             )}
