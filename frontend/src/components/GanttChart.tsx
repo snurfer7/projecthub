@@ -595,6 +595,8 @@ export default function GanttChart({
   type HeaderInfo = { label: string; days: number; dates: Date[]; year: number; month: number; isNewYear: boolean; isNewMonth: boolean; yearSpan: number; monthSpan: number };
 
   const chartRef = useRef<HTMLDivElement>(null);
+  const headerScrollRef = useRef<HTMLDivElement>(null);
+  const scrollSyncLock = useRef(false);
   const dayWidth = ZOOM_CONFIG[zoom].dayWidth;
   const leftColWidth = customLeftColWidth !== null ? customLeftColWidth : (showProject ? 360 : 300);
   /** タイムライン領域の横スクロール可視範囲（タイムライン座標） */
@@ -609,6 +611,28 @@ export default function GanttChart({
       prev.left === viewLeft && prev.right === viewRight ? prev : { left: viewLeft, right: viewRight }
     );
   }, [leftColWidth]);
+
+  const syncHeaderFromBody = useCallback(() => {
+    const body = chartRef.current;
+    const header = headerScrollRef.current;
+    if (!body || !header) return;
+    if (scrollSyncLock.current) return;
+    scrollSyncLock.current = true;
+    if (header.scrollLeft !== body.scrollLeft) header.scrollLeft = body.scrollLeft;
+    syncScrollView();
+    scrollSyncLock.current = false;
+  }, [syncScrollView]);
+
+  const syncBodyFromHeader = useCallback(() => {
+    const body = chartRef.current;
+    const header = headerScrollRef.current;
+    if (!body || !header) return;
+    if (scrollSyncLock.current) return;
+    scrollSyncLock.current = true;
+    if (body.scrollLeft !== header.scrollLeft) body.scrollLeft = header.scrollLeft;
+    syncScrollView();
+    scrollSyncLock.current = false;
+  }, [syncScrollView]);
 
   // Extract working hours
   const { workStartMinutes, workEndMinutes, snapMinutes } = useMemo(() => {
@@ -1153,15 +1177,15 @@ export default function GanttChart({
             left: bar.left,
             width: bar.width,
             edgeTip: bar.edgeTip,
-            // バー縦方向の中央（右端・左端の接続点）
-            top: ganttHeaderHeight(zoom) + currentIndex * GANTT_ROW_HEIGHT + GANTT_BAR_CENTER_OFFSET,
+            // バー縦方向の中央（本体コンテナ基準。ヘッダーは別要素）
+            top: currentIndex * GANTT_ROW_HEIGHT + GANTT_BAR_CENTER_OFFSET,
           };
         }
         currentIndex++;
       });
     });
     return pos;
-  }, [groupedIssues, getBarPosition, showProject, zoom]);
+  }, [groupedIssues, getBarPosition, showProject]);
 
   // チケット期間からプロジェクトバーの位置を算出（グレー）
   const getProjectBarFromIssues = useCallback((groupIssues: Issue[]) => {
@@ -1386,17 +1410,20 @@ export default function GanttChart({
   }, [relationDrag, onRelationCreated, issues, onIssueCreated]);
 
   useEffect(() => {
-    const el = chartRef.current;
-    if (!el) return;
-    syncScrollView();
-    el.addEventListener('scroll', syncScrollView, { passive: true });
-    const ro = new ResizeObserver(syncScrollView);
-    ro.observe(el);
+    const body = chartRef.current;
+    const header = headerScrollRef.current;
+    if (!body) return;
+    syncHeaderFromBody();
+    body.addEventListener('scroll', syncHeaderFromBody, { passive: true });
+    header?.addEventListener('scroll', syncBodyFromHeader, { passive: true });
+    const ro = new ResizeObserver(syncHeaderFromBody);
+    ro.observe(body);
     return () => {
-      el.removeEventListener('scroll', syncScrollView);
+      body.removeEventListener('scroll', syncHeaderFromBody);
+      header?.removeEventListener('scroll', syncBodyFromHeader);
       ro.disconnect();
     };
-  }, [syncScrollView, groupedIssues.length, totalDays, dayWidth]);
+  }, [syncHeaderFromBody, syncBodyFromHeader, groupedIssues.length, totalDays, dayWidth]);
 
   const handleBarHover = useCallback((e: React.MouseEvent, issue: Issue) => {
     if (drag) return;
@@ -1483,52 +1510,54 @@ export default function GanttChart({
           プロジェクトがありません
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-auto relative" ref={chartRef} style={{ maxHeight: 'calc(100vh - 200px)' }}>
-          <div className="relative" style={{ minWidth: totalDays * dayWidth + leftColWidth }}>
-            {/* ヘッダー部 */}
-            <div className="sticky top-0 z-30 bg-white border-b">
-              <div className="flex relative">
-                {/* 左端の結合されたセル */}
-                <div
-                  style={{
-                    width: leftColWidth,
-                    height: ganttHeaderHeight(zoom) - GANTT_HEADER_BORDER,
-                  }}
-                  className="flex-shrink-0 bg-gray-50 border-r sticky left-0 z-40 flex flex-col justify-start items-start gap-1 pt-1 px-2"
-                >
-                  {resizer}
-                  <div className="flex items-center gap-1">
-                    {(['day', 'month', 'year'] as ZoomLevel[]).map((z) => (
+        <div className="bg-white rounded-lg shadow relative">
+          {/* ヘッダー部（ページ縦スクロールに追従して上部固定。横は本体と同期） */}
+          <div className="sticky top-0 z-30 bg-white border-b rounded-t-lg">
+            <div className="flex relative">
+              <div
+                style={{
+                  width: leftColWidth,
+                  height: ganttHeaderHeight(zoom) - GANTT_HEADER_BORDER,
+                }}
+                className="flex-shrink-0 bg-gray-50 border-r z-40 flex flex-col justify-start items-start gap-1 pt-1 px-2 relative"
+              >
+                {resizer}
+                <div className="flex items-center gap-1">
+                  {(['day', 'month', 'year'] as ZoomLevel[]).map((z) => (
+                    <button
+                      key={z}
+                      onClick={() => setZoom(z)}
+                      className={`px-3 py-0 text-xs leading-5 rounded border ${zoom === z ? 'bg-sky-500 text-white border-sky-500' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100'}`}
+                    >
+                      {ZOOM_CONFIG[z].label}
+                    </button>
+                  ))}
+                  {showProject && (
+                    <>
                       <button
-                        key={z}
-                        onClick={() => setZoom(z)}
-                        className={`px-3 py-0 text-xs leading-5 rounded border ${zoom === z ? 'bg-sky-500 text-white border-sky-500' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100'}`}
+                        onClick={expandAll}
+                        className="flex items-center gap-0.5 px-3 py-0 text-xs leading-5 rounded border bg-white border-gray-300 hover:bg-gray-100 text-gray-600"
                       >
-                        {ZOOM_CONFIG[z].label}
+                        <UnfoldVertical size={11} />
+                        展開
                       </button>
-                    ))}
-                    {showProject && (
-                      <>
-                        <button
-                          onClick={expandAll}
-                          className="flex items-center gap-0.5 px-3 py-0 text-xs leading-5 rounded border bg-white border-gray-300 hover:bg-gray-100 text-gray-600"
-                        >
-                          <UnfoldVertical size={11} />
-                          展開
-                        </button>
-                        <button
-                          onClick={collapseAll}
-                          className="flex items-center gap-0.5 px-3 py-0 text-xs leading-5 rounded border bg-white border-gray-300 hover:bg-gray-100 text-gray-600"
-                        >
-                          <FoldVertical size={11} />
-                          折りたたむ
-                        </button>
-                      </>
-                    )}
-                  </div>
+                      <button
+                        onClick={collapseAll}
+                        className="flex items-center gap-0.5 px-3 py-0 text-xs leading-5 rounded border bg-white border-gray-300 hover:bg-gray-100 text-gray-600"
+                      >
+                        <FoldVertical size={11} />
+                        折りたたむ
+                      </button>
+                    </>
+                  )}
                 </div>
+              </div>
 
-                <div className="flex-1">
+              <div
+                ref={headerScrollRef}
+                className="flex-1 overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                <div className="relative" style={{ width: totalDays * dayWidth, height: ganttHeaderHeight(zoom) - GANTT_HEADER_BORDER }}>
                   {/* 1段目：年 */}
                   <div className="flex h-[30px] items-center border-b">
                     <div className="flex relative h-full items-center">
@@ -1536,7 +1565,7 @@ export default function GanttChart({
                         if (!m.isNewYear) return null;
                         return (
                           <div key={`year-${i}`} style={{ width: m.yearSpan * dayWidth }} className="relative h-full flex items-center border-l bg-gray-50">
-                            <span style={{ position: 'sticky', left: leftColWidth + 4 }} className="text-sm text-gray-500 font-medium whitespace-nowrap">
+                            <span style={{ position: 'sticky', left: 4 }} className="text-sm text-gray-500 font-medium whitespace-nowrap">
                               {m.year}
                             </span>
                           </div>
@@ -1553,7 +1582,7 @@ export default function GanttChart({
                           if (!m.isNewMonth) return null;
                           return (
                             <div key={`month-${i}`} style={{ width: m.monthSpan * dayWidth }} className="relative h-full flex items-center border-l bg-gray-50">
-                              <span style={{ position: 'sticky', left: leftColWidth + 4 }} className="text-xs text-gray-500 font-medium whitespace-nowrap">
+                              <span style={{ position: 'sticky', left: 4 }} className="text-xs text-gray-500 font-medium whitespace-nowrap">
                                 {m.month}月
                               </span>
                             </div>
@@ -1593,10 +1622,39 @@ export default function GanttChart({
                       </div>
                     </div>
                   )}
+
+                  {/* 今日マーカー（ヘッダー側） */}
+                  {todayOffset !== null && (
+                    <>
+                      <div
+                        className="absolute bottom-0 pointer-events-none"
+                        style={{
+                          left: todayOffset,
+                          width: dayWidth,
+                          top: ganttDateRowTop(zoom),
+                          border: '2px solid #3B82F6',
+                          borderBottom: 'none',
+                          borderRadius: '6px 6px 0 0',
+                          boxSizing: 'border-box',
+                          zIndex: 35,
+                        }}
+                      />
+                      <div
+                        className="absolute z-40 flex items-center justify-center"
+                        style={{ left: todayOffset, top: 0, width: dayWidth, height: 30 }}
+                      >
+                        <span className="text-xs bg-blue-500 text-white px-1 rounded shadow-sm whitespace-nowrap">今日</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
+          </div>
 
+          {/* 本体（横スクロールのみ。縦はページ全体） */}
+          <div className="overflow-x-auto relative" ref={chartRef}>
+            <div className="relative" style={{ minWidth: totalDays * dayWidth + leftColWidth }}>
             {/* チケット行 */}
             {groupedIssues.map((group) => (
               <div key={group.projectId}>
@@ -1866,29 +1924,22 @@ export default function GanttChart({
               })}
             </svg>
 
-            {/* 今日の列を囲む枠（ヘッダーの日付・曜日行を含む） */}
+            {/* 今日の列を囲む枠（本体側） */}
             {todayOffset !== null && (
-              <>
-                <div
-                  className="absolute bottom-0 pointer-events-none"
-                  style={{
-                    left: todayOffset + leftColWidth,
-                    width: dayWidth,
-                    top: ganttDateRowTop(zoom),
-                    border: '2px solid #3B82F6',
-                    borderRadius: 6,
-                    boxSizing: 'border-box',
-                    zIndex: 35,
-                  }}
-                />
-                <div
-                  className="absolute z-40 flex items-center justify-center"
-                  style={{ left: todayOffset + leftColWidth, top: 0, width: dayWidth, height: 30 }}
-                >
-                  <span className="text-xs bg-blue-500 text-white px-1 rounded shadow-sm whitespace-nowrap">今日</span>
-                </div>
-              </>
+              <div
+                className="absolute top-0 bottom-0 pointer-events-none"
+                style={{
+                  left: todayOffset + leftColWidth,
+                  width: dayWidth,
+                  border: '2px solid #3B82F6',
+                  borderTop: 'none',
+                  borderRadius: '0 0 6px 6px',
+                  boxSizing: 'border-box',
+                  zIndex: 35,
+                }}
+              />
             )}
+            </div>
           </div>
         </div>
       )}
