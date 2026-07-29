@@ -5,6 +5,8 @@ import Portal from './Portal';
 export interface ComboboxOption {
     value: string | number;
     label: string;
+    /** ある場合、選択肢を2段表示し、この文字列を上段（グレー・小さめ）に出す */
+    secondaryLabel?: string;
     /** trueの場合、この選択肢の下に区切り線を表示する */
     divider?: boolean;
 }
@@ -50,20 +52,43 @@ export default function Combobox({
         values.some(v => String(v) === String(o.value))
     );
 
-    const filteredOptions = options.filter((o) =>
-        (o.label || '').toLowerCase().includes(search.toLowerCase())
-    );
+    const filteredOptions = options.filter((o) => {
+        const q = search.toLowerCase();
+        if (!q) return true;
+        return (
+            (o.label || '').toLowerCase().includes(q) ||
+            (o.secondaryLabel || '').toLowerCase().includes(q)
+        );
+    });
 
     const updatePosition = () => {
         if (containerRef.current && isOpen) {
             const rect = containerRef.current.getBoundingClientRect();
-            setDropdownStyle({
+            const GAP = 4;
+            // 検索欄 + リスト(max-h-60=240px) のおよその高さ
+            const searchHeight = isSearchable ? 52 : 0;
+            const listMax = 240;
+            const estimatedHeight = searchHeight + listMax;
+            const spaceBelow = window.innerHeight - rect.bottom - GAP;
+            const spaceAbove = rect.top - GAP;
+            const openUp = spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
+            const available = Math.max(openUp ? spaceAbove : spaceBelow, 120);
+            const maxDropdownHeight = Math.min(estimatedHeight, available);
+
+            // position: fixed はビューポート基準のため scrollY/scrollX は加えない
+            const style: React.CSSProperties = {
                 position: 'fixed',
-                top: `${rect.bottom + window.scrollY}px`,
-                left: `${rect.left + window.scrollX}px`,
+                left: `${rect.left}px`,
                 width: `${rect.width}px`,
                 zIndex: 9999,
-            });
+                maxHeight: `${maxDropdownHeight}px`,
+            };
+            if (openUp) {
+                style.bottom = `${window.innerHeight - rect.top + GAP}px`;
+            } else {
+                style.top = `${rect.bottom + GAP}px`;
+            }
+            setDropdownStyle(style);
         }
     };
 
@@ -169,11 +194,17 @@ export default function Combobox({
     };
 
     const displayText = useMemo(() => {
-        if (isMulti) return selectedOptions.map(o => o.label).join(', ');
+        if (isMulti) {
+            return selectedOptions
+                .map((o) => (o.secondaryLabel ? `${o.secondaryLabel} / ${o.label}` : o.label))
+                .join(', ');
+        }
         const selected = selectedOptions[0];
         // If the value is empty, display nothing in the input
         if (!selected || selected.value === '') return '';
-        return selected.label;
+        return selected.secondaryLabel
+            ? `${selected.secondaryLabel} / ${selected.label}`
+            : selected.label;
     }, [isMulti, selectedOptions]);
 
     return (
@@ -240,10 +271,10 @@ export default function Combobox({
                     <div
                         ref={dropdownRef}
                         style={dropdownStyle}
-                        className="bg-white border border-gray-200 rounded-md shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-1 duration-100 z-[9999] flex flex-col"
+                        className="bg-white border border-gray-200 rounded-md shadow-lg overflow-hidden animate-in fade-in duration-100 z-[9999] flex flex-col"
                     >
                         {isSearchable && (
-                            <div className="p-2 border-b bg-gray-50 flex items-center gap-2">
+                            <div className="p-2 border-b bg-gray-50 flex items-center gap-2 flex-shrink-0">
                                 <div className="relative flex-1">
                                     <input
                                         type="text"
@@ -268,7 +299,7 @@ export default function Combobox({
                                 </div>
                             </div>
                         )}
-                        <ul className="max-h-60 overflow-y-auto py-1">
+                        <ul className="min-h-0 flex-1 overflow-y-auto py-1">
                             {filteredOptions.length > 0 ? (
                                 filteredOptions.map((option) => {
                                     const isSelected = values.some(v => String(v) === String(option.value));
@@ -277,7 +308,7 @@ export default function Combobox({
                                             key={option.value}
                                             onMouseDown={(e) => e.preventDefault()}
                                             onClick={() => handleSelect(option)}
-                                            className={`px-3 py-2 text-sm cursor-pointer transition-colors flex items-center justify-between ${
+                                            className={`group px-3 py-2 text-sm cursor-pointer transition-colors flex items-center justify-between gap-2 ${
                                                 option.divider ? 'border-b border-gray-200' : ''
                                             } ${
                                                 isSelected
@@ -285,8 +316,19 @@ export default function Combobox({
                                                 : 'text-gray-700 hover:bg-sky-50'
                                             }`}
                                         >
-                                            {option.label}
-                                            {isSelected && <Check className="w-4 h-4" />}
+                                            <div className="min-w-0 flex-1">
+                                                {option.secondaryLabel && (
+                                                    <div className={`text-xs truncate group-hover:whitespace-normal group-hover:overflow-visible group-hover:text-clip ${
+                                                        isSelected ? 'text-sky-600/70 font-normal' : 'text-gray-500 font-normal'
+                                                    }`}>
+                                                        {option.secondaryLabel}
+                                                    </div>
+                                                )}
+                                                <div className="truncate group-hover:whitespace-normal group-hover:overflow-visible group-hover:text-clip">
+                                                    {option.label}
+                                                </div>
+                                            </div>
+                                            {isSelected && <Check className="w-4 h-4 flex-shrink-0 self-start mt-0.5" />}
                                         </li>
                                     );
                                 })

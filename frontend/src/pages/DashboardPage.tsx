@@ -4,6 +4,7 @@ import { RefreshCw } from 'lucide-react';
 import api from '../api/client';
 import { Project, Company } from '../types';
 import { formatCompanyName, generateIdentifier } from '../utils/format';
+import { getProjectSelectLabelParts } from '../utils/projectTree';
 import Combobox from '../components/Combobox';
 import TextInput from '../components/TextInput';
 
@@ -108,7 +109,14 @@ export default function DashboardPage() {
                   label="親プロジェクト"
                   options={[
                     { value: '', label: 'なし' },
-                    ...projects.map((p) => ({ value: String(p.id), label: p.name }))
+                    ...projects.map((p) => {
+                      const { primary, secondary } = getProjectSelectLabelParts(p, projects);
+                      return {
+                        value: String(p.id),
+                        label: primary,
+                        secondaryLabel: secondary || undefined,
+                      };
+                    }),
                   ]}
                   value={parentId}
                   onChange={setParentId}

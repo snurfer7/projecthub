@@ -22,6 +22,7 @@ import { isLeafIssue } from '../utils/issueTree';
 import {
   buildProjectTreeDisplayRows,
   filterProjectsKeepingAncestorsOfTicketed,
+  getProjectSelectLabelParts,
   PROJECT_LIST_SORT_OPTIONS,
   createSortEntry,
   isOptionalSortKey,
@@ -764,7 +765,16 @@ export default function ProjectListPage() {
                 label="親プロジェクト"
                 options={[
                   { value: '', label: 'なし' },
-                  ...projects.map((p) => ({ value: String(p.id), label: p.name })),
+                  ...projects
+                    .filter((p) => p.id !== editingProjectId)
+                    .map((p) => {
+                      const { primary, secondary } = getProjectSelectLabelParts(p, projects);
+                      return {
+                        value: String(p.id),
+                        label: primary,
+                        secondaryLabel: secondary || undefined,
+                      };
+                    }),
                 ]}
                 value={projectParentId}
                 onChange={(val) => {

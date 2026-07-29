@@ -255,3 +255,40 @@ export function filterProjectsKeepingAncestorsOfTicketed(
   projects.forEach((p) => markKeep(p.id));
   return projects.filter((p) => keep.has(p.id));
 }
+
+/**
+ * 親プロジェクト選択など Combobox 用の表示名パーツ。
+ * - secondary: 企業名 + 祖先プロジェクト（上段・グレー小）
+ * - primary: 当該プロジェクト名（下段）
+ * 企業名は当該プロジェクト優先、未設定なら祖先を辿る。
+ */
+export function getProjectSelectLabelParts(
+  project: Project,
+  allProjects: Project[] | Map<number, Project>,
+): { primary: string; secondary: string } {
+  const byId =
+    allProjects instanceof Map
+      ? allProjects
+      : new Map(allProjects.map((p) => [p.id, p]));
+
+  const chain: Project[] = [];
+  const seen = new Set<number>();
+  let current: Project | undefined = project;
+  while (current) {
+    if (seen.has(current.id)) break;
+    seen.add(current.id);
+    chain.unshift(current);
+    const parentId = current.parentId;
+    current = parentId != null ? byId.get(parentId) : undefined;
+  }
+
+  const primary = project.name;
+  const ancestors = chain.slice(0, -1);
+  const companyName = [...chain].reverse().find((p) => p.company?.name)?.company?.name;
+  const secondaryParts: string[] = [];
+  if (companyName) secondaryParts.push(companyName);
+  for (const ancestor of ancestors) {
+    secondaryParts.push(ancestor.name);
+  }
+  return { primary, secondary: secondaryParts.join(' / ') };
+}

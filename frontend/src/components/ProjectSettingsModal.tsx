@@ -3,6 +3,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import api from '../api/client';
 import { Project, Company, ProjectRelatedCompany } from '../types';
 import { formatContactDisplayName } from '../utils/format';
+import { getProjectSelectLabelParts } from '../utils/projectTree';
 import Modal from './Modal';
 import Combobox from './Combobox';
 import TextInput from './TextInput';
@@ -53,7 +54,7 @@ export default function ProjectSettingsModal({ projectId, isOpen, onClose, onUpd
             setRemarks(p.remarks || '');
             setRelatedCompanies(p.relatedCompanies || []);
             setCompanies(companiesRes.data);
-            setAllProjects(projectsRes.data.filter((pr: Project) => pr.id !== projectId));
+            setAllProjects(projectsRes.data);
             setLoading(false);
         });
     }, [projectId, isOpen]);
@@ -163,8 +164,16 @@ export default function ProjectSettingsModal({ projectId, isOpen, onClose, onUpd
 
                         <Combobox
                             label="親プロジェクト"
-                            options={allProjects.map((p) => ({ value: String(p.id), label: p.name }))}
-
+                            options={allProjects
+                                .filter((p) => p.id !== projectId)
+                                .map((p) => {
+                                    const { primary, secondary } = getProjectSelectLabelParts(p, allProjects);
+                                    return {
+                                        value: String(p.id),
+                                        label: primary,
+                                        secondaryLabel: secondary || undefined,
+                                    };
+                                })}
                             value={parentId}
                             onChange={setParentId}
                         />
