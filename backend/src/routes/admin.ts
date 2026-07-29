@@ -131,6 +131,48 @@ router.delete('/users/:id', requirePermission('admin.users', 'input'), async (re
   }
 });
 
+router.post('/users/:id/resend-registration-email', requirePermission('admin.users', 'input'), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = Number(req.params.id);
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, firstName: true, lastName: true, status: true },
+    });
+    if (!targetUser) {
+      res.status(404).json({ error: 'ユーザーが見つかりません' });
+      return;
+    }
+    if (targetUser.status !== 'pending') {
+      res.status(400).json({ error: '仮登録ユーザーのみ再送できます' });
+      return;
+    }
+
+    const temporaryPassword = generateTemporaryPassword();
+    try {
+      await sendTemporaryPasswordEmail(
+        targetUser.email,
+        targetUser.firstName,
+        targetUser.lastName,
+        temporaryPassword,
+      );
+    } catch (emailErr) {
+      console.error('Failed to resend temporary password email:', emailErr);
+      res.status(502).json({ error: '登録メールの送信に失敗しました' });
+      return;
+    }
+
+    const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+
+    res.json({ message: '登録メールを再送しました' });
+  } catch (e) {
+    res.status(500).json({ error: '登録メールの再送に失敗しました' });
+  }
+});
+
 // Trackers
 router.get('/trackers', requirePermission('admin.trackers', 'use'), async (_req: AuthRequest, res: Response) => {
   try {

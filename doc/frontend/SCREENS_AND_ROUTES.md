@@ -82,7 +82,9 @@
 - ユーザー新規登録モーダルに `password` の入力 UI は表示しない（仮パスワードはサーバー側で生成）。
 - ユーザー新規作成時は常に `pending`（仮）として作成する。
 - 新規作成時に生成された仮パスワードは登録メールアドレスに通知する（案内メールにログイン URL・メールアドレス・仮パスワードを記載）。
+- 仮登録ユーザーに対し、確認ダイアログ後に登録メールを再送できる（仮パスワードも更新される）。表示条件は `status === 'pending'` かつ `canInput('admin.users')`。
 - 一覧のアクション表示条件:
+  - 登録メール再送アイコン: `status === 'pending'` かつ `canInput('admin.users')` のときのみ表示（確認後 `POST /admin/users/:id/resend-registration-email`）
   - 削除アイコン: `status === 'pending'` のときのみ表示
   - 無効化アイコン: `status === 'active'` のときのみ表示（確認後 `inactive` へ更新）
   - 有効化アイコン: `status === 'inactive'` のときのみ表示（確認後 `active` へ更新）

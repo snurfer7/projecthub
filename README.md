@@ -18,20 +18,40 @@ docker-compose down && docker-compose build && docker-compose up -d
 
 旧 CRM のデータ移行（`npm run migrate:legacy-crm`）は **ローカル DB 上でのみ**実行し、本番では実行しない想定です。本番への反映は DB・S3 を手動で持ち込みます（手順は [backend/migration/legacy-crm/README.md](backend/migration/legacy-crm/README.md) を参照）。
 
-### メールの送信内容の確認方法 (ローカルデバッグ)
+### メール送信のローカルテスト方法
 
-ローカル開発環境（LocalStack）で送信されたメールの内容は、ブラウザで以下のエンドポイントを開くか `curl` コマンドで確認できます。
+ローカルでは **LocalStack の SES モック** に送信します。実際の受信箱には届きません。送信内容は LocalStack の履歴 API で確認します。
+
+#### 前提
+
+- `docker-compose up -d` で LocalStack が起動していること（起動時に `noreply@projecthub.local` が自動検証される）
+- 管理画面の **メール設定** で送信方式が **SES**（既定）であること
+- Compose 内の backend は `AWS_SES_ENDPOINT_URL=http://localstack:4566`（ホストから backend を直接動かす場合は `http://localhost:4566`）
+- 送信元は環境変数 `EMAIL_FROM`（既定: `noreply@projecthub.local`）または管理画面の送信元上書き
+
+#### 送信手順
+
+1. フロントエンド（http://localhost:5173）にログインする（`admin.users` / `admin.email-settings` の input 権限が必要）
+2. どちらかでメールを送る
+   - **管理 → メール設定** → 宛先を入力して「テストメール送信」
+   - **管理 → ユーザー** → ユーザー新規作成、または仮登録ユーザーの「登録メール再送」（仮パスワードが更新される）
+3. UI で成功メッセージが出ること、または backend ログに `Email sent via SES to ...` が出ることを確認する
+
+#### 送信内容の確認
+
+ブラウザで http://localhost:4566/_aws/ses を開くか、次のコマンドで履歴（宛先・件名・本文）を取得します。
 
 ```bash
 curl -s http://localhost:4566/_aws/ses
 ```
 
-> **Note**: JSONテキスト内の日本語が `\u30a2` のように文字化け（Unicodeエスケープ）して読みにくい場合は、以下のコマンドを使用すると綺麗な日本語としてデコードされます。
-> ```bash
-> curl -s http://localhost:4566/_aws/ses | python3 -c "import sys, json; print(json.dumps(json.load(sys.stdin), indent=2, ensure_ascii=False))"
-> ```
+日本語が `\u30a2` のように Unicode エスケープされている場合は、次でデコードできます。
 
-※JSON形式で送信したメールの履歴（宛先、件名、本文）が返却されます。ブラウザのJSONフォーマッター用拡張機能などを使うとブラウザ上でも日本語で確認できます。
+```bash
+curl -s http://localhost:4566/_aws/ses | python3 -c "import sys, json; print(json.dumps(json.load(sys.stdin), indent=2, ensure_ascii=False))"
+```
+
+登録メールの件名は `[ProjectHub] アカウント作成のお知らせ` です。再送後は本文の仮パスワードが変わり、旧仮パスワードではログインできなくなります。
 
 ## 本番環境へのリリース方法
 

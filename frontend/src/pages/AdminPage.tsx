@@ -99,11 +99,12 @@ export default function AdminPage({ user }: Props) {
   // 削除用ステート
   const [confirmDelete, setConfirmDelete] = useState<{ type: string; id: number; name: string } | null>(null);
   const [confirmUserStatus, setConfirmUserStatus] = useState<{ id: number; name: string; nextStatus: 'active' | 'inactive' } | null>(null);
+  const [confirmResendEmail, setConfirmResendEmail] = useState<{ id: number; name: string } | null>(null);
 
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [userStatusFilters, setUserStatusFilters] = useState<UserAccountStatus[]>(DEFAULT_USER_STATUS_FILTERS);
 
-  const { canUse } = usePermissions(user.permissions);
+  const { canUse, canInput } = usePermissions(user.permissions);
 
   const filteredUsers = useMemo(() => {
     const q = userSearchQuery.trim().toLowerCase();
@@ -348,6 +349,16 @@ export default function AdminPage({ user }: Props) {
       loadAll();
     } catch (err: any) {
       alert(err.response?.data?.error || 'ユーザーステータスの更新に失敗しました');
+    }
+  };
+
+  const handleResendRegistrationEmail = async (id: number) => {
+    setConfirmResendEmail(null);
+    try {
+      await api.post(`/admin/users/${id}/resend-registration-email`);
+      alert('登録メールを再送しました');
+    } catch (err: any) {
+      alert(err.response?.data?.error || '登録メールの再送に失敗しました');
     }
   };
 
@@ -716,6 +727,15 @@ export default function AdminPage({ user }: Props) {
                             className="p-1.5 text-green-600 hover:bg-green-50 rounded"
                           >
                             <UserCheck className="w-4 h-4" />
+                          </button>
+                        )}
+                        {u.status === 'pending' && canInput('admin.users') && (
+                          <button
+                            onClick={() => setConfirmResendEmail({ id: u.id, name: `${u.lastName} ${u.firstName}` })}
+                            title="登録メール再送"
+                            className="p-1.5 text-sky-600 hover:bg-sky-50 rounded"
+                          >
+                            <Mail className="w-4 h-4" />
                           </button>
                         )}
                         {u.status === 'pending' && (
@@ -1493,6 +1513,22 @@ export default function AdminPage({ user }: Props) {
           handleUpdateUserStatus(confirmUserStatus.id, confirmUserStatus.nextStatus);
         }}
         onCancel={() => setConfirmUserStatus(null)}
+        variant="info"
+      />
+
+      <ConfirmationModal
+        isOpen={!!confirmResendEmail}
+        title="登録メールの再送"
+        message={
+          confirmResendEmail
+            ? `${confirmResendEmail.name} に仮パスワードを更新して登録メールを再送します。よろしいですか？`
+            : ''
+        }
+        onConfirm={() => {
+          if (!confirmResendEmail) return;
+          handleResendRegistrationEmail(confirmResendEmail.id);
+        }}
+        onCancel={() => setConfirmResendEmail(null)}
         variant="info"
       />
     </div>
