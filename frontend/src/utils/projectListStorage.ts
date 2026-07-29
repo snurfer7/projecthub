@@ -12,6 +12,12 @@ import {
   type ProjectListSortDirection,
   type ProjectListSortKey,
 } from './projectTree';
+import {
+  isDateRangeRelativePreset,
+  isDateRangeSpecifyMode,
+  type DateRangeRelativePreset,
+  type DateRangeSpecifyMode,
+} from './dateRangeSpecify';
 
 export const PROJECT_LIST_STORAGE_KEY = 'projecthub.projectList.v1';
 
@@ -94,6 +100,14 @@ function isGanttZoom(v: unknown): v is 'day' | 'month' | 'year' {
   return v === 'day' || v === 'month' || v === 'year';
 }
 
+function parseDateRangeMode(v: unknown): DateRangeSpecifyMode {
+  return isDateRangeSpecifyMode(v) ? v : 'direct';
+}
+
+function parseDateRangeRelative(v: unknown): DateRangeRelativePreset | '' {
+  return isDateRangeRelativePreset(v) ? v : '';
+}
+
 function parseProjectFilter(o: unknown): ProjectFilterCriteria | null {
   if (!o || typeof o !== 'object') return null;
   const f = o as Record<string, unknown>;
@@ -106,6 +120,8 @@ function parseProjectFilter(o: unknown): ProjectFilterCriteria | null {
     searchQuery: f.searchQuery,
     dueDateStart: f.dueDateStart,
     dueDateEnd: f.dueDateEnd,
+    dueDateMode: parseDateRangeMode(f.dueDateMode),
+    dueDateRelative: parseDateRangeRelative(f.dueDateRelative),
     companyIds: f.companyIds,
     statuses,
   };
@@ -140,6 +156,8 @@ function parseIssueFilter(o: unknown): IssueFilterCriteria | null {
   const assignedToGroupMemberIds = Array.isArray(f.assignedToGroupMemberIds)
     ? (f.assignedToGroupMemberIds as (number | string)[])
     : [];
+  const scheduleDateStart = typeof f.scheduleDateStart === 'string' ? f.scheduleDateStart : '';
+  const scheduleDateEnd = typeof f.scheduleDateEnd === 'string' ? f.scheduleDateEnd : '';
   return {
     trackerIds,
     statusIds,
@@ -148,6 +166,12 @@ function parseIssueFilter(o: unknown): IssueFilterCriteria | null {
     assignedToGroupMemberIds,
     dueDateStart: f.dueDateStart,
     dueDateEnd: f.dueDateEnd,
+    dueDateMode: parseDateRangeMode(f.dueDateMode),
+    dueDateRelative: parseDateRangeRelative(f.dueDateRelative),
+    scheduleDateStart,
+    scheduleDateEnd,
+    scheduleDateMode: parseDateRangeMode(f.scheduleDateMode),
+    scheduleDateRelative: parseDateRangeRelative(f.scheduleDateRelative),
   };
 }
 

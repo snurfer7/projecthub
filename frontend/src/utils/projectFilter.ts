@@ -1,4 +1,9 @@
 import { Project } from '../types';
+import {
+  effectiveDateRange,
+  type DateRangeRelativePreset,
+  type DateRangeSpecifyMode,
+} from './dateRangeSpecify';
 
 /**
  * 企業フィルタで「自社」（企業が未設定のプロジェクト）を表す特別な選択肢の値。
@@ -9,6 +14,8 @@ export type ProjectFilterCriteria = {
   searchQuery: string;
   dueDateStart: string;
   dueDateEnd: string;
+  dueDateMode: DateRangeSpecifyMode;
+  dueDateRelative: DateRangeRelativePreset | '';
   companyIds: (number | string)[];
   statuses: string[];
 };
@@ -18,8 +25,10 @@ export function defaultProjectFilterCriteria(): ProjectFilterCriteria {
     searchQuery: '',
     dueDateStart: '',
     dueDateEnd: '',
+    dueDateMode: 'direct',
+    dueDateRelative: '',
     companyIds: [],
-    statuses: ['active'],
+    statuses: [],
   };
 }
 
@@ -71,12 +80,13 @@ export function matchesProjectFilter(project: Project, criteria: ProjectFilterCr
     return false;
   }
 
-  const { dueDateStart, dueDateEnd } = criteria;
-  if (dueDateStart || dueDateEnd) {
+  const { dueDateStart, dueDateEnd, dueDateMode, dueDateRelative } = criteria;
+  const dueRange = effectiveDateRange(dueDateMode, dueDateRelative, dueDateStart, dueDateEnd);
+  if (dueRange.start || dueRange.end) {
     if (!project.dueDate) return false;
     const due = project.dueDate.slice(0, 10);
-    if (dueDateStart && due < dueDateStart) return false;
-    if (dueDateEnd && due > dueDateEnd) return false;
+    if (dueRange.start && due < dueRange.start) return false;
+    if (dueRange.end && due > dueRange.end) return false;
   }
 
   return true;

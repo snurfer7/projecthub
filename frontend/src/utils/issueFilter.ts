@@ -1,4 +1,9 @@
 import { Issue } from '../types';
+import {
+  effectiveDateRange,
+  type DateRangeRelativePreset,
+  type DateRangeSpecifyMode,
+} from './dateRangeSpecify';
 
 export type IssueFilterCriteria = {
   trackerIds: (number | string)[];
@@ -9,6 +14,14 @@ export type IssueFilterCriteria = {
   assignedToGroupMemberIds: (number | string)[];
   dueDateStart: string;
   dueDateEnd: string;
+  dueDateMode: DateRangeSpecifyMode;
+  dueDateRelative: DateRangeRelativePreset | '';
+  /** チケット開始日〜終了日との重なり判定用（フィルタ期間の開始） */
+  scheduleDateStart: string;
+  /** チケット開始日〜終了日との重なり判定用（フィルタ期間の終了） */
+  scheduleDateEnd: string;
+  scheduleDateMode: DateRangeSpecifyMode;
+  scheduleDateRelative: DateRangeRelativePreset | '';
 };
 
 export function defaultIssueFilterCriteria(): IssueFilterCriteria {
@@ -20,6 +33,12 @@ export function defaultIssueFilterCriteria(): IssueFilterCriteria {
     assignedToGroupMemberIds: [],
     dueDateStart: '',
     dueDateEnd: '',
+    dueDateMode: 'direct',
+    dueDateRelative: '',
+    scheduleDateStart: '',
+    scheduleDateEnd: '',
+    scheduleDateMode: 'direct',
+    scheduleDateRelative: '',
   };
 }
 
@@ -29,6 +48,37 @@ function matchesIdList(value: number | undefined | null, ids: (number | string)[
   return ids.some((id) => String(id) === String(value));
 }
 
+function toDateOnly(value: string | null | undefined): string | null {
+  if (!value) return null;
+  return value.slice(0, 10);
+}
+
+/**
+ * チケットの開始日〜終了日と、指定期間が一部でも重なるか。
+ * - フィルタ片側のみ: 他端は無限として扱う
+ * - チケット片側のみ: その日を点（開始＝終了）として扱う
+ * - チケット両方未設定: 重ならない
+ */
+export function overlapsScheduleRange(
+  issueStart: string | null | undefined,
+  issueEnd: string | null | undefined,
+  rangeStart: string,
+  rangeEnd: string,
+): boolean {
+  if (!rangeStart && !rangeEnd) return true;
+
+  const start = toDateOnly(issueStart);
+  const end = toDateOnly(issueEnd);
+  if (!start && !end) return false;
+
+  const issueFrom = start ?? end!;
+  const issueTo = end ?? start!;
+
+  if (rangeEnd && issueFrom > rangeEnd) return false;
+  if (rangeStart && issueTo < rangeStart) return false;
+  return true;
+}
+
 export function matchesIssueFilter(issue: Issue, criteria: IssueFilterCriteria): boolean {
   if (!matchesIdList(issue.trackerId, criteria.trackerIds)) return false;
   if (!matchesIdList(issue.statusId, criteria.statusIds)) return false;
@@ -36,17 +86,14 @@ export function matchesIssueFilter(issue: Issue, criteria: IssueFilterCriteria):
   const hasGroupFilter = criteria.assignedToGroupIds.length > 0;
   const hasGroupMemberFilter = criteria.assignedToGroupMemberIds.length > 0;
   if (hasUserFilter || hasGroupFilter || hasGroupMemberFilter) {
-    // 直接指定ユーザーに一致
     const userMatch =
       hasUserFilter &&
       issue.assignedToId != null &&
       criteria.assignedToIds.some((id) => String(id) === String(issue.assignedToId));
-    // 選択グループのメンバーに担当ユーザーが含まれる
     const groupMemberMatch =
       hasGroupMemberFilter &&
       issue.assignedToId != null &&
       criteria.assignedToGroupMemberIds.some((id) => String(id) === String(issue.assignedToId));
-    // チケットが選択グループに直接割り当てられている
     const groupMatch =
       hasGroupFilter &&
       issue.assignedToGroupId != null &&
@@ -54,12 +101,27 @@ export function matchesIssueFilter(issue: Issue, criteria: IssueFilterCriteria):
     if (!userMatch && !groupMemberMatch && !groupMatch) return false;
   }
 
-  const { dueDateStart, dueDateEnd } = criteria;
-  if (dueDateStart || dueDateEnd) {
+  const dueRange = effectiveDateRange(
+    criteria.dueDateMode,
+    criteria.dueDateRelative,
+    criteria.dueDateStart,
+    criteria.dueDateEnd,
+  );
+  if (dueRange.start || dueRange.end) {
     if (!issue.dueDate) return false;
     const due = issue.dueDate.slice(0, 10);
-    if (dueDateStart && due < dueDateStart) return false;
-    if (dueDateEnd && due > dueDateEnd) return false;
+    if (dueRange.start && due < dueRange.start) return false;
+    if (dueRange.end && due > dueRange.end) return false;
+  }
+
+  const scheduleRange = effectiveDateRange(
+    criteria.scheduleDateMode,
+    criteria.scheduleDateRelative,
+    criteria.scheduleDateStart,
+    criteria.scheduleDateEnd,
+  );
+  if (!overlapsScheduleRange(issue.startDate, issue.endDate, scheduleRange.start, scheduleRange.end)) {
+    return false;
   }
 
   return true;

@@ -31,14 +31,16 @@ import {
   type ProjectListSortDirection,
   type ProjectListSortKey,
 } from '../utils/projectTree';
-import {
-  timeViewAssignedToIds,
-  timeViewRecordDateRange,
-  timeViewRecordUserIds,
-  timeViewTicketDueDateRange,
-} from '../utils/projectListTimeDefaults';
 import type { ProjectListViewMode } from '../utils/projectListStorage';
 import { generateIdentifier } from '../utils/format';
+import {
+  effectiveDateRange,
+  isDateRangeRelativePreset,
+  resolveRelativeDateRange,
+  type DateRangeRelativePreset,
+  type DateRangeSpecifyMode,
+} from '../utils/dateRangeSpecify';
+import type { DateRangeSpecifyValue } from '../components/DateRangeSpecify';
 
 export default function ProjectListPage() {
   const navigate = useNavigate();
@@ -95,36 +97,135 @@ export default function ProjectListPage() {
 
   const [timeIssues, setTimeIssues] = useState<Issue[]>([]);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
-  const [timeRecordStartDate, setTimeRecordStartDate] = useState('');
-  const [timeRecordEndDate, setTimeRecordEndDate] = useState('');
+  const [timeRecordDate, setTimeRecordDate] = useState<DateRangeSpecifyValue>({
+    mode: 'direct',
+    relative: '',
+    start: '',
+    end: '',
+  });
   const [timeRecordFilterUserIds, setTimeRecordFilterUserIds] = useState<(number | string)[]>([]);
   const prevViewModeRef = useRef<ProjectListViewMode | null>(null);
   const timeDefaultsUserIdRef = useRef<number | null>(null);
 
   const applyTimeViewDefaults = useCallback(() => {
     if (!user) return;
-    const { startDate, endDate } = timeViewRecordDateRange();
-    const { dueDateStart, dueDateEnd } = timeViewTicketDueDateRange();
     updateIssueFilter({
-      assignedToIds: timeViewAssignedToIds(user.id),
-      dueDateStart,
-      dueDateEnd,
+      assignedToIds: [],
+      assignedToGroupIds: [],
+      assignedToGroupMemberIds: [],
+      dueDateStart: '',
+      dueDateEnd: '',
+      dueDateMode: 'direct',
+      dueDateRelative: '',
+      scheduleDateStart: '',
+      scheduleDateEnd: '',
+      scheduleDateMode: 'direct',
+      scheduleDateRelative: '',
     });
-    setTimeRecordStartDate(startDate);
-    setTimeRecordEndDate(endDate);
-    setTimeRecordFilterUserIds(timeViewRecordUserIds(user.id));
+    setTimeRecordDate({ mode: 'direct', relative: '', start: '', end: '' });
+    setTimeRecordFilterUserIds([]);
     timeDefaultsUserIdRef.current = user.id;
   }, [user, updateIssueFilter]);
 
-  /** 保存済み検索条件を画面状態に反映する（日付項目は保持） */
+  /** 保存済み検索条件を画面状態に反映する（相対指定の日付は再計算。時間タブでは期限を使わず開始・終了期間を使う） */
   const applyFilter = useCallback(
     (search: SavedSearch) => {
       const f = search.filter;
-      if (f.projectFilter) setProjectFilter((prev) => ({ ...prev, ...f.projectFilter }));
-      if (f.issueFilter) setIssueFilter((prev) => ({ ...prev, ...f.issueFilter }));
+      if (f.projectFilter) {
+        const savedProject = f.projectFilter;
+        setProjectFilter((prev) => {
+          const next = { ...prev, ...savedProject };
+          if (next.dueDateMode === 'relative' && isDateRangeRelativePreset(next.dueDateRelative)) {
+            const range = resolveRelativeDateRange(next.dueDateRelative);
+            next.dueDateStart = range.start;
+            next.dueDateEnd = range.end;
+          } else if (savedProject.dueDateMode === 'direct' || savedProject.dueDateStart !== undefined) {
+            next.dueDateMode = 'direct';
+            next.dueDateRelative = '';
+            next.dueDateStart = savedProject.dueDateStart ?? '';
+            next.dueDateEnd = savedProject.dueDateEnd ?? '';
+          }
+          return next;
+        });
+      }
+      if (f.issueFilter) {
+        const savedIssue = f.issueFilter;
+        setIssueFilter((prev) => {
+          const next = { ...prev, ...savedIssue };
+          if (viewMode === 'time') {
+            next.dueDateStart = '';
+            next.dueDateEnd = '';
+            next.dueDateMode = 'direct';
+            next.dueDateRelative = '';
+          } else {
+            next.scheduleDateStart = '';
+            next.scheduleDateEnd = '';
+            next.scheduleDateMode = 'direct';
+            next.scheduleDateRelative = '';
+          }
+          if (viewMode !== 'time') {
+            if (next.dueDateMode === 'relative' && isDateRangeRelativePreset(next.dueDateRelative)) {
+              const range = resolveRelativeDateRange(next.dueDateRelative);
+              next.dueDateStart = range.start;
+              next.dueDateEnd = range.end;
+            } else if (savedIssue.dueDateMode === 'direct' || savedIssue.dueDateStart !== undefined) {
+              next.dueDateMode = 'direct';
+              next.dueDateRelative = '';
+              next.dueDateStart = savedIssue.dueDateStart ?? '';
+              next.dueDateEnd = savedIssue.dueDateEnd ?? '';
+            }
+          }
+          if (viewMode === 'time') {
+            if (next.scheduleDateMode === 'relative' && isDateRangeRelativePreset(next.scheduleDateRelative)) {
+              const range = resolveRelativeDateRange(next.scheduleDateRelative);
+              next.scheduleDateStart = range.start;
+              next.scheduleDateEnd = range.end;
+            } else if (
+              savedIssue.scheduleDateMode === 'direct' ||
+              savedIssue.scheduleDateStart !== undefined
+            ) {
+              next.scheduleDateMode = 'direct';
+              next.scheduleDateRelative = '';
+              next.scheduleDateStart = savedIssue.scheduleDateStart ?? '';
+              next.scheduleDateEnd = savedIssue.scheduleDateEnd ?? '';
+            }
+          }
+          return next;
+        });
+      }
       if (f.ganttZoom) setGanttZoom(f.ganttZoom);
       if (f.showEmptyProjects !== undefined) setShowEmptyProjects(f.showEmptyProjects);
       if (f.timeRecordFilterUserIds !== undefined) setTimeRecordFilterUserIds(f.timeRecordFilterUserIds);
+      if (
+        f.timeRecordStartDate !== undefined ||
+        f.timeRecordEndDate !== undefined ||
+        f.timeRecordDateMode !== undefined ||
+        f.timeRecordDateRelative !== undefined
+      ) {
+        setTimeRecordDate((prev) => {
+          const mode: DateRangeSpecifyMode =
+            f.timeRecordDateMode === 'relative' || f.timeRecordDateMode === 'direct'
+              ? f.timeRecordDateMode
+              : prev.mode;
+          const relative: DateRangeRelativePreset | '' = isDateRangeRelativePreset(
+            f.timeRecordDateRelative,
+          )
+            ? f.timeRecordDateRelative
+            : f.timeRecordDateRelative === ''
+              ? ''
+              : prev.relative;
+          if (mode === 'relative' && isDateRangeRelativePreset(relative)) {
+            const range = resolveRelativeDateRange(relative);
+            return { mode, relative, start: range.start, end: range.end };
+          }
+          return {
+            mode: 'direct',
+            relative: '',
+            start: f.timeRecordStartDate ?? '',
+            end: f.timeRecordEndDate ?? '',
+          };
+        });
+      }
       if (Array.isArray(f.listSort)) {
         const validKeys = new Set(PROJECT_LIST_SORT_OPTIONS.map((o) => o.key));
         const parsed: ProjectListSort[] = [];
@@ -149,7 +250,7 @@ export default function ProjectListPage() {
       }
       setActiveSavedSearchId(search.id);
     },
-    [setProjectFilter, setIssueFilter, setGanttZoom, setShowEmptyProjects, setListSort],
+    [setProjectFilter, setIssueFilter, setGanttZoom, setShowEmptyProjects, setListSort, viewMode],
   );
 
   /** 保存済み検索のデフォルトを自動適用（表示モード切替時）。古い応答は破棄する */
@@ -173,7 +274,7 @@ export default function ProjectListPage() {
   // ビュー切替時: 条件リセット → デフォルト保存済み検索を適用
   // ※ 時間タブ初期値エフェクトより先に定義することで、React のエフェクト実行順（定義順）に従い
   //   このリセットが先に走り、その後に時間タブ初期値が上書きされる形になる
-  // ※ 時間タブの期限・担当者初期値がガント等に残らないよう、切替時は必ず issueFilter をリセットする
+  // ※ 時間タブの担当者初期値がガント等に残らないよう、切替時は必ず issueFilter をリセットする
   const prevViewModeForSavedRef = useRef<ProjectListViewMode | null>(null);
   useEffect(() => {
     if (prevViewModeForSavedRef.current === viewMode) return;
@@ -209,19 +310,23 @@ export default function ProjectListPage() {
     setGanttEndValue('');
     setActiveSavedSearchId(null);
     if (viewMode === 'time' && user) {
-      const { startDate, endDate } = timeViewRecordDateRange();
-      const { dueDateStart, dueDateEnd } = timeViewTicketDueDateRange();
       updateIssueFilter({
-        assignedToIds: timeViewAssignedToIds(user.id),
-        dueDateStart,
-        dueDateEnd,
+        assignedToIds: [],
+        assignedToGroupIds: [],
+        assignedToGroupMemberIds: [],
+        dueDateStart: '',
+        dueDateEnd: '',
+        dueDateMode: 'direct',
+        dueDateRelative: '',
+        scheduleDateStart: '',
+        scheduleDateEnd: '',
+        scheduleDateMode: 'direct',
+        scheduleDateRelative: '',
       });
-      setTimeRecordStartDate(startDate);
-      setTimeRecordEndDate(endDate);
-      setTimeRecordFilterUserIds(timeViewRecordUserIds(user.id));
+      setTimeRecordDate({ mode: 'direct', relative: '', start: '', end: '' });
+      setTimeRecordFilterUserIds([]);
     } else {
-      setTimeRecordStartDate('');
-      setTimeRecordEndDate('');
+      setTimeRecordDate({ mode: 'direct', relative: '', start: '', end: '' });
       setTimeRecordFilterUserIds([]);
     }
   }, [resetProjectFilter, resetIssueFilter, viewMode, user, updateIssueFilter]);
@@ -272,9 +377,15 @@ export default function ProjectListPage() {
       issueParams.assignedToIds = issueFilter.assignedToIds.join(',');
     }
 
+    const recordRange = effectiveDateRange(
+      timeRecordDate.mode,
+      timeRecordDate.relative,
+      timeRecordDate.start,
+      timeRecordDate.end,
+    );
     const entryParams: Record<string, string | number> = {};
-    if (timeRecordStartDate) entryParams.startDate = timeRecordStartDate;
-    if (timeRecordEndDate) entryParams.endDate = timeRecordEndDate;
+    if (recordRange.start) entryParams.startDate = recordRange.start;
+    if (recordRange.end) entryParams.endDate = recordRange.end;
     if (timeRecordFilterUserIds.length > 0) {
       entryParams.userIds = timeRecordFilterUserIds.join(',');
     }
@@ -290,8 +401,7 @@ export default function ProjectListPage() {
     issueFilter.trackerIds,
     issueFilter.statusIds,
     issueFilter.assignedToIds,
-    timeRecordStartDate,
-    timeRecordEndDate,
+    timeRecordDate,
     timeRecordFilterUserIds,
   ]);
 
@@ -450,10 +560,14 @@ export default function ProjectListPage() {
     [kanbanProjectIssues, issueFilter],
   );
 
-  const timeFilteredIssues = useMemo(
-    () => filterIssues(filterIssuesByProjectIds(timeIssues, projectIds), issueFilter),
-    [timeIssues, projectIds, issueFilter],
-  );
+  const timeFilteredIssues = useMemo(() => {
+    const criteria = {
+      ...issueFilter,
+      dueDateStart: '',
+      dueDateEnd: '',
+    };
+    return filterIssues(filterIssuesByProjectIds(timeIssues, projectIds), criteria);
+  }, [timeIssues, projectIds, issueFilter]);
 
   const ganttDisplayIssueCount = filteredGanttIssues.length;
 
@@ -526,10 +640,8 @@ export default function ProjectListPage() {
         onGanttEndValueChange={(v) => { setGanttEndValue(v); setActiveSavedSearchId(null); }}
         showEmptyProjects={showEmptyProjects}
         onShowEmptyProjectsChange={(v) => { setShowEmptyProjects(v); setActiveSavedSearchId(null); }}
-        timeRecordStartDate={timeRecordStartDate}
-        onTimeRecordStartDateChange={(v) => { setTimeRecordStartDate(v); setActiveSavedSearchId(null); }}
-        timeRecordEndDate={timeRecordEndDate}
-        onTimeRecordEndDateChange={(v) => { setTimeRecordEndDate(v); setActiveSavedSearchId(null); }}
+        timeRecordDate={timeRecordDate}
+        onTimeRecordDateChange={(v) => { setTimeRecordDate(v); setActiveSavedSearchId(null); }}
         timeRecordFilterUserIds={timeRecordFilterUserIds}
         onTimeRecordFilterUserIdsChange={(v) => { setTimeRecordFilterUserIds(v); setActiveSavedSearchId(null); }}
         onResetAll={resetAllFilters}

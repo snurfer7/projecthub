@@ -9,6 +9,8 @@ export interface ComboboxOption {
     secondaryLabel?: string;
     /** trueの場合、この選択肢の下に区切り線を表示する */
     divider?: boolean;
+    /** trueの場合、選択不可のグループ見出しとして表示する */
+    isGroupLabel?: boolean;
 }
 
 interface ComboboxProps {
@@ -49,17 +51,33 @@ export default function Combobox({
     const values = isMulti ? (Array.isArray(value) ? value : [value].filter(v => v !== '')) : [value];
     
     const selectedOptions = options.filter((o) =>
-        values.some(v => String(v) === String(o.value))
+        !o.isGroupLabel && values.some(v => String(v) === String(o.value))
     );
 
-    const filteredOptions = options.filter((o) => {
-        const q = search.toLowerCase();
-        if (!q) return true;
-        return (
-            (o.label || '').toLowerCase().includes(q) ||
-            (o.secondaryLabel || '').toLowerCase().includes(q)
-        );
-    });
+    const filteredOptions = useMemo(() => {
+        const q = search.toLowerCase().trim();
+        if (!q) return options;
+
+        const result: ComboboxOption[] = [];
+        let pendingGroup: ComboboxOption | null = null;
+        for (const o of options) {
+            if (o.isGroupLabel) {
+                pendingGroup = o;
+                continue;
+            }
+            const match =
+                (o.label || '').toLowerCase().includes(q) ||
+                (o.secondaryLabel || '').toLowerCase().includes(q);
+            if (match) {
+                if (pendingGroup) {
+                    result.push(pendingGroup);
+                    pendingGroup = null;
+                }
+                result.push(o);
+            }
+        }
+        return result;
+    }, [options, search]);
 
     const updatePosition = () => {
         if (containerRef.current && isOpen) {
@@ -120,6 +138,7 @@ export default function Combobox({
     }, []);
 
     const handleSelect = (option: ComboboxOption) => {
+        if (option.isGroupLabel) return;
         if (isMulti) {
             const isSelected = values.some(v => String(v) === String(option.value));
             if (isSelected) {
@@ -302,6 +321,16 @@ export default function Combobox({
                         <ul className="min-h-0 flex-1 overflow-y-auto py-1">
                             {filteredOptions.length > 0 ? (
                                 filteredOptions.map((option) => {
+                                    if (option.isGroupLabel) {
+                                        return (
+                                            <li
+                                                key={option.value}
+                                                className="px-3 pt-2.5 pb-1 text-xs font-semibold text-slate-500 select-none"
+                                            >
+                                                {option.label}
+                                            </li>
+                                        );
+                                    }
                                     const isSelected = values.some(v => String(v) === String(option.value));
                                     return (
                                         <li

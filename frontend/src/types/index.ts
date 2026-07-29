@@ -1,3 +1,7 @@
+import type { DateRangeRelativePreset, DateRangeSpecifyMode } from '../utils/dateRangeSpecify';
+
+export type { DateRangeRelativePreset, DateRangeSpecifyMode };
+
 export interface PermissionEntry {
   canUse: boolean;
   canInput: boolean;
@@ -478,6 +482,10 @@ export interface SavedSearchFilter {
     searchQuery: string;
     companyIds: (number | string)[];
     statuses: string[];
+    dueDateStart?: string;
+    dueDateEnd?: string;
+    dueDateMode?: DateRangeSpecifyMode;
+    dueDateRelative?: DateRangeRelativePreset | '';
   };
   issueFilter?: {
     trackerIds: (number | string)[];
@@ -485,10 +493,23 @@ export interface SavedSearchFilter {
     assignedToIds: (number | string)[];
     assignedToGroupIds: (number | string)[];
     assignedToGroupMemberIds: (number | string)[];
+    dueDateStart?: string;
+    dueDateEnd?: string;
+    dueDateMode?: DateRangeSpecifyMode;
+    dueDateRelative?: DateRangeRelativePreset | '';
+    /** チケット開始日〜終了日との期間重なり（時間タブ） */
+    scheduleDateStart?: string;
+    scheduleDateEnd?: string;
+    scheduleDateMode?: DateRangeSpecifyMode;
+    scheduleDateRelative?: DateRangeRelativePreset | '';
   };
   ganttZoom?: 'day' | 'month' | 'year';
   /** ガント: チケットなしのプロジェクトを表示するか（省略時 true） */
   showEmptyProjects?: boolean;
+  timeRecordStartDate?: string;
+  timeRecordEndDate?: string;
+  timeRecordDateMode?: DateRangeSpecifyMode;
+  timeRecordDateRelative?: DateRangeRelativePreset | '';
   timeRecordFilterUserIds?: (number | string)[];
   /** 一覧: 複合並び替え（ルートのみ。省略時は既存の並びを維持） */
   listSort?: {

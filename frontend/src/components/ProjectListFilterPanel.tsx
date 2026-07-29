@@ -8,10 +8,11 @@ import type { ProjectListViewMode } from '../utils/projectListStorage';
 import type { ProjectListSort } from '../utils/projectTree';
 import Combobox from './Combobox';
 import TextInput from './TextInput';
-import DateInput from './DateInput';
 import CustomDatePicker from './CustomDatePicker';
 import SavedSearchDropdown from './SavedSearchDropdown';
+import DateRangeSpecify, { type DateRangeSpecifyValue } from './DateRangeSpecify';
 import { formatDateToYYYYMMDD } from '../utils/format';
+import { toSavedDateRangeFields } from '../utils/dateRangeSpecify';
 
 interface ProjectListFilterPanelProps {
   viewMode: ProjectListViewMode;
@@ -27,10 +28,8 @@ interface ProjectListFilterPanelProps {
   onGanttEndValueChange: (value: string) => void;
   showEmptyProjects: boolean;
   onShowEmptyProjectsChange: (value: boolean) => void;
-  timeRecordStartDate: string;
-  onTimeRecordStartDateChange: (value: string) => void;
-  timeRecordEndDate: string;
-  onTimeRecordEndDateChange: (value: string) => void;
+  timeRecordDate: DateRangeSpecifyValue;
+  onTimeRecordDateChange: (value: DateRangeSpecifyValue) => void;
   timeRecordFilterUserIds: (number | string)[];
   onTimeRecordFilterUserIdsChange: (values: (number | string)[]) => void;
   onResetAll: () => void;
@@ -94,10 +93,8 @@ export default function ProjectListFilterPanel({
   onGanttEndValueChange,
   showEmptyProjects,
   onShowEmptyProjectsChange,
-  timeRecordStartDate,
-  onTimeRecordStartDateChange,
-  timeRecordEndDate,
-  onTimeRecordEndDateChange,
+  timeRecordDate,
+  onTimeRecordDateChange,
   timeRecordFilterUserIds,
   onTimeRecordFilterUserIdsChange,
   onResetAll,
@@ -126,6 +123,8 @@ export default function ProjectListFilterPanel({
   }, [viewMode]);
 
   const showTicketFilters = viewMode !== 'list';
+  const showTicketDueDateFilter = showTicketFilters && viewMode !== 'time';
+  const showTicketScheduleFilter = viewMode === 'time';
   const showGanttRange = viewMode === 'gantt';
   const showTimeRecordFilters = viewMode === 'time';
 
@@ -149,18 +148,26 @@ export default function ProjectListFilterPanel({
     projectFilter.searchQuery.trim() !== '' ||
     projectFilter.dueDateStart !== '' ||
     projectFilter.dueDateEnd !== '' ||
+    projectFilter.dueDateMode === 'relative' ||
     projectFilter.companyIds.length > 0 ||
     projectFilter.statuses.length > 0 ||
     issueFilter.trackerIds.length > 0 ||
     issueFilter.statusIds.length > 0 ||
     issueFilter.assignedToIds.length > 0 ||
     issueFilter.assignedToGroupIds.length > 0 ||
-    issueFilter.dueDateStart !== '' ||
-    issueFilter.dueDateEnd !== '' ||
+    (showTicketDueDateFilter &&
+      (issueFilter.dueDateMode === 'relative' ||
+        issueFilter.dueDateStart !== '' ||
+        issueFilter.dueDateEnd !== '')) ||
+    (showTicketScheduleFilter &&
+      (issueFilter.scheduleDateMode === 'relative' ||
+        issueFilter.scheduleDateStart !== '' ||
+        issueFilter.scheduleDateEnd !== '')) ||
     ganttStartValue !== '' ||
     ganttEndValue !== '' ||
-    timeRecordStartDate !== '' ||
-    timeRecordEndDate !== '' ||
+    timeRecordDate.start !== '' ||
+    timeRecordDate.end !== '' ||
+    timeRecordDate.mode === 'relative' ||
     timeRecordFilterUserIds.length > 0;
 
   const ganttRangePickers = ganttZoom === 'year' ? (
@@ -229,11 +236,47 @@ export default function ProjectListFilterPanel({
     </>
   );
 
+  const projectDueSaved = toSavedDateRangeFields(
+    projectFilter.dueDateMode,
+    projectFilter.dueDateRelative,
+    projectFilter.dueDateStart,
+    projectFilter.dueDateEnd,
+  );
+  const issueDueSaved = showTicketDueDateFilter
+    ? toSavedDateRangeFields(
+        issueFilter.dueDateMode,
+        issueFilter.dueDateRelative,
+        issueFilter.dueDateStart,
+        issueFilter.dueDateEnd,
+      )
+    : null;
+  const scheduleSaved = showTicketScheduleFilter
+    ? toSavedDateRangeFields(
+        issueFilter.scheduleDateMode,
+        issueFilter.scheduleDateRelative,
+        issueFilter.scheduleDateStart,
+        issueFilter.scheduleDateEnd,
+      )
+    : null;
+  const timeRecordSaved = showTimeRecordFilters
+    ? toSavedDateRangeFields(
+        timeRecordDate.mode,
+        timeRecordDate.relative,
+        timeRecordDate.start,
+        timeRecordDate.end,
+      )
+    : null;
+
   const currentFilter: SavedSearch['filter'] = {
     projectFilter: {
       searchQuery: projectFilter.searchQuery,
       companyIds: projectFilter.companyIds,
       statuses: projectFilter.statuses,
+      dueDateMode: projectDueSaved.mode,
+      dueDateRelative: projectDueSaved.relative,
+      ...(projectDueSaved.start !== undefined
+        ? { dueDateStart: projectDueSaved.start, dueDateEnd: projectDueSaved.end ?? '' }
+        : {}),
     },
     issueFilter: {
       trackerIds: issueFilter.trackerIds,
@@ -241,9 +284,42 @@ export default function ProjectListFilterPanel({
       assignedToIds: issueFilter.assignedToIds,
       assignedToGroupIds: issueFilter.assignedToGroupIds,
       assignedToGroupMemberIds: issueFilter.assignedToGroupMemberIds,
+      ...(issueDueSaved
+        ? {
+            dueDateMode: issueDueSaved.mode,
+            dueDateRelative: issueDueSaved.relative,
+            ...(issueDueSaved.start !== undefined
+              ? { dueDateStart: issueDueSaved.start, dueDateEnd: issueDueSaved.end ?? '' }
+              : {}),
+          }
+        : {}),
+      ...(scheduleSaved
+        ? {
+            scheduleDateMode: scheduleSaved.mode,
+            scheduleDateRelative: scheduleSaved.relative,
+            ...(scheduleSaved.start !== undefined
+              ? {
+                  scheduleDateStart: scheduleSaved.start,
+                  scheduleDateEnd: scheduleSaved.end ?? '',
+                }
+              : {}),
+          }
+        : {}),
     },
     ganttZoom,
     showEmptyProjects,
+    ...(timeRecordSaved
+      ? {
+          timeRecordDateMode: timeRecordSaved.mode,
+          timeRecordDateRelative: timeRecordSaved.relative,
+          ...(timeRecordSaved.start !== undefined
+            ? {
+                timeRecordStartDate: timeRecordSaved.start,
+                timeRecordEndDate: timeRecordSaved.end ?? '',
+              }
+            : {}),
+        }
+      : {}),
     timeRecordFilterUserIds,
     listSort,
   };
@@ -289,26 +365,23 @@ export default function ProjectListFilterPanel({
 
       <div className="p-3 space-y-3">
         <FilterRow label="プロジェクト">
-          <div className="flex items-center gap-1">
-            <span className="text-xs text-gray-400 shrink-0">期限日</span>
-            <DateInput
-              value={projectFilter.dueDateStart}
-              onChange={(value) => onProjectFilterChange({ dueDateStart: value })}
-              size="small"
-              showFloatingLabel={false}
-              placeholder="開始"
-              className="w-[10.5rem]"
-            />
-            <span className="text-gray-400 text-xs">〜</span>
-            <DateInput
-              value={projectFilter.dueDateEnd}
-              onChange={(value) => onProjectFilterChange({ dueDateEnd: value })}
-              size="small"
-              showFloatingLabel={false}
-              placeholder="終了"
-              className="w-[10.5rem]"
-            />
-          </div>
+          <DateRangeSpecify
+            label="期限日"
+            value={{
+              mode: projectFilter.dueDateMode,
+              relative: projectFilter.dueDateRelative,
+              start: projectFilter.dueDateStart,
+              end: projectFilter.dueDateEnd,
+            }}
+            onChange={(next) =>
+              onProjectFilterChange({
+                dueDateMode: next.mode,
+                dueDateRelative: next.relative,
+                dueDateStart: next.start,
+                dueDateEnd: next.end,
+              })
+            }
+          />
           <Combobox
             label="ステータス"
             options={[
@@ -340,26 +413,44 @@ export default function ProjectListFilterPanel({
 
         {showTicketFilters && (
           <FilterRow label="チケット">
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-gray-400 shrink-0">期限</span>
-              <DateInput
-                value={issueFilter.dueDateStart}
-                onChange={(value) => onIssueFilterChange({ dueDateStart: value })}
-                size="small"
-                showFloatingLabel={false}
-                placeholder="開始"
-                className="w-[10.5rem]"
+            {showTicketDueDateFilter && (
+              <DateRangeSpecify
+                label="期限"
+                value={{
+                  mode: issueFilter.dueDateMode,
+                  relative: issueFilter.dueDateRelative,
+                  start: issueFilter.dueDateStart,
+                  end: issueFilter.dueDateEnd,
+                }}
+                onChange={(next) =>
+                  onIssueFilterChange({
+                    dueDateMode: next.mode,
+                    dueDateRelative: next.relative,
+                    dueDateStart: next.start,
+                    dueDateEnd: next.end,
+                  })
+                }
               />
-              <span className="text-gray-400 text-xs">〜</span>
-              <DateInput
-                value={issueFilter.dueDateEnd}
-                onChange={(value) => onIssueFilterChange({ dueDateEnd: value })}
-                size="small"
-                showFloatingLabel={false}
-                placeholder="終了"
-                className="w-[10.5rem]"
+            )}
+            {showTicketScheduleFilter && (
+              <DateRangeSpecify
+                label="開始・終了"
+                value={{
+                  mode: issueFilter.scheduleDateMode,
+                  relative: issueFilter.scheduleDateRelative,
+                  start: issueFilter.scheduleDateStart,
+                  end: issueFilter.scheduleDateEnd,
+                }}
+                onChange={(next) =>
+                  onIssueFilterChange({
+                    scheduleDateMode: next.mode,
+                    scheduleDateRelative: next.relative,
+                    scheduleDateStart: next.start,
+                    scheduleDateEnd: next.end,
+                  })
+                }
               />
-            </div>
+            )}
             <Combobox
               label="トラッカー"
               value={issueFilter.trackerIds}
@@ -431,26 +522,11 @@ export default function ProjectListFilterPanel({
 
         {showTimeRecordFilters && (
           <FilterRow label="時間記録">
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-gray-400 shrink-0">記録期間</span>
-              <DateInput
-                value={timeRecordStartDate}
-                onChange={onTimeRecordStartDateChange}
-                size="small"
-                showFloatingLabel={false}
-                placeholder="開始"
-                className="w-[10.5rem]"
-              />
-              <span className="text-gray-400 text-xs">〜</span>
-              <DateInput
-                value={timeRecordEndDate}
-                onChange={onTimeRecordEndDateChange}
-                size="small"
-                showFloatingLabel={false}
-                placeholder="終了"
-                className="w-[10.5rem]"
-              />
-            </div>
+            <DateRangeSpecify
+              label="記録期間"
+              value={timeRecordDate}
+              onChange={onTimeRecordDateChange}
+            />
             <Combobox
               label="記録者"
               value={timeRecordFilterUserIds}
