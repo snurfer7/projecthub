@@ -11,6 +11,8 @@ export interface ComboboxOption {
     divider?: boolean;
     /** trueの場合、選択不可のグループ見出しとして表示する */
     isGroupLabel?: boolean;
+    /** trueの場合、選択可能なグループ見出しとして表示する（直下の通常選択肢はインデント） */
+    isGroupHeader?: boolean;
 }
 
 interface ComboboxProps {
@@ -50,9 +52,19 @@ export default function Combobox({
 
     const values = isMulti ? (Array.isArray(value) ? value : [value].filter(v => v !== '')) : [value];
     
-    const selectedOptions = options.filter((o) =>
-        !o.isGroupLabel && values.some(v => String(v) === String(o.value))
-    );
+    const selectedOptions = useMemo(() => {
+        const seen = new Set<string>();
+        const result: ComboboxOption[] = [];
+        for (const o of options) {
+            if (o.isGroupLabel) continue;
+            const key = String(o.value);
+            if (!values.some(v => String(v) === key)) continue;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            result.push(o);
+        }
+        return result;
+    }, [options, values]);
 
     const filteredOptions = useMemo(() => {
         const q = search.toLowerCase().trim();
@@ -60,9 +72,24 @@ export default function Combobox({
 
         const result: ComboboxOption[] = [];
         let pendingGroup: ComboboxOption | null = null;
-        for (const o of options) {
-            if (o.isGroupLabel) {
+        let i = 0;
+        while (i < options.length) {
+            const o = options[i];
+            if (o.isGroupLabel || o.isGroupHeader) {
+                const headerMatch = (o.label || '').toLowerCase().includes(q);
+                if (o.isGroupHeader && headerMatch) {
+                    // グループ名が一致したら見出し＋直後のメンバーをまとめて出す
+                    result.push(o);
+                    i += 1;
+                    while (i < options.length && !options[i].isGroupLabel && !options[i].isGroupHeader) {
+                        result.push(options[i]);
+                        i += 1;
+                    }
+                    pendingGroup = null;
+                    continue;
+                }
                 pendingGroup = o;
+                i += 1;
                 continue;
             }
             const match =
@@ -75,6 +102,7 @@ export default function Combobox({
                 }
                 result.push(o);
             }
+            i += 1;
         }
         return result;
     }, [options, search]);
@@ -320,11 +348,11 @@ export default function Combobox({
                         )}
                         <ul className="min-h-0 flex-1 overflow-y-auto py-1">
                             {filteredOptions.length > 0 ? (
-                                filteredOptions.map((option) => {
+                                filteredOptions.map((option, index) => {
                                     if (option.isGroupLabel) {
                                         return (
                                             <li
-                                                key={option.value}
+                                                key={`label-${option.value}-${index}`}
                                                 className="px-3 pt-2.5 pb-1 text-xs font-semibold text-slate-500 select-none"
                                             >
                                                 {option.label}
@@ -332,17 +360,37 @@ export default function Combobox({
                                         );
                                     }
                                     const isSelected = values.some(v => String(v) === String(option.value));
+                                    let indented = false;
+                                    if (!option.isGroupHeader) {
+                                        for (let j = index - 1; j >= 0; j--) {
+                                            const prev = filteredOptions[j];
+                                            if (prev.isGroupHeader || prev.isGroupLabel) {
+                                                indented = true;
+                                                break;
+                                            }
+                                        }
+                                    }
                                     return (
                                         <li
-                                            key={option.value}
+                                            key={`${String(option.value)}-${index}`}
                                             onMouseDown={(e) => e.preventDefault()}
                                             onClick={() => handleSelect(option)}
                                             className={`group px-3 py-2 text-sm cursor-pointer transition-colors flex items-center justify-between gap-2 ${
                                                 option.divider ? 'border-b border-gray-200' : ''
                                             } ${
+                                                option.isGroupHeader
+                                                    ? 'pt-2.5 pb-1 text-xs font-semibold'
+                                                    : indented
+                                                      ? 'pl-6'
+                                                      : ''
+                                            } ${
                                                 isSelected
-                                                ? 'bg-sky-50 text-sky-700 font-medium'
-                                                : 'text-gray-700 hover:bg-sky-50'
+                                                ? option.isGroupHeader
+                                                    ? 'bg-sky-50 text-sky-700'
+                                                    : 'bg-sky-50 text-sky-700 font-medium'
+                                                : option.isGroupHeader
+                                                  ? 'text-slate-600 hover:bg-sky-50'
+                                                  : 'text-gray-700 hover:bg-sky-50'
                                             }`}
                                         >
                                             <div className="min-w-0 flex-1">

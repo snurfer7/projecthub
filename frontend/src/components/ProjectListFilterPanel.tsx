@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Search, X, ArrowUpDown } from 'lucide-react';
 import api from '../api/client';
 import { Company, IssueStatus, Tracker, SavedSearch } from '../types';
@@ -6,7 +6,7 @@ import { SELF_COMPANY_FILTER_VALUE, type ProjectFilterCriteria } from '../utils/
 import type { IssueFilterCriteria } from '../utils/issueFilter';
 import type { ProjectListViewMode } from '../utils/projectListStorage';
 import type { ProjectListSort } from '../utils/projectTree';
-import Combobox from './Combobox';
+import Combobox, { type ComboboxOption } from './Combobox';
 import TextInput from './TextInput';
 import CustomDatePicker from './CustomDatePicker';
 import SavedSearchDropdown from './SavedSearchDropdown';
@@ -121,6 +121,55 @@ export default function ProjectListFilterPanel({
       setGroups(res.data.groups ?? []);
     });
   }, [viewMode]);
+
+  const assigneeOptions = useMemo((): ComboboxOption[] => {
+    const userById = new Map(users.map((u) => [u.id, u]));
+    const options: ComboboxOption[] = [];
+    const usersInAnyGroup = new Set<number>();
+
+    const sortedGroups = [...groups].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+    for (const g of sortedGroups) {
+      options.push({
+        value: `g:${g.id}`,
+        label: g.name,
+        isGroupHeader: true,
+      });
+      const members = [...g.members]
+        .map((m) => userById.get(m.userId))
+        .filter((u): u is { id: number; firstName: string; lastName: string } => !!u)
+        .sort((a, b) =>
+          `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'ja'),
+        );
+      for (const u of members) {
+        usersInAnyGroup.add(u.id);
+        options.push({
+          value: u.id.toString(),
+          label: `${u.lastName} ${u.firstName}`,
+        });
+      }
+    }
+
+    const ungrouped = users
+      .filter((u) => !usersInAnyGroup.has(u.id))
+      .sort((a, b) =>
+        `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'ja'),
+      );
+    if (ungrouped.length > 0) {
+      options.push({
+        value: '__ungrouped__',
+        label: '未所属',
+        isGroupLabel: true,
+      });
+      for (const u of ungrouped) {
+        options.push({
+          value: u.id.toString(),
+          label: `${u.lastName} ${u.firstName}`,
+        });
+      }
+    }
+
+    return options;
+  }, [users, groups]);
 
   const showTicketFilters = viewMode !== 'list';
   const showTicketDueDateFilter = showTicketFilters && viewMode !== 'time';
@@ -477,13 +526,10 @@ export default function ProjectListFilterPanel({
                 ...issueFilter.assignedToIds.map((id) => String(id)),
                 ...issueFilter.assignedToGroupIds.map((id) => `g:${id}`),
               ]}
-              options={[
-                ...users.map((u) => ({ value: u.id.toString(), label: `${u.lastName} ${u.firstName}` })),
-                ...groups.map((g) => ({ value: `g:${g.id}`, label: `[グループ] ${g.name}` })),
-              ]}
+              options={assigneeOptions}
               onChange={(values: (string | number)[]) => {
                 const groupIds = values.filter((v) => String(v).startsWith('g:')).map((v) => String(v).slice(2));
-                const userIds = values.filter((v) => !String(v).startsWith('g:'));
+                const userIds = values.filter((v) => !String(v).startsWith('g:') && String(v) !== '__ungrouped__');
                 const memberIds: string[] = Array.from(
                   new Set(
                     groupIds.flatMap((gid: string) => {
