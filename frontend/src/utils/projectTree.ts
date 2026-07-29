@@ -266,7 +266,7 @@ export function getProjectSelectLabelParts(
   project: Project,
   allProjects: Project[] | Map<number, Project>,
 ): { primary: string; secondary: string } {
-  const byId =
+  const byId: Map<number, Project> =
     allProjects instanceof Map
       ? allProjects
       : new Map(allProjects.map((p) => [p.id, p]));
@@ -278,8 +278,7 @@ export function getProjectSelectLabelParts(
     if (seen.has(current.id)) break;
     seen.add(current.id);
     chain.unshift(current);
-    const parentId = current.parentId;
-    current = parentId != null ? byId.get(parentId) : undefined;
+    current = current.parentId != null ? byId.get(current.parentId) : undefined;
   }
 
   const primary = project.name;
