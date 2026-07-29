@@ -71,7 +71,7 @@ PostgreSQL + Prisma で永続化し、JWT で認証する。
 - `JWT_SECRET`: JWT 署名用シークレット
 - `UPLOAD_DIR`: アップロードファイル保存先（省略時は `../../uploads`）
 - S3 利用時: `AWS_*`, `S3_BUCKET_NAME` 等（`backend/src/services/s3.ts` 参照）
-- Microsoft SSO: `MICROSOFT_TENANT_ID`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_REDIRECT_URI`, `FRONTEND_URL`
+- Microsoft SSO: `MICROSOFT_TENANT_ID`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_REDIRECT_URI`, `FRONTEND_URL`（`FRONTEND_URL` はユーザー作成時の案内メールに記載するログイン URL の基点にも使用。未設定時は `http://localhost:5173`）
 
 ## ヘルスチェック
 

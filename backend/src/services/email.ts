@@ -91,13 +91,18 @@ export async function sendMailMessage(payload: MailPayload): Promise<void> {
   console.log(`Email sent via SES to ${payload.to}. MessageId: ${response.MessageId}`);
 }
 
+function resolveFrontendBaseUrl(): string {
+  return (process.env.FRONTEND_URL || "http://localhost:5173").trim().replace(/\/$/, "");
+}
+
 export async function sendTemporaryPasswordEmail(
   toEmail: string,
   firstName: string,
   lastName: string,
   temporaryPassword: string
 ) {
-  const text = `${lastName} ${firstName} 様\n\nProjectHubのアカウントが作成されました。\nログイン情報は以下の通りです。\n\nメールアドレス: ${toEmail}\n仮パスワード: ${temporaryPassword}\n\n初回ログイン後は、パスワード変更が必須です。\n\n※このメールは送信専用です。\n`;
+  const loginUrl = resolveFrontendBaseUrl();
+  const text = `${lastName} ${firstName} 様\n\nProjectHubのアカウントが作成されました。\nログイン情報は以下の通りです。\n\nログインURL: ${loginUrl}\nメールアドレス: ${toEmail}\n仮パスワード: ${temporaryPassword}\n\n初回ログイン後は、パスワード変更が必須です。\n\n※このメールは送信専用です。\n`;
   await sendMailMessage({
     to: toEmail,
     subject: "[ProjectHub] アカウント作成のお知らせ",

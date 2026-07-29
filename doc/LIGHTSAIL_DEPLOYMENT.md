@@ -372,7 +372,7 @@ pm2 startup
 
 ## 9. Amazon SES（メール送信）の設定
 
-バックエンドは `@aws-sdk/client-ses` でメールを送信します（例: ユーザー作成時の仮パスワード通知）。
+バックエンドは `@aws-sdk/client-ses` でメールを送信します（例: ユーザー作成時の仮パスワード通知。本文のログイン URL は `FRONTEND_URL`）。
 
 ### 9.1 アプリ側の挙動
 
@@ -380,6 +380,7 @@ pm2 startup
 |---|---|
 | `AWS_REGION` | SES クライアントのリージョン。検証した SES リージョンと一致させる |
 | `EMAIL_FROM` | 送信元アドレス（未設定時: `noreply@projecthub.local`）。**SES で検証済みのアドレスまたはドメイン** |
+| `FRONTEND_URL` | 案内メールに記載するログイン URL の基点（末尾スラッシュなし）。未設定時は `http://localhost:5173` |
 | `AWS_SES_ENDPOINT_URL` | 本番 AWS SES では **未設定**（LocalStack 等の開発用のみ指定） |
 
 ### 9.2 SES で送信元を検証する

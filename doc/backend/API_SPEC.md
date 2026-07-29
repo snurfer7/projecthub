@@ -137,7 +137,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | メソッド | パス | 概要 | 権限 |
 |----------|------|------|------|
 | GET | `/users` | ユーザー一覧（担当者選択等） | 認証 |
-| POST | `/users` | ユーザー作成（作成時の `status` は常に `pending`。仮パスワードはサーバーで乱数生成し、登録メールアドレスへ通知。リクエストの `status` 指定は無視） | 管理者 |
+| POST | `/users` | ユーザー作成（作成時の `status` は常に `pending`。仮パスワードはサーバーで乱数生成し、登録メールアドレスへ案内メールを送信。本文にログイン URL（`FRONTEND_URL`）、メールアドレス、仮パスワードを記載。リクエストの `status` 指定は無視） | 管理者 |
 | PUT | `/users/:id` | ユーザー更新（`status` を含む） | 管理者 |
 | DELETE | `/users/:id` | ユーザー削除（`status === 'pending'` のユーザーのみ許可） | 管理者 |
 | GET/POST/PUT/DELETE, POST reorder | `/trackers` | トラッカー | 管理者 |
