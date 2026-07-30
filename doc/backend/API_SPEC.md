@@ -69,10 +69,10 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | メソッド | パス | 概要 |
 |----------|------|------|
 | GET | `/` | チケット一覧（所属プロジェクトのみ）。Query: `projectId`, `statusId` / `statusIds`（複数）, `trackerId` / `trackerIds`（複数）, `priorityId`, `assignedToId` / `assignedToIds`（複数担当者）, `assignedToGroupId`。複数 ID はカンマ区切りまたは配列。応答に `parentId` / `parent` / `_count.children` を含み、子を持つチケットの `startDate` / `endDate` / `statusId`（`status`）は子孫から集約した値（ステータスは position 最小）。`project` は `{ id, name, company: { id, name } \| null }` を含む（カンバン等クロスプロジェクト表示での企業名表示用） |
-| GET | `/meta/options` | メタ（trackers, statuses, priorities, users, groups）。Query: `projectId`（任意）。`projectId` 指定時はメンバー必須で、プロジェクトメンバー・紐付きグループのみ返す。未指定時は全ユーザー・全グループを返す |
+| GET | `/meta/options` | メタ（trackers, statuses, priorities, users, groups）。Query: `projectId`（任意）。`projectId` 指定時はメンバー必須で、プロジェクトメンバー・紐付きグループのみ返し、応答に **`workflow`**（当該ユーザーのロールに基づく利用可能ステータス・遷移）を含む。未指定時は全ユーザー・全グループを返し `workflow` は含めない。`statuses` は常に全マスタ（カンバン列・フィルタ用） |
 | GET | `/:id` | チケット詳細（所属プロジェクトのみ）。`parent` / `children`（id, subject, startDate, endDate）を含む。子がある場合 `startDate` / `endDate` / `status` は集約値 |
-| POST | `/` | チケット作成（対象プロジェクトのメンバー必須）。Body に `parentId`（任意・同一プロジェクト・循環不可）。権限: 項目 `projects.issues.fields.parent`（`parentId` 指定時） |
-| PUT | `/:id` | チケット更新（所属プロジェクトのみ）。Body に `parentId`（任意・null で解除）。子チケットがある場合 `startDate` / `endDate` / `statusId` の更新は 400。権限: `projects.issues.fields.parent` |
+| POST | `/` | チケット作成（対象プロジェクトのメンバー必須）。Body に `parentId`（任意・同一プロジェクト・循環不可）。`statusId` はロールの利用可能ステータスに含まれること（否則 400）。権限: 項目 `projects.issues.fields.parent`（`parentId` 指定時） |
+| PUT | `/:id` | チケット更新（所属プロジェクトのみ）。Body に `parentId`（任意・null で解除）。子チケットがある場合 `startDate` / `endDate` / `statusId` の更新は 400。`statusId` 変更時はロールの利用可能ステータス＋ステータス遷移を検証（否則 400）。権限: `projects.issues.fields.parent` 等 |
 | DELETE | `/:id` | チケット削除（所属プロジェクトのみ） |
 | PUT | `/reorder` | 順序更新。Body: `issues: [{ id, position }]`（対象チケットのプロジェクトへの所属必須） |
 | POST | `/:id/relations` | 関連追加（所属プロジェクトのみ） |
@@ -82,6 +82,20 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | DELETE | `/:id/comments/:commentId` | コメント削除（所属プロジェクトのみ） |
 
 親チケットの開始・終了日時およびステータスは子から導出するため、子があるチケットへの `startDate` / `endDate` / `statusId` 書き込みは拒否する。
+
+### `workflow`（`GET /meta/options?projectId=`）
+
+```json
+{
+  "assignableStatusIds": [1, 2, 3],
+  "allowedTransitions": [{ "oldStatusId": 1, "newStatusId": 2 }]
+}
+```
+
+- `assignableStatusIds` — 作成時に選べるステータス、および遷移先として許可されるステータス（ロール RoleStatus の OR。未設定ロールは全ステータス寄与）
+- `allowedTransitions` — 許可される旧→新の組（ロール WorkflowTransition の OR）。`null` のときは遷移制限なし（いずれかのロールが遷移未設定）。空配列は遷移不可
+
+解決ルールの詳細は [DATA_MODEL.md](DATA_MODEL.md)「チケットステータス・ワークフローの解決」を参照。
 
 ---
 

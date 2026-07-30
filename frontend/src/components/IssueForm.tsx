@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent, useId } from 'react';
+import { useState, useEffect, FormEvent, useId, useMemo } from 'react';
 import api from '../api/client';
 import { Issue, IssueMetaOptions, SystemSetting, PermissionMap } from '../types';
 import { usePermissions } from '../hooks/usePermissions';
@@ -12,6 +12,7 @@ import NumberInput from './NumberInput';
 import DateInput from './DateInput';
 import { formatEstimatedHours } from '../utils/format';
 import { getCachedProjectPermissions } from '../utils/projectPermissionsCache';
+import { getSelectableStatuses } from '../utils/issueWorkflow';
 
 function toLocalDatetimeString(dateString?: string | null) {
     if (!dateString) return '';
@@ -161,6 +162,7 @@ export default function IssueForm({
     const [parentId, setParentId] = useState('');
     const [parentOptions, setParentOptions] = useState<{ id: number; subject: string; parentId?: number | null }[]>([]);
     const [hasChildren, setHasChildren] = useState(false);
+    const [originalStatusId, setOriginalStatusId] = useState<number | null>(null);
     const [error, setError] = useState('');
     const [systemStartTime, setSystemStartTime] = useState('09:00');
     const [systemEndTime, setSystemEndTime] = useState('18:00');
@@ -201,7 +203,17 @@ export default function IssueForm({
         api.get('/issues/meta/options', { params: { projectId: currentProjectId } }).then((res) => {
             setMeta(res.data);
             if (!isEdit && res.data.trackers.length > 0) setTrackerId(String(res.data.trackers[0].id));
-            if (!isEdit && res.data.statuses.length > 0) setStatusId(String(defaultStatusId ?? res.data.statuses[0].id));
+            if (!isEdit) {
+                const selectable = getSelectableStatuses(res.data.statuses, res.data.workflow, { mode: 'create' });
+                if (selectable.length > 0) {
+                    const preferred = defaultStatusId != null
+                        ? selectable.find((s) => s.id === defaultStatusId)
+                        : undefined;
+                    setStatusId(String(preferred?.id ?? selectable[0].id));
+                } else {
+                    setStatusId('');
+                }
+            }
             if (!isEdit && res.data.priorities.length > 0) {
                 const normal = res.data.priorities.find((p: any) => p.name === '通常');
                 setPriorityId(String(normal?.id || res.data.priorities[0].id));
@@ -210,7 +222,7 @@ export default function IssueForm({
             setError('メタデータの取得に失敗しました');
             setMeta({ trackers: [], statuses: [], priorities: [], users: [] });
         });
-    }, [isEdit, currentProjectId]);
+    }, [isEdit, currentProjectId, defaultStatusId]);
 
     useEffect(() => {
         if (!currentProjectId) {
@@ -229,6 +241,7 @@ export default function IssueForm({
                 const issue: Issue = res.data;
                 setTrackerId(String(issue.trackerId));
                 setStatusId(String(issue.statusId));
+                setOriginalStatusId(issue.statusId);
                 setPriorityId(String(issue.priorityId));
                 setAssignedToPrincipal(issue.assignedToGroupId ? `g:${issue.assignedToGroupId}` : issue.assignedToId ? `u:${issue.assignedToId}` : '');
                 setSubject(issue.subject);
@@ -293,6 +306,14 @@ export default function IssueForm({
         }
     };
 
+    const selectableStatuses = useMemo(() => {
+        if (!meta) return [];
+        return getSelectableStatuses(meta.statuses, meta.workflow, {
+            mode: isEdit ? 'edit' : 'create',
+            currentStatusId: isEdit ? originalStatusId : (statusId ? Number(statusId) : null),
+        });
+    }, [meta, isEdit, statusId, originalStatusId]);
+
     if (!meta) return <div className="text-center py-12 text-gray-500">読み込み中...</div>;
 
     const formClassName = inModal ? 'space-y-4' : 'bg-white rounded-lg shadow p-6 space-y-4';
@@ -348,7 +369,7 @@ export default function IssueForm({
                         />
                         <Combobox
                             label={scheduleLocked ? 'ステータス（子チケットから算出）' : 'ステータス'}
-                            options={meta.statuses.map((s) => ({ value: String(s.id), label: s.name }))}
+                            options={selectableStatuses.map((s) => ({ value: String(s.id), label: s.name }))}
                             value={statusId}
                             onChange={setStatusId}
                             disabled={scheduleLocked || fieldDisabled('projects.issues.fields.status')}

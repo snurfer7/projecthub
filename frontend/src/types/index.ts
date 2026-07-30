@@ -427,12 +427,19 @@ export interface Activity {
   company?: { id: number; name: string } | null;
 }
 
+export interface IssueMetaWorkflow {
+  assignableStatusIds: number[];
+  /** null = any transition to an assignable status is allowed */
+  allowedTransitions: { oldStatusId: number; newStatusId: number }[] | null;
+}
+
 export interface IssueMetaOptions {
   trackers: Tracker[];
   statuses: IssueStatus[];
   priorities: IssuePriority[];
   users: { id: number; firstName: string; lastName: string; status: string }[];
   groups?: { id: number; name: string }[];
+  workflow?: IssueMetaWorkflow;
 }
 
 export interface ProjectComment {

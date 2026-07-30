@@ -27,8 +27,21 @@
 - **IssuePriority** — 優先度。
 - **Role** — プロジェクト内ロール。RoleStatus、WorkflowTransition、**RolePermission**（プロジェクト詳細権限）と関連。`isDefaultRole` はプロジェクト作成時に作成者へ付与する初期ロール。
 - **RolePermission** — Role と PermissionResource（scope=role）の対応。canUse / canInput。
-- **RoleStatus** — Role と IssueStatus の対応。
-- **WorkflowTransition** — ロールごとの「旧ステータス → 新ステータス」の遷移許可。
+- **RoleStatus** — Role と IssueStatus の対応。「利用可能なステータス」。チケット作成時の初期ステータスおよび遷移先として設定可能な範囲をロール単位で制限する。
+- **WorkflowTransition** — ロールごとの「旧ステータス → 新ステータス」の遷移許可。チケット更新・カンバン移動時に検証する。
+
+### チケットステータス・ワークフローの解決
+
+ユーザーがプロジェクト上で持つ `ProjectMemberRole` の各 Role について、RoleStatus / WorkflowTransition を **OR 結合**する（権限と同じ）。
+
+| 対象 | ルール |
+|------|--------|
+| 利用可能ステータス | 各ロールの RoleStatus の和集合。RoleStatus が 0 件のロールは「全ステータス可」として寄与（未設定時の後方互換） |
+| ステータス遷移 | 各ロールの WorkflowTransition の和集合。WorkflowTransition が 0 件のロールは「任意遷移可」として寄与。全ロールが未設定なら遷移制限なし。遷移先は利用可能ステータスに含まれること |
+| ロール未割当 | ステータス設定・遷移いずれも不可 |
+| 同一ステータス | 変更なしは常に許可 |
+
+作成時は利用可能ステータスのみ検証。更新で `statusId` が変わる場合は遷移＋利用可能ステータスを検証。フィールド権限 `projects.issues.fields.status` も別途必要。
 
 ## 会社・CRM
 

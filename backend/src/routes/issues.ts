@@ -21,6 +21,11 @@ import {
   PROJECT_PERMISSION_DENIED_MESSAGE,
   resolveProjectPermissions,
 } from '../services/projectPermissions';
+import {
+  assertAssignableStatus,
+  assertStatusTransition,
+  resolveIssueWorkflow,
+} from '../services/issueWorkflow';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -187,6 +192,7 @@ router.get('/meta/options', requirePermission('projects', 'use'), async (req: Au
 
     let users: { id: number; firstName: string; lastName: string }[] = [];
     let groups: { id: number; name: string; members: { userId: number }[] }[] = [];
+    let workflow: Awaited<ReturnType<typeof resolveIssueWorkflow>> | undefined;
 
     if (projectId) {
       const pid = Number(projectId);
@@ -195,7 +201,7 @@ router.get('/meta/options', requirePermission('projects', 'use'), async (req: Au
         return;
       }
       // Get explicit members and users who are in groups assigned to this project
-      const [projectMembers, projectGroups] = await Promise.all([
+      const [projectMembers, projectGroups, resolvedWorkflow] = await Promise.all([
         prisma.projectMember.findMany({
           where: { projectId: pid },
           include: { user: { select: { id: true, firstName: true, lastName: true, status: true } } }
@@ -207,7 +213,8 @@ router.get('/meta/options', requirePermission('projects', 'use'), async (req: Au
               include: { members: { select: { userId: true } } },
             },
           },
-        })
+        }),
+        resolveIssueWorkflow(req.userId!, pid),
       ]);
 
       const userMap = new Map();
@@ -216,6 +223,7 @@ router.get('/meta/options', requirePermission('projects', 'use'), async (req: Au
       }
       users = Array.from(userMap.values());
       groups = projectGroups.map((pg: any) => pg.group);
+      workflow = resolvedWorkflow;
     } else {
       [users, groups] = await Promise.all([
         prisma.user.findMany({ select: { id: true, firstName: true, lastName: true, status: true } }),
@@ -226,7 +234,7 @@ router.get('/meta/options', requirePermission('projects', 'use'), async (req: Au
       ]);
     }
 
-    res.json({ trackers, statuses, priorities, users, groups });
+    res.json({ trackers, statuses, priorities, users, groups, ...(workflow ? { workflow } : {}) });
   } catch (e) {
     console.error('メタデータ取得エラー:', e);
     res.status(500).json({ error: 'メタデータの取得に失敗しました' });
@@ -414,6 +422,14 @@ router.post('/', requirePermission('projects', 'use'), async (req: AuthRequest, 
       return res.status(400).json({ error: parentError });
     }
 
+    if (statusId !== undefined && statusId !== null) {
+      const workflow = await resolveIssueWorkflow(req.userId!, pid);
+      const statusError = assertAssignableStatus(workflow, Number(statusId));
+      if (statusError) {
+        return res.status(400).json({ error: statusError });
+      }
+    }
+
     const issue = await prisma.issue.create({
       data: {
         projectId: pid,
@@ -521,7 +537,17 @@ router.put('/:id', requirePermission('projects', 'use'), async (req: AuthRequest
     }
 
     if (trackerId !== undefined) data.trackerId = trackerId;
-    if (statusId !== undefined) data.statusId = statusId;
+    if (statusId !== undefined) {
+      const nextStatusId = Number(statusId);
+      if (nextStatusId !== existingIssue.statusId) {
+        const workflow = await resolveIssueWorkflow(req.userId!, existingIssue.projectId);
+        const transitionError = assertStatusTransition(workflow, existingIssue.statusId, nextStatusId);
+        if (transitionError) {
+          return res.status(400).json({ error: transitionError });
+        }
+      }
+      data.statusId = nextStatusId;
+    }
     if (priorityId !== undefined) data.priorityId = priorityId;
     if (assignedToId !== undefined) data.assignedToId = assignedToId || null;
     if (assignedToGroupId !== undefined) data.assignedToGroupId = assignedToGroupId || null;

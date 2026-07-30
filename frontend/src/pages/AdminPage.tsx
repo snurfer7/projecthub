@@ -494,10 +494,15 @@ export default function AdminPage({ user }: Props) {
       if (editingMasterId) {
         await api.put(`/admin/${masterType}/${editingMasterId}`, data);
         if (masterType === 'roles') {
-          const transitions = Array.from(masterTransitions).map((key) => {
-            const [oldStatusId, newStatusId] = key.split('-').map(Number);
-            return { oldStatusId, newStatusId };
-          });
+          const transitions = Array.from(masterTransitions)
+            .map((key) => {
+              const [oldStatusId, newStatusId] = key.split('-').map(Number);
+              return { oldStatusId, newStatusId };
+            })
+            .filter((t) =>
+              masterStatusIds.length === 0
+              || (masterStatusIds.includes(t.oldStatusId) && masterStatusIds.includes(t.newStatusId))
+            );
           await api.put(`/admin/roles/${editingMasterId}/transitions`, { transitions });
         }
       } else {
@@ -513,10 +518,15 @@ export default function AdminPage({ user }: Props) {
             });
           }
           if (masterTransitions.size > 0) {
-            const transitions = Array.from(masterTransitions).map((key) => {
-              const [oldStatusId, newStatusId] = key.split('-').map(Number);
-              return { oldStatusId, newStatusId };
-            });
+            const transitions = Array.from(masterTransitions)
+              .map((key) => {
+                const [oldStatusId, newStatusId] = key.split('-').map(Number);
+                return { oldStatusId, newStatusId };
+              })
+              .filter((t) =>
+                masterStatusIds.length === 0
+                || (masterStatusIds.includes(t.oldStatusId) && masterStatusIds.includes(t.newStatusId))
+              );
             await api.put(`/admin/roles/${res.data.id}/transitions`, { transitions });
           }
         }
@@ -1289,8 +1299,11 @@ export default function AdminPage({ user }: Props) {
                 <label className="block text-sm font-medium text-gray-700">ステータス遷移</label>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => {
+                    const matrixStatuses = masterStatusIds.length > 0
+                      ? statuses.filter((s) => masterStatusIds.includes(s.id))
+                      : statuses;
                     const set = new Set<string>();
-                    statuses.forEach((from) => statuses.forEach((to) => {
+                    matrixStatuses.forEach((from) => matrixStatuses.forEach((to) => {
                       if (from.id !== to.id) set.add(`${from.id}-${to.id}`);
                     }));
                     setMasterTransitions(set);
@@ -1299,6 +1312,14 @@ export default function AdminPage({ user }: Props) {
                     className="text-xs text-gray-500 hover:text-gray-700">全解除</button>
                 </div>
               </div>
+              {(() => {
+                const matrixStatuses = masterStatusIds.length > 0
+                  ? statuses.filter((s) => masterStatusIds.includes(s.id))
+                  : statuses;
+                if (matrixStatuses.length === 0) {
+                  return <p className="text-xs text-gray-400">利用可能なステータスを選択すると遷移マトリクスが表示されます</p>;
+                }
+                return (
               <div className="border rounded-md overflow-x-auto">
                 <table className="w-full text-xs border-collapse">
                   <thead>
@@ -1306,7 +1327,7 @@ export default function AdminPage({ user }: Props) {
                       <th className="border-b border-r px-2 py-2 bg-gray-50 text-left text-gray-600 sticky left-0 z-10 min-w-[100px]">
                         現在 ＼ 遷移先
                       </th>
-                      {statuses.map((s) => (
+                      {matrixStatuses.map((s) => (
                         <th key={s.id} className="border-b px-2 py-2 bg-gray-50 text-center text-gray-600 min-w-[60px]">
                           <div className="truncate max-w-[80px]" title={s.name}>{s.name}</div>
                         </th>
@@ -1314,12 +1335,12 @@ export default function AdminPage({ user }: Props) {
                     </tr>
                   </thead>
                   <tbody>
-                    {statuses.map((fromStatus) => (
+                    {matrixStatuses.map((fromStatus) => (
                       <tr key={fromStatus.id} className="hover:bg-gray-50">
                         <td className="border-b border-r px-2 py-2 font-medium text-gray-700 bg-gray-50 sticky left-0 z-10">
                           {fromStatus.name}
                         </td>
-                        {statuses.map((toStatus) => {
+                        {matrixStatuses.map((toStatus) => {
                           const key = `${fromStatus.id}-${toStatus.id}`;
                           const isSame = fromStatus.id === toStatus.id;
                           return (
@@ -1350,7 +1371,9 @@ export default function AdminPage({ user }: Props) {
                   </tbody>
                 </table>
               </div>
-              <p className="text-xs text-gray-400 mt-1">行: 現在のステータス、列: 遷移先のステータス</p>
+                );
+              })()}
+              <p className="text-xs text-gray-400 mt-1">行: 現在のステータス、列: 遷移先のステータス（利用可能なステータスのみ表示）</p>
             </div>
           )}
 

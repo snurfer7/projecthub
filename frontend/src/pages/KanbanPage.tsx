@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useOutletContext } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import api from '../api/client';
-import { Issue, IssueStatus, PermissionMap } from '../types';
+import { Issue, IssueStatus, IssueMetaWorkflow, PermissionMap } from '../types';
 import Modal from '../components/Modal';
 import { IssueFormModal } from '../components/IssueForm';
 import KanbanBoard from '../components/KanbanBoard';
@@ -11,6 +11,7 @@ import { useAuth } from '../hooks/useAuth';
 import { usePermissions } from '../hooks/usePermissions';
 import TicketSearchSection from '../components/TicketSearchSection';
 import { isLeafIssue } from '../utils/issueTree';
+import { isStatusAssignable, isStatusTransitionAllowed } from '../utils/issueWorkflow';
 import type { ProjectOutletContext } from './ProjectDetailPage';
 
 export default function KanbanPage() {
@@ -21,6 +22,7 @@ export default function KanbanPage() {
   const canEditIssues = canInput('projects.issues');
   const [issues, setIssues] = useState<Issue[]>([]);
   const [statuses, setStatuses] = useState<IssueStatus[]>([]);
+  const [workflow, setWorkflow] = useState<IssueMetaWorkflow | undefined>();
   const [filterTrackerIds, setFilterTrackerIds] = useState<(number | string)[]>([]);
   const [filterStatusIds, setFilterStatusIds] = useState<(number | string)[]>([]);
   const [filterAssignedToIds, setFilterAssignedToIds] = useState<(number | string)[]>([]);
@@ -42,6 +44,7 @@ export default function KanbanPage() {
 
       setIssues(issuesRes.data);
       setStatuses(metaRes.data.statuses);
+      setWorkflow(metaRes.data.workflow);
     } catch (e) {
       console.error('Failed to fetch kanban data:', e);
     }
@@ -79,21 +82,38 @@ export default function KanbanPage() {
     if (!canEditIssues) return;
     const issueToUpdate = issues.find(i => i.id === issueId);
     if (!issueToUpdate || issueToUpdate.statusId === targetStatusId) return;
+    if (!isStatusTransitionAllowed(workflow, issueToUpdate.statusId, targetStatusId)) return;
 
     setIssues(prev => prev.map(i => i.id === issueId ? { ...i, statusId: targetStatusId } : i));
 
     try {
       await api.put(`/issues/${issueId}`, { statusId: targetStatusId });
-    } catch {
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'ステータスの更新に失敗しました');
       fetchData();
     }
   };
 
   const openNewIssueForColumn = (statusId: number) => {
     if (!canEditIssues) return;
+    if (!isStatusAssignable(workflow, statusId)) return;
     setNewIssueStatusId(statusId);
     setIsNewIssueModalOpen(true);
   };
+
+  const canDropToStatus = useCallback(
+    (issueId: number, targetStatusId: number) => {
+      const issue = issues.find((i) => i.id === issueId);
+      if (!issue) return false;
+      return isStatusTransitionAllowed(workflow, issue.statusId, targetStatusId);
+    },
+    [issues, workflow]
+  );
+
+  const canCreateInStatus = useCallback(
+    (statusId: number) => isStatusAssignable(workflow, statusId),
+    [workflow]
+  );
 
   const handleIssueClick = (issueId: number) => {
     setSelectedIssueId(issueId);
@@ -159,6 +179,8 @@ export default function KanbanPage() {
         onNewIssue={canEditIssues ? openNewIssueForColumn : undefined}
         onIssueClick={handleIssueClick}
         canDrag={canEditIssues}
+        canDropToStatus={canDropToStatus}
+        canCreateInStatus={canCreateInStatus}
       />
 
       <IssueFormModal

@@ -492,7 +492,8 @@ export default function ProjectListPage() {
     );
     try {
       await api.put(`/issues/${issueToDrop.id}`, { statusId: targetStatusId });
-    } catch {
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'ステータスの更新に失敗しました');
       loadKanbanData();
     }
   };

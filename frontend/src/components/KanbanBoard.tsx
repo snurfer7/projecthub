@@ -16,6 +16,10 @@ interface KanbanBoardProps {
     showProjectName?: boolean;
     /** false のときドラッグ移動不可（既定 true） */
     canDrag?: boolean;
+    /** ドロップ可否（未指定時はすべて許可。遷移制限用） */
+    canDropToStatus?: (issueId: number, targetStatusId: number) => boolean;
+    /** 列からの新規作成可否（未指定時はすべて許可） */
+    canCreateInStatus?: (statusId: number) => boolean;
 }
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -185,7 +189,18 @@ const IssueCard = React.forwardRef<HTMLDivElement, {
 
 IssueCard.displayName = 'IssueCard';
 
-export default function KanbanBoard({ statuses, issues, hierarchyIssues, onDrop, onNewIssue, onIssueClick, showProjectName, canDrag = true }: KanbanBoardProps) {
+export default function KanbanBoard({
+    statuses,
+    issues,
+    hierarchyIssues,
+    onDrop,
+    onNewIssue,
+    onIssueClick,
+    showProjectName,
+    canDrag = true,
+    canDropToStatus,
+    canCreateInStatus,
+}: KanbanBoardProps) {
     const [draggingIssueId, setDraggingIssueId] = useState<number | null>(null);
     const [dragOverStatusId, setDragOverStatusId] = useState<number | null>(null);
     const [hoveredIssueId, setHoveredIssueId] = useState<number | null>(null);
@@ -228,7 +243,9 @@ export default function KanbanBoard({ statuses, issues, hierarchyIssues, onDrop,
 
     const handleDropInternal = (statusId: number) => {
         if (draggingIssueId !== null) {
-            onDrop(draggingIssueId, statusId);
+            if (!canDropToStatus || canDropToStatus(draggingIssueId, statusId)) {
+                onDrop(draggingIssueId, statusId);
+            }
         }
         handleDragEnd();
     };
@@ -240,14 +257,25 @@ export default function KanbanBoard({ statuses, issues, hierarchyIssues, onDrop,
             <div ref={containerRef} className="flex gap-6 h-full min-w-max relative" style={{ isolation: 'isolate' }}>
                 {statuses.map((status) => {
                     const columnIssues = leafIssues.filter((i) => i.statusId === status.id);
+                    const dropAllowed = draggingIssueId === null
+                        || !canDropToStatus
+                        || canDropToStatus(draggingIssueId, status.id);
+                    const createAllowed = !canCreateInStatus || canCreateInStatus(status.id);
                     return (
                         <div
                             key={status.id}
                             className="w-80 flex flex-col h-full z-10"
-                            onDragOver={(e) => e.preventDefault()}
-                            onDragEnter={() => handleDragEnter(status.id)}
+                            onDragOver={(e) => {
+                                if (dropAllowed) e.preventDefault();
+                            }}
+                            onDragEnter={() => {
+                                if (dropAllowed) handleDragEnter(status.id);
+                            }}
                             onDragLeave={() => handleDragLeave(status.id)}
-                            onDrop={() => handleDropInternal(status.id)}
+                            onDrop={() => {
+                                if (dropAllowed) handleDropInternal(status.id);
+                                else handleDragEnd();
+                            }}
                         >
                             <div className={`rounded-t-lg px-4 py-2.5 flex items-center justify-between flex-shrink-0 ${status.isClosed ? 'bg-gray-200' : 'bg-slate-700'}`}>
                                 <span className={`font-semibold text-sm ${status.isClosed ? 'text-gray-600' : 'text-white'}`}>
@@ -257,7 +285,7 @@ export default function KanbanBoard({ statuses, issues, hierarchyIssues, onDrop,
                                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.isClosed ? 'bg-gray-300 text-gray-600' : 'bg-white/20 text-white'}`}>
                                         {columnIssues.length}
                                     </span>
-                                    {onNewIssue && (
+                                    {onNewIssue && createAllowed && (
                                         <button
                                             onClick={() => onNewIssue(status.id)}
                                             className={`p-1 rounded transition-colors ${status.isClosed ? 'text-gray-500 hover:bg-gray-300' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}
@@ -269,8 +297,11 @@ export default function KanbanBoard({ statuses, issues, hierarchyIssues, onDrop,
                             </div>
 
                             <div
-                                className={`flex-1 rounded-b-lg p-2 overflow-y-auto transition-colors custom-scrollbar min-h-[200px] ${dragOverStatusId === status.id && draggingIssueId !== null
+                                className={`flex-1 rounded-b-lg p-2 overflow-y-auto transition-colors custom-scrollbar min-h-[200px] ${
+                                    dragOverStatusId === status.id && draggingIssueId !== null && dropAllowed
                                     ? 'bg-sky-50 border-2 border-sky-300 border-dashed'
+                                    : dragOverStatusId === status.id && draggingIssueId !== null && !dropAllowed
+                                    ? 'bg-red-50 border-2 border-red-200 border-dashed'
                                     : 'bg-gray-100/50 border-2 border-transparent'
                                     }`}
                             >

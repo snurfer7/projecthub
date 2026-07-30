@@ -27,15 +27,15 @@
 | `/projects/:projectId` | ProjectDetailPage | プロジェクト詳細。メンバー以外は参照不可。タブはロールの `myPermissions`（`projects.issues` 等 canUse）で表示制御。設定モーダルは `projects.overview` canInput |
 | `/projects/:projectId/` (index) | ProjectOverview | 概要タブ。**プロジェクト情報**は `projects.overview`（canUse=表示 / canInput=設定編集）、**メンバー**は `projects.members`（canUse=表示 / canInput=追加・編集・削除）。それぞれ独立して設定可能 |
 | `/projects/:projectId/issues` | IssueListPage | チケット一覧。親子階層でツリー表示し、子を持つ行は折りたたみ可能（フィルタ結果に親が含まれない子はルートとして表示）。新規・編集・削除: `projects.issues` canInput |
-| `/projects/:projectId/issues/new` | IssueFormPage | チケット新規作成。親チケット選択可（`projects.issues.fields.parent`）。子を持つ編集時はステータス・開始日・開始時刻・終了日・終了時刻は入力不可で子孫集約値を表示（ステータスは position 最小）。保存: `projects.issues` canInput |
+| `/projects/:projectId/issues/new` | IssueFormPage | チケット新規作成。親チケット選択可（`projects.issues.fields.parent`）。ステータス選択肢はロールの利用可能ステータス（`meta.workflow.assignableStatusIds`）に制限。子を持つ編集時はステータス・開始日・開始時刻・終了日・終了時刻は入力不可で子孫集約値を表示（ステータスは position 最小）。保存: `projects.issues` canInput |
 | `/projects/:projectId/wiki` | WikiListPage | Wiki 一覧。作成・編集・削除・並び替え: `projects.wiki` canInput |
 | `/projects/:projectId/comments` | ProjectCommentsPage | プロジェクトコメント。追加・編集・削除: `projects.comments` canInput |
-| `/projects/:projectId/kanban` | KanbanPage | カンバン。**子を持つチケットは非表示**（末端のみ）。親がある末端チケットはカード上に最上位親までのツリーを表示。検索条件にトラッカー・ステータス・担当者・チケット期限（期間）を指定可能。新規・ステータス移動・編集: `projects.issues` canInput |
+| `/projects/:projectId/kanban` | KanbanPage | カンバン。**子を持つチケットは非表示**（末端のみ）。親がある末端チケットはカード上に最上位親までのツリーを表示。検索条件にトラッカー・ステータス・担当者・チケット期限（期間）を指定可能。列は全ステータス。ドラッグ移動はロールのステータス遷移（`meta.workflow`）で制限。列からの新規は利用可能ステータスのみ。新規・ステータス移動・編集: `projects.issues` canInput |
 | `/projects/:projectId/gantt` | GanttPage | ガント（プロジェクト単位）。親チケットは子孫の期間を集約表示しバーの移動・リサイズ不可。子はインデント表示。開始日・終了日・期日がすべて未設定のチケットも行として表示（バーはなし）。縦スクロールはページ全体、日付ヘッダーは上部到達で sticky 固定。ヘッダーは年・月を階層表示し、タイムラインの縦線は年境界／月境界（やや太）／週境界で区分。行の区切りはルートプロジェクト塊の境界（ヘッダー下・塊末尾）を濃い実線、親子チケット間を破線、それ以外を通常の実線とする。左右スクロールでバーが可視枠外に出た場合は枠端に末端ヒントを表示（操作不可）。関連の両端が枠外のときは紐づけ線を非表示。**休日設定**（`GET /settings/calendar`）を反映し、日表示で非営業日列を赤系で強調。予定工数から終了を算出するとき非営業日をスキップ。バー移動・新規・関連作成: `projects.issues` canInput |
 | `/projects/:projectId/time-entries` | TimeEntriesPage | 工数一覧。追加・編集・削除: `projects.time-entries` canInput |
 | `/projects/:projectId/activities` | ProjectActivitiesPage | 活動履歴一覧（企業活動との N:N 紐づき）。表示条件: `projects.activities` canUse。既存活動の紐づけ追加・解除は `companies.activities` canInput。候補は主企業・関連企業の、当該プロジェクト未紐づけの活動。企業が未設定の場合は紐づけ不可。活動の新規作成は不可（企業詳細側で作成） |
 | `/issues/:id` | IssueDetailPage | チケット詳細。説明は Markdown 表示。親チケットへのリンクを表示。子がある場合の開始・終了・ステータスは集約値。編集・コメント・関連: `projects.issues` canInput。時間記録: `projects.time-entries` canInput |
-| `/issues/:id/edit` | IssueFormPage | チケット編集（親チケット・開始/終了の挙動は新規作成と同様） |
+| `/issues/:id/edit` | IssueFormPage | チケット編集（親チケット・開始/終了の挙動は新規作成と同様）。ステータスは現在値＋許可された遷移先のみ選択可 |
 | `/companies` | CompaniesPage | 会社一覧（API ページング・サーバー側検索。ページサイズ変更・前後ページ）。検索語・ページ・件数・法人格表示の有無は `sessionStorage` に保持し、企業詳細から一覧へ戻った際に復元する。ヘッダー（トップバー）の「企業」をクリックしたときは当該保持を削除し条件を初期化する |
 | `/deals` | DealsPage | 商談一覧（全企業横断）。`GET /crm/deals`（`page`, `pageSize`, `q`, `status`）でサーバー側ページング・検索。ステータス絞り込みドロップダウン付き。行クリックで `/companies/:id?tab=deals` へ遷移。表示条件: `deals` canUse |
 | `/contacts` | ContactsPage | 連絡先一覧（全企業横断）。`GET /crm/contacts`（`page`, `pageSize`, `q`）でサーバー側ページング・検索。ページサイズ変更・前後ページ。**CSV 出力**は一覧と同じ検索語 `q` を適用し、表示ページに関係なく一致する全件をページング取得して UTF-8 BOM 付き CSV でダウンロード（検索語なしのときは全件）。行クリックまたは企業名リンクで `/companies/:id?tab=contacts` へ遷移 |
@@ -73,7 +73,8 @@
 ## 管理 > ロールタブ
 
 - ロール編集モーダルに **プロジェクト権限** マトリクス（`scope=role`：プロジェクト情報 / メンバー / issues / fields / wiki 等）。`projects.overview`（表示名: プロジェクト情報）と `projects.members`（メンバー）は独立した行で、使用・入力を分けて設定できる。`projects.saved-searches` は一覧機能のためロール対象外（グループ権限設定側）
-- 既存ロールは seed / 起動時同期で全権限が付与される
+- **利用可能なステータス**（RoleStatus）と **ステータス遷移**マトリクス（WorkflowTransition）を同一モーダルで設定。チケット作成・編集・カンバン移動で強制される（複数ロールは OR）
+- 既存ロールは seed / 起動時同期で全権限が付与される。RoleStatus / WorkflowTransition が未設定のロールは「全ステータス・任意遷移可」として扱う（後方互換）
 
 ## 管理 > 休日設定タブ
 
