@@ -1,11 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useParams, Outlet, useLocation, Link } from 'react-router-dom';
 import api from '../api/client';
-import { Project } from '../types';
+import { Project, PermissionMap } from '../types';
 import ProjectSettingsModal from '../components/ProjectSettingsModal';
 import Tabs from '../components/Tabs';
 import { usePermissions } from '../hooks/usePermissions';
-import { useAuth } from '../hooks/useAuth';
+
+export interface ProjectOutletContext {
+  project: Project;
+  loadProject: () => void;
+  openSettings: () => void;
+  myPermissions: PermissionMap;
+}
 
 export default function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -14,8 +20,8 @@ export default function ProjectDetailPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const location = useLocation();
-  const { user } = useAuth();
-  const { canUse } = usePermissions(user?.permissions);
+  const myPermissions = project?.myPermissions ?? {};
+  const { canUse, canInput } = usePermissions(myPermissions);
 
   const loadProject = () => {
     setAccessDenied(false);
@@ -63,19 +69,32 @@ export default function ProjectDetailPage() {
   if (!project) return <div className="text-center py-12 text-gray-500">読み込み中...</div>;
 
   const tabs = [
-    { label: '概要', path: `/projects/${projectId}`, count: undefined },
-    { label: 'チケット', path: `/projects/${projectId}/issues`, count: project._count?.issues },
-    { label: 'カンバン', path: `/projects/${projectId}/kanban`, count: undefined },
-    { label: 'ガントチャート', path: `/projects/${projectId}/gantt`, count: undefined },
-    { label: 'Wiki', path: `/projects/${projectId}/wiki`, count: project._count?.wikiPages },
-    { label: 'コメント', path: `/projects/${projectId}/comments`, count: project._count?.comments },
-    { label: '時間記録', path: `/projects/${projectId}/time-entries`, count: project._count?.timeEntries },
-    ...(canUse('projects.activities') ? [{ label: '活動履歴', path: `/projects/${projectId}/activities`, count: undefined }] : []),
+    { label: '概要', path: `/projects/${projectId}`, count: undefined as number | undefined },
+    ...(canUse('projects.issues')
+      ? [{ label: 'チケット', path: `/projects/${projectId}/issues`, count: project._count?.issues }]
+      : []),
+    ...(canUse('projects.kanban')
+      ? [{ label: 'カンバン', path: `/projects/${projectId}/kanban`, count: undefined as number | undefined }]
+      : []),
+    ...(canUse('projects.gantt')
+      ? [{ label: 'ガントチャート', path: `/projects/${projectId}/gantt`, count: undefined as number | undefined }]
+      : []),
+    ...(canUse('projects.wiki')
+      ? [{ label: 'Wiki', path: `/projects/${projectId}/wiki`, count: project._count?.wikiPages }]
+      : []),
+    ...(canUse('projects.comments')
+      ? [{ label: 'コメント', path: `/projects/${projectId}/comments`, count: project._count?.comments }]
+      : []),
+    ...(canUse('projects.time-entries')
+      ? [{ label: '時間記録', path: `/projects/${projectId}/time-entries`, count: project._count?.timeEntries }]
+      : []),
+    ...(canUse('projects.activities')
+      ? [{ label: '活動履歴', path: `/projects/${projectId}/activities`, count: undefined as number | undefined }]
+      : []),
   ];
 
   return (
     <div>
-      {/* Header */}
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 mt-2">{project.name}</h1>
@@ -88,15 +107,20 @@ export default function ProjectDetailPage() {
         </div>
       </div>
 
-
-      {/* Tabs */}
       <Tabs tabs={tabs} currentPath={location.pathname} />
 
       <div>
-        <Outlet context={{ project, loadProject, openSettings: () => setIsSettingsModalOpen(true) }} />
+        <Outlet
+          context={{
+            project,
+            loadProject,
+            openSettings: () => setIsSettingsModalOpen(true),
+            myPermissions,
+          } satisfies ProjectOutletContext}
+        />
       </div>
 
-      {isSettingsModalOpen && projectId && (
+      {isSettingsModalOpen && projectId && canInput('projects.overview') && (
         <ProjectSettingsModal
           projectId={Number(projectId)}
           isOpen={isSettingsModalOpen}

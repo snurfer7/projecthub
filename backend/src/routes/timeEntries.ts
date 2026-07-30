@@ -4,12 +4,15 @@ import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
 import { parseNumericQueryIds } from '../utils/queryParams';
 import {
-  assertProjectMember,
   getAccessibleProjectIds,
   isRequestAdmin,
-  ProjectAccessDeniedError,
   sendProjectAccessDenied,
 } from '../services/projectAccess';
+import {
+  getProjectIdsWithPermission,
+  hasProjectPermission,
+  PROJECT_PERMISSION_DENIED_MESSAGE,
+} from '../services/projectPermissions';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -17,10 +20,11 @@ const prisma = new PrismaClient();
 router.use(authenticateToken);
 
 // List time entries
-router.get('/', requirePermission('projects.time-entries', 'use'), async (req: AuthRequest, res: Response) => {
+router.get('/', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const { projectId, issueId, userId, userIds, startDate, endDate } = req.query;
     const accessibleIds = await getAccessibleProjectIds(req.userId!, isRequestAdmin(req));
+    const permittedIds = await getProjectIdsWithPermission(req.userId!, accessibleIds, 'projects.time-entries', 'use');
     const where: any = {};
 
     if (projectId) {
@@ -29,9 +33,13 @@ router.get('/', requirePermission('projects.time-entries', 'use'), async (req: A
         sendProjectAccessDenied(res);
         return;
       }
+      if (!permittedIds.includes(pid)) {
+        res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
+        return;
+      }
       where.projectId = pid;
     } else {
-      where.projectId = { in: accessibleIds };
+      where.projectId = { in: permittedIds };
     }
 
     if (issueId) where.issueId = Number(issueId);
@@ -47,7 +55,7 @@ router.get('/', requirePermission('projects.time-entries', 'use'), async (req: A
       }
     }
 
-    if (accessibleIds.length === 0) {
+    if (permittedIds.length === 0) {
       res.json([]);
       return;
     }
@@ -68,10 +76,13 @@ router.get('/', requirePermission('projects.time-entries', 'use'), async (req: A
 });
 
 // Create time entry
-router.post('/', requirePermission('projects.time-entries', 'input'), async (req: AuthRequest, res: Response) => {
+router.post('/', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const { projectId, issueId, hours, activity, spentOn, comments } = req.body;
-    await assertProjectMember(req.userId!, Number(projectId), isRequestAdmin(req));
+    if (!(await hasProjectPermission(req.userId!, Number(projectId), 'projects.time-entries', 'input'))) {
+      res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
+      return;
+    }
     const entry = await prisma.timeEntry.create({
       data: {
         projectId,
@@ -90,16 +101,12 @@ router.post('/', requirePermission('projects.time-entries', 'input'), async (req
     });
     res.status(201).json(entry);
   } catch (e) {
-    if (e instanceof ProjectAccessDeniedError) {
-      sendProjectAccessDenied(res);
-      return;
-    }
     res.status(500).json({ error: '時間記録の作成に失敗しました' });
   }
 });
 
 // Update time entry
-router.put('/:id', requirePermission('projects.time-entries', 'input'), async (req: AuthRequest, res: Response) => {
+router.put('/:id', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const existing = await prisma.timeEntry.findUnique({
       where: { id: Number(req.params.id) },
@@ -109,7 +116,10 @@ router.put('/:id', requirePermission('projects.time-entries', 'input'), async (r
       res.status(404).json({ error: '時間記録が見つかりません' });
       return;
     }
-    await assertProjectMember(req.userId!, existing.projectId, isRequestAdmin(req));
+    if (!(await hasProjectPermission(req.userId!, existing.projectId, 'projects.time-entries', 'input'))) {
+      res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
+      return;
+    }
 
     const { hours, activity, spentOn, comments } = req.body;
     const entry = await prisma.timeEntry.update({
@@ -128,16 +138,12 @@ router.put('/:id', requirePermission('projects.time-entries', 'input'), async (r
     });
     res.json(entry);
   } catch (e) {
-    if (e instanceof ProjectAccessDeniedError) {
-      sendProjectAccessDenied(res);
-      return;
-    }
     res.status(500).json({ error: '時間記録の更新に失敗しました' });
   }
 });
 
 // Delete time entry
-router.delete('/:id', requirePermission('projects.time-entries', 'input'), async (req: AuthRequest, res: Response) => {
+router.delete('/:id', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const existing = await prisma.timeEntry.findUnique({
       where: { id: Number(req.params.id) },
@@ -147,14 +153,13 @@ router.delete('/:id', requirePermission('projects.time-entries', 'input'), async
       res.status(404).json({ error: '時間記録が見つかりません' });
       return;
     }
-    await assertProjectMember(req.userId!, existing.projectId, isRequestAdmin(req));
+    if (!(await hasProjectPermission(req.userId!, existing.projectId, 'projects.time-entries', 'input'))) {
+      res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
+      return;
+    }
     await prisma.timeEntry.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: '時間記録を削除しました' });
   } catch (e) {
-    if (e instanceof ProjectAccessDeniedError) {
-      sendProjectAccessDenied(res);
-      return;
-    }
     res.status(500).json({ error: '時間記録の削除に失敗しました' });
   }
 });

@@ -2,22 +2,19 @@ import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Trash2, Send, Pencil } from 'lucide-react';
 import api from '../api/client';
-import { Project, ProjectComment } from '../types';
+import { ProjectComment } from '../types';
 import { useAuth } from '../hooks/useAuth';
-import MarkdownEditor from '../components/MarkdownEditor';
+import { usePermissions } from '../hooks/usePermissions';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import ConfirmationModal from '../components/ConfirmationModal';
 import CommentModal from '../components/CommentModal';
-
-
-interface ProjectContext {
-    project: Project;
-    loadProject: () => void;
-}
+import type { ProjectOutletContext } from './ProjectDetailPage';
 
 export default function ProjectCommentsPage() {
-    const { project, loadProject } = useOutletContext<ProjectContext>();
+    const { project, loadProject, myPermissions } = useOutletContext<ProjectOutletContext>();
     const { user } = useAuth();
+    const { canInput } = usePermissions(myPermissions);
+    const canEditComments = canInput('projects.comments');
     const [comments, setComments] = useState<ProjectComment[]>([]);
     const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -50,12 +47,14 @@ export default function ProjectCommentsPage() {
     };
 
     const handleOpenCreateModal = () => {
+        if (!canEditComments) return;
         setModalMode('create');
         setEditingComment(null);
         setIsModalOpen(true);
     };
 
     const handleOpenEditModal = (comment: ProjectComment) => {
+        if (!canEditComments) return;
         setModalMode('edit');
         setEditingComment(comment);
         setIsModalOpen(true);
@@ -98,7 +97,7 @@ export default function ProjectCommentsPage() {
             await api.delete(`/projects/${project.id}/comments/${commentId}`);
             setComments(prev => prev.filter(c => c.id !== commentId));
             setConfirmDeleteId(null);
-            loadProject(); // Update comment count in tabs
+            loadProject();
         } catch {
             alert('コメントの削除に失敗しました');
         }
@@ -108,6 +107,7 @@ export default function ProjectCommentsPage() {
         <div>
             <div className="flex items-center justify-between mb-6">
                 <h2 className="text-lg font-semibold text-slate-700">コメント ({comments.length})</h2>
+                {canEditComments && (
                 <button
                     onClick={handleOpenCreateModal}
                     className="flex items-center gap-1.5 bg-sky-600 text-white px-3 py-1.5 rounded text-xs font-medium hover:bg-sky-700 transition-colors shadow-sm"
@@ -115,6 +115,7 @@ export default function ProjectCommentsPage() {
                     <Send className="w-3.5 h-3.5" />
                     コメントを追加
                 </button>
+                )}
             </div>
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden relative">
             <div className="p-6 space-y-6">
@@ -139,7 +140,7 @@ export default function ProjectCommentsPage() {
                                                 {new Date(comment.createdAt).toLocaleString('ja-JP')}
                                             </span>
                                         </div>
-                                        {(user?.isAdmin || user?.id === comment.userId) && (
+                                        {canEditComments && (user?.isAdmin || user?.id === comment.userId) && (
                                             <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                                                 <button
                                                     onClick={() => handleOpenEditModal(comment)}

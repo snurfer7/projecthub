@@ -1,7 +1,7 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
-import { Issue, User, SystemSetting } from '../types';
+import { Issue, User, SystemSetting, PermissionMap, TimeEntry } from '../types';
 import { Pencil, Users, Trash2, X, Check, Paperclip } from 'lucide-react';
 import { formatEstimatedHours } from '../utils/format';
 import MarkdownRenderer from './MarkdownRenderer';
@@ -9,17 +9,24 @@ import MarkdownEditor from './MarkdownEditor';
 import ConfirmationModal from './ConfirmationModal';
 import Combobox from './Combobox';
 import TimeEntryModal from './TimeEntryModal';
-import { TimeEntry } from '../types';
+import { usePermissions } from '../hooks/usePermissions';
+import { getCachedProjectPermissions, setProjectPermissionsCache } from '../utils/projectPermissionsCache';
 
 interface IssueDetailProps {
     issueId: string;
     user: User;
     onEdit?: () => void;
     onRefresh?: () => void;
+    /** プロジェクトロール権限。未指定時はチケットのプロジェクトから取得 */
+    permissions?: PermissionMap;
 }
 
-export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueDetailProps) {
+export default function IssueDetail({ issueId, user, onEdit, onRefresh, permissions }: IssueDetailProps) {
     const [issue, setIssue] = useState<Issue | null>(null);
+    const [resolvedPermissions, setResolvedPermissions] = useState<PermissionMap>(permissions ?? {});
+    const { canInput } = usePermissions(resolvedPermissions);
+    const canEditIssue = canInput('projects.issues');
+    const canEditTime = canInput('projects.time-entries');
     const [comment, setComment] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [totalDayConversion, setTotalDayConversion] = useState(0);
@@ -60,6 +67,23 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
         setIssue(res.data);
         onRefresh?.();
     });
+
+    useEffect(() => {
+        if (permissions !== undefined) {
+            setResolvedPermissions(permissions);
+            return;
+        }
+        if (!issue?.projectId) return;
+        getCachedProjectPermissions(issue.projectId)
+            .then(setResolvedPermissions)
+            .catch(() => setResolvedPermissions({}));
+    }, [permissions, issue?.projectId]);
+
+    useEffect(() => {
+        if (permissions && issue?.projectId) {
+            setProjectPermissionsCache(issue.projectId, permissions);
+        }
+    }, [permissions, issue?.projectId]);
 
     useEffect(() => {
         load();
@@ -231,12 +255,14 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragging(false);
+        if (!canEditIssue) return;
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
             setCommentFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]);
         }
     };
 
     const handleDragOver = (e: React.DragEvent) => {
+        if (!canEditIssue) return;
         e.preventDefault();
         setIsDragging(true);
     };
@@ -279,7 +305,7 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                         </div>
                         <h1 className="text-xl font-bold text-slate-800">{issue.subject}</h1>
                     </div>
-                    {onEdit ? (
+                    {canEditIssue && (onEdit ? (
                         <button
                             onClick={onEdit}
                             title="編集"
@@ -291,7 +317,7 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                         <Link to={`/issues/${issueId}/edit`} title="編集" className="p-1.5 text-sky-600 hover:bg-sky-50 rounded">
                             <Pencil className="w-4 h-4" />
                         </Link>
-                    )}
+                    ))}
                 </div>
 
                 {issue.description && (
@@ -367,6 +393,7 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
             <div className="bg-white rounded-lg shadow p-5 mb-6">
                 <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-semibold text-gray-700">時間記録</h3>
+                    {canEditTime && (
                     <button
                         onClick={() => {
                             setEditingTimeEntry(undefined);
@@ -376,11 +403,12 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                     >
                         + 時間記録を追加
                     </button>
+                    )}
                 </div>
                 {issue.timeEntries && issue.timeEntries.length > 0 ? (
                     <table className="w-full text-sm">
                         <thead><tr className="text-gray-500 text-left">
-                            <th className="pb-2">日付</th><th className="pb-2">ユーザー</th><th className="pb-2">活動</th><th className="pb-2">時間</th><th className="pb-2">コメント</th><th className="pb-2 text-right">アクション</th>
+                            <th className="pb-2">日付</th><th className="pb-2">ユーザー</th><th className="pb-2">活動</th><th className="pb-2">時間</th><th className="pb-2">コメント</th>{canEditTime && <th className="pb-2 text-right">アクション</th>}
                         </tr></thead>
                         <tbody>
                             {issue.timeEntries.map((te) => (
@@ -390,6 +418,7 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                                     <td>{te.activity}</td>
                                     <td>{te.hours}h</td>
                                     <td className="text-gray-500">{te.comments || '-'}</td>
+                                    {canEditTime && (
                                     <td className="text-right whitespace-nowrap">
                                         <button
                                             onClick={() => handleEditTimeEntry(te)}
@@ -406,6 +435,7 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                                             <Trash2 size={18} />
                                         </button>
                                     </td>
+                                    )}
                                 </tr>
                             ))}
                         </tbody>
@@ -419,7 +449,7 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
             <div className="bg-white rounded-lg shadow p-5 mb-6">
                 <div className="flex items-center justify-between mb-4">
                     <h3 className="text-sm font-semibold text-gray-700">関連するチケット</h3>
-                    {!showAddRelation && (
+                    {canEditIssue && !showAddRelation && (
                         <button
                             onClick={toggleAddRelation}
                             disabled={isFetchingIssues}
@@ -430,7 +460,7 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                     )}
                 </div>
 
-                {showAddRelation && (
+                {canEditIssue && showAddRelation && (
                     <form onSubmit={handleAddRelation} className="mb-4 space-y-2 bg-slate-50 p-3 rounded border border-slate-100">
                         <div className="flex items-center gap-2">
                             <Combobox
@@ -475,6 +505,7 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                                 </Link>
                                 <span className="text-xs text-gray-400">({(r.issueTo as any).status?.name})</span>
                             </div>
+                            {canEditIssue && (
                             <button
                                 type="button"
                                 onClick={(e) => {
@@ -487,6 +518,7 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                             >
                                 <X className="w-4 h-4" />
                             </button>
+                            )}
                         </div>
                     ))}
                     {issue.relationsTo?.map((r) => (
@@ -498,6 +530,7 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                                 </Link>
                                 <span className="text-xs text-gray-400">({(r.issueFrom as any).status?.name})</span>
                             </div>
+                            {canEditIssue && (
                             <button
                                 type="button"
                                 onClick={(e) => {
@@ -510,6 +543,7 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                             >
                                 <X className="w-4 h-4" />
                             </button>
+                            )}
                         </div>
                     ))}
                     {(!issue.relationsFrom || issue.relationsFrom.length === 0) && (!issue.relationsTo || issue.relationsTo.length === 0) && (
@@ -529,7 +563,7 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                                     <span className="text-sm font-medium">{c.user.lastName} {c.user.firstName}</span>
                                     <span className="text-xs text-gray-400">{new Date(c.createdAt).toLocaleString('ja-JP')}</span>
                                 </div>
-                                {user && user.id === c.user.id && editingCommentId !== c.id && (
+                                {canEditIssue && user && user.id === c.user.id && editingCommentId !== c.id && (
                                     <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                                         <button onClick={() => handleEditComment(c.id, c.content)} className="p-1 text-gray-400 hover:text-sky-600 rounded hover:bg-sky-50" title="編集">
                                             <Pencil className="w-3.5 h-3.5" />
@@ -595,6 +629,7 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                     )}
                 </div>
 
+                {canEditIssue && (
                 <form onSubmit={handleComment} className="border-t pt-4">
                     <MarkdownEditor
                         value={comment}
@@ -646,6 +681,7 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                         </div>
                     </div>
                 </form>
+                )}
             </div>
 
             <ConfirmationModal

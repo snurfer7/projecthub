@@ -3,12 +3,10 @@ import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
 import {
-  assertProjectMember,
-  isRequestAdmin,
-  ProjectAccessDeniedError,
-  requireProjectMember,
-  sendProjectAccessDenied,
-} from '../services/projectAccess';
+  hasProjectPermission,
+  PROJECT_PERMISSION_DENIED_MESSAGE,
+  requireProjectPermission,
+} from '../services/projectPermissions';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -16,24 +14,29 @@ const prisma = new PrismaClient();
 router.use(authenticateToken);
 
 // List wiki pages for project
-router.get('/project/:projectId', requirePermission('projects.wiki', 'use'), requireProjectMember('projectId'), async (req: AuthRequest, res: Response) => {
-  try {
-    const pages = await prisma.wikiPage.findMany({
-      where: { projectId: Number(req.params.projectId) },
-      include: { author: { select: { id: true, firstName: true, lastName: true } } },
-      orderBy: [
-        { position: 'asc' },
-        { title: 'asc' }
-      ],
-    });
-    res.json(pages);
-  } catch (e) {
-    res.status(500).json({ error: 'Wikiページの取得に失敗しました' });
+router.get(
+  '/project/:projectId',
+  requirePermission('projects', 'use'),
+  requireProjectPermission('projects.wiki', 'use', { paramName: 'projectId' }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const pages = await prisma.wikiPage.findMany({
+        where: { projectId: Number(req.params.projectId) },
+        include: { author: { select: { id: true, firstName: true, lastName: true } } },
+        orderBy: [
+          { position: 'asc' },
+          { title: 'asc' }
+        ],
+      });
+      res.json(pages);
+    } catch (e) {
+      res.status(500).json({ error: 'Wikiページの取得に失敗しました' });
+    }
   }
-});
+);
 
 // Get wiki page
-router.get('/:id', requirePermission('projects.wiki', 'use'), async (req: AuthRequest, res: Response) => {
+router.get('/:id', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const page = await prisma.wikiPage.findUnique({
       where: { id: Number(req.params.id) },
@@ -43,22 +46,24 @@ router.get('/:id', requirePermission('projects.wiki', 'use'), async (req: AuthRe
       res.status(404).json({ error: 'Wikiページが見つかりません' });
       return;
     }
-    await assertProjectMember(req.userId!, page.projectId, isRequestAdmin(req));
-    res.json(page);
-  } catch (e) {
-    if (e instanceof ProjectAccessDeniedError) {
-      sendProjectAccessDenied(res);
+    if (!(await hasProjectPermission(req.userId!, page.projectId, 'projects.wiki', 'use'))) {
+      res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
       return;
     }
+    res.json(page);
+  } catch (e) {
     res.status(500).json({ error: 'Wikiページの取得に失敗しました' });
   }
 });
 
 // Create wiki page
-router.post('/', requirePermission('projects.wiki', 'input'), async (req: AuthRequest, res: Response) => {
+router.post('/', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const { projectId, title, content, parentId } = req.body;
-    await assertProjectMember(req.userId!, Number(projectId), isRequestAdmin(req));
+    if (!(await hasProjectPermission(req.userId!, Number(projectId), 'projects.wiki', 'input'))) {
+      res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
+      return;
+    }
     const page = await prisma.wikiPage.create({
       data: {
         projectId,
@@ -71,17 +76,13 @@ router.post('/', requirePermission('projects.wiki', 'input'), async (req: AuthRe
     });
     res.status(201).json(page);
   } catch (e) {
-    if (e instanceof ProjectAccessDeniedError) {
-      sendProjectAccessDenied(res);
-      return;
-    }
     console.error('wiki.createPage error:', e);
     res.status(500).json({ error: 'Wikiページの作成に失敗しました' });
   }
 });
 
 // Update wiki page
-router.put('/:id', requirePermission('projects.wiki', 'input'), async (req: AuthRequest, res: Response) => {
+router.put('/:id', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const existing = await prisma.wikiPage.findUnique({
       where: { id: Number(req.params.id) },
@@ -91,7 +92,10 @@ router.put('/:id', requirePermission('projects.wiki', 'input'), async (req: Auth
       res.status(404).json({ error: 'Wikiページが見つかりません' });
       return;
     }
-    await assertProjectMember(req.userId!, existing.projectId, isRequestAdmin(req));
+    if (!(await hasProjectPermission(req.userId!, existing.projectId, 'projects.wiki', 'input'))) {
+      res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
+      return;
+    }
 
     const { title, content, parentId } = req.body;
     const page = await prisma.wikiPage.update({
@@ -105,16 +109,12 @@ router.put('/:id', requirePermission('projects.wiki', 'input'), async (req: Auth
     });
     res.json(page);
   } catch (e) {
-    if (e instanceof ProjectAccessDeniedError) {
-      sendProjectAccessDenied(res);
-      return;
-    }
     res.status(500).json({ error: 'Wikiページの更新に失敗しました' });
   }
 });
 
 // Delete wiki page
-router.delete('/:id', requirePermission('projects.wiki', 'input'), async (req: AuthRequest, res: Response) => {
+router.delete('/:id', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const existing = await prisma.wikiPage.findUnique({
       where: { id: Number(req.params.id) },
@@ -124,20 +124,19 @@ router.delete('/:id', requirePermission('projects.wiki', 'input'), async (req: A
       res.status(404).json({ error: 'Wikiページが見つかりません' });
       return;
     }
-    await assertProjectMember(req.userId!, existing.projectId, isRequestAdmin(req));
+    if (!(await hasProjectPermission(req.userId!, existing.projectId, 'projects.wiki', 'input'))) {
+      res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
+      return;
+    }
     await prisma.wikiPage.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: 'Wikiページを削除しました' });
   } catch (e) {
-    if (e instanceof ProjectAccessDeniedError) {
-      sendProjectAccessDenied(res);
-      return;
-    }
     res.status(500).json({ error: 'Wikiページの削除に失敗しました' });
   }
 });
 
 // Move wiki page (change parent and/or position)
-router.patch('/:id/move', requirePermission('projects.wiki', 'input'), async (req: AuthRequest, res: Response) => {
+router.patch('/:id/move', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
     const existing = await prisma.wikiPage.findUnique({
@@ -148,7 +147,10 @@ router.patch('/:id/move', requirePermission('projects.wiki', 'input'), async (re
       res.status(404).json({ error: 'Wikiページが見つかりません' });
       return;
     }
-    await assertProjectMember(req.userId!, existing.projectId, isRequestAdmin(req));
+    if (!(await hasProjectPermission(req.userId!, existing.projectId, 'projects.wiki', 'input'))) {
+      res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
+      return;
+    }
 
     const { parentId, position } = req.body;
 
@@ -161,10 +163,6 @@ router.patch('/:id/move', requirePermission('projects.wiki', 'input'), async (re
     });
     res.json(page);
   } catch (e) {
-    if (e instanceof ProjectAccessDeniedError) {
-      sendProjectAccessDenied(res);
-      return;
-    }
     console.error('wiki.movePage error:', e);
     res.status(500).json({ error: 'Wikiページの移動に失敗しました' });
   }

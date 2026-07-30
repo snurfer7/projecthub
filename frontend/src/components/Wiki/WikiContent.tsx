@@ -7,8 +7,8 @@ interface WikiContentProps {
     content: string;
     authorName: string;
     updatedAt: string;
-    onEdit: () => void;
-    onDelete: () => void;
+    onEdit?: () => void;
+    onDelete?: () => void;
 }
 
 const WikiContent: React.FC<WikiContentProps> = ({
@@ -30,7 +30,9 @@ const WikiContent: React.FC<WikiContentProps> = ({
                         <span>更新: {new Date(updatedAt).toLocaleString('ja-JP')}</span>
                     </div>
                 </div>
+                {(onEdit || onDelete) && (
                 <div className="flex gap-2">
+                    {onEdit && (
                     <button
                         onClick={onEdit}
                         className="p-2 text-sky-600 hover:bg-sky-100 rounded transition-colors"
@@ -38,6 +40,8 @@ const WikiContent: React.FC<WikiContentProps> = ({
                     >
                         <Pencil className="w-5 h-5" />
                     </button>
+                    )}
+                    {onDelete && (
                     <button
                         onClick={onDelete}
                         className="p-2 text-red-600 hover:bg-red-100 rounded transition-colors"
@@ -45,7 +49,9 @@ const WikiContent: React.FC<WikiContentProps> = ({
                     >
                         <Trash2 className="w-5 h-5" />
                     </button>
+                    )}
                 </div>
+                )}
             </div>
             <div className="p-6 prose prose-slate max-w-none flex-1 overflow-y-auto">
                 <MarkdownRenderer content={content || '*コンテンツがありません*'} />

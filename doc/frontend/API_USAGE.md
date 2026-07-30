@@ -22,6 +22,7 @@
 - レスポンス型は `frontend/src/types/index.ts` の型と一致させる。必要に応じて `include` パラメータや API 仕様に合わせて部分型を定義してよい。
 - エラー時は `error.response?.data?.error` でメッセージを取得し、UI に表示する。
 - **プロジェクトメンバー可視性**: `GET projects` / `gantt/all` / `issues` / `time-entries` 等は所属プロジェクトのみ返す（`isAdmin` は全件）。詳細（`GET projects/:id` 等）で非メンバーの場合は 403。`ProjectDetailPage` は 403 時に権限なしメッセージを表示する。
+- **プロジェクトロール権限**: `GET projects/:id` の `myPermissions` でプロジェクト詳細機能・項目を制御。グループの PermissionSet はトップレベル `projects` のみ。管理 > ロールでプロジェクト権限マトリクスを編集。
 
 ## エンドポイントとの対応
 

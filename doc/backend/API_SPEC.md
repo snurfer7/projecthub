@@ -34,23 +34,25 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 ## Projects — `/api/projects`
 
-**メンバー可視性**: `POST /`（作成）と `GET /roles/available` を除き、操作対象プロジェクトに `ProjectMember` として登録されているユーザーのみアクセス可。一覧は所属プロジェクトのみ返す。非メンバーは **403**（`このプロジェクトを参照する権限がありません`）。**例外**: `isAdmin` のユーザーは全プロジェクトを参照・操作可能。作成者は作成時に自動でメンバーとなる。
+**メンバー可視性**: `POST /`（作成）と `GET /roles/available` を除き、操作対象プロジェクトに `ProjectMember` として登録されているユーザーのみアクセス可。一覧は所属プロジェクトのみ返す。非メンバーは **403**（`このプロジェクトを参照する権限がありません`）。**例外**: `isAdmin` のユーザーは全プロジェクトを参照・操作可能。作成者は作成時に自動でメンバーとなる（`isDefaultRole` のロールを付与）。
+
+**二層権限**: グループ PermissionSet の `projects`（use/input）でアプリ機能のゲート。プロジェクト詳細（プロジェクト情報更新・メンバー・チケット・Wiki 等および項目権限）は **RolePermission**（プロジェクト内ロール）で制御。`GET /:id` 応答に `myPermissions`（当該ユーザーのロール権限マップ）を含む。不足時は **403**（`このプロジェクトでの操作権限がありません`）。`User.isAdmin` ではロール権限をバイパスしない。
 
 | メソッド | パス | 概要 |
 |----------|------|------|
-| GET | `/` | プロジェクト一覧（所属メンバーのプロジェクトのみ） |
-| GET | `/:id` | プロジェクト詳細（メンバー必須） |
-| POST | `/` | プロジェクト作成（メンバー不要。作成者が自動登録） |
-| PUT | `/:id` | プロジェクト更新（メンバー必須） |
-| DELETE | `/:id` | プロジェクト削除（メンバー必須） |
-| POST | `/:id/members` | メンバー追加（メンバー必須） |
-| PUT | `/:id/members/:memberId` | メンバー・ロール更新（メンバー必須） |
-| DELETE | `/:id/members/:memberId` | メンバー削除（メンバー必須） |
-| GET | `/roles/available` | 利用可能ロール一覧 |
-| GET | `/:id/groups` | プロジェクト紐付けグループ一覧（メンバー必須） |
-| POST | `/:id/groups` | グループ紐付け（メンバー必須） |
-| PUT | `/:id/groups/:groupId/role` | グループのロール設定更新（メンバー必須） |
-| DELETE | `/:id/groups/:groupId` | グループ紐付け解除（メンバー必須） |
+| GET | `/` | プロジェクト一覧（所属メンバーのプロジェクトのみ）。権限: `projects` use |
+| GET | `/:id` | プロジェクト詳細（メンバー必須）。応答に `myPermissions` |
+| POST | `/` | プロジェクト作成。権限: `projects` input |
+| PUT | `/:id` | プロジェクト情報の更新。権限: `projects` use + ロール `projects.overview` input |
+| DELETE | `/:id` | プロジェクト削除。権限: `projects` use + ロール `projects.overview` input |
+| POST | `/:id/members` | メンバー追加。ロール `projects.members` input |
+| PUT | `/:id/members/:memberId` | メンバー・ロール更新。ロール `projects.members` input |
+| DELETE | `/:id/members/:memberId` | メンバー削除。ロール `projects.members` input |
+| GET | `/roles/available` | 利用可能ロール一覧。権限: `projects` use |
+| GET | `/:id/groups` | プロジェクト紐付けグループ一覧。ロール `projects.members` use |
+| POST | `/:id/groups` | グループ紐付け。ロール `projects.members` input |
+| PUT | `/:id/groups/:groupId/role` | グループのロール設定更新。ロール `projects.members` input |
+| DELETE | `/:id/groups/:groupId` | グループ紐付け解除。ロール `projects.members` input |
 | GET | `/:id/comments` | コメント一覧（メンバー必須） |
 | POST | `/:id/comments` | コメント追加（メンバー必須） |
 | PUT | `/:id/comments/:commentId` | コメント更新（メンバー必須） |

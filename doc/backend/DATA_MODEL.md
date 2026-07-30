@@ -7,25 +7,26 @@
 - **User** — ユーザー。email, passwordHash, firstName, lastName, role, isAdmin, landingPage, show*Menu。**認証**: `authMethod`（`password` \| `sso`）, `microsoftOid`（Entra object id・ユニーク・任意）, `microsoftTenantId`（任意）。Microsoft 連携の主キーはメールではなく `microsoftOid`（UPN 変更後も継続）。SSO ログイン成功時（oid 一致）は `User.email` を Entra のログイン ID（UPN）へ自動同期する（他ユーザーと衝突時はスキップ）。GroupMember, ProjectMember, Issue（author/assignedTo）, TimeEntry, WikiPage, 各種 Comment 等と関連。**API アクセスはグループ経由の権限設定で制御**（`isAdmin` / `role=admin` でもバイパスしない）。
 - **Group** — グループ。GroupMember で User と多対多。Issue の担当グループ、ProjectGroup、ProjectMemberRole の sourceGroup として使用。**`permissionSetId`（任意）** で PermissionSet を参照（1 グループ = 最大 1 権限設定）。
 - **GroupMember** — Group と User の多対多中間。ユーザーは複数グループに所属可能。
-- **PermissionResource** — 権限カタログ（機能・項目）。code（例: `projects.issues.fields.subject`）, name, resourceType（`feature` \| `field`）, parentId, position。親子ツリー構造。
-- **PermissionSet** — 権限設定。name, description。**1 つの権限設定に複数 Group を割り当て可能**（Group.permissionSetId の 1:N）。初期 seed 時のみ「全権限」を自動作成する（起動時同期では作成しない）。
-- **PermissionSetPermission** — 権限設定と PermissionResource の対応。canUse（使用可否）, canInput（入力可否）。`(permissionSetId, resourceId)` はユニーク。
+- **PermissionResource** — 権限カタログ（機能・項目）。code, name, resourceType（`feature` \| `field`）, **scope（`group` \| `role`）**, parentId, position。`projects` は group、配下（`projects.overview`＝プロジェクト情報 / `projects.members`＝メンバー / issues / fields 等）は role。
+- **PermissionSet** — 権限設定（グループ向け）。name, description。**scope=group のリソースのみ**割当可能。
+- **PermissionSetPermission** — 権限設定と PermissionResource の対応。canUse, canInput。
+- **RolePermission** — ロールと PermissionResource（scope=role）の対応。canUse, canInput。
 - **デフォルトグループ** — 初期 seed 時のみ名前「デフォルト」の Group を作成し、「全権限」を割当・全ユーザーを所属させる。起動時や seed 再実行では再作成・再割当しない。
 
 ### 権限解決
 
-1. ユーザーの所属グループ（GroupMember）を取得
-2. 各グループの PermissionSet から PermissionSetPermission を取得
-3. 複数 PermissionSet の権限を **OR 結合**
-4. 親 resource の canUse=false → 子孫すべて拒否
-5. グループ未所属、または全所属グループが権限設定未割当 → 全拒否
+1. **グループ権限（PermissionSet）**: ユーザーの所属グループ → PermissionSet を OR 結合。`PermissionResource.scope = group` のみ（例: トップレベル `projects`）。親 canUse=false → 子孫拒否。
+2. **ロール権限（RolePermission）**: プロジェクトの `ProjectMemberRole` → 各 Role の RolePermission を OR 結合。`scope = role`（例: `projects.issues`, `projects.issues.fields.*`）。プロジェクト単位で解決し、`GET /projects/:id` の `myPermissions` および API の `requireProjectPermission` で検証。`User.isAdmin` ではバイパスしない。
+3. グループ未所属、または全所属グループが権限設定未割当 → グループ権限は全拒否
+4. プロジェクトにロール未割当 → ロール権限は全拒否
 
 ## マスタ（チケット・ワークフロー）
 
 - **Tracker** — チケット種別（Bug, Feature 等）。
 - **IssueStatus** — ステータス（Open, Closed 等）。isClosed, position。RoleStatus, WorkflowTransition と関連。
 - **IssuePriority** — 優先度。
-- **Role** — プロジェクト内ロール。RoleStatus（担当可能ステータス）、WorkflowTransition（遷移許可）と関連。
+- **Role** — プロジェクト内ロール。RoleStatus、WorkflowTransition、**RolePermission**（プロジェクト詳細権限）と関連。`isDefaultRole` はプロジェクト作成時に作成者へ付与する初期ロール。
+- **RolePermission** — Role と PermissionResource（scope=role）の対応。canUse / canInput。
 - **RoleStatus** — Role と IssueStatus の対応。
 - **WorkflowTransition** — ロールごとの「旧ステータス → 新ステータス」の遷移許可。
 

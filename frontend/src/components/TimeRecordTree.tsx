@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Briefcase, Plus, Pencil, Trash2 } from 'lucide-react';
 import api from '../api/client';
-import { Project, Issue, TimeEntry } from '../types';
+import { Project, Issue, TimeEntry, PermissionMap } from '../types';
 import DateInput from './DateInput';
+import { prefetchProjectPermissions, projectMapCanInput } from '../utils/projectPermissionsCache';
 
 const ACTIVITY_OPTIONS = ['開発', '設計', 'レビュー', 'テスト', 'ドキュメント', 'その他'];
 
@@ -28,6 +29,7 @@ interface ProjectNode {
 export default function TimeRecordTree({ projects, issues, timeEntries, onRefresh }: TimeRecordTreeProps) {
   const [collapsedProjects, setCollapsedProjects] = useState<Set<number>>(new Set());
   const [collapsedIssues, setCollapsedIssues] = useState<Set<number>>(new Set());
+  const [permByProject, setPermByProject] = useState<Record<number, PermissionMap>>({});
 
   // New entry state
   const [addingForIssueId, setAddingForIssueId] = useState<number | null>(null);
@@ -44,6 +46,21 @@ export default function TimeRecordTree({ projects, issues, timeEntries, onRefres
   const [editEntryComments, setEditEntryComments] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const ids = projects.map((p) => p.id);
+    if (ids.length === 0) return;
+    let cancelled = false;
+    prefetchProjectPermissions(ids).then((maps) => {
+      if (!cancelled) setPermByProject(maps);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [projects]);
+
+  const canEditTime = (projectId: number) =>
+    projectMapCanInput(permByProject[projectId], 'projects.time-entries');
 
   const projectTree = useMemo<ProjectNode[]>(() => {
     const projectIds = new Set(projects.map((p) => p.id));
@@ -253,6 +270,7 @@ export default function TimeRecordTree({ projects, issues, timeEntries, onRefres
             </td>
             <td></td>
             <td className="px-3 py-2">
+              {canEditTime(project.id) && (
               <button
                 onClick={() => startAdding(issue.id)}
                 className="flex items-center gap-0.5 text-xs text-sky-600 bg-sky-50 hover:bg-sky-100 px-2 py-1 rounded ml-auto"
@@ -260,6 +278,7 @@ export default function TimeRecordTree({ projects, issues, timeEntries, onRefres
                 <Plus size={10} />
                 記録を追加
               </button>
+              )}
             </td>
           </tr>,
         );
@@ -352,6 +371,8 @@ export default function TimeRecordTree({ projects, issues, timeEntries, onRefres
                   <td className="px-3 py-1.5 text-xs font-medium text-gray-700">{entry.hours}h</td>
                   <td className="px-3 py-1.5 text-xs text-gray-500">{entry.comments || ''}</td>
                   <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                    {canEditTime(project.id) && (
+                    <>
                     <button
                       onClick={() => startEditing(entry)}
                       className="text-sky-500 hover:text-sky-700 mr-2 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
@@ -366,6 +387,8 @@ export default function TimeRecordTree({ projects, issues, timeEntries, onRefres
                     >
                       <Trash2 size={13} />
                     </button>
+                    </>
+                    )}
                   </td>
                 </tr>,
               );

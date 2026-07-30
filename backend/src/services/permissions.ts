@@ -10,13 +10,14 @@ let resourceTreeCache: Array<{
   id: number;
   code: string;
   parentId: number | null;
+  scope: string;
 }> | null = null;
 
 async function getResourceTree() {
   const count = await prisma.permissionResource.count();
   if (resourceTreeCache === null || resourceTreeCache.length !== count) {
     resourceTreeCache = await prisma.permissionResource.findMany({
-      select: { id: true, code: true, parentId: true },
+      select: { id: true, code: true, parentId: true, scope: true },
     });
   }
   return resourceTreeCache;
@@ -26,16 +27,55 @@ export function clearPermissionCache() {
   resourceTreeCache = null;
 }
 
-function applyInheritance(
+export function applyInheritance(
   merged: Map<string, PermissionEntry>,
   resources: Array<{ id: number; code: string; parentId: number | null }>
 ): PermissionMap {
-  const byId = new Map(resources.map((r) => [r.id, r]));
   const childrenByParent = new Map<number | null, typeof resources>();
   for (const r of resources) {
     const list = childrenByParent.get(r.parentId) ?? [];
     list.push(r);
     childrenByParent.set(r.parentId, list);
+  }
+
+  const result = new Map<string, PermissionEntry>();
+
+  function walk(parentCanUse: boolean, node: (typeof resources)[0]) {
+    const entry = merged.get(node.code) ?? { canUse: false, canInput: false };
+    const canUse = parentCanUse && entry.canUse;
+    const canInput = canUse && entry.canInput;
+    result.set(node.code, { canUse, canInput });
+    for (const child of childrenByParent.get(node.id) ?? []) {
+      walk(canUse, child);
+    }
+  }
+
+  for (const root of childrenByParent.get(null) ?? []) {
+    walk(true, root);
+  }
+
+  const out: PermissionMap = {};
+  for (const [code, entry] of result) {
+    out[code] = entry;
+  }
+  return out;
+}
+
+/**
+ * Inheritance for a subtree where some parents may be outside the scope.
+ * Nodes whose parent is not in `resources` are treated as roots (parentCanUse=true).
+ */
+export function applyInheritanceScoped(
+  merged: Map<string, PermissionEntry>,
+  resources: Array<{ id: number; code: string; parentId: number | null }>
+): PermissionMap {
+  const idSet = new Set(resources.map((r) => r.id));
+  const childrenByParent = new Map<number | null, typeof resources>();
+  for (const r of resources) {
+    const parentKey = r.parentId != null && idSet.has(r.parentId) ? r.parentId : null;
+    const list = childrenByParent.get(parentKey) ?? [];
+    list.push(r);
+    childrenByParent.set(parentKey, list);
   }
 
   const result = new Map<string, PermissionEntry>();
@@ -70,7 +110,7 @@ export async function resolveUserPermissions(userId: number): Promise<Permission
           permissionSet: {
             include: {
               permissions: {
-                include: { resource: { select: { code: true } } },
+                include: { resource: { select: { code: true, scope: true } } },
               },
             },
           },
@@ -84,6 +124,7 @@ export async function resolveUserPermissions(userId: number): Promise<Permission
     const set = gm.group.permissionSet;
     if (!set) continue;
     for (const p of set.permissions) {
+      if (p.resource.scope === 'role') continue;
       const code = p.resource.code;
       const existing = merged.get(code) ?? { canUse: false, canInput: false };
       merged.set(code, {
@@ -93,14 +134,15 @@ export async function resolveUserPermissions(userId: number): Promise<Permission
     }
   }
 
-  const resources = await getResourceTree();
-  boostParentPermissionsFromChildren(merged, resources);
-  const inherited = applyInheritance(merged, resources);
+  const allResources = await getResourceTree();
+  const groupResources = allResources.filter((r) => r.scope !== 'role');
+  boostParentPermissionsFromChildren(merged, groupResources);
+  const inherited = applyInheritanceScoped(merged, groupResources);
   return expandLegacyFieldAliases(inherited);
 }
 
 /** DB に旧 startDate / endDate のみある場合も新フィールドコードで効くようにする */
-function expandLegacyFieldAliases(map: PermissionMap): PermissionMap {
+export function expandLegacyFieldAliases(map: PermissionMap): PermissionMap {
   const out: PermissionMap = { ...map };
 
   const applyLegacy = (
@@ -128,7 +170,7 @@ function expandLegacyFieldAliases(map: PermissionMap): PermissionMap {
   return out;
 }
 
-function boostParentPermissionsFromChildren(
+export function boostParentPermissionsFromChildren(
   merged: Map<string, PermissionEntry>,
   resources: Array<{ id: number; code: string; parentId: number | null }>
 ) {
@@ -148,14 +190,23 @@ function boostParentPermissionsFromChildren(
     return false;
   }
 
+  // Boost canUse only. Feature-level canInput (create/update/delete) must stay
+  // explicit — otherwise field canInput would re-enable parent input.
   for (const r of resources) {
     if (!(childrenByParent.get(r.id)?.length)) continue;
     const entry = merged.get(r.code) ?? { canUse: false, canInput: false };
     merged.set(r.code, {
       canUse: entry.canUse || descendantsMatch(r.id, (e) => e.canUse),
-      canInput: entry.canInput || descendantsMatch(r.id, (e) => e.canInput),
+      canInput: entry.canInput,
     });
   }
+}
+
+export async function getPermissionResourcesByScope(scope: 'group' | 'role') {
+  return prisma.permissionResource.findMany({
+    where: { scope },
+    select: { id: true, code: true, parentId: true, scope: true },
+  });
 }
 
 export function hasPermission(

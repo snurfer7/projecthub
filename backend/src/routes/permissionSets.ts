@@ -1,20 +1,32 @@
 import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth';
-import { requirePermission } from '../middleware/permissions';
+import { requirePermission, requireAnyPermission } from '../middleware/permissions';
 import { clearPermissionCache } from '../services/permissions';
 
 const router = Router();
 const prisma = new PrismaClient();
 
 function buildResourceTree(
-  resources: Array<{ id: number; code: string; name: string; resourceType: string; parentId: number | null; position: number }>
+  resources: Array<{
+    id: number;
+    code: string;
+    name: string;
+    resourceType: string;
+    scope?: string;
+    parentId: number | null;
+    position: number;
+  }>,
+  rootParentIds: Array<number | null> = [null]
 ) {
   const byParent = new Map<number | null, typeof resources>();
+  const idSet = new Set(resources.map((r) => r.id));
   for (const r of resources) {
-    const list = byParent.get(r.parentId) ?? [];
+    const parentKey =
+      r.parentId != null && idSet.has(r.parentId) ? r.parentId : null;
+    const list = byParent.get(parentKey) ?? [];
     list.push(r);
-    byParent.set(r.parentId, list);
+    byParent.set(parentKey, list);
   }
   function build(parentId: number | null): any[] {
     return (byParent.get(parentId) ?? [])
@@ -24,16 +36,49 @@ function buildResourceTree(
         code: r.code,
         name: r.name,
         resourceType: r.resourceType,
+        scope: r.scope ?? 'group',
         position: r.position,
         children: build(r.id),
       }));
   }
-  return build(null);
+  if (rootParentIds.length === 1 && rootParentIds[0] === null) {
+    return build(null);
+  }
+  // For role scope: include virtual parent headings that are group-scoped (e.g. projects)
+  return rootParentIds.flatMap((pid) => build(pid));
 }
 
-router.get('/permissions/resources', requirePermission('admin.permission-sets', 'use'), async (_req: AuthRequest, res: Response) => {
+router.get('/permissions/resources', requireAnyPermission(['admin.permission-sets', 'admin.roles'], 'use'), async (req: AuthRequest, res: Response) => {
   try {
+    const scope = req.query.scope === 'role' ? 'role' : req.query.scope === 'all' ? 'all' : 'group';
+    if (scope === 'all') {
+      const resources = await prisma.permissionResource.findMany({
+        orderBy: [{ position: 'asc' }, { code: 'asc' }],
+      });
+      res.json(buildResourceTree(resources));
+      return;
+    }
+    if (scope === 'role') {
+      // Include group-scoped parents of role resources as headings (e.g. projects)
+      const roleResources = await prisma.permissionResource.findMany({
+        where: { scope: 'role' },
+        orderBy: [{ position: 'asc' }, { code: 'asc' }],
+      });
+      const parentIds = [...new Set(roleResources.map((r) => r.parentId).filter((id): id is number => id != null))];
+      const parents = parentIds.length
+        ? await prisma.permissionResource.findMany({ where: { id: { in: parentIds } } })
+        : [];
+      // Role resources that are also parents of other role resources (e.g. projects.issues)
+      // must appear only once — otherwise the tree duplicates and createMany hits unique constraints.
+      const byId = new Map<number, (typeof roleResources)[0] | (typeof parents)[0]>();
+      for (const r of [...parents, ...roleResources]) {
+        byId.set(r.id, r);
+      }
+      res.json(buildResourceTree([...byId.values()]));
+      return;
+    }
     const resources = await prisma.permissionResource.findMany({
+      where: { scope: 'group' },
       orderBy: [{ position: 'asc' }, { code: 'asc' }],
     });
     res.json(buildResourceTree(resources));
@@ -97,10 +142,15 @@ async function syncPermissions(
   permissions?: Array<{ resourceId: number; canUse: boolean; canInput: boolean }>
 ) {
   if (permissions === undefined) return;
+  // Only allow group-scoped resources on PermissionSets
+  const groupIds = new Set(
+    (await prisma.permissionResource.findMany({ where: { scope: 'group' }, select: { id: true } })).map((r) => r.id)
+  );
+  const filtered = (permissions ?? []).filter((p) => groupIds.has(p.resourceId));
   await prisma.permissionSetPermission.deleteMany({ where: { permissionSetId } });
-  if (permissions.length > 0) {
+  if (filtered.length > 0) {
     await prisma.permissionSetPermission.createMany({
-      data: permissions.map((p) => ({
+      data: filtered.map((p) => ({
         permissionSetId,
         resourceId: p.resourceId,
         canUse: p.canUse,

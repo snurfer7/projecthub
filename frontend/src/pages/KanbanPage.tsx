@@ -1,18 +1,24 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useOutletContext } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import api from '../api/client';
-import { Issue, IssueStatus } from '../types';
+import { Issue, IssueStatus, PermissionMap } from '../types';
 import Modal from '../components/Modal';
 import { IssueFormModal } from '../components/IssueForm';
 import KanbanBoard from '../components/KanbanBoard';
 import IssueDetail from '../components/IssueDetail';
 import { useAuth } from '../hooks/useAuth';
+import { usePermissions } from '../hooks/usePermissions';
 import TicketSearchSection from '../components/TicketSearchSection';
 import { isLeafIssue } from '../utils/issueTree';
+import type { ProjectOutletContext } from './ProjectDetailPage';
 
 export default function KanbanPage() {
   const { projectId } = useParams<{ projectId: string }>();
+  const outlet = useOutletContext<ProjectOutletContext | null>();
+  const projectPermissions: PermissionMap = outlet?.myPermissions ?? {};
+  const { canInput } = usePermissions(projectPermissions);
+  const canEditIssues = canInput('projects.issues');
   const [issues, setIssues] = useState<Issue[]>([]);
   const [statuses, setStatuses] = useState<IssueStatus[]>([]);
   const [filterTrackerIds, setFilterTrackerIds] = useState<(number | string)[]>([]);
@@ -29,7 +35,6 @@ export default function KanbanPage() {
 
   const fetchData = async () => {
     try {
-      // 祖先解決のためプロジェクト内の全チケットを取得（フィルタはクライアント側）
       const [issuesRes, metaRes] = await Promise.all([
         api.get('/issues', { params: { projectId } }),
         api.get('/issues/meta/options', { params: { projectId } }),
@@ -71,6 +76,7 @@ export default function KanbanPage() {
   }, [issues, filterTrackerIds, filterStatusIds, filterAssignedToIds, dueDateStart, dueDateEnd]);
 
   const handleDrop = async (issueId: number, targetStatusId: number) => {
+    if (!canEditIssues) return;
     const issueToUpdate = issues.find(i => i.id === issueId);
     if (!issueToUpdate || issueToUpdate.statusId === targetStatusId) return;
 
@@ -84,6 +90,7 @@ export default function KanbanPage() {
   };
 
   const openNewIssueForColumn = (statusId: number) => {
+    if (!canEditIssues) return;
     setNewIssueStatusId(statusId);
     setIsNewIssueModalOpen(true);
   };
@@ -94,6 +101,7 @@ export default function KanbanPage() {
   };
 
   const handleEditFromDetail = () => {
+    if (!canEditIssues) return;
     setIsDetailModalOpen(false);
     setIsEditModalOpen(true);
   };
@@ -117,6 +125,7 @@ export default function KanbanPage() {
       <div className="px-6 pb-3 flex-shrink-0">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-slate-700">カンバンボード</h2>
+          {canEditIssues && (
           <button
             onClick={() => { setNewIssueStatusId(undefined); setIsNewIssueModalOpen(true); }}
             className="bg-sky-600 text-white px-4 py-2 rounded-md text-sm hover:bg-sky-700 transition-colors flex items-center gap-1.5"
@@ -124,6 +133,7 @@ export default function KanbanPage() {
             <Plus size={16} className="w-4 h-4" />
             新規チケット
           </button>
+          )}
         </div>
         <TicketSearchSection
           filterTrackerIds={filterTrackerIds}
@@ -146,8 +156,9 @@ export default function KanbanPage() {
         issues={leafIssues}
         hierarchyIssues={issues}
         onDrop={handleDrop}
-        onNewIssue={openNewIssueForColumn}
+        onNewIssue={canEditIssues ? openNewIssueForColumn : undefined}
         onIssueClick={handleIssueClick}
+        canDrag={canEditIssues}
       />
 
       <IssueFormModal
@@ -156,6 +167,7 @@ export default function KanbanPage() {
         title="新規チケット作成"
         projectId={String(projectId)}
         defaultStatusId={newIssueStatusId}
+        permissions={projectPermissions}
         onSuccess={() => {
           setIsNewIssueModalOpen(false);
           fetchData();
@@ -172,7 +184,8 @@ export default function KanbanPage() {
           <IssueDetail
             issueId={String(selectedIssueId)}
             user={user}
-            onEdit={handleEditFromDetail}
+            onEdit={canEditIssues ? handleEditFromDetail : undefined}
+            permissions={projectPermissions}
           />
         )}
       </Modal>
@@ -183,6 +196,7 @@ export default function KanbanPage() {
           onClose={closeModal}
           title="チケット編集"
           issueId={String(selectedIssueId)}
+          permissions={projectPermissions}
           onSuccess={() => {
             setIsEditModalOpen(false);
             fetchData();

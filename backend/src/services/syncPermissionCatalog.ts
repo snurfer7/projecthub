@@ -1,13 +1,19 @@
 import { PrismaClient } from '@prisma/client';
 import { PERMISSION_CATALOG, flattenPermissionCatalog } from '../constants/permissionCatalog';
+import {
+  clearProjectPermissionCache,
+  grantFullRolePermissionsToAllRoles,
+  pruneRoleScopedFromPermissionSets,
+} from './projectPermissions';
+import { clearPermissionCache } from './permissions';
 
 const prisma = new PrismaClient();
 
 /**
  * 権限カタログ（permissionCatalog.ts）の内容を DB の PermissionResource テーブルに同期する。
- * 新規エントリは追加、既存は名前・位置を更新、カタログから削除されたものは DB からも削除する。
- * 「全権限」が既に存在する場合のみ、新規リソースを全許可で追記する（作成・グループ割当はしない）。
- * 「全権限」／「デフォルト」グループの作成は初期 seed（seed-permissions）のみ。
+ * 新規エントリは追加、既存は名前・位置・scope を更新、カタログから削除されたものは DB からも削除する。
+ * 「全権限」が既に存在する場合のみ、グループ向けリソースを全許可で追記する。
+ * ロール向けリソースは全 Role に全権限を upsert し、PermissionSet から role-scope を除去する。
  */
 export async function syncPermissionCatalog(): Promise<void> {
   const flat = flattenPermissionCatalog(PERMISSION_CATALOG);
@@ -23,6 +29,7 @@ export async function syncPermissionCatalog(): Promise<void> {
         data: {
           name: entry.name,
           resourceType: entry.resourceType,
+          scope: entry.scope,
           position: entry.position,
           parentId: parentId ?? null,
         },
@@ -34,6 +41,7 @@ export async function syncPermissionCatalog(): Promise<void> {
           code: entry.code,
           name: entry.name,
           resourceType: entry.resourceType,
+          scope: entry.scope,
           position: entry.position,
           parentId: parentId ?? null,
         },
@@ -49,13 +57,21 @@ export async function syncPermissionCatalog(): Promise<void> {
     }
   }
 
+  clearPermissionCache();
+  clearProjectPermissionCache();
+
+  await pruneRoleScopedFromPermissionSets();
+  await grantFullRolePermissionsToAllRoles();
+
   const fullAccessSet = await prisma.permissionSet.findUnique({ where: { name: '全権限' } });
   if (!fullAccessSet) {
     return;
   }
 
-  const allResources = await prisma.permissionResource.findMany();
-  for (const resource of allResources) {
+  const groupResources = await prisma.permissionResource.findMany({
+    where: { scope: 'group' },
+  });
+  for (const resource of groupResources) {
     await prisma.permissionSetPermission.upsert({
       where: {
         permissionSetId_resourceId: {

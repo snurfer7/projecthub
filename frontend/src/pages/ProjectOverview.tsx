@@ -6,16 +6,17 @@ import { Project, ProjectMember, ProjectGroup, Role, Group } from '../types';
 import { formatCompanyName, formatContactDisplayName } from '../utils/format';
 import ConfirmationModal from '../components/ConfirmationModal';
 import Combobox from '../components/Combobox';
+import { usePermissions } from '../hooks/usePermissions';
+import type { ProjectOutletContext } from './ProjectDetailPage';
 
-
-interface ProjectContext {
-    project: Project;
-    loadProject: () => void;
-    openSettings: () => void;
-}
 
 export default function ProjectOverview() {
-    const { project, loadProject, openSettings } = useOutletContext<ProjectContext>();
+    const { project, loadProject, openSettings, myPermissions } = useOutletContext<ProjectOutletContext>();
+    const { canUse, canInput } = usePermissions(myPermissions);
+    const canViewProjectInfo = canUse('projects.overview');
+    const canEditProjectInfo = canInput('projects.overview');
+    const canViewMembers = canUse('projects.members');
+    const canEditMembers = canInput('projects.members');
 
     const [roles, setRoles] = useState<Role[]>([]);
     const [allGroups, setAllGroups] = useState<Group[]>([]);
@@ -44,13 +45,14 @@ export default function ProjectOverview() {
     }, [project.groups]);
 
     useEffect(() => {
+        if (!canEditMembers) return;
         api.get('/projects/roles/available').then((res) => {
             setRoles(res.data);
             if (res.data.length > 0) setSelectedRoleIds(new Set([res.data[0].id]));
         }).catch(() => { });
         api.get('/admin/groups').then((res) => setAllGroups(res.data)).catch(() => { });
         api.get('/issues/meta/options').then((res) => setAllUsers(res.data.users)).catch(() => { });
-    }, []);
+    }, [canEditMembers]);
 
     // ── Derived sets ──────────────────────────────────────────────────────────
     const assignedGroupIds = new Set((project.groups || []).map((pg: ProjectGroup) => pg.groupId));
@@ -177,13 +179,22 @@ export default function ProjectOverview() {
 
     return (
         <>
+            {!canViewProjectInfo && !canViewMembers && (
+                <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500 text-sm">
+                    表示可能な項目がありません
+                </div>
+            )}
+
             {/* Project Info Section */}
+            {canViewProjectInfo && (
             <div className="mb-6">
                 <div className="flex items-center justify-between mb-6">
                     <h2 className="text-lg font-semibold text-slate-700">プロジェクト情報</h2>
-                    <button onClick={openSettings} className="text-sky-600 hover:text-sky-700 text-sm font-medium flex items-center gap-1">
-                        <Pencil className="w-4 h-4" />設定
-                    </button>
+                    {canEditProjectInfo && (
+                        <button onClick={openSettings} className="text-sky-600 hover:text-sky-700 text-sm font-medium flex items-center gap-1">
+                            <Pencil className="w-4 h-4" />設定
+                        </button>
+                    )}
                 </div>
                 <div className="bg-white rounded-lg shadow p-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm mb-8">
@@ -266,8 +277,10 @@ export default function ProjectOverview() {
                     )}
                 </div>
             </div>
+            )}
 
             {/* Members Section (Refined Redmine Style) */}
+            {canViewMembers && (
             <div className="mb-6">
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-lg font-semibold text-slate-700">メンバー</h2>
@@ -284,7 +297,7 @@ export default function ProjectOverview() {
                                         <tr>
                                             <th className="text-left px-4 py-3 font-medium text-gray-600">名前</th>
                                             <th className="text-left px-4 py-3 font-medium text-gray-600">ロール</th>
-                                            <th className="w-10 px-4 py-3"></th>
+                                            {canEditMembers && <th className="w-10 px-4 py-3"></th>}
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y">
@@ -320,9 +333,11 @@ export default function ProjectOverview() {
                                                                 </div>
                                                             </div>
                                                         </td>
-                                                        <td className="px-4 py-2.5 text-right">
-                                                            <button onClick={() => setConfirmDelete({ type: 'group', id: pg.groupId, name: pg.group.name, data: pg })} className="text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
-                                                        </td>
+                                                        {canEditMembers && (
+                                                            <td className="px-4 py-2.5 text-right">
+                                                                <button onClick={() => setConfirmDelete({ type: 'group', id: pg.groupId, name: pg.group.name, data: pg })} className="text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                                                            </td>
+                                                        )}
                                                     </tr>
                                                     {/* Group member rows */}
                                                     {isExpanded && groupMembers.map((gm: any, idx: number) => {
@@ -343,7 +358,7 @@ export default function ProjectOverview() {
                                                                     </span>
                                                                 </td>
                                                                 <td className="px-4 py-2">
-                                                                    {editingId === mKey ? (
+                                                                    {canEditMembers && editingId === mKey ? (
                                                                         <div className="flex items-center gap-2">
                                                                             <Combobox
                                                                                 options={roles.map(r => ({ value: r.id, label: r.name }))}
@@ -361,13 +376,15 @@ export default function ProjectOverview() {
                                                                         </div>
                                                                     ) : (
                                                                         <div className="flex flex-wrap gap-1 items-center">
-                                                                            {/* Individual roles */}
                                                                             {indivRoles.map(pr => (
-                                                                                <span key={pr.id} className="inline-block px-2 py-0.5 bg-sky-50 text-sky-700 rounded text-xs border border-sky-100 cursor-pointer hover:bg-sky-100 transition-colors" onClick={() => startEdit(mKey, indivRoleIds)}>
+                                                                                <span
+                                                                                    key={pr.id}
+                                                                                    className={`inline-block px-2 py-0.5 bg-sky-50 text-sky-700 rounded text-xs border border-sky-100 ${canEditMembers ? 'cursor-pointer hover:bg-sky-100 transition-colors' : ''}`}
+                                                                                    onClick={canEditMembers ? () => startEdit(mKey, indivRoleIds) : undefined}
+                                                                                >
                                                                                     {pr.role.name}
                                                                                 </span>
                                                                             ))}
-                                                                            {/* Group-inherited roles */}
                                                                             {(() => {
                                                                                 const groupRoles = pm?.roles.filter(r => r.sourceGroupId !== null) || [];
                                                                                 return groupRoles.map(pr => {
@@ -381,15 +398,21 @@ export default function ProjectOverview() {
                                                                                 });
                                                                             })()}
                                                                             {(!pm || pm.roles.length === 0) && (
-                                                                                <span className="text-gray-300 italic text-xs cursor-pointer" onClick={() => startEdit(mKey, [])}>ロールなし</span>
+                                                                                canEditMembers ? (
+                                                                                    <span className="text-gray-300 italic text-xs cursor-pointer" onClick={() => startEdit(mKey, [])}>ロールなし</span>
+                                                                                ) : (
+                                                                                    <span className="text-gray-300 italic text-xs">ロールなし</span>
+                                                                                )
                                                                             )}
-                                                                            <button onClick={() => startEdit(mKey, indivRoleIds)} className="p-0.5 text-gray-400 hover:text-sky-600 rounded bg-gray-50 border border-gray-100 self-center" title="ロールを編集">
-                                                                                <Pencil className="w-3 h-3" />
-                                                                            </button>
+                                                                            {canEditMembers && (
+                                                                                <button onClick={() => startEdit(mKey, indivRoleIds)} className="p-0.5 text-gray-400 hover:text-sky-600 rounded bg-gray-50 border border-gray-100 self-center" title="ロールを編集">
+                                                                                    <Pencil className="w-3 h-3" />
+                                                                                </button>
+                                                                            )}
                                                                         </div>
                                                                     )}
                                                                 </td>
-                                                                <td className="px-4 py-2"></td>
+                                                                {canEditMembers && <td className="px-4 py-2"></td>}
                                                             </tr>
                                                         );
                                                     })}
@@ -415,7 +438,7 @@ export default function ProjectOverview() {
                                                         </span>
                                                     </td>
                                                     <td className="px-4 py-3">
-                                                        {editingId === key ? (
+                                                        {canEditMembers && editingId === key ? (
                                                             <div className="flex items-center gap-2">
                                                                 <Combobox
                                                                     options={roles.map(r => ({ value: r.id, label: r.name }))}
@@ -433,13 +456,15 @@ export default function ProjectOverview() {
                                                             </div>
                                                         ) : (
                                                             <div className="flex flex-wrap items-center gap-1 min-h-[24px]">
-                                                                {/* Individual roles */}
                                                                 {indivRoles.map(pr => (
-                                                                    <span key={pr.id} className="inline-block px-2 py-0.5 bg-sky-50 text-sky-700 rounded text-xs border border-sky-100 cursor-pointer hover:bg-sky-100 transition-colors" onClick={() => startEdit(key, indivRoleIds)}>
+                                                                    <span
+                                                                        key={pr.id}
+                                                                        className={`inline-block px-2 py-0.5 bg-sky-50 text-sky-700 rounded text-xs border border-sky-100 ${canEditMembers ? 'cursor-pointer hover:bg-sky-100 transition-colors' : ''}`}
+                                                                        onClick={canEditMembers ? () => startEdit(key, indivRoleIds) : undefined}
+                                                                    >
                                                                         {pr.role.name}
                                                                     </span>
                                                                 ))}
-                                                                {/* Group-inherited roles */}
                                                                 {groupRoles.map(pr => {
                                                                     const groupInfo = (project.groups || []).find(pg => pg.groupId === pr.sourceGroupId);
                                                                     const gName = groupInfo?.group.name || 'Group';
@@ -452,15 +477,19 @@ export default function ProjectOverview() {
                                                                 {m.roles.length === 0 && (
                                                                     <span className="text-gray-300 text-xs italic">ロールなし</span>
                                                                 )}
-                                                                <button onClick={() => startEdit(key, indivRoleIds)} className="p-1 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded-md transition-all h-fit" title="ロールを編集">
-                                                                    <Pencil className="w-3.5 h-3.5" />
-                                                                </button>
+                                                                {canEditMembers && (
+                                                                    <button onClick={() => startEdit(key, indivRoleIds)} className="p-1 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded-md transition-all h-fit" title="ロールを編集">
+                                                                        <Pencil className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         )}
                                                     </td>
-                                                    <td className="px-4 py-3 text-right">
-                                                        <button onClick={() => setConfirmDelete({ type: 'member', id: m.id, name: `${m.user.lastName} ${m.user.firstName}`, data: m })} className="text-gray-300 hover:text-red-500 transition-colors" title="個別ロールをすべて削除"><X className="w-4 h-4" /></button>
-                                                    </td>
+                                                    {canEditMembers && (
+                                                        <td className="px-4 py-3 text-right">
+                                                            <button onClick={() => setConfirmDelete({ type: 'member', id: m.id, name: `${m.user.lastName} ${m.user.firstName}`, data: m })} className="text-gray-300 hover:text-red-500 transition-colors" title="個別ロールをすべて削除"><X className="w-4 h-4" /></button>
+                                                        </td>
+                                                    )}
                                                 </tr>
                                             );
                                         })}
@@ -470,6 +499,7 @@ export default function ProjectOverview() {
                         </div>
 
                         {/* Add Form Column (Sidebar) */}
+                        {canEditMembers && (
                         <div className="w-full md:w-80 flex-shrink-0 p-5 bg-gray-50/50 border-t md:border-t-0 md:border-l border-gray-100">
                             <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                                 <Users className="w-3.5 h-3.5" /> メンバーを追加
@@ -544,6 +574,7 @@ export default function ProjectOverview() {
                                 )}
                             </button>
                         </div>
+                        )}
                     </div>
                 </div>
                 <p className="mt-4 text-xs text-gray-400 leading-relaxed">
@@ -551,6 +582,7 @@ export default function ProjectOverview() {
                     ※ 各ユーザーのロールは個別に設定できます。薄いバッジはグループ追加時の初期ロールです。
                 </p>
             </div>
+            )}
 
             <ConfirmationModal
                 isOpen={!!confirmDelete}

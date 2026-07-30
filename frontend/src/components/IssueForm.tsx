@@ -11,6 +11,7 @@ import TextInput from './TextInput';
 import NumberInput from './NumberInput';
 import DateInput from './DateInput';
 import { formatEstimatedHours } from '../utils/format';
+import { getCachedProjectPermissions } from '../utils/projectPermissionsCache';
 
 function toLocalDatetimeString(dateString?: string | null) {
     if (!dateString) return '';
@@ -80,9 +81,31 @@ interface IssueFormModalProps extends IssueFormProps {
 
 export function IssueFormModal({ isOpen, onClose, title, size, ...issueFormProps }: IssueFormModalProps) {
     const formId = useId();
-    const { canInput } = usePermissions(issueFormProps.permissions);
+    const [resolvedPermissions, setResolvedPermissions] = useState<PermissionMap | undefined>(issueFormProps.permissions);
+    const { canInput } = usePermissions(resolvedPermissions);
     const canSave = canInput('projects.issues');
     const isEdit = !!issueFormProps.issueId;
+
+    useEffect(() => {
+        if (!isOpen) return;
+        if (issueFormProps.permissions !== undefined) {
+            setResolvedPermissions(issueFormProps.permissions);
+            return;
+        }
+        const pid = issueFormProps.projectId ? Number(issueFormProps.projectId) : NaN;
+        if (Number.isFinite(pid) && pid > 0) {
+            getCachedProjectPermissions(pid)
+                .then(setResolvedPermissions)
+                .catch(() => setResolvedPermissions({}));
+            return;
+        }
+        if (issueFormProps.issueId) {
+            api.get(`/issues/${issueFormProps.issueId}`)
+                .then((res) => getCachedProjectPermissions(res.data.projectId))
+                .then(setResolvedPermissions)
+                .catch(() => setResolvedPermissions({}));
+        }
+    }, [isOpen, issueFormProps.permissions, issueFormProps.projectId, issueFormProps.issueId]);
 
     return (
         <Modal
@@ -99,7 +122,7 @@ export function IssueFormModal({ isOpen, onClose, title, size, ...issueFormProps
                 />
             }
         >
-            <IssueForm {...issueFormProps} inModal formId={formId} />
+            <IssueForm {...issueFormProps} permissions={resolvedPermissions} inModal formId={formId} />
         </Modal>
     );
 }

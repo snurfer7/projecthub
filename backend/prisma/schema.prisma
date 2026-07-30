@@ -66,11 +66,14 @@ model PermissionResource {
   code           String                    @unique
   name           String
   resourceType   String                    @default("feature") @map("resource_type")
+  /** group = PermissionSet（グループ）, role = Role（プロジェクトロール） */
+  scope          String                    @default("group")
   parentId       Int?                      @map("parent_id")
   position       Int                       @default(0)
   parent         PermissionResource?       @relation("PermissionTree", fields: [parentId], references: [id], onDelete: Cascade)
   children       PermissionResource[]      @relation("PermissionTree")
   setPermissions PermissionSetPermission[]
+  rolePermissions RolePermission[]
 
   @@map("permission_resources")
 }
@@ -97,6 +100,19 @@ model PermissionSetPermission {
 
   @@unique([permissionSetId, resourceId])
   @@map("permission_set_permissions")
+}
+
+model RolePermission {
+  id         Int                @id @default(autoincrement())
+  roleId     Int                @map("role_id")
+  resourceId Int                @map("resource_id")
+  canUse     Boolean            @default(false) @map("can_use")
+  canInput   Boolean            @default(false) @map("can_input")
+  role       Role               @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  resource   PermissionResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, resourceId])
+  @@map("role_permissions")
 }
 
 model GroupMember {
@@ -288,6 +304,7 @@ model Role {
   projectRoles  ProjectMemberRole[]
   statuses      RoleStatus[]
   transitions   WorkflowTransition[]
+  permissions   RolePermission[]
 
   @@map("roles")
 }

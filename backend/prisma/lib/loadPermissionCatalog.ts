@@ -6,11 +6,13 @@ const cjsRequire = createRequire(__filename);
 type PermissionCatalogModule = {
   flattenPermissionCatalog: (
     entries?: unknown[],
-    parentCode?: string
+    parentCode?: string,
+    parentScope?: string
   ) => Array<{
     code: string;
     name: string;
     resourceType?: 'feature' | 'field';
+    scope?: 'group' | 'role';
     position?: number;
     parentCode?: string;
   }>;

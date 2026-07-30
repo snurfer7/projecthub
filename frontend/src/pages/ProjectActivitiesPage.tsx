@@ -8,12 +8,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../hooks/useAuth';
 import Modal from '../components/Modal';
 import Combobox from '../components/Combobox';
-
-interface ProjectContext {
-  project: Project;
-  loadProject: () => void;
-  openSettings: () => void;
-}
+import type { ProjectOutletContext } from './ProjectDetailPage';
 
 const ACTIVITY_TYPES: { value: string; label: string; icon: string }[] = [
   { value: 'call', label: '電話', icon: '📞' },
@@ -39,9 +34,10 @@ function getActivityLabel(type: string) {
 type CompanyOption = { id: number; name: string };
 
 export default function ProjectActivitiesPage() {
-  const { project } = useOutletContext<ProjectContext>();
+  const { project, myPermissions } = useOutletContext<ProjectOutletContext>();
   const { user } = useAuth();
-  const { canUse, canInput } = usePermissions(user?.permissions);
+  const { canUse } = usePermissions(myPermissions);
+  const { canInput } = usePermissions(user?.permissions);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
 

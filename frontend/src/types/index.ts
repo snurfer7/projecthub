@@ -14,6 +14,7 @@ export interface PermissionResource {
   code: string;
   name: string;
   resourceType: string;
+  scope?: 'group' | 'role';
   position: number;
   children?: PermissionResource[];
 }
@@ -157,6 +158,7 @@ export interface Project {
   members?: ProjectMember[];
   groups?: ProjectGroup[];
   relatedCompanies?: ProjectRelatedCompany[];
+  myPermissions?: PermissionMap;
   _count?: { issues: number; wikiPages?: number; attachments?: number; timeEntries?: number; comments?: number };
 }
 
@@ -196,6 +198,7 @@ export interface Role {
   isDefaultRole: boolean;
   statuses?: { id: number; statusId: number; status: IssueStatus }[];
   transitions?: { oldStatusId: number; newStatusId: number }[];
+  permissions?: PermissionSetPermission[];
 }
 
 export interface IssueStatus {

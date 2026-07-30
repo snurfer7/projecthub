@@ -4,7 +4,11 @@ import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
 import { parseNumericQueryIds } from '../utils/queryParams';
 import { applyAggregatedParentFields } from '../utils/issueParent';
-import { requireProjectMember, projectListAccessWhere, isRequestAdmin } from '../services/projectAccess';
+import { getAccessibleProjectIds, isRequestAdmin } from '../services/projectAccess';
+import {
+  getProjectIdsWithPermission,
+  requireProjectPermission,
+} from '../services/projectPermissions';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -110,61 +114,71 @@ async function loadGanttIssues(where: Record<string, unknown>) {
 router.use(authenticateToken);
 
 // Get gantt data for project
-router.get('/project/:projectId', requirePermission('projects.gantt', 'use'), requireProjectMember('projectId'), async (req: AuthRequest, res: Response) => {
-  try {
-    const projectId = Number(req.params.projectId);
-    const { trackerId, trackerIds, assignedToId, assignedToIds, statusId, statusIds } = req.query;
+router.get(
+  '/project/:projectId',
+  requirePermission('projects', 'use'),
+  requireProjectPermission('projects.gantt', 'use', { paramName: 'projectId' }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const projectId = Number(req.params.projectId);
+      const { trackerId, trackerIds, assignedToId, assignedToIds, statusId, statusIds } = req.query;
 
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      select: { id: true, name: true, dueDate: true, parentId: true },
-    });
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: { id: true, name: true, dueDate: true, parentId: true },
+      });
 
-    if (!project) {
-      return res.status(404).json({ error: 'プロジェクトが見つかりません' });
+      if (!project) {
+        return res.status(404).json({ error: 'プロジェクトが見つかりません' });
+      }
+
+      const where: any = {
+        projectId: projectId,
+      };
+      const filterTrackerIds = parseNumericQueryIds(trackerIds ?? trackerId);
+      if (filterTrackerIds.length > 0) where.trackerId = { in: filterTrackerIds };
+      const assigneeIds = parseNumericQueryIds(assignedToIds ?? assignedToId);
+      if (assigneeIds.length > 0) where.assignedToId = { in: assigneeIds };
+      const filterStatusIds = parseNumericQueryIds(statusIds ?? statusId);
+      if (filterStatusIds.length > 0) where.statusId = { in: filterStatusIds };
+
+      const issues = await loadGanttIssues(where);
+      res.json({ project, issues });
+    } catch (e) {
+      console.error('Gantt project error:', e);
+      res.status(500).json({ error: 'ガントチャートデータの取得に失敗しました' });
     }
-
-    const where: any = {
-      projectId: projectId,
-    };
-    const filterTrackerIds = parseNumericQueryIds(trackerIds ?? trackerId);
-    if (filterTrackerIds.length > 0) where.trackerId = { in: filterTrackerIds };
-    const assigneeIds = parseNumericQueryIds(assignedToIds ?? assignedToId);
-    if (assigneeIds.length > 0) where.assignedToId = { in: assigneeIds };
-    const filterStatusIds = parseNumericQueryIds(statusIds ?? statusId);
-    if (filterStatusIds.length > 0) where.statusId = { in: filterStatusIds };
-
-    const issues = await loadGanttIssues(where);
-    res.json({ project, issues });
-  } catch (e) {
-    console.error('Gantt project error:', e);
-    res.status(500).json({ error: 'ガントチャートデータの取得に失敗しました' });
   }
-});
+);
 
 // Get gantt data for all projects
-router.get('/all', requirePermission('projects.gantt', 'use'), async (req: AuthRequest, res: Response) => {
+router.get('/all', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const { trackerId, trackerIds, assignedToId, assignedToIds, statusId, statusIds } = req.query;
 
-    const projects = await prisma.project.findMany({
-      where: {
-        status: 'active',
-        ...projectListAccessWhere(req.userId!, isRequestAdmin(req)),
-      },
-      select: {
-        id: true,
-        name: true,
-        dueDate: true,
-        parentId: true,
-        companyId: true,
-        company: { select: { id: true, name: true } },
-        relatedCompanies: {
-          select: { companyId: true },
-        },
-      },
-      orderBy: { name: 'asc' },
-    });
+    const accessibleIds = await getAccessibleProjectIds(req.userId!, isRequestAdmin(req));
+    const permittedIds = await getProjectIdsWithPermission(req.userId!, accessibleIds, 'projects.gantt', 'use');
+
+    const projects = permittedIds.length === 0
+      ? []
+      : await prisma.project.findMany({
+          where: {
+            status: 'active',
+            id: { in: permittedIds },
+          },
+          select: {
+            id: true,
+            name: true,
+            dueDate: true,
+            parentId: true,
+            companyId: true,
+            company: { select: { id: true, name: true } },
+            relatedCompanies: {
+              select: { companyId: true },
+            },
+          },
+          orderBy: { name: 'asc' },
+        });
 
     // 有効プロジェクト配下のみ（日付未設定チケットも含む）
     const where: any = {

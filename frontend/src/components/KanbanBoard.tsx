@@ -14,6 +14,8 @@ interface KanbanBoardProps {
     onNewIssue?: (statusId: number) => void;
     onIssueClick?: (issueId: number) => void;
     showProjectName?: boolean;
+    /** false のときドラッグ移動不可（既定 true） */
+    canDrag?: boolean;
 }
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -97,12 +99,13 @@ const IssueCard = React.forwardRef<HTMLDivElement, {
     ancestors: { id: number; subject: string }[],
     showProjectName?: boolean,
     isDragging: boolean,
+    canDrag: boolean,
     onDragStart: () => void,
     onDragEnd: () => void,
     onMouseEnter: () => void,
     onMouseLeave: () => void,
     onIssueClick?: (issueId: number) => void;
-}>(({ issue, ancestors, showProjectName, isDragging, onDragStart, onDragEnd, onMouseEnter, onMouseLeave, onIssueClick }, ref) => {
+}>(({ issue, ancestors, showProjectName, isDragging, canDrag, onDragStart, onDragEnd, onMouseEnter, onMouseLeave, onIssueClick }, ref) => {
     const assigneeName = issue.assignedToGroup
         ? issue.assignedToGroup.name
         : issue.assignedTo
@@ -112,12 +115,14 @@ const IssueCard = React.forwardRef<HTMLDivElement, {
     return (
         <div
             ref={ref}
-            draggable
-            onDragStart={onDragStart}
-            onDragEnd={onDragEnd}
+            draggable={canDrag}
+            onDragStart={canDrag ? onDragStart : undefined}
+            onDragEnd={canDrag ? onDragEnd : undefined}
             onMouseEnter={onMouseEnter}
             onMouseLeave={onMouseLeave}
-            className={`bg-white rounded-md shadow-sm border border-gray-200 p-3 mb-3 cursor-grab active:cursor-grabbing transition-all ${isDragging ? 'opacity-40 rotate-1 scale-95' : 'hover:shadow-md hover:-translate-y-1'
+            className={`bg-white rounded-md shadow-sm border border-gray-200 p-3 mb-3 transition-all ${
+                canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'
+            } ${isDragging ? 'opacity-40 rotate-1 scale-95' : 'hover:shadow-md hover:-translate-y-1'
                 }`}
         >
             <div className="flex items-center gap-1.5 mb-2">
@@ -180,7 +185,7 @@ const IssueCard = React.forwardRef<HTMLDivElement, {
 
 IssueCard.displayName = 'IssueCard';
 
-export default function KanbanBoard({ statuses, issues, hierarchyIssues, onDrop, onNewIssue, onIssueClick, showProjectName }: KanbanBoardProps) {
+export default function KanbanBoard({ statuses, issues, hierarchyIssues, onDrop, onNewIssue, onIssueClick, showProjectName, canDrag = true }: KanbanBoardProps) {
     const [draggingIssueId, setDraggingIssueId] = useState<number | null>(null);
     const [dragOverStatusId, setDragOverStatusId] = useState<number | null>(null);
     const [hoveredIssueId, setHoveredIssueId] = useState<number | null>(null);
@@ -275,6 +280,7 @@ export default function KanbanBoard({ statuses, issues, hierarchyIssues, onDrop,
                                         issue={issue}
                                         ancestors={getAncestorChain(issue, byId)}
                                         showProjectName={showProjectName}
+                                        canDrag={canDrag}
                                         onDragStart={() => handleDragStart(issue.id)}
                                         onDragEnd={handleDragEnd}
                                         onMouseEnter={() => setHoveredIssueId(issue.id)}

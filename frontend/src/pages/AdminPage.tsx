@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo, FormEvent, DragEvent } from 'react';
 import { Navigate } from 'react-router-dom';
 import api from '../api/client';
-import { User, Tracker, IssueStatus, IssuePriority, Group, Role, SystemSetting, EmailSettings, PermissionSet } from '../types';
+import { User, Tracker, IssueStatus, IssuePriority, Group, Role, SystemSetting, EmailSettings, PermissionSet, PermissionResource } from '../types';
 import { usePermissions } from '../hooks/usePermissions';
 import PermissionSetsPanel from '../components/PermissionSetsPanel';
 import HolidaySettingsPanel from '../components/HolidaySettingsPanel';
+import PermissionMatrixEditor, { flattenPermissionResources, PermissionMatrixRow } from '../components/PermissionMatrixEditor';
 import { Pencil, Trash2, GripVertical, Clock, Plus, UserX, UserCheck, Mail } from 'lucide-react';
 import Modal from '../components/Modal';
 import AnalogTimePicker from '../components/AnalogTimePicker';
@@ -60,6 +61,8 @@ export default function AdminPage({ user }: Props) {
   const [masterStatusIds, setMasterStatusIds] = useState<number[]>([]);
   const [masterTransitions, setMasterTransitions] = useState<Set<string>>(new Set());
   const [masterIsDefaultRole, setMasterIsDefaultRole] = useState(false);
+  const [rolePermissionCatalog, setRolePermissionCatalog] = useState<PermissionResource[]>([]);
+  const [masterRolePermissionRows, setMasterRolePermissionRows] = useState<PermissionMatrixRow[]>([]);
 
   // Group modal states
   const [showGroupModal, setShowGroupModal] = useState(false);
@@ -150,6 +153,7 @@ export default function AdminPage({ user }: Props) {
       setGroups(res.data);
     }).catch((e) => console.error('グループ取得失敗:', e));
     api.get('/admin/permission-sets').then((res) => setPermissionSets(res.data)).catch(console.error);
+    api.get('/admin/permissions/resources', { params: { scope: 'role' } }).then((res) => setRolePermissionCatalog(res.data)).catch(console.error);
   };
 
   useEffect(() => { loadAll(); }, []);
@@ -428,6 +432,7 @@ export default function AdminPage({ user }: Props) {
     setMasterStatusIds([]);
     setMasterTransitions(new Set());
     setMasterIsDefaultRole(false);
+    setMasterRolePermissionRows(type === 'roles' ? flattenPermissionResources(rolePermissionCatalog) : []);
     setShowMasterModal(true);
   };
 
@@ -439,6 +444,10 @@ export default function AdminPage({ user }: Props) {
     if (type === 'roles' && item.statuses) {
       setMasterStatusIds(item.statuses.map((s: any) => s.statusId));
       setMasterIsDefaultRole(!!item.isDefaultRole);
+      const existing = new Map<number, { canUse: boolean; canInput: boolean }>(
+        (item.permissions ?? []).map((p: any) => [p.resourceId as number, { canUse: !!p.canUse, canInput: !!p.canInput }])
+      );
+      setMasterRolePermissionRows(flattenPermissionResources(rolePermissionCatalog, 0, existing));
       try {
         const res = await api.get(`/admin/roles/${item.id}/transitions`);
         const set = new Set<string>();
@@ -453,6 +462,7 @@ export default function AdminPage({ user }: Props) {
       setMasterStatusIds([]);
       setMasterTransitions(new Set());
       setMasterIsDefaultRole(false);
+      setMasterRolePermissionRows([]);
     }
     setShowMasterModal(true);
   };
@@ -465,6 +475,7 @@ export default function AdminPage({ user }: Props) {
     setMasterStatusIds([]);
     setMasterTransitions(new Set());
     setMasterIsDefaultRole(false);
+    setMasterRolePermissionRows([]);
   };
 
   const handleSubmitMaster = async (e: FormEvent) => {
@@ -476,6 +487,9 @@ export default function AdminPage({ user }: Props) {
       if (masterType === 'roles') {
         data.statusIds = masterStatusIds;
         data.isDefaultRole = masterIsDefaultRole;
+        data.permissions = masterRolePermissionRows
+          .filter((r) => !r.readOnly)
+          .map((r) => ({ resourceId: r.resourceId, canUse: r.canUse, canInput: r.canInput }));
       }
       if (editingMasterId) {
         await api.put(`/admin/${masterType}/${editingMasterId}`, data);
@@ -488,12 +502,23 @@ export default function AdminPage({ user }: Props) {
         }
       } else {
         const res = await api.post(`/admin/${masterType}`, data);
-        if (masterType === 'roles' && masterTransitions.size > 0) {
-          const transitions = Array.from(masterTransitions).map((key) => {
-            const [oldStatusId, newStatusId] = key.split('-').map(Number);
-            return { oldStatusId, newStatusId };
-          });
-          await api.put(`/admin/roles/${res.data.id}/transitions`, { transitions });
+        if (masterType === 'roles') {
+          // Create then update permissions (POST does not accept permissions yet)
+          if (data.permissions?.length) {
+            await api.put(`/admin/roles/${res.data.id}`, {
+              name: masterName,
+              statusIds: masterStatusIds,
+              isDefaultRole: masterIsDefaultRole,
+              permissions: data.permissions,
+            });
+          }
+          if (masterTransitions.size > 0) {
+            const transitions = Array.from(masterTransitions).map((key) => {
+              const [oldStatusId, newStatusId] = key.split('-').map(Number);
+              return { oldStatusId, newStatusId };
+            });
+            await api.put(`/admin/roles/${res.data.id}/transitions`, { transitions });
+          }
         }
       }
       closeMasterModal();
@@ -1218,6 +1243,14 @@ export default function AdminPage({ user }: Props) {
                 <span className="text-sm font-medium text-gray-700">プロジェクトの初期ロール</span>
               </label>
               <p className="text-xs text-gray-500 mt-1 ml-6">プロジェクト作成時に作成者へ自動で割り当てられるロールです。有効にできるのは1つのみです。</p>
+            </div>
+          )}
+
+          {masterType === 'roles' && masterRolePermissionRows.length > 0 && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">プロジェクト権限</label>
+              <p className="text-xs text-gray-500 mb-2">プロジェクト内の機能・項目をこのロールで制御します（グループの権限設定とは別です）。</p>
+              <PermissionMatrixEditor rows={masterRolePermissionRows} onChange={setMasterRolePermissionRows} />
             </div>
           )}
 

@@ -13,6 +13,9 @@ import { addWorkingDays, advanceToWorkingDay, isNonWorkingDay } from '../utils/h
 import Combobox from './Combobox';
 import CustomDatePicker from './CustomDatePicker';
 import { filterProjectsKeepingAncestorsOfTicketed, sortSiblingProjects, type ProjectListSort } from '../utils/projectTree';
+import type { PermissionMap } from '../types';
+import { usePermissions } from '../hooks/usePermissions';
+import { prefetchProjectPermissions, projectMapCanInput, getCachedProjectPermissions } from '../utils/projectPermissionsCache';
 
 interface GanttChartProps {
   issues: Issue[];
@@ -22,6 +25,8 @@ interface GanttChartProps {
   showEmptyProjects?: boolean;
   /** プロジェクトの並び替え（兄弟間。親子のまとまりは維持） */
   projectSort?: ProjectListSort[];
+  /** チケット作成・編集モーダル用のプロジェクトロール権限（単一プロジェクト時） */
+  issueFormPermissions?: PermissionMap;
   onUpdateIssue: (id: number, data: { startDate?: string; endDate?: string; dueDate?: string }) => Promise<void>;
   onIssueCreated?: () => void;
   onRelationCreated?: (fromId: number, toId: number) => Promise<void>;
@@ -565,8 +570,56 @@ export default function GanttChart({
   filterAssignedToGroupMemberIds: propsFilterAssignedToGroupMemberIds = [],
   collapsedProjects: propsCollapsedProjects = new Set(),
   onCollapsedProjectsChange,
+  issueFormPermissions,
 }: GanttChartProps) {
   const { user } = useAuth();
+  const [resolvedFormPermissions, setResolvedFormPermissions] = useState<PermissionMap>(issueFormPermissions ?? {});
+  const [permByProject, setPermByProject] = useState<Record<number, PermissionMap>>({});
+  const { canInput: canInputResolved } = usePermissions(resolvedFormPermissions);
+
+  useEffect(() => {
+    if (issueFormPermissions) setResolvedFormPermissions(issueFormPermissions);
+  }, [issueFormPermissions]);
+
+  useEffect(() => {
+    if (issueFormPermissions) return;
+    const ids = [
+      ...new Set([
+        ...(projects?.map((p) => p.id) ?? []),
+        ...issues.map((i) => i.projectId),
+      ]),
+    ];
+    if (ids.length === 0) return;
+    let cancelled = false;
+    prefetchProjectPermissions(ids).then((maps) => {
+      if (!cancelled) setPermByProject(maps);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [issues, projects, issueFormPermissions]);
+
+  const canInputIssuesForProject = useCallback(
+    (projectId: number) => {
+      if (issueFormPermissions) return canInputResolved('projects.issues');
+      return projectMapCanInput(permByProject[projectId], 'projects.issues');
+    },
+    [issueFormPermissions, canInputResolved, permByProject]
+  );
+
+  const loadFormPermissionsForProject = async (pid: number) => {
+    if (issueFormPermissions) {
+      setResolvedFormPermissions(issueFormPermissions);
+      return;
+    }
+    try {
+      const map = await getCachedProjectPermissions(pid);
+      setResolvedFormPermissions(map);
+      setPermByProject((prev) => ({ ...prev, [pid]: map }));
+    } catch {
+      setResolvedFormPermissions({});
+    }
+  };
   const [internalZoom, setInternalZoom] = useState<ZoomLevel>('day');
   const [internalStartValue, setInternalStartValue] = useState<string>('');
   const [internalEndValue, setInternalEndValue] = useState<string>('');
@@ -1328,6 +1381,7 @@ export default function GanttChart({
   const handleMouseDown = useCallback((e: React.MouseEvent, issue: Issue, type: 'move' | 'resize-left' | 'resize-right') => {
     e.preventDefault();
     e.stopPropagation();
+    if (!canInputIssuesForProject(issue.projectId)) return;
     if (issueHasChildren(issue, filteredIssues)) return;
     const schedule = resolveIssueScheduleWithChildren(issue, filteredIssues, systemSettings);
     if (!schedule) return;
@@ -1343,7 +1397,7 @@ export default function GanttChart({
       currentDueDate: end,
     });
     setTooltip(null);
-  }, [systemSettings, filteredIssues]);
+  }, [systemSettings, filteredIssues, canInputIssuesForProject]);
 
   useEffect(() => {
     if (!drag) return;
@@ -1450,6 +1504,7 @@ export default function GanttChart({
   const handleRelationMouseDown = useCallback((e: React.MouseEvent, issue: Issue) => {
     e.preventDefault();
     e.stopPropagation();
+    if (!canInputIssuesForProject(issue.projectId)) return;
     setRelationDrag({
       fromIssue: issue,
       startX: e.clientX,
@@ -1458,7 +1513,7 @@ export default function GanttChart({
       currentY: e.clientY,
       toIssueId: null,
     });
-  }, []);
+  }, [canInputIssuesForProject]);
 
   useEffect(() => {
     if (!relationDrag) return;
@@ -1511,6 +1566,7 @@ export default function GanttChart({
 
   // プロジェクト行クリック時のハンドラー
   const handleProjectRowClick = useCallback((e: React.MouseEvent, projectId: number) => {
+    if (!canInputIssuesForProject(projectId)) return;
     // クリック位置から日付を計算
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -1524,7 +1580,8 @@ export default function GanttChart({
 
     // モーダルを開く
     setAddModal({ isOpen: true, projectId, initialStartDate: dateStr, initialDueDate: '' });
-  }, [chartStart, dayWidth]);
+    void loadFormPermissionsForProject(projectId);
+  }, [chartStart, dayWidth, canInputIssuesForProject]);
 
   const resizer = (
     <div
@@ -1810,7 +1867,12 @@ export default function GanttChart({
                           </Link>
                         </span>
                       </div>
-                      <div className="relative flex-1 cursor-pointer group-hover:bg-slate-200 transition-colors" title="クリックしてチケット追加" style={{ height: GANTT_ROW_CONTENT_HEIGHT }} onClick={(e) => handleProjectRowClick(e, group.projectId)}>
+                      <div
+                        className={`relative flex-1 transition-colors ${canInputIssuesForProject(group.projectId) ? 'cursor-pointer group-hover:bg-slate-200' : ''}`}
+                        title={canInputIssuesForProject(group.projectId) ? 'クリックしてチケット追加' : undefined}
+                        style={{ height: GANTT_ROW_CONTENT_HEIGHT }}
+                        onClick={(e) => handleProjectRowClick(e, group.projectId)}
+                      >
                         {holidayBands.map((band, i) => (
                           <div
                             key={`ph-${i}`}
@@ -2135,7 +2197,7 @@ export default function GanttChart({
         projectId={String(addModal.projectId)}
         initialStartDate={addModal.initialStartDate}
         initialDueDate={addModal.initialDueDate}
-        permissions={user?.permissions}
+        permissions={resolvedFormPermissions}
         onSuccess={() => {
           setAddModal({ ...addModal, isOpen: false });
           onIssueCreated?.();
@@ -2154,10 +2216,25 @@ export default function GanttChart({
           <IssueDetail
             issueId={String(detailIssueId)}
             user={user}
-            onEdit={() => {
-              setEditIssueId(detailIssueId);
-              setDetailIssueId(null);
-            }}
+            permissions={
+              (() => {
+                const issue = issues.find((i) => i.id === detailIssueId);
+                if (!issue) return resolvedFormPermissions;
+                if (issueFormPermissions) return issueFormPermissions;
+                return permByProject[issue.projectId] ?? resolvedFormPermissions;
+              })()
+            }
+            onEdit={
+              (() => {
+                const issue = issues.find((i) => i.id === detailIssueId);
+                if (!issue || !canInputIssuesForProject(issue.projectId)) return undefined;
+                return () => {
+                  void loadFormPermissionsForProject(issue.projectId);
+                  setEditIssueId(detailIssueId);
+                  setDetailIssueId(null);
+                };
+              })()
+            }
             onRefresh={() => {
               onIssueCreated?.();
             }}
@@ -2172,7 +2249,7 @@ export default function GanttChart({
           onClose={() => setEditIssueId(null)}
           title="チケットの編集"
           issueId={String(editIssueId)}
-          permissions={user?.permissions}
+          permissions={resolvedFormPermissions}
           onSuccess={() => {
             setEditIssueId(null);
             onIssueCreated?.();

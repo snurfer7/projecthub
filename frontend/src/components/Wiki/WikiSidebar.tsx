@@ -16,6 +16,7 @@ interface WikiSidebarProps {
     onCreateNew: () => void;
     isEditing: boolean;
     loading?: boolean;
+    canInput?: boolean;
 }
 
 interface TreeItemProps {
@@ -30,12 +31,13 @@ interface TreeItemProps {
     dragPos: 'before' | 'after' | 'inside' | null;
     isEditing: boolean;
     level: number;
+    canInput: boolean;
 }
 
 const TreeItem: React.FC<TreeItemProps> = ({
     page, selectedPageId, onSelectPage, isEditing, level,
     onDragStart, onDragOver, onDragLeave, onDrop,
-    dragOverId, dragPos
+    dragOverId, dragPos, canInput
 }) => {
     const hasChildren = page.children && page.children.length > 0;
     const isSelected = !isEditing && selectedPageId === page.id;
@@ -44,17 +46,17 @@ const TreeItem: React.FC<TreeItemProps> = ({
     return (
         <li
             className="relative"
-            onDragOver={(e) => onDragOver(e, page.id)}
-            onDragLeave={onDragLeave}
-            onDrop={(e) => onDrop(e, page.id)}
+            onDragOver={canInput ? (e) => onDragOver(e, page.id) : undefined}
+            onDragLeave={canInput ? onDragLeave : undefined}
+            onDrop={canInput ? (e) => onDrop(e, page.id) : undefined}
         >
             {isBeingDraggedOver && dragPos === 'before' && (
                 <div className="absolute top-0 left-0 right-0 h-0.5 bg-sky-500 z-10" />
             )}
 
             <div
-                draggable={!isEditing}
-                onDragStart={(e) => onDragStart(e, page.id)}
+                draggable={canInput && !isEditing}
+                onDragStart={canInput ? (e) => onDragStart(e, page.id) : undefined}
                 className={`group flex items-center gap-1 w-full transition-colors cursor-pointer ${isSelected
                     ? 'bg-sky-50 text-sky-700 font-medium border-l-2 border-sky-500'
                     : 'text-gray-700 hover:bg-gray-50 border-l-2 border-transparent'
@@ -62,9 +64,11 @@ const TreeItem: React.FC<TreeItemProps> = ({
                 style={{ paddingLeft: `${8 + level * 16}px` }}
                 onClick={() => onSelectPage(page.id)}
             >
+                {canInput && (
                 <div className="p-1 opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing">
                     <GripVertical className="w-3 h-3 text-gray-400" />
                 </div>
+                )}
                 <div className="flex items-center gap-2 py-2 pr-4 flex-1 truncate">
                     {hasChildren ? (
                         <ChevronDown className="w-3.5 h-3.5 shrink-0 text-gray-400" />
@@ -95,6 +99,7 @@ const TreeItem: React.FC<TreeItemProps> = ({
                             dragPos={dragPos}
                             isEditing={isEditing}
                             level={level + 1}
+                            canInput={canInput}
                         />
                     ))}
                 </ul>
@@ -111,6 +116,7 @@ const WikiSidebar: React.FC<WikiSidebarProps> = ({
     onCreateNew,
     isEditing,
     loading = false,
+    canInput = false,
 }) => {
     const [draggedId, setDraggedId] = useState<number | null>(null);
     const [dragOverId, setDragOverId] = useState<number | null>(null);
@@ -238,6 +244,7 @@ const WikiSidebar: React.FC<WikiSidebarProps> = ({
         <div className="w-full md:w-64 shrink-0 flex flex-col">
             <div className="flex justify-between items-center mb-4">
                 <h3 className="font-semibold text-slate-700">Wikiページ</h3>
+                {canInput && (
                 <button
                     onClick={onCreateNew}
                     className="p-1.5 text-sky-600 hover:bg-sky-50 rounded transition-colors"
@@ -245,6 +252,7 @@ const WikiSidebar: React.FC<WikiSidebarProps> = ({
                 >
                     <Plus className="w-5 h-5" />
                 </button>
+                )}
             </div>
 
             <div className="bg-white rounded-lg shadow overflow-hidden flex-1 border border-gray-100 py-2">
@@ -268,6 +276,7 @@ const WikiSidebar: React.FC<WikiSidebarProps> = ({
                                 dragPos={dragPos}
                                 isEditing={isEditing}
                                 level={0}
+                                canInput={canInput}
                             />
                         ))}
                     </ul>

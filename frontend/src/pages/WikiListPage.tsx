@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useOutletContext } from 'react-router-dom';
 import api from '../api/client';
 import { WikiPage } from '../types';
 import { Plus } from 'lucide-react';
@@ -7,10 +7,14 @@ import WikiSidebar from '../components/Wiki/WikiSidebar';
 import WikiContent from '../components/Wiki/WikiContent';
 import WikiEditor from '../components/Wiki/WikiEditor';
 import ConfirmationModal from '../components/ConfirmationModal';
+import { usePermissions } from '../hooks/usePermissions';
+import type { ProjectOutletContext } from './ProjectDetailPage';
 
 export default function WikiListPage() {
   const { projectId } = useParams<{ projectId: string }>();
-  const navigate = useNavigate();
+  const outlet = useOutletContext<ProjectOutletContext | null>();
+  const { canInput } = usePermissions(outlet?.myPermissions);
+  const canEditWiki = canInput('projects.wiki');
   const [pages, setPages] = useState<WikiPage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -47,6 +51,7 @@ export default function WikiListPage() {
   }, [projectId]);
 
   const handleCreateNew = () => {
+    if (!canEditWiki) return;
     const currentId = selectedPage?.id || null;
     setSelectedPage(null);
     setEditTitle('');
@@ -56,7 +61,7 @@ export default function WikiListPage() {
   };
 
   const handleEdit = () => {
-    if (!selectedPage) return;
+    if (!canEditWiki || !selectedPage) return;
     setEditTitle(selectedPage.title);
     setEditContent(selectedPage.content);
     setEditParentId(selectedPage.parentId || null);
@@ -71,6 +76,7 @@ export default function WikiListPage() {
   };
 
   const handleSave = async () => {
+    if (!canEditWiki) return;
     if (!editTitle.trim()) {
       alert('タイトルを入力してください');
       return;
@@ -79,14 +85,12 @@ export default function WikiListPage() {
     try {
       let res;
       if (selectedPage) {
-        // Edit existing
         res = await api.put(`/wiki/${selectedPage.id}`, {
           title: editTitle,
           content: editContent,
           parentId: editParentId
         });
       } else {
-        // Create new
         res = await api.post('/wiki', {
           projectId: Number(projectId),
           title: editTitle,
@@ -103,7 +107,7 @@ export default function WikiListPage() {
   };
 
   const handleDelete = async () => {
-    if (!selectedPage) return;
+    if (!canEditWiki || !selectedPage) return;
     try {
       await api.delete(`/wiki/${selectedPage.id}`);
       setSelectedPage(null);
@@ -115,6 +119,7 @@ export default function WikiListPage() {
   };
 
   const handleMovePage = async (id: number, parentId: number | null, position: number) => {
+    if (!canEditWiki) return;
     try {
       await api.patch(`/wiki/${id}/move`, { parentId, position });
       await loadPages(id);
@@ -149,10 +154,11 @@ export default function WikiListPage() {
         onCreateNew={handleCreateNew}
         isEditing={isEditing}
         loading={loading && pages.length === 0}
+        canInput={canEditWiki}
       />
 
       <div className="flex-1 bg-white rounded-lg shadow border border-gray-100 flex flex-col overflow-hidden">
-        {isEditing ? (
+        {isEditing && canEditWiki ? (
           <WikiEditor
             title={editTitle}
             onTitleChange={setEditTitle}
@@ -172,8 +178,8 @@ export default function WikiListPage() {
             content={selectedPage.content}
             authorName={`${selectedPage.author.lastName} ${selectedPage.author.firstName}`}
             updatedAt={selectedPage.updatedAt}
-            onEdit={handleEdit}
-            onDelete={() => setIsDeleting(true)}
+            onEdit={canEditWiki ? handleEdit : undefined}
+            onDelete={canEditWiki ? () => setIsDeleting(true) : undefined}
           />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-8 min-h-[400px]">
@@ -182,12 +188,14 @@ export default function WikiListPage() {
             </div>
             <p className="text-lg font-medium text-gray-500 mb-2">Wikiページが選択されていません</p>
             <p className="text-sm">左側のリストから選択するか、新しく作成してください</p>
+            {canEditWiki && (
             <button
               onClick={handleCreateNew}
               className="mt-6 px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 transition-colors shadow-sm"
             >
               ページを作成する
             </button>
+            )}
           </div>
         )}
       </div>

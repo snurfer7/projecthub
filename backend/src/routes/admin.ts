@@ -13,6 +13,7 @@ import {
   parseHolidayDateEntries,
   parseHolidayWeekdays,
 } from '../services/systemCalendar';
+import { clearProjectPermissionCache } from '../services/projectPermissions';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -31,7 +32,7 @@ router.use(authenticateToken);
 router.use(permissionSetRoutes);
 
 // Users
-router.get('/users', requireAnyPermission(['admin.users', 'projects.issues', 'projects.members', 'companies.deals', 'admin.groups', 'admin.permission-sets'], 'use'), async (_req: AuthRequest, res: Response) => {
+router.get('/users', requireAnyPermission(['admin.users', 'projects', 'companies.deals', 'admin.groups', 'admin.permission-sets'], 'use'), async (_req: AuthRequest, res: Response) => {
   try {
     const users = await prisma.user.findMany({
       select: {
@@ -476,12 +477,13 @@ router.delete('/groups/:id', requirePermission('admin.groups', 'input'), async (
 // Roles
 router.get('/roles', requirePermission('admin.roles', 'use'), async (_req: AuthRequest, res: Response) => {
   try {
-    console.log('ロール取得リクエスト');
     const roles = await prisma.role.findMany({
-      include: { statuses: { include: { status: true }, orderBy: { status: { position: 'asc' } } } },
+      include: {
+        statuses: { include: { status: true }, orderBy: { status: { position: 'asc' } } },
+        permissions: { include: { resource: { select: { id: true, code: true, name: true, resourceType: true } } } },
+      },
       orderBy: { position: 'asc' },
     });
-    console.log('ロール取得成功:', roles.length);
     res.json(roles);
   } catch (e: any) {
     console.error('ロール取得エラー:', {
@@ -502,7 +504,13 @@ router.post('/roles', requirePermission('admin.roles', 'input'), async (req: Aut
       await prisma.role.updateMany({ data: { isDefaultRole: false } });
     }
     res.status(201).json(
-      await prisma.role.create({ data: { name, position: position ?? nextPos, isDefaultRole: !!isDefaultRole } })
+      await prisma.role.create({
+        data: { name, position: position ?? nextPos, isDefaultRole: !!isDefaultRole },
+        include: {
+          statuses: { include: { status: true } },
+          permissions: { include: { resource: true } },
+        },
+      })
     );
   } catch (e) {
     res.status(500).json({ error: '作成に失敗しました' });
@@ -512,7 +520,7 @@ router.post('/roles', requirePermission('admin.roles', 'input'), async (req: Aut
 router.put('/roles/:id', requirePermission('admin.roles', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
-    const { name, position, statusIds, isDefaultRole } = req.body;
+    const { name, position, statusIds, isDefaultRole, permissions } = req.body;
     const data: any = { name };
     if (position !== undefined) data.position = position;
     if (isDefaultRole !== undefined) {
@@ -535,8 +543,47 @@ router.put('/roles/:id', requirePermission('admin.roles', 'input'), async (req: 
       data,
       include: { statuses: { include: { status: true }, orderBy: { status: { position: 'asc' } } } },
     });
-    res.json(role);
+
+    if (Array.isArray(permissions)) {
+      const roleResourceIds = new Set(
+        (await prisma.permissionResource.findMany({ where: { scope: 'role' }, select: { id: true } })).map((r) => r.id)
+      );
+      const seen = new Set<number>();
+      const filtered: Array<{ resourceId: number; canUse: boolean; canInput: boolean }> = [];
+      for (const p of permissions as Array<{ resourceId: number; canUse: boolean; canInput: boolean }>) {
+        const resourceId = Number(p.resourceId);
+        if (!roleResourceIds.has(resourceId) || seen.has(resourceId)) continue;
+        seen.add(resourceId);
+        filtered.push({
+          resourceId,
+          canUse: !!p.canUse,
+          canInput: !!(p.canInput && p.canUse),
+        });
+      }
+      await prisma.rolePermission.deleteMany({ where: { roleId: id } });
+      if (filtered.length > 0) {
+        await prisma.rolePermission.createMany({
+          data: filtered.map((p) => ({
+            roleId: id,
+            resourceId: p.resourceId,
+            canUse: p.canUse,
+            canInput: p.canInput,
+          })),
+        });
+      }
+      clearProjectPermissionCache();
+    }
+
+    const result = await prisma.role.findUnique({
+      where: { id },
+      include: {
+        statuses: { include: { status: true }, orderBy: { status: { position: 'asc' } } },
+        permissions: { include: { resource: { select: { id: true, code: true, name: true, resourceType: true } } } },
+      },
+    });
+    res.json(result ?? role);
   } catch (e) {
+    console.error('PUT /roles/:id failed:', e);
     res.status(500).json({ error: '更新に失敗しました' });
   }
 });

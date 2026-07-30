@@ -1,12 +1,19 @@
 import api from '../api/client';
-import { TimeEntry } from '../types';
+import { TimeEntry, PermissionMap } from '../types';
 import TimeEntryModal from '../components/TimeEntryModal';
+import { usePermissions } from '../hooks/usePermissions';
+import type { ProjectOutletContext } from './ProjectDetailPage';
 
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useOutletContext } from 'react-router-dom';
 import { Pencil, Trash2 } from 'lucide-react';
+
 export default function TimeEntriesPage() {
   const { projectId } = useParams<{ projectId: string }>();
+  const outlet = useOutletContext<ProjectOutletContext | null>();
+  const projectPermissions: PermissionMap = outlet?.myPermissions ?? {};
+  const { canInput } = usePermissions(projectPermissions);
+  const canEditTime = canInput('projects.time-entries');
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
@@ -18,11 +25,13 @@ export default function TimeEntriesPage() {
   useEffect(() => { load(); }, [projectId]);
 
   const handleEdit = (entry: TimeEntry) => {
+    if (!canEditTime) return;
     setEditingEntryId(entry.id);
     setShowForm(true);
   };
 
   const handleDelete = async (id: number) => {
+    if (!canEditTime) return;
     if (!confirm('この時間記録を削除しますか？')) return;
     try {
       await api.delete(`/time-entries/${id}`);
@@ -46,8 +55,10 @@ export default function TimeEntriesPage() {
           <h2 className="text-lg font-semibold text-slate-700">時間記録</h2>
           <p className="text-sm text-gray-500 mt-2">合計: {totalHours.toFixed(1)} 時間</p>
         </div>
+        {canEditTime && (
         <button onClick={() => setShowForm(true)}
           className="bg-sky-600 text-white px-4 py-2 rounded-md text-sm hover:bg-sky-700">記録を追加</button>
+        )}
       </div>
 
       <TimeEntryModal
@@ -68,7 +79,7 @@ export default function TimeEntriesPage() {
               <th className="text-left px-4 py-3 font-medium text-gray-600">活動</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">時間</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">コメント</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-600">アクション</th>
+              {canEditTime && <th className="text-right px-4 py-3 font-medium text-gray-600">アクション</th>}
             </tr>
           </thead>
           <tbody>
@@ -86,6 +97,7 @@ export default function TimeEntriesPage() {
                 <td className="px-4 py-3 whitespace-nowrap">{entry.activity}</td>
                 <td className="px-4 py-3 font-medium whitespace-nowrap">{entry.hours}h</td>
                 <td className="px-4 py-3 text-gray-500 line-clamp-1">{entry.comments || '-'}</td>
+                {canEditTime && (
                 <td className="px-4 py-3 text-right whitespace-nowrap">
                   <button
                     onClick={() => handleEdit(entry)}
@@ -102,6 +114,7 @@ export default function TimeEntriesPage() {
                     <Trash2 size={18} />
                   </button>
                 </td>
+                )}
               </tr>
             ))}
           </tbody>

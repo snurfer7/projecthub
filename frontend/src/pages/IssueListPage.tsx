@@ -1,15 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useOutletContext } from 'react-router-dom';
 import { Pencil, Trash2, Users, ChevronRight, ChevronDown } from 'lucide-react';
 import api from '../api/client';
-import { Issue, IssueMetaOptions } from '../types';
+import { Issue, IssueMetaOptions, PermissionMap } from '../types';
 import { IssueFormModal } from '../components/IssueForm';
 import ConfirmationModal from '../components/ConfirmationModal';
 import IssueDetailModal from '../components/IssueDetailModal';
-import { useAuth } from '../hooks/useAuth';
 import { usePermissions } from '../hooks/usePermissions';
+import { useAuth } from '../hooks/useAuth';
 import PermissionGate from '../components/PermissionGate';
 import Combobox from '../components/Combobox';
+import type { ProjectOutletContext } from './ProjectDetailPage';
 
 type TreeDisplayRow = {
   issue: Issue;
@@ -72,7 +73,9 @@ function buildTreeDisplayRows(issues: Issue[], collapsedIds: Set<number>): TreeD
 export default function IssueListPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const { user } = useAuth();
-  const { canInput } = usePermissions(user?.permissions);
+  const outlet = useOutletContext<ProjectOutletContext | null>();
+  const projectPermissions: PermissionMap = outlet?.myPermissions ?? {};
+  const { canInput } = usePermissions(projectPermissions);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [meta, setMeta] = useState<IssueMetaOptions | null>(null);
   const [filterStatus, setFilterStatus] = useState('');
@@ -133,7 +136,7 @@ export default function IssueListPage() {
       <div className="mb-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-semibold text-slate-700">チケット一覧</h2>
-          <PermissionGate code="projects.issues" action="input" permissions={user?.permissions}>
+          <PermissionGate code="projects.issues" action="input" permissions={projectPermissions}>
             <button
               onClick={() => setIsNewIssueModalOpen(true)}
               className="bg-sky-600 text-white px-4 py-2 rounded-md text-sm hover:bg-sky-700 cursor-pointer"
@@ -295,7 +298,7 @@ export default function IssueListPage() {
               fetchIssues();
             }}
             onCancel={() => setEditingIssueId(null)}
-            permissions={user?.permissions}
+            permissions={projectPermissions}
           />
         )}
 
@@ -309,6 +312,7 @@ export default function IssueListPage() {
             setSelectedIssueId(null);
           }}
           onRefresh={fetchIssues}
+          permissions={projectPermissions}
         />
 
         <IssueFormModal
@@ -321,7 +325,7 @@ export default function IssueListPage() {
             fetchIssues();
           }}
           onCancel={() => setIsNewIssueModalOpen(false)}
-          permissions={user?.permissions}
+          permissions={projectPermissions}
         />
         <ConfirmationModal
           isOpen={!!deletingIssueId}

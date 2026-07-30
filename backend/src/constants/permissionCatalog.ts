@@ -1,7 +1,11 @@
+export type PermissionScope = 'group' | 'role';
+
 export type PermissionCatalogEntry = {
   code: string;
   name: string;
   resourceType?: 'feature' | 'field';
+  /** group = PermissionSet, role = Role. Defaults: projects children are role; others group. */
+  scope?: PermissionScope;
   position?: number;
   children?: PermissionCatalogEntry[];
 };
@@ -21,36 +25,38 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
   {
     code: 'projects',
     name: 'プロジェクト',
+    scope: 'group',
     position: 10,
     children: [
-      { code: 'projects.overview', name: '概要', position: 0 },
+      { code: 'projects.overview', name: 'プロジェクト情報', scope: 'role', position: 0 },
+      { code: 'projects.members', name: 'メンバー', scope: 'role', position: 1 },
       {
         code: 'projects.issues',
         name: 'チケット',
-        position: 1,
+        scope: 'role',
+        position: 2,
         children: [
-          { code: 'projects.issues.fields.subject', name: '題名', resourceType: 'field', position: 0 },
-          { code: 'projects.issues.fields.tracker', name: 'トラッカー', resourceType: 'field', position: 1 },
-          { code: 'projects.issues.fields.status', name: 'ステータス', resourceType: 'field', position: 2 },
-          { code: 'projects.issues.fields.priority', name: '優先度', resourceType: 'field', position: 3 },
-          { code: 'projects.issues.fields.assignee', name: '担当者', resourceType: 'field', position: 4 },
-          { code: 'projects.issues.fields.parent', name: '親チケット', resourceType: 'field', position: 5 },
-          { code: 'projects.issues.fields.description', name: '説明', resourceType: 'field', position: 6 },
-          { code: 'projects.issues.fields.startDateTime', name: '開始日時', resourceType: 'field', position: 7 },
-          { code: 'projects.issues.fields.endDateTime', name: '終了日時', resourceType: 'field', position: 8 },
-          { code: 'projects.issues.fields.estimatedHours', name: '予定工数', resourceType: 'field', position: 9 },
-          { code: 'projects.issues.fields.dueDate', name: '期日', resourceType: 'field', position: 10 },
-          { code: 'projects.issues.fields.doneRatio', name: '進捗率', resourceType: 'field', position: 11 },
+          { code: 'projects.issues.fields.subject', name: '題名', resourceType: 'field', scope: 'role', position: 0 },
+          { code: 'projects.issues.fields.tracker', name: 'トラッカー', resourceType: 'field', scope: 'role', position: 1 },
+          { code: 'projects.issues.fields.status', name: 'ステータス', resourceType: 'field', scope: 'role', position: 2 },
+          { code: 'projects.issues.fields.priority', name: '優先度', resourceType: 'field', scope: 'role', position: 3 },
+          { code: 'projects.issues.fields.assignee', name: '担当者', resourceType: 'field', scope: 'role', position: 4 },
+          { code: 'projects.issues.fields.parent', name: '親チケット', resourceType: 'field', scope: 'role', position: 5 },
+          { code: 'projects.issues.fields.description', name: '説明', resourceType: 'field', scope: 'role', position: 6 },
+          { code: 'projects.issues.fields.startDateTime', name: '開始日時', resourceType: 'field', scope: 'role', position: 7 },
+          { code: 'projects.issues.fields.endDateTime', name: '終了日時', resourceType: 'field', scope: 'role', position: 8 },
+          { code: 'projects.issues.fields.estimatedHours', name: '予定工数', resourceType: 'field', scope: 'role', position: 9 },
+          { code: 'projects.issues.fields.dueDate', name: '期日', resourceType: 'field', scope: 'role', position: 10 },
+          { code: 'projects.issues.fields.doneRatio', name: '進捗率', resourceType: 'field', scope: 'role', position: 11 },
         ],
       },
-      { code: 'projects.wiki', name: 'Wiki', position: 2 },
-      { code: 'projects.comments', name: 'コメント', position: 3 },
-      { code: 'projects.kanban', name: 'カンバン', position: 4 },
-      { code: 'projects.gantt', name: 'ガント', position: 5 },
-      { code: 'projects.time-entries', name: '工数', position: 6 },
-      { code: 'projects.members', name: 'メンバー', position: 7 },
-      { code: 'projects.saved-searches', name: '保存済み検索', position: 8 },
-      { code: 'projects.activities', name: '活動履歴', position: 9 },
+      { code: 'projects.wiki', name: 'Wiki', scope: 'role', position: 3 },
+      { code: 'projects.comments', name: 'コメント', scope: 'role', position: 4 },
+      { code: 'projects.kanban', name: 'カンバン', scope: 'role', position: 5 },
+      { code: 'projects.gantt', name: 'ガント', scope: 'role', position: 6 },
+      { code: 'projects.time-entries', name: '工数', scope: 'role', position: 7 },
+      { code: 'projects.saved-searches', name: '保存済み検索', scope: 'role', position: 8 },
+      { code: 'projects.activities', name: '活動履歴', scope: 'role', position: 9 },
     ],
   },
   {
@@ -117,21 +123,39 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
   },
 ];
 
+export type FlatPermissionCatalogEntry = {
+  code: string;
+  name: string;
+  resourceType: string;
+  scope: PermissionScope;
+  position: number;
+  parentCode?: string;
+};
+
+function inferScope(entry: PermissionCatalogEntry, parentScope?: PermissionScope): PermissionScope {
+  if (entry.scope) return entry.scope;
+  if (parentScope === 'role') return 'role';
+  return 'group';
+}
+
 export function flattenPermissionCatalog(
   entries: PermissionCatalogEntry[] = PERMISSION_CATALOG,
-  parentCode?: string
-): Array<{ code: string; name: string; resourceType: string; position: number; parentCode?: string }> {
-  const result: Array<{ code: string; name: string; resourceType: string; position: number; parentCode?: string }> = [];
+  parentCode?: string,
+  parentScope?: PermissionScope
+): FlatPermissionCatalogEntry[] {
+  const result: FlatPermissionCatalogEntry[] = [];
   for (const entry of entries) {
+    const scope = inferScope(entry, parentScope);
     result.push({
       code: entry.code,
       name: entry.name,
       resourceType: entry.resourceType ?? 'feature',
+      scope,
       position: entry.position ?? 0,
       parentCode,
     });
     if (entry.children?.length) {
-      result.push(...flattenPermissionCatalog(entry.children, entry.code));
+      result.push(...flattenPermissionCatalog(entry.children, entry.code, scope));
     }
   }
   return result;

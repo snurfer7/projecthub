@@ -25,6 +25,9 @@ export default function GanttPage() {
       setProject(res.data.project);
       setIssues(res.data.issues);
     });
+    api.get(`/projects/${projectId}`).then((res) => {
+      setProject((prev) => ({ ...(prev ?? res.data), ...res.data, myPermissions: res.data.myPermissions }));
+    }).catch(() => {});
     api.get('/settings/calendar').then((res) => {
       setSystemSettings(res.data);
     }).catch(() => {});
@@ -93,6 +96,7 @@ export default function GanttPage() {
         issues={issues}
         projects={project ? [project] : []}
         systemSettings={systemSettings}
+        issueFormPermissions={project?.myPermissions}
         onUpdateIssue={handleUpdateIssue}
         onIssueCreated={loadIssues}
         onRelationCreated={handleCreateRelation}

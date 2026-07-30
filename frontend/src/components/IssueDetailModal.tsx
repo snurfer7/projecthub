@@ -1,4 +1,4 @@
-import { User } from '../types';
+import { User, PermissionMap } from '../types';
 import Modal from './Modal';
 import IssueDetail from './IssueDetail';
 
@@ -9,6 +9,7 @@ interface IssueDetailModalProps {
     user: User;
     onEdit?: (issueId: string) => void;
     onRefresh?: () => void;
+    permissions?: PermissionMap;
 }
 
 export default function IssueDetailModal({
@@ -17,7 +18,8 @@ export default function IssueDetailModal({
     issueId,
     user,
     onEdit,
-    onRefresh
+    onRefresh,
+    permissions,
 }: IssueDetailModalProps) {
     if (!isOpen || !issueId) return null;
 
@@ -33,6 +35,7 @@ export default function IssueDetailModal({
                 user={user}
                 onEdit={onEdit ? () => onEdit(String(issueId)) : undefined}
                 onRefresh={onRefresh}
+                permissions={permissions}
             />
         </Modal>
     );

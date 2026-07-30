@@ -14,6 +14,7 @@ export async function seedPermissions() {
 
   for (const entry of flat) {
     const parentId = entry.parentCode ? codeToId.get(entry.parentCode) : undefined;
+    const scope = entry.scope ?? 'group';
     const existing = await prisma.permissionResource.findUnique({ where: { code: entry.code } });
     if (existing) {
       await prisma.permissionResource.update({
@@ -21,6 +22,7 @@ export async function seedPermissions() {
         data: {
           name: entry.name,
           resourceType: entry.resourceType,
+          scope,
           position: entry.position,
           parentId: parentId ?? null,
         },
@@ -31,7 +33,8 @@ export async function seedPermissions() {
         data: {
           code: entry.code,
           name: entry.name,
-          resourceType: entry.resourceType,
+          resourceType: entry.resourceType ?? 'feature',
+          scope,
           position: entry.position,
           parentId: parentId ?? null,
         },
@@ -98,10 +101,33 @@ export async function seedPermissions() {
     }
   }
 
-  const allResources = await prisma.permissionResource.findMany();
+  const groupResources = await prisma.permissionResource.findMany({ where: { scope: 'group' } });
+  const roleResources = await prisma.permissionResource.findMany({ where: { scope: 'role' } });
 
-  // 「全権限」「デフォルト」グループの作成とメンバー割当は初期構築時のみ
-  // （PermissionSet が1件も無いときを初期構築とみなす）
+  // Remove role-scoped rows from PermissionSets
+  if (roleResources.length > 0) {
+    await prisma.permissionSetPermission.deleteMany({
+      where: { resourceId: { in: roleResources.map((r) => r.id) } },
+    });
+  }
+
+  // Grant full role permissions to all roles
+  const roles = await prisma.role.findMany({ select: { id: true } });
+  for (const role of roles) {
+    for (const resource of roleResources) {
+      await prisma.rolePermission.upsert({
+        where: { roleId_resourceId: { roleId: role.id, resourceId: resource.id } },
+        create: {
+          roleId: role.id,
+          resourceId: resource.id,
+          canUse: true,
+          canInput: true,
+        },
+        update: { canUse: true, canInput: true },
+      });
+    }
+  }
+
   const isInitialBootstrap = (await prisma.permissionSet.count()) === 0;
 
   let fullAccessSet = await prisma.permissionSet.findUnique({ where: { name: '全権限' } });
@@ -112,7 +138,7 @@ export async function seedPermissions() {
       data: { name: '全権限', description: 'すべての機能・項目へのアクセス' },
     });
 
-    for (const resource of allResources) {
+    for (const resource of groupResources) {
       await prisma.permissionSetPermission.create({
         data: {
           permissionSetId: fullAccessSet.id,
@@ -140,14 +166,13 @@ export async function seedPermissions() {
     }
 
     console.log(
-      `Seeded ${allResources.length} permission resources; created 全権限 and デフォルト group (initial bootstrap)`
+      `Seeded ${groupResources.length} group + ${roleResources.length} role permission resources; created 全権限 and デフォルト group (initial bootstrap)`
     );
     return { fullAccessSet, defaultGroup };
   }
 
-  // 再実行時: 既存の「全権限」があればカタログ差分を全許可で追記するのみ
   if (fullAccessSet) {
-    for (const resource of allResources) {
+    for (const resource of groupResources) {
       await prisma.permissionSetPermission.upsert({
         where: {
           permissionSetId_resourceId: {
@@ -167,7 +192,7 @@ export async function seedPermissions() {
   }
 
   console.log(
-    `Seeded ${allResources.length} permission resources` +
+    `Seeded ${groupResources.length} group + ${roleResources.length} role permission resources` +
       (fullAccessSet ? ' (updated existing 全権限)' : ' (全権限なし・作成スキップ)')
   );
   return { fullAccessSet, defaultGroup };

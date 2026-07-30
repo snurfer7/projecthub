@@ -47,9 +47,9 @@ PostgreSQL + Prisma で永続化し、JWT で認証する。
 - **登録**: `POST /api/auth/register` — `email`, `password`, `firstName`, `lastName` → `token`, `user`
 - **認証が必要なリクエスト**: ヘッダー `Authorization: Bearer <token>`
 - **トークン取得**: `auth.ts` 内の `generateToken(userId, role, isAdmin)`（JWT、要 `JWT_SECRET` 環境変数）
-- **権限制御**: ユーザー → 複数 Group → 各 Group の PermissionSet → PermissionSetPermission。`GET /api/auth/me` で解決済み権限マップを返却。API ルートは `requirePermission(code, 'use'|'input')` で検証。**isAdmin / role=admin でもバイパスしない**。
+- **権限制御**: 二層。(1) ユーザー → Group → PermissionSet（`scope=group`、例: `projects`）。(2) プロジェクト内 Role → RolePermission（`scope=role`、例: `projects.issues`）。`GET /api/auth/me` はグループ権限のみ。プロジェクト詳細は `GET /api/projects/:id` の `myPermissions`。**isAdmin / role=admin でもバイパスしない**。
 - **使用可否 (`canUse`)**: 閲覧・GET API・画面アクセス
-- **入力可否 (`canInput`)**: 作成・更新・削除・POST/PUT/DELETE API（canUse が true のときのみ有効）
+- **入力可否 (`canInput`)**: 作成・更新・削除・POST/PUT/DELETE API（canUse が true のときのみ有効）。親の canInput は子（field）の canInput からは推定しない（機能単位の明示設定のみ）
 
 ### 新機能・項目追加時の権限実装
 
@@ -57,12 +57,13 @@ PostgreSQL + Prisma で永続化し、JWT で認証する。
 
 | レイヤ | ファイル |
 |--------|---------|
-| カタログ定義 | `backend/src/constants/permissionCatalog.ts` |
+| カタログ定義 | `backend/src/constants/permissionCatalog.ts`（`scope: group \| role`） |
 | seed | `backend/prisma/seed-permissions.ts` |
 | 起動時カタログ同期 | `backend/src/services/syncPermissionCatalog.ts` |
-| API ガード | `backend/src/middleware/permissions.ts`（`requirePermission`） |
+| グループ API ガード | `backend/src/middleware/permissions.ts`（`requirePermission`） |
+| ロール／プロジェクト API ガード | `backend/src/services/projectPermissions.ts`（`requireProjectPermission`） |
 | 解決・フィールド検証 | `backend/src/services/permissions.ts` |
-| フロント | `frontend/src/hooks/usePermissions.ts`, `PermissionGate`, `PermissionRoute` |
+| フロント | `frontend/src/hooks/usePermissions.ts`, `PermissionGate`, `PermissionRoute`, プロジェクトは `myPermissions` |
 
 - **初期構築（seed）**: PermissionSet が0件のときのみ「全権限」権限セットと「デフォルト」グループを作成し、既存ユーザーをデフォルトへ所属させる。
 - **起動時同期**: `PermissionResource` のカタログ同期のみ。既存の「全権限」があれば新規リソースを全許可で追記する。グループの作成・メンバー割当は行わない。

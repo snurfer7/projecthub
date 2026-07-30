@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
-import { assertFieldPermissions, assertDatetimeFieldPermissions, resolveUserPermissions } from '../services/permissions';
+import { assertFieldPermissions, assertDatetimeFieldPermissions } from '../services/permissions';
 import { parseNumericQueryIds } from '../utils/queryParams';
 import {
   applyAggregatedParentFields,
@@ -10,13 +10,17 @@ import {
   validateIssueParentId,
 } from '../utils/issueParent';
 import {
-  assertProjectMember,
   getAccessibleProjectIds,
   getProjectIdForIssue,
   isRequestAdmin,
-  ProjectAccessDeniedError,
   sendProjectAccessDenied,
 } from '../services/projectAccess';
+import {
+  getProjectIdsWithPermission,
+  hasProjectPermission,
+  PROJECT_PERMISSION_DENIED_MESSAGE,
+  resolveProjectPermissions,
+} from '../services/projectPermissions';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -54,10 +58,11 @@ async function loadParentAggregations(projectIds: number[]) {
 router.use(authenticateToken);
 
 // List issues (with filters)
-router.get('/', requirePermission('projects.issues', 'use'), async (req: AuthRequest, res: Response) => {
+router.get('/', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const { projectId, statusId, statusIds, trackerId, trackerIds, priorityId, assignedToId, assignedToIds, assignedToGroupId } = req.query;
     const accessibleIds = await getAccessibleProjectIds(req.userId!, isRequestAdmin(req));
+    const permittedIds = await getProjectIdsWithPermission(req.userId!, accessibleIds, 'projects.issues', 'use');
     const where: any = {};
 
     if (projectId && !isNaN(Number(projectId))) {
@@ -66,9 +71,13 @@ router.get('/', requirePermission('projects.issues', 'use'), async (req: AuthReq
         sendProjectAccessDenied(res);
         return;
       }
+      if (!permittedIds.includes(pid)) {
+        res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
+        return;
+      }
       where.projectId = pid;
     } else {
-      where.projectId = { in: accessibleIds };
+      where.projectId = { in: permittedIds };
     }
 
     const filterStatusIds = parseNumericQueryIds(statusIds ?? statusId);
@@ -80,7 +89,7 @@ router.get('/', requirePermission('projects.issues', 'use'), async (req: AuthReq
     if (assigneeIds.length > 0) where.assignedToId = { in: assigneeIds };
     if (assignedToGroupId && String(assignedToGroupId).trim() !== '' && !isNaN(Number(assignedToGroupId))) where.assignedToGroupId = Number(assignedToGroupId);
 
-    if (accessibleIds.length === 0) {
+    if (permittedIds.length === 0) {
       res.json([]);
       return;
     }
@@ -128,7 +137,7 @@ router.get('/', requirePermission('projects.issues', 'use'), async (req: AuthReq
 });
 
 // Reorder issues
-router.put('/reorder', requirePermission('projects.issues', 'input'), async (req: AuthRequest, res: Response) => {
+router.put('/reorder', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const { issues } = req.body; // Array of { id: number, position: number }
     if (!Array.isArray(issues)) {
@@ -140,9 +149,13 @@ router.put('/reorder', requirePermission('projects.issues', 'input'), async (req
       where: { id: { in: issueIds } },
       select: { id: true, projectId: true },
     });
-    const accessibleIds = new Set(await getAccessibleProjectIds(req.userId!, isRequestAdmin(req)));
-    if (existing.some((i) => !accessibleIds.has(i.projectId))) {
-      sendProjectAccessDenied(res);
+    const accessibleIds = await getAccessibleProjectIds(req.userId!, isRequestAdmin(req));
+    const projectIds = [...new Set(existing.map((i) => i.projectId))];
+    const permittedIds = new Set(
+      await getProjectIdsWithPermission(req.userId!, projectIds.filter((id) => accessibleIds.includes(id)), 'projects.issues', 'input')
+    );
+    if (existing.some((i) => !permittedIds.has(i.projectId))) {
+      res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
       return;
     }
 
@@ -162,7 +175,7 @@ router.put('/reorder', requirePermission('projects.issues', 'input'), async (req
 });
 
 // Get metadata (trackers, statuses, priorities, users, and optionally groups)
-router.get('/meta/options', requirePermission('projects.issues', 'use'), async (req: AuthRequest, res: Response) => {
+router.get('/meta/options', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const { projectId } = req.query;
 
@@ -176,23 +189,19 @@ router.get('/meta/options', requirePermission('projects.issues', 'use'), async (
     let groups: { id: number; name: string; members: { userId: number }[] }[] = [];
 
     if (projectId) {
-      try {
-        await assertProjectMember(req.userId!, Number(projectId), isRequestAdmin(req));
-      } catch (e) {
-        if (e instanceof ProjectAccessDeniedError) {
-          sendProjectAccessDenied(res);
-          return;
-        }
-        throw e;
+      const pid = Number(projectId);
+      if (!(await hasProjectPermission(req.userId!, pid, 'projects.issues', 'use'))) {
+        res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
+        return;
       }
       // Get explicit members and users who are in groups assigned to this project
       const [projectMembers, projectGroups] = await Promise.all([
         prisma.projectMember.findMany({
-          where: { projectId: Number(projectId) },
+          where: { projectId: pid },
           include: { user: { select: { id: true, firstName: true, lastName: true, status: true } } }
         }),
         (prisma as any).projectGroup.findMany({
-          where: { projectId: Number(projectId) },
+          where: { projectId: pid },
           include: {
             group: {
               include: { members: { select: { userId: true } } },
@@ -225,7 +234,7 @@ router.get('/meta/options', requirePermission('projects.issues', 'use'), async (
 });
 
 // Get issue
-router.get('/:id', requirePermission('projects.issues', 'use'), async (req: AuthRequest, res: Response) => {
+router.get('/:id', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const issue = await prisma.issue.findUnique({
       where: { id: Number(req.params.id) },
@@ -271,14 +280,9 @@ router.get('/:id', requirePermission('projects.issues', 'use'), async (req: Auth
       return;
     }
 
-    try {
-      await assertProjectMember(req.userId!, issue.projectId, isRequestAdmin(req));
-    } catch (e) {
-      if (e instanceof ProjectAccessDeniedError) {
-        sendProjectAccessDenied(res);
-        return;
-      }
-      throw e;
+    if (!(await hasProjectPermission(req.userId!, issue.projectId, 'projects.issues', 'use'))) {
+      res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
+      return;
     }
 
     if (issue.children.length > 0) {
@@ -302,7 +306,7 @@ router.get('/:id', requirePermission('projects.issues', 'use'), async (req: Auth
 });
 
 // Add relation
-router.post('/:id/relations', requirePermission('projects.issues', 'input'), async (req: AuthRequest, res: Response) => {
+router.post('/:id/relations', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const { issueToId, relationType } = req.body;
     const issueFromId = Number(req.params.id);
@@ -312,7 +316,10 @@ router.post('/:id/relations', requirePermission('projects.issues', 'input'), asy
       res.status(404).json({ error: 'チケットが見つかりません' });
       return;
     }
-    await assertProjectMember(req.userId!, projectId, isRequestAdmin(req));
+    if (!(await hasProjectPermission(req.userId!, projectId, 'projects.issues', 'input'))) {
+      res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
+      return;
+    }
 
     const relation = await prisma.issueRelation.create({
       data: {
@@ -326,17 +333,13 @@ router.post('/:id/relations', requirePermission('projects.issues', 'input'), asy
     });
     res.status(201).json(relation);
   } catch (e) {
-    if (e instanceof ProjectAccessDeniedError) {
-      sendProjectAccessDenied(res);
-      return;
-    }
     console.error('Relation creation error:', e);
     res.status(500).json({ error: '関連付けの作成に失敗しました' });
   }
 });
 
 // Delete relation
-router.delete('/relations/:relationId', requirePermission('projects.issues', 'input'), async (req: AuthRequest, res: Response) => {
+router.delete('/relations/:relationId', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const relationId = Number(req.params.relationId);
     const relation = await prisma.issueRelation.findUnique({
@@ -352,26 +355,31 @@ router.delete('/relations/:relationId', requirePermission('projects.issues', 'in
       res.status(404).json({ error: 'チケットが見つかりません' });
       return;
     }
-    await assertProjectMember(req.userId!, projectId, isRequestAdmin(req));
+    if (!(await hasProjectPermission(req.userId!, projectId, 'projects.issues', 'input'))) {
+      res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
+      return;
+    }
 
     await prisma.issueRelation.delete({
       where: { id: relationId }
     });
     res.json({ message: '関連付けを削除しました' });
   } catch (e: any) {
-    if (e instanceof ProjectAccessDeniedError) {
-      sendProjectAccessDenied(res);
-      return;
-    }
     console.error(`Relation deletion error (ID: ${req.params.relationId}):`, e);
     res.status(500).json({ error: '関連付けの削除に失敗しました' });
   }
 });
 
 // Create issue
-router.post('/', requirePermission('projects.issues', 'input'), async (req: AuthRequest, res: Response) => {
+router.post('/', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
-    const permissions = await resolveUserPermissions(req.userId!);
+    const { projectId, trackerId, statusId, priorityId, assignedToId, assignedToGroupId, subject, description, startDate, endDate, dueDate, estimatedHours, parentId } = req.body;
+    const pid = Number(projectId);
+    if (!(await hasProjectPermission(req.userId!, pid, 'projects.issues', 'input'))) {
+      res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
+      return;
+    }
+    const permissions = await resolveProjectPermissions(req.userId!, pid);
     const deniedDt = assertDatetimeFieldPermissions(permissions, req.body, {});
     if (deniedDt) {
       res.status(403).json({ error: `フィールドの編集権限がありません: ${deniedDt}` });
@@ -387,8 +395,6 @@ router.post('/', requirePermission('projects.issues', 'input'), async (req: Auth
       res.status(403).json({ error: `フィールドの編集権限がありません: ${deniedParent}` });
       return;
     }
-    const { projectId, trackerId, statusId, priorityId, assignedToId, assignedToGroupId, subject, description, startDate, endDate, dueDate, estimatedHours, parentId } = req.body;
-    await assertProjectMember(req.userId!, Number(projectId), isRequestAdmin(req));
     if (estimatedHours !== undefined && estimatedHours !== null && !Number.isInteger(Number(estimatedHours))) {
       return res.status(400).json({ error: '予定工数は整数で入力してください' });
     }
@@ -402,7 +408,7 @@ router.post('/', requirePermission('projects.issues', 'input'), async (req: Auth
 
     const parentError = await validateIssueParentId(prisma, {
       parentId: parentId === undefined || parentId === null || parentId === '' ? null : Number(parentId),
-      projectId: Number(projectId),
+      projectId: pid,
     });
     if (parentError) {
       return res.status(400).json({ error: parentError });
@@ -410,7 +416,7 @@ router.post('/', requirePermission('projects.issues', 'input'), async (req: Auth
 
     const issue = await prisma.issue.create({
       data: {
-        projectId,
+        projectId: pid,
         trackerId,
         statusId,
         priorityId,
@@ -435,17 +441,13 @@ router.post('/', requirePermission('projects.issues', 'input'), async (req: Auth
     });
     res.status(201).json(issue);
   } catch (e) {
-    if (e instanceof ProjectAccessDeniedError) {
-      sendProjectAccessDenied(res);
-      return;
-    }
     console.error('POST /issues:', e);
     res.status(500).json({ error: 'チケットの作成に失敗しました' });
   }
 });
 
 // Update issue
-router.put('/:id', requirePermission('projects.issues', 'input'), async (req: AuthRequest, res: Response) => {
+router.put('/:id', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const issueId = Number(req.params.id);
     const existingIssue = await prisma.issue.findUnique({
@@ -471,8 +473,11 @@ router.put('/:id', requirePermission('projects.issues', 'input'), async (req: Au
       res.status(404).json({ error: 'チケットが見つかりません' });
       return;
     }
-    await assertProjectMember(req.userId!, existingIssue.projectId, isRequestAdmin(req));
-    const permissions = await resolveUserPermissions(req.userId!);
+    if (!(await hasProjectPermission(req.userId!, existingIssue.projectId, 'projects.issues', 'input'))) {
+      res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
+      return;
+    }
+    const permissions = await resolveProjectPermissions(req.userId!, existingIssue.projectId);
     const hasChildren = await issueHasChildren(prisma, issueId);
     if (hasChildren && (req.body.startDate !== undefined || req.body.endDate !== undefined)) {
       res.status(400).json({ error: '子チケットがあるため開始・終了日時は変更できません' });
@@ -578,44 +583,42 @@ router.put('/:id', requirePermission('projects.issues', 'input'), async (req: Au
     }
     res.json(issue);
   } catch (e) {
-    if (e instanceof ProjectAccessDeniedError) {
-      sendProjectAccessDenied(res);
-      return;
-    }
     console.error('チケット更新エラー:', e);
     res.status(500).json({ error: 'チケットの更新に失敗しました' });
   }
 });
 
 // Delete issue
-router.delete('/:id', requirePermission('projects.issues', 'input'), async (req: AuthRequest, res: Response) => {
+router.delete('/:id', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const projectId = await getProjectIdForIssue(Number(req.params.id));
     if (projectId == null) {
       res.status(404).json({ error: 'チケットが見つかりません' });
       return;
     }
-    await assertProjectMember(req.userId!, projectId, isRequestAdmin(req));
+    if (!(await hasProjectPermission(req.userId!, projectId, 'projects.issues', 'input'))) {
+      res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
+      return;
+    }
     await prisma.issue.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: 'チケットを削除しました' });
   } catch (e) {
-    if (e instanceof ProjectAccessDeniedError) {
-      sendProjectAccessDenied(res);
-      return;
-    }
     res.status(500).json({ error: 'チケットの削除に失敗しました' });
   }
 });
 
 // Add comment
-router.post('/:id/comments', requirePermission('projects.issues', 'input'), async (req: AuthRequest, res: Response) => {
+router.post('/:id/comments', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const projectId = await getProjectIdForIssue(Number(req.params.id));
     if (projectId == null) {
       res.status(404).json({ error: 'チケットが見つかりません' });
       return;
     }
-    await assertProjectMember(req.userId!, projectId, isRequestAdmin(req));
+    if (!(await hasProjectPermission(req.userId!, projectId, 'projects.issues', 'input'))) {
+      res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
+      return;
+    }
 
     const comment = await prisma.issueComment.create({
       data: {
@@ -627,16 +630,12 @@ router.post('/:id/comments', requirePermission('projects.issues', 'input'), asyn
     });
     res.status(201).json(comment);
   } catch (e) {
-    if (e instanceof ProjectAccessDeniedError) {
-      sendProjectAccessDenied(res);
-      return;
-    }
     res.status(500).json({ error: 'コメントの追加に失敗しました' });
   }
 });
 
 // Update comment
-router.put('/:id/comments/:commentId', requirePermission('projects.issues', 'input'), async (req: AuthRequest, res: Response) => {
+router.put('/:id/comments/:commentId', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const commentId = Number(req.params.commentId);
     const existing = await prisma.issueComment.findUnique({ where: { id: commentId } });
@@ -649,7 +648,10 @@ router.put('/:id/comments/:commentId', requirePermission('projects.issues', 'inp
       res.status(404).json({ error: 'チケットが見つかりません' });
       return;
     }
-    await assertProjectMember(req.userId!, projectId, isRequestAdmin(req));
+    if (!(await hasProjectPermission(req.userId!, projectId, 'projects.issues', 'input'))) {
+      res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
+      return;
+    }
     if (existing.userId !== req.userId) {
       res.status(403).json({ error: '他のユーザーのコメントは編集できません' });
       return;
@@ -661,16 +663,12 @@ router.put('/:id/comments/:commentId', requirePermission('projects.issues', 'inp
     });
     res.json(comment);
   } catch (e) {
-    if (e instanceof ProjectAccessDeniedError) {
-      sendProjectAccessDenied(res);
-      return;
-    }
     res.status(500).json({ error: 'コメントの更新に失敗しました' });
   }
 });
 
 // Delete comment
-router.delete('/:id/comments/:commentId', requirePermission('projects.issues', 'input'), async (req: AuthRequest, res: Response) => {
+router.delete('/:id/comments/:commentId', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const commentId = Number(req.params.commentId);
     const existing = await prisma.issueComment.findUnique({ where: { id: commentId } });
@@ -683,7 +681,10 @@ router.delete('/:id/comments/:commentId', requirePermission('projects.issues', '
       res.status(404).json({ error: 'チケットが見つかりません' });
       return;
     }
-    await assertProjectMember(req.userId!, projectId, isRequestAdmin(req));
+    if (!(await hasProjectPermission(req.userId!, projectId, 'projects.issues', 'input'))) {
+      res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
+      return;
+    }
     if (existing.userId !== req.userId) {
       res.status(403).json({ error: '他のユーザーのコメントは削除できません' });
       return;
@@ -691,10 +692,6 @@ router.delete('/:id/comments/:commentId', requirePermission('projects.issues', '
     await prisma.issueComment.delete({ where: { id: commentId } });
     res.json({ message: 'コメントを削除しました' });
   } catch (e) {
-    if (e instanceof ProjectAccessDeniedError) {
-      sendProjectAccessDenied(res);
-      return;
-    }
     res.status(500).json({ error: 'コメントの削除に失敗しました' });
   }
 });
