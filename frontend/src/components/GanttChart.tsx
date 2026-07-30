@@ -72,11 +72,27 @@ function isRootBlockEnd(nextDepth: number | null): boolean {
   return nextDepth === null || nextDepth === 0;
 }
 
-/** ルート塊の末尾は濃い実線、それ以外の行区切りは破線（先頭上辺はヘッダー下線で兼ねる） */
-function rowBorderStyle(rootEnd: boolean): { borderBottom: string } {
-  return {
-    borderBottom: rootEnd ? '1px solid #64748B' : '1px dashed #E5E7EB',
-  };
+/**
+ * 親子チケット間の行区切りか。
+ * 親→子（深さ増加）、または親子ツリー内の行間（両方 depth>0）。
+ */
+function isParentChildTicketBorder(depth: number, nextDepth: number | null): boolean {
+  if (nextDepth === null) return false;
+  if (nextDepth > depth) return true;
+  return depth > 0 && nextDepth > 0;
+}
+
+type RowBorderKind = 'root' | 'parentChild' | 'normal';
+
+function rowBorderStyle(kind: RowBorderKind): { borderBottom: string } {
+  switch (kind) {
+    case 'root':
+      return { borderBottom: '1px solid #64748B' };
+    case 'parentChild':
+      return { borderBottom: '1px dashed #E5E7EB' };
+    default:
+      return { borderBottom: '1px solid #E5E7EB' };
+  }
 }
 
 /**
@@ -1772,7 +1788,7 @@ export default function GanttChart({
                   return (
                     <div
                       className="flex bg-slate-100 group"
-                      style={{ height: GANTT_ROW_HEIGHT, boxSizing: 'border-box', ...rowBorderStyle(projectRootEnd) }}
+                      style={{ height: GANTT_ROW_HEIGHT, boxSizing: 'border-box', ...rowBorderStyle(projectRootEnd ? 'root' : 'normal') }}
                     >
                       <div style={{ width: leftColWidth }} className="flex-shrink-0 py-0.5 text-xs font-semibold text-slate-700 border-r truncate flex items-center sticky left-0 z-20 bg-slate-100 group-hover:bg-slate-200" title={group.companyName ? `${group.companyName} / ${group.projectName}` : group.projectName}>
                         <span style={{ paddingLeft: indentPx + 4 }} className="flex items-center gap-1 min-w-0">
@@ -1849,15 +1865,20 @@ export default function GanttChart({
                   const isParent = issueHasChildren(issue, filteredIssues);
                   const issueDepth = issueDepthById.get(issue.id) ?? 0;
                   const isLastTicket = issueIndex === group.issues.length - 1;
-                  const ticketRootEnd = showProject
-                    ? isLastTicket && isRootBlockEnd(nextProjectDepth)
-                    : false;
+                  const nextIssue = !isLastTicket ? group.issues[issueIndex + 1] : null;
+                  const nextIssueDepth = nextIssue != null ? (issueDepthById.get(nextIssue.id) ?? 0) : null;
+                  let ticketBorder: RowBorderKind = 'normal';
+                  if (showProject && isLastTicket && isRootBlockEnd(nextProjectDepth)) {
+                    ticketBorder = 'root';
+                  } else if (isParentChildTicketBorder(issueDepth, nextIssueDepth)) {
+                    ticketBorder = 'parentChild';
+                  }
 
                   return (
                     <div
                       key={issue.id}
                       className="flex group hover:bg-gray-50 text-[11px]"
-                      style={{ height: GANTT_ROW_HEIGHT, boxSizing: 'border-box', ...rowBorderStyle(ticketRootEnd) }}
+                      style={{ height: GANTT_ROW_HEIGHT, boxSizing: 'border-box', ...rowBorderStyle(ticketBorder) }}
                     >
                       <div style={{ width: leftColWidth }} className="flex-shrink-0 px-2 py-0.5 text-xs truncate border-r flex items-center sticky left-0 z-20 bg-white group-hover:bg-gray-50" data-issue-id={issue.id}>
                         {showProject && <span className="inline-block w-4 flex-shrink-0" />}
