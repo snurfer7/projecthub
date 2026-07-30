@@ -3,6 +3,13 @@ import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
 import { parseNumericQueryIds } from '../utils/queryParams';
+import {
+  assertProjectMember,
+  getAccessibleProjectIds,
+  isRequestAdmin,
+  ProjectAccessDeniedError,
+  sendProjectAccessDenied,
+} from '../services/projectAccess';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -13,8 +20,20 @@ router.use(authenticateToken);
 router.get('/', requirePermission('projects.time-entries', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const { projectId, issueId, userId, userIds, startDate, endDate } = req.query;
+    const accessibleIds = await getAccessibleProjectIds(req.userId!, isRequestAdmin(req));
     const where: any = {};
-    if (projectId) where.projectId = Number(projectId);
+
+    if (projectId) {
+      const pid = Number(projectId);
+      if (!accessibleIds.includes(pid)) {
+        sendProjectAccessDenied(res);
+        return;
+      }
+      where.projectId = pid;
+    } else {
+      where.projectId = { in: accessibleIds };
+    }
+
     if (issueId) where.issueId = Number(issueId);
     const recordUserIds = parseNumericQueryIds(userIds ?? userId);
     if (recordUserIds.length > 0) where.userId = { in: recordUserIds };
@@ -26,6 +45,11 @@ router.get('/', requirePermission('projects.time-entries', 'use'), async (req: A
         end.setHours(23, 59, 59, 999);
         where.spentOn.lte = end;
       }
+    }
+
+    if (accessibleIds.length === 0) {
+      res.json([]);
+      return;
     }
 
     const entries = await prisma.timeEntry.findMany({
@@ -47,6 +71,7 @@ router.get('/', requirePermission('projects.time-entries', 'use'), async (req: A
 router.post('/', requirePermission('projects.time-entries', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const { projectId, issueId, hours, activity, spentOn, comments } = req.body;
+    await assertProjectMember(req.userId!, Number(projectId), isRequestAdmin(req));
     const entry = await prisma.timeEntry.create({
       data: {
         projectId,
@@ -65,6 +90,10 @@ router.post('/', requirePermission('projects.time-entries', 'input'), async (req
     });
     res.status(201).json(entry);
   } catch (e) {
+    if (e instanceof ProjectAccessDeniedError) {
+      sendProjectAccessDenied(res);
+      return;
+    }
     res.status(500).json({ error: '時間記録の作成に失敗しました' });
   }
 });
@@ -72,6 +101,16 @@ router.post('/', requirePermission('projects.time-entries', 'input'), async (req
 // Update time entry
 router.put('/:id', requirePermission('projects.time-entries', 'input'), async (req: AuthRequest, res: Response) => {
   try {
+    const existing = await prisma.timeEntry.findUnique({
+      where: { id: Number(req.params.id) },
+      select: { projectId: true },
+    });
+    if (!existing) {
+      res.status(404).json({ error: '時間記録が見つかりません' });
+      return;
+    }
+    await assertProjectMember(req.userId!, existing.projectId, isRequestAdmin(req));
+
     const { hours, activity, spentOn, comments } = req.body;
     const entry = await prisma.timeEntry.update({
       where: { id: Number(req.params.id) },
@@ -89,6 +128,10 @@ router.put('/:id', requirePermission('projects.time-entries', 'input'), async (r
     });
     res.json(entry);
   } catch (e) {
+    if (e instanceof ProjectAccessDeniedError) {
+      sendProjectAccessDenied(res);
+      return;
+    }
     res.status(500).json({ error: '時間記録の更新に失敗しました' });
   }
 });
@@ -96,9 +139,22 @@ router.put('/:id', requirePermission('projects.time-entries', 'input'), async (r
 // Delete time entry
 router.delete('/:id', requirePermission('projects.time-entries', 'input'), async (req: AuthRequest, res: Response) => {
   try {
+    const existing = await prisma.timeEntry.findUnique({
+      where: { id: Number(req.params.id) },
+      select: { projectId: true },
+    });
+    if (!existing) {
+      res.status(404).json({ error: '時間記録が見つかりません' });
+      return;
+    }
+    await assertProjectMember(req.userId!, existing.projectId, isRequestAdmin(req));
     await prisma.timeEntry.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: '時間記録を削除しました' });
   } catch (e) {
+    if (e instanceof ProjectAccessDeniedError) {
+      sendProjectAccessDenied(res);
+      return;
+    }
     res.status(500).json({ error: '時間記録の削除に失敗しました' });
   }
 });

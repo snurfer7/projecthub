@@ -48,7 +48,7 @@
 ## プロジェクト・チケット・Wiki・工数
 
 - **Project** — プロジェクト。identifier（ユニーク）, status, company/location/contact（主契約・拠点・担当）, parent（親プロジェクト）。Issue, WikiPage, TimeEntry, ProjectComment, ProjectMember, ProjectGroup, ProjectRelatedCompany, Attachment, **Activity（N:N・`ActivityProject` 経由）**と関連。
-- **ProjectMember** — プロジェクトメンバー。User と Project の多対多。ProjectMemberRole でロールを持つ。
+- **ProjectMember** — プロジェクトメンバー。User と Project の多対多。ProjectMemberRole でロールを持つ。**プロジェクトの可視性条件**: 当該ユーザーに `ProjectMember` 行があるプロジェクトのみ参照・操作可能（グループ経由で同期されたメンバーも含む）。PermissionSet の feature 権限とは別の行レベル制約。**例外**: `User.isAdmin` のユーザーはメンバー登録の有無に関わらず全プロジェクトを参照・操作可能。作成者は作成時に自動でメンバー登録される。
 - **ProjectMemberRole** — メンバーのロール。Role と Group（sourceGroupId、グループ経由で付与した場合）と関連。
 - **ProjectGroup** — プロジェクトに紐づくグループ。
 - **ProjectRelatedCompany** — プロジェクトと関連会社（Company + Location + Contact の組み合わせ）。

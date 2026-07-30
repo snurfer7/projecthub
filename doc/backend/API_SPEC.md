@@ -34,46 +34,50 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 ## Projects — `/api/projects`
 
+**メンバー可視性**: `POST /`（作成）と `GET /roles/available` を除き、操作対象プロジェクトに `ProjectMember` として登録されているユーザーのみアクセス可。一覧は所属プロジェクトのみ返す。非メンバーは **403**（`このプロジェクトを参照する権限がありません`）。**例外**: `isAdmin` のユーザーは全プロジェクトを参照・操作可能。作成者は作成時に自動でメンバーとなる。
+
 | メソッド | パス | 概要 |
 |----------|------|------|
-| GET | `/` | プロジェクト一覧 |
-| GET | `/:id` | プロジェクト詳細 |
-| POST | `/` | プロジェクト作成 |
-| PUT | `/:id` | プロジェクト更新 |
-| DELETE | `/:id` | プロジェクト削除 |
-| POST | `/:id/members` | メンバー追加 |
-| PUT | `/:id/members/:memberId` | メンバー・ロール更新 |
-| DELETE | `/:id/members/:memberId` | メンバー削除 |
+| GET | `/` | プロジェクト一覧（所属メンバーのプロジェクトのみ） |
+| GET | `/:id` | プロジェクト詳細（メンバー必須） |
+| POST | `/` | プロジェクト作成（メンバー不要。作成者が自動登録） |
+| PUT | `/:id` | プロジェクト更新（メンバー必須） |
+| DELETE | `/:id` | プロジェクト削除（メンバー必須） |
+| POST | `/:id/members` | メンバー追加（メンバー必須） |
+| PUT | `/:id/members/:memberId` | メンバー・ロール更新（メンバー必須） |
+| DELETE | `/:id/members/:memberId` | メンバー削除（メンバー必須） |
 | GET | `/roles/available` | 利用可能ロール一覧 |
-| GET | `/:id/groups` | プロジェクト紐付けグループ一覧 |
-| POST | `/:id/groups` | グループ紐付け |
-| PUT | `/:id/groups/:groupId/role` | グループのロール設定更新 |
-| DELETE | `/:id/groups/:groupId` | グループ紐付け解除 |
-| GET | `/:id/comments` | コメント一覧 |
-| POST | `/:id/comments` | コメント追加 |
-| PUT | `/:id/comments/:commentId` | コメント更新 |
-| GET | `/:id/activities` | プロジェクトに紐づく活動履歴一覧（N:N）。権限: `projects.activities` use |
-| POST | `/:id/activities` | 既存活動をプロジェクトへ紐づけ。Body: `{ activityId }`。権限: `companies.activities` input。活動の企業が当該プロジェクトの主企業または関連企業であること |
-| DELETE | `/:id/activities/:activityId` | プロジェクトと活動の紐づけ解除。権限: `companies.activities` input |
+| GET | `/:id/groups` | プロジェクト紐付けグループ一覧（メンバー必須） |
+| POST | `/:id/groups` | グループ紐付け（メンバー必須） |
+| PUT | `/:id/groups/:groupId/role` | グループのロール設定更新（メンバー必須） |
+| DELETE | `/:id/groups/:groupId` | グループ紐付け解除（メンバー必須） |
+| GET | `/:id/comments` | コメント一覧（メンバー必須） |
+| POST | `/:id/comments` | コメント追加（メンバー必須） |
+| PUT | `/:id/comments/:commentId` | コメント更新（メンバー必須） |
+| GET | `/:id/activities` | プロジェクトに紐づく活動履歴一覧（N:N）。権限: `projects.activities` use。メンバー必須 |
+| POST | `/:id/activities` | 既存活動をプロジェクトへ紐づけ。Body: `{ activityId }`。権限: `companies.activities` input。活動の企業が当該プロジェクトの主企業または関連企業であること。メンバー必須 |
+| DELETE | `/:id/activities/:activityId` | プロジェクトと活動の紐づけ解除。権限: `companies.activities` input。メンバー必須 |
 
 ---
 
 ## Issues — `/api/issues`
 
+**メンバー可視性**: 所属プロジェクトのチケットのみ参照・操作可。一覧は所属プロジェクトに絞り込む。`projectId` 指定時やチケット ID 指定時に非メンバーなら **403**。**例外**: `isAdmin` は全プロジェクト可。
+
 | メソッド | パス | 概要 |
 |----------|------|------|
-| GET | `/` | チケット一覧。Query: `projectId`, `statusId` / `statusIds`（複数）, `trackerId` / `trackerIds`（複数）, `priorityId`, `assignedToId` / `assignedToIds`（複数担当者）, `assignedToGroupId`。複数 ID はカンマ区切りまたは配列。応答に `parentId` / `parent` / `_count.children` を含み、子を持つチケットの `startDate` / `endDate` / `statusId`（`status`）は子孫から集約した値（ステータスは position 最小）。`project` は `{ id, name, company: { id, name } \| null }` を含む（カンバン等クロスプロジェクト表示での企業名表示用） |
-| GET | `/meta/options` | メタ（trackers, statuses, priorities, users, groups）。Query: `projectId`（任意）。`projectId` 指定時はプロジェクトメンバー・紐付きグループのみ返す。未指定時は全ユーザー・全グループを返す |
-| GET | `/:id` | チケット詳細。`parent` / `children`（id, subject, startDate, endDate）を含む。子がある場合 `startDate` / `endDate` / `status` は集約値 |
-| POST | `/` | チケット作成。Body に `parentId`（任意・同一プロジェクト・循環不可）。権限: 項目 `projects.issues.fields.parent`（`parentId` 指定時） |
-| PUT | `/:id` | チケット更新。Body に `parentId`（任意・null で解除）。子チケットがある場合 `startDate` / `endDate` / `statusId` の更新は 400。権限: `projects.issues.fields.parent` |
-| DELETE | `/:id` | チケット削除 |
-| PUT | `/reorder` | 順序更新。Body: `issues: [{ id, position }]` |
-| POST | `/:id/relations` | 関連追加 |
-| DELETE | `/relations/:relationId` | 関連削除 |
-| POST | `/:id/comments` | コメント追加 |
-| PUT | `/:id/comments/:commentId` | コメント更新 |
-| DELETE | `/:id/comments/:commentId` | コメント削除 |
+| GET | `/` | チケット一覧（所属プロジェクトのみ）。Query: `projectId`, `statusId` / `statusIds`（複数）, `trackerId` / `trackerIds`（複数）, `priorityId`, `assignedToId` / `assignedToIds`（複数担当者）, `assignedToGroupId`。複数 ID はカンマ区切りまたは配列。応答に `parentId` / `parent` / `_count.children` を含み、子を持つチケットの `startDate` / `endDate` / `statusId`（`status`）は子孫から集約した値（ステータスは position 最小）。`project` は `{ id, name, company: { id, name } \| null }` を含む（カンバン等クロスプロジェクト表示での企業名表示用） |
+| GET | `/meta/options` | メタ（trackers, statuses, priorities, users, groups）。Query: `projectId`（任意）。`projectId` 指定時はメンバー必須で、プロジェクトメンバー・紐付きグループのみ返す。未指定時は全ユーザー・全グループを返す |
+| GET | `/:id` | チケット詳細（所属プロジェクトのみ）。`parent` / `children`（id, subject, startDate, endDate）を含む。子がある場合 `startDate` / `endDate` / `status` は集約値 |
+| POST | `/` | チケット作成（対象プロジェクトのメンバー必須）。Body に `parentId`（任意・同一プロジェクト・循環不可）。権限: 項目 `projects.issues.fields.parent`（`parentId` 指定時） |
+| PUT | `/:id` | チケット更新（所属プロジェクトのみ）。Body に `parentId`（任意・null で解除）。子チケットがある場合 `startDate` / `endDate` / `statusId` の更新は 400。権限: `projects.issues.fields.parent` |
+| DELETE | `/:id` | チケット削除（所属プロジェクトのみ） |
+| PUT | `/reorder` | 順序更新。Body: `issues: [{ id, position }]`（対象チケットのプロジェクトへの所属必須） |
+| POST | `/:id/relations` | 関連追加（所属プロジェクトのみ） |
+| DELETE | `/relations/:relationId` | 関連削除（関連元チケットのプロジェクトへの所属必須） |
+| POST | `/:id/comments` | コメント追加（所属プロジェクトのみ） |
+| PUT | `/:id/comments/:commentId` | コメント更新（所属プロジェクトのみ） |
+| DELETE | `/:id/comments/:commentId` | コメント削除（所属プロジェクトのみ） |
 
 親チケットの開始・終了日時およびステータスは子から導出するため、子があるチケットへの `startDate` / `endDate` / `statusId` 書き込みは拒否する。
 
@@ -81,37 +85,43 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 ## Wiki（プロジェクト） — `/api/wiki`
 
+**メンバー可視性**: 対象プロジェクトのメンバーのみ。非メンバーは **403**。**例外**: `isAdmin` は全プロジェクト可。
+
 | メソッド | パス | 概要 |
 |----------|------|------|
-| GET | `/project/:projectId` | プロジェクトの Wiki 一覧 |
-| GET | `/:id` | Wiki ページ詳細（id はページ ID） |
-| POST | `/` | ページ作成。Body: `projectId`, `title`, `content`, `parentId`（任意） |
-| PUT | `/:id` | ページ更新。Body: `title`, `content`, `parentId` |
-| DELETE | `/:id` | ページ削除 |
-| PATCH | `/:id/move` | 移動。Body: `parentId`, `position` |
+| GET | `/project/:projectId` | プロジェクトの Wiki 一覧（メンバー必須） |
+| GET | `/:id` | Wiki ページ詳細（id はページ ID。所属プロジェクトのみ） |
+| POST | `/` | ページ作成。Body: `projectId`, `title`, `content`, `parentId`（任意）。メンバー必須 |
+| PUT | `/:id` | ページ更新。Body: `title`, `content`, `parentId`（所属プロジェクトのみ） |
+| DELETE | `/:id` | ページ削除（所属プロジェクトのみ） |
+| PATCH | `/:id/move` | 移動。Body: `parentId`, `position`（所属プロジェクトのみ） |
 
 ---
 
 ## Attachments — `/api/attachments`
 
+**メンバー可視性**: プロジェクト／チケット／プロジェクトコメント由来の添付は、当該プロジェクトのメンバーのみ操作可。企業コメント等の企業側添付は従来どおり（メンバー制約なし）。**例外**: `isAdmin` はプロジェクト系も全件可。
+
 | メソッド | パス | 概要 |
 |----------|------|------|
-| POST | `/upload` | ファイルアップロード（multipart, `file`） |
-| POST | `/token/:id` | トークン発行（ダウンロード用） |
-| GET | `/download/:id` | ダウンロード（認証 or トークン） |
+| POST | `/upload` | ファイルアップロード（multipart, `file`）。プロジェクト系はメンバー必須 |
+| POST | `/token/:id` | トークン発行（ダウンロード用）。プロジェクト系はメンバー必須 |
+| GET | `/download/:id` | ダウンロード（認証 or トークン）。認証時のプロジェクト系はメンバー必須 |
 | GET | `/file/:id` | ファイル取得 |
-| DELETE | `/:id` | 削除（認証済み）。会社コメント経由の添付も同一 API で削除し、コメント側の一覧からも消える |
+| DELETE | `/:id` | 削除（認証済み）。会社コメント経由の添付も同一 API で削除し、コメント側の一覧からも消える。プロジェクト系はメンバー必須 |
 
 ---
 
 ## Time Entries — `/api/time-entries`
 
+**メンバー可視性**: 所属プロジェクトの工数のみ参照・操作可。一覧は所属プロジェクトに絞り込む。非メンバーの `projectId` 指定や既存エントリ操作は **403**。**例外**: `isAdmin` は全プロジェクト可。
+
 | メソッド | パス | 概要 |
 |----------|------|------|
-| GET | `/` | 一覧。Query: `projectId`, `issueId`, `startDate`, `endDate`, `userId`（単一・後方互換）, `userIds`（カンマ区切りまたは配列で複数担当者） |
-| POST | `/` | 作成。Body: `projectId`, `issueId`（任意）, `hours`, `activity`, `spentOn`, `comments`（任意） |
-| PUT | `/:id` | 更新 |
-| DELETE | `/:id` | 削除 |
+| GET | `/` | 一覧（所属プロジェクトのみ）。Query: `projectId`, `issueId`, `startDate`, `endDate`, `userId`（単一・後方互換）, `userIds`（カンマ区切りまたは配列で複数担当者） |
+| POST | `/` | 作成。Body: `projectId`, `issueId`（任意）, `hours`, `activity`, `spentOn`, `comments`（任意）。メンバー必須 |
+| PUT | `/:id` | 更新（所属プロジェクトのみ） |
+| DELETE | `/:id` | 削除（所属プロジェクトのみ） |
 
 ---
 
@@ -203,10 +213,12 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 ## Gantt — `/api/gantt`
 
+**メンバー可視性**: 所属プロジェクトのみ。`/project/:projectId` で非メンバーは **403**。`/all` は所属かつ `active` のプロジェクトのみ。**例外**: `isAdmin` は全プロジェクト可。
+
 | メソッド | パス | 概要 |
 |----------|------|------|
-| GET | `/project/:projectId` | 指定プロジェクトのガント用データ。チケットに `parentId` を含み、親の開始・終了は子孫から集約。`startDate` / `endDate` / `dueDate` がすべて未設定のチケットも含む |
-| GET | `/all` | 有効（`active`）プロジェクトのガント用データ（同上。日付未設定チケットも含む）。`projects` は `company: { id, name }` を含む（ガントのプロジェクト行で企業名を表示するため） |
+| GET | `/project/:projectId` | 指定プロジェクトのガント用データ（メンバー必須）。チケットに `parentId` を含み、親の開始・終了は子孫から集約。`startDate` / `endDate` / `dueDate` がすべて未設定のチケットも含む |
+| GET | `/all` | 所属かつ有効（`active`）プロジェクトのガント用データ（同上。日付未設定チケットも含む）。`projects` は `company: { id, name }` を含む（ガントのプロジェクト行で企業名を表示するため） |
 
 ガントの曜日・個別休日の表示および予定工数からの終了日算出は、下記 **Settings（カレンダー）** の休日設定を参照する（営業日のみ進める。判定優先度は `/admin/settings/holidays` と同じ）。
 

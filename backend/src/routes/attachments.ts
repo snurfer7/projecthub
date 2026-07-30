@@ -4,6 +4,12 @@ import multer from 'multer';
 import { authenticateToken, AuthRequest, generateDownloadToken, verifyDownloadToken } from '../middleware/auth';
 import { requireAnyPermission } from '../middleware/permissions';
 import { buildUploadS3Key, uploadFileToS3, deleteFileFromS3, getSignedDownloadUrl } from '../services/s3';
+import {
+  assertAttachmentProjectAccess,
+  isRequestAdmin,
+  ProjectAccessDeniedError,
+  sendProjectAccessDenied,
+} from '../services/projectAccess';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -25,6 +31,21 @@ router.post('/upload', authenticateToken, requireAnyPermission(['projects', 'pro
       const n = Number(val);
       return isNaN(n) ? null : n;
     };
+
+    try {
+      await assertAttachmentProjectAccess(req.userId!, {
+        projectId: toNumber(projectId),
+        issueId: toNumber(issueId),
+        issueCommentId: toNumber(issueCommentId),
+        projectCommentId: toNumber(projectCommentId),
+      }, isRequestAdmin(req));
+    } catch (e) {
+      if (e instanceof ProjectAccessDeniedError) {
+        sendProjectAccessDenied(res);
+        return;
+      }
+      throw e;
+    }
 
     // Correct Multer's misinterpretation of UTF-8 filenames
     const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
@@ -71,6 +92,16 @@ router.post('/token/:id', authenticateToken, requireAnyPermission(['projects', '
       return;
     }
 
+    try {
+      await assertAttachmentProjectAccess(req.userId!, attachment, isRequestAdmin(req));
+    } catch (e) {
+      if (e instanceof ProjectAccessDeniedError) {
+        sendProjectAccessDenied(res);
+        return;
+      }
+      throw e;
+    }
+
     const token = generateDownloadToken(attachmentId, req.userId!);
     res.json({ token });
   } catch (e) {
@@ -86,6 +117,16 @@ router.get('/download/:id', authenticateToken, async (req: AuthRequest, res: Res
     if (!attachment) {
       res.status(404).json({ error: 'ファイルが見つかりません' });
       return;
+    }
+
+    try {
+      await assertAttachmentProjectAccess(req.userId!, attachment, isRequestAdmin(req));
+    } catch (e) {
+      if (e instanceof ProjectAccessDeniedError) {
+        sendProjectAccessDenied(res);
+        return;
+      }
+      throw e;
     }
 
     // Get signed URL from S3
@@ -140,6 +181,16 @@ router.delete('/:id', authenticateToken, requireAnyPermission(['projects', 'proj
     if (!attachment) {
       res.status(404).json({ error: 'ファイルが見つかりません' });
       return;
+    }
+
+    try {
+      await assertAttachmentProjectAccess(req.userId!, attachment, isRequestAdmin(req));
+    } catch (e) {
+      if (e instanceof ProjectAccessDeniedError) {
+        sendProjectAccessDenied(res);
+        return;
+      }
+      throw e;
     }
 
     // Delete from S3

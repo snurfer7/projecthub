@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Outlet, useLocation } from 'react-router-dom';
+import { useParams, Outlet, useLocation, Link } from 'react-router-dom';
 import api from '../api/client';
 import { Project } from '../types';
 import ProjectSettingsModal from '../components/ProjectSettingsModal';
@@ -10,18 +10,55 @@ import { useAuth } from '../hooks/useAuth';
 export default function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const [project, setProject] = useState<Project | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const location = useLocation();
   const { user } = useAuth();
   const { canUse } = usePermissions(user?.permissions);
 
   const loadProject = () => {
-    api.get(`/projects/${projectId}`).then((res) => setProject(res.data));
+    setAccessDenied(false);
+    setLoadError(null);
+    api
+      .get(`/projects/${projectId}`)
+      .then((res) => setProject(res.data))
+      .catch((err) => {
+        setProject(null);
+        if (err.response?.status === 403) {
+          setAccessDenied(true);
+          setLoadError(err.response?.data?.error || 'このプロジェクトを参照する権限がありません');
+          return;
+        }
+        setLoadError(err.response?.data?.error || 'プロジェクトの取得に失敗しました');
+      });
   };
 
   useEffect(() => {
     loadProject();
   }, [projectId]);
+
+  if (accessDenied) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-red-600 mb-4">{loadError || 'このプロジェクトを参照する権限がありません'}</p>
+        <Link to="/projects" className="text-blue-600 hover:underline">
+          プロジェクト一覧へ戻る
+        </Link>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-red-600 mb-4">{loadError}</p>
+        <Link to="/projects" className="text-blue-600 hover:underline">
+          プロジェクト一覧へ戻る
+        </Link>
+      </div>
+    );
+  }
 
   if (!project) return <div className="text-center py-12 text-gray-500">読み込み中...</div>;
 

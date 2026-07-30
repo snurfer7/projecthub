@@ -2,16 +2,22 @@ import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
+import {
+  requireProjectMember,
+  projectListAccessWhere,
+  isRequestAdmin,
+} from '../services/projectAccess';
 
 const router = Router();
 const prisma = new PrismaClient();
 
 router.use(authenticateToken);
 
-// List projects
+// List projects (member projects only)
 router.get('/', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const projects = await prisma.project.findMany({
+      where: projectListAccessWhere(req.userId!, isRequestAdmin(req)),
       include: {
         company: { select: { id: true, name: true } },
         location: { select: { id: true, name: true } },
@@ -52,7 +58,7 @@ router.get('/', requirePermission('projects', 'use'), async (req: AuthRequest, r
 });
 
 // Get project
-router.get('/:id', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
+router.get('/:id', requirePermission('projects', 'use'), requireProjectMember('id'), async (req: AuthRequest, res: Response) => {
   try {
     const project = await prisma.project.findUnique({
       where: { id: Number(req.params.id) },
@@ -153,7 +159,7 @@ router.post('/', requirePermission('projects', 'input'), async (req: AuthRequest
 });
 
 // Update project
-router.put('/:id', requirePermission('projects', 'input'), async (req: AuthRequest, res: Response) => {
+router.put('/:id', requirePermission('projects', 'input'), requireProjectMember('id'), async (req: AuthRequest, res: Response) => {
   try {
     const { name, description, status, companyId, locationId, contactId, parentId, dueDate, remarks, relatedCompanies } = req.body;
     const data: any = { name, description, status, remarks };
@@ -185,7 +191,7 @@ router.put('/:id', requirePermission('projects', 'input'), async (req: AuthReque
 });
 
 // Delete project
-router.delete('/:id', requirePermission('projects', 'input'), async (req: AuthRequest, res: Response) => {
+router.delete('/:id', requirePermission('projects', 'input'), requireProjectMember('id'), async (req: AuthRequest, res: Response) => {
   try {
     await prisma.project.delete({ where: { id: Number(req.params.id) } });
     res.json({ message: 'プロジェクトを削除しました' });
@@ -195,7 +201,7 @@ router.delete('/:id', requirePermission('projects', 'input'), async (req: AuthRe
 });
 
 // Add individual member with multiple roles
-router.post('/:id/members', requirePermission('projects.members', 'input'), async (req: AuthRequest, res: Response) => {
+router.post('/:id/members', requirePermission('projects.members', 'input'), requireProjectMember('id'), async (req: AuthRequest, res: Response) => {
   try {
     const projectId = Number(req.params.id);
     const { userId, roleIds } = req.body;
@@ -264,7 +270,7 @@ router.post('/:id/members', requirePermission('projects.members', 'input'), asyn
 });
 
 // Update member roles (only individual roles)
-router.put('/:id/members/:memberId', requirePermission('projects.members', 'input'), async (req: AuthRequest, res: Response) => {
+router.put('/:id/members/:memberId', requirePermission('projects.members', 'input'), requireProjectMember('id'), async (req: AuthRequest, res: Response) => {
   try {
     const { roleIds } = req.body; // roleIds for individual assignment
     const memberId = Number(req.params.memberId);
@@ -311,7 +317,7 @@ router.put('/:id/members/:memberId', requirePermission('projects.members', 'inpu
 });
 
 // Remove individual roles (effectively deleting the member if no group roles exist)
-router.delete('/:id/members/:memberId', requirePermission('projects.members', 'input'), async (req: AuthRequest, res: Response) => {
+router.delete('/:id/members/:memberId', requirePermission('projects.members', 'input'), requireProjectMember('id'), async (req: AuthRequest, res: Response) => {
   try {
     const memberId = Number(req.params.memberId);
     await prisma.$transaction(async (tx: any) => {
@@ -343,7 +349,7 @@ router.get('/roles/available', requirePermission('projects.members', 'use'), asy
 });
 
 // Get groups assigned to project
-router.get('/:id/groups', requirePermission('projects.members', 'use'), async (req: AuthRequest, res: Response) => {
+router.get('/:id/groups', requirePermission('projects.members', 'use'), requireProjectMember('id'), async (req: AuthRequest, res: Response) => {
   try {
     const projectGroups = await (prisma as any).projectGroup.findMany({
       where: { projectId: Number(req.params.id) },
@@ -364,7 +370,7 @@ router.get('/:id/groups', requirePermission('projects.members', 'use'), async (r
 });
 
 // Assign group to project
-router.post('/:id/groups', requirePermission('projects.members', 'input'), async (req: AuthRequest, res: Response) => {
+router.post('/:id/groups', requirePermission('projects.members', 'input'), requireProjectMember('id'), async (req: AuthRequest, res: Response) => {
   try {
     const projectId = Number(req.params.id);
     const { groupId, roleIds } = req.body;
@@ -444,7 +450,7 @@ router.post('/:id/groups', requirePermission('projects.members', 'input'), async
 });
 
 // Update group-sourced roles
-router.put('/:id/groups/:groupId/role', requirePermission('projects.members', 'input'), async (req: AuthRequest, res: Response) => {
+router.put('/:id/groups/:groupId/role', requirePermission('projects.members', 'input'), requireProjectMember('id'), async (req: AuthRequest, res: Response) => {
   try {
     const projectId = Number(req.params.id);
     const groupId = Number(req.params.groupId);
@@ -494,7 +500,7 @@ router.put('/:id/groups/:groupId/role', requirePermission('projects.members', 'i
 });
 
 // Remove group from project
-router.delete('/:id/groups/:groupId', requirePermission('projects.members', 'input'), async (req: AuthRequest, res: Response) => {
+router.delete('/:id/groups/:groupId', requirePermission('projects.members', 'input'), requireProjectMember('id'), async (req: AuthRequest, res: Response) => {
   try {
     const projectId = Number(req.params.id);
     const groupId = Number(req.params.groupId);
@@ -543,7 +549,7 @@ router.delete('/:id/groups/:groupId', requirePermission('projects.members', 'inp
 });
 
 // Get project comments
-router.get('/:id/comments', requirePermission('projects.comments', 'use'), async (req: AuthRequest, res: Response) => {
+router.get('/:id/comments', requirePermission('projects.comments', 'use'), requireProjectMember('id'), async (req: AuthRequest, res: Response) => {
   try {
     const comments = await (prisma as any).projectComment.findMany({
       where: { projectId: Number(req.params.id) },
@@ -560,7 +566,7 @@ router.get('/:id/comments', requirePermission('projects.comments', 'use'), async
 });
 
 // Create project comment
-router.post('/:id/comments', requirePermission('projects.comments', 'input'), async (req: AuthRequest, res: Response) => {
+router.post('/:id/comments', requirePermission('projects.comments', 'input'), requireProjectMember('id'), async (req: AuthRequest, res: Response) => {
   try {
     const projectId = Number(req.params.id);
     const { content } = req.body;
@@ -591,7 +597,7 @@ router.post('/:id/comments', requirePermission('projects.comments', 'input'), as
 });
 
 // Update project comment
-router.put('/:id/comments/:commentId', requirePermission('projects.comments', 'input'), async (req: AuthRequest, res: Response) => {
+router.put('/:id/comments/:commentId', requirePermission('projects.comments', 'input'), requireProjectMember('id'), async (req: AuthRequest, res: Response) => {
   try {
     const commentId = Number(req.params.commentId);
     const { content } = req.body;
@@ -627,7 +633,7 @@ router.put('/:id/comments/:commentId', requirePermission('projects.comments', 'i
 });
 
 // Get activities linked to project (N:N)
-router.get('/:id/activities', requirePermission('projects.activities', 'use'), async (req: AuthRequest, res: Response) => {
+router.get('/:id/activities', requirePermission('projects.activities', 'use'), requireProjectMember('id'), async (req: AuthRequest, res: Response) => {
   try {
     const projectId = Number(req.params.id);
     const activities = await prisma.activity.findMany({
@@ -667,7 +673,7 @@ router.get('/:id/activities', requirePermission('projects.activities', 'use'), a
 });
 
 // Link existing activity to project
-router.post('/:id/activities', requirePermission('companies.activities', 'input'), async (req: AuthRequest, res: Response) => {
+router.post('/:id/activities', requirePermission('companies.activities', 'input'), requireProjectMember('id'), async (req: AuthRequest, res: Response) => {
   try {
     const projectId = Number(req.params.id);
     const activityId = Number(req.body.activityId);
@@ -720,7 +726,7 @@ router.post('/:id/activities', requirePermission('companies.activities', 'input'
 });
 
 // Unlink activity from project
-router.delete('/:id/activities/:activityId', requirePermission('companies.activities', 'input'), async (req: AuthRequest, res: Response) => {
+router.delete('/:id/activities/:activityId', requirePermission('companies.activities', 'input'), requireProjectMember('id'), async (req: AuthRequest, res: Response) => {
   try {
     const projectId = Number(req.params.id);
     const activityId = Number(req.params.activityId);

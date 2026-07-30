@@ -4,6 +4,7 @@ import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
 import { parseNumericQueryIds } from '../utils/queryParams';
 import { applyAggregatedParentFields } from '../utils/issueParent';
+import { requireProjectMember, projectListAccessWhere, isRequestAdmin } from '../services/projectAccess';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -109,7 +110,7 @@ async function loadGanttIssues(where: Record<string, unknown>) {
 router.use(authenticateToken);
 
 // Get gantt data for project
-router.get('/project/:projectId', requirePermission('projects.gantt', 'use'), async (req: AuthRequest, res: Response) => {
+router.get('/project/:projectId', requirePermission('projects.gantt', 'use'), requireProjectMember('projectId'), async (req: AuthRequest, res: Response) => {
   try {
     const projectId = Number(req.params.projectId);
     const { trackerId, trackerIds, assignedToId, assignedToIds, statusId, statusIds } = req.query;
@@ -147,7 +148,10 @@ router.get('/all', requirePermission('projects.gantt', 'use'), async (req: AuthR
     const { trackerId, trackerIds, assignedToId, assignedToIds, statusId, statusIds } = req.query;
 
     const projects = await prisma.project.findMany({
-      where: { status: 'active' },
+      where: {
+        status: 'active',
+        ...projectListAccessWhere(req.userId!, isRequestAdmin(req)),
+      },
       select: {
         id: true,
         name: true,
