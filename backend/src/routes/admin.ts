@@ -7,6 +7,12 @@ import { requirePermission, requireAnyPermission } from '../middleware/permissio
 import permissionSetRoutes from './permissionSets';
 import { sendTemporaryPasswordEmail, sendTestEmail } from '../services/email';
 import { encryptSecret } from '../services/emailCrypto';
+import {
+  getOrCreateSystemSetting,
+  holidaySettingsDto,
+  parseHolidayDateEntries,
+  parseHolidayWeekdays,
+} from '../services/systemCalendar';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -1097,6 +1103,60 @@ router.post('/settings/email/test', requirePermission('admin.email-settings', 'i
       error: 'テストメールの送信に失敗しました',
       details: e?.message || String(e),
     });
+  }
+});
+
+router.get('/settings/holidays', requirePermission('admin.holiday-settings', 'use'), async (_req: AuthRequest, res: Response) => {
+  try {
+    const setting = await getOrCreateSystemSetting(prisma);
+    res.json(holidaySettingsDto(setting));
+  } catch (e: any) {
+    console.error('Error fetching holiday settings:', e);
+    res.status(500).json({ error: '休日設定の取得に失敗しました', details: e.message || e });
+  }
+});
+
+router.put('/settings/holidays', requirePermission('admin.holiday-settings', 'input'), async (req: AuthRequest, res: Response) => {
+  try {
+    const weekdays = parseHolidayWeekdays(req.body.holidayWeekdays);
+    if ('error' in weekdays) {
+      res.status(400).json({ error: weekdays.error });
+      return;
+    }
+    const holidays = parseHolidayDateEntries(req.body.holidays, 'holidays');
+    if ('error' in holidays) {
+      res.status(400).json({ error: holidays.error });
+      return;
+    }
+    const workdays = parseHolidayDateEntries(req.body.workdays, 'workdays');
+    if ('error' in workdays) {
+      res.status(400).json({ error: workdays.error });
+      return;
+    }
+
+    const updatePayload = {
+      holidayWeekdays: weekdays,
+      holidays,
+      workdays,
+    };
+
+    const setting = await prisma.systemSetting.upsert({
+      where: { id: 'default' },
+      update: updatePayload,
+      create: {
+        id: 'default',
+        startTime: '09:00',
+        endTime: '18:00',
+        managementTimes: [],
+        conversionTimes: [],
+        ...updatePayload,
+      },
+    });
+
+    res.json(holidaySettingsDto(setting));
+  } catch (e: any) {
+    console.error('Error updating holiday settings:', e);
+    res.status(500).json({ error: '休日設定の更新に失敗しました', details: e.message || e });
   }
 });
 

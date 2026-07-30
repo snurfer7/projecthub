@@ -30,6 +30,8 @@
 - 企業統合は `api.post('companies/' + sourceId + '/merge', { targetCompanyId })` のように POST `/companies/:id/merge` を呼ぶ（成功時は統合先の企業詳細へ遷移する）。契約は `API_SPEC.md` の当該エンドポイントを参照。
 - ファイルアップロードは `FormData` で `api.post('attachments/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })` のように呼ぶ。
 - 管理画面のメール設定は `GET/PUT admin/settings/email`、`POST admin/settings/email/test`（Body: `toEmail`）を使用する。SMTP パスワードは PUT でのみ送り、GET では `smtpPasswordSet` のみ参照する。
+- 管理画面の休日設定は `GET/PUT admin/settings/holidays`（Body/応答: `holidayWeekdays`, `holidays`, `workdays`）。国民の祝日データはフロントから `https://holidays-jp.github.io/api/v1/date.json` を直接取得し、モーダルで年選択後に既存 `holidays` へマージして PUT する。
+- ガント等での営業時間・休日の参照は `GET settings/calendar`（認証のみ。時間設定＋休日設定をまとめて返す）。
 - 仮登録ユーザーへの登録メール再送は `api.post('admin/users/' + id + '/resend-registration-email')`（権限 `admin.users` input。成功時は仮パスワード更新済み）。
 - 活動履歴からファイルを付ける場合は、活動保存後に `api.post('companies/:companyId/comments', { sourceActivityId })` でファイル用コメントを紐づけ、続けて `companyCommentId` 付きでアップロードする。一覧・編集では `GET /crm/activities?companyId=...` の `fileComment.attachments` を使い、`attachments/token/:id` と `attachments/file/:id?downloadToken=` でダウンロード、`DELETE attachments/:id` で削除する（コメントタブの添付一覧とも同期）。活動削除は `api.delete('crm/activities/:id', { params: { deleteLinkedComment: 'true' | 'false' } })` — ファイル用コメントがあるとき `true` でコメント・添付も削除、`false` で活動のみ削除（未指定は API 仕様どおりコメントは残す）。コメント一覧から活動への強調表示は `?tab=activities&activity=<id>` を利用する。企業活動の作成・更新でプロジェクトを複数紐づける場合は Body に `projectIds: number[]`。プロジェクト活動履歴タブからの既存活動の紐づけは `api.post('projects/:id/activities', { activityId })`、解除は `api.delete('projects/:id/activities/:activityId')`（権限 `companies.activities` input）。一覧は `api.get('projects/:id/activities')`。プロジェクト側からの活動の新規作成は行わない。
 

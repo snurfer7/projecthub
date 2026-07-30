@@ -4,6 +4,7 @@ import api from '../api/client';
 import { User, Tracker, IssueStatus, IssuePriority, Group, Role, SystemSetting, EmailSettings, PermissionSet } from '../types';
 import { usePermissions } from '../hooks/usePermissions';
 import PermissionSetsPanel from '../components/PermissionSetsPanel';
+import HolidaySettingsPanel from '../components/HolidaySettingsPanel';
 import { Pencil, Trash2, GripVertical, Clock, Plus, UserX, UserCheck, Mail } from 'lucide-react';
 import Modal from '../components/Modal';
 import AnalogTimePicker from '../components/AnalogTimePicker';
@@ -30,7 +31,7 @@ const USER_STATUS_FILTER_OPTIONS: { value: UserAccountStatus; label: string }[] 
 const DEFAULT_USER_STATUS_FILTERS: UserAccountStatus[] = ['active', 'pending'];
 
 export default function AdminPage({ user }: Props) {
-  const [tab, setTab] = useState<'users' | 'groups' | 'permission-sets' | 'roles' | 'trackers' | 'statuses' | 'priorities' | 'time' | 'email'>('users');
+  const [tab, setTab] = useState<'users' | 'groups' | 'permission-sets' | 'roles' | 'trackers' | 'statuses' | 'priorities' | 'time' | 'email' | 'holidays'>('users');
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [trackers, setTrackers] = useState<Tracker[]>([]);
@@ -621,6 +622,9 @@ export default function AdminPage({ user }: Props) {
     { key: 'priorities' as const, label: '優先度' },
     { key: 'time' as const, label: '時間' },
     { key: 'email' as const, label: 'メール設定' },
+    ...(canUse('admin.holiday-settings')
+      ? [{ key: 'holidays' as const, label: '休日設定' }]
+      : []),
   ];
 
   if (!canUse('admin')) return <Navigate to="/no-access" replace />;
@@ -1171,6 +1175,8 @@ export default function AdminPage({ user }: Props) {
           </div>
         </div>
       )}
+
+      {tab === 'holidays' && <HolidaySettingsPanel user={user} />}
 
       {/* Master data modal (roles, trackers, statuses, priorities) */}
       <Modal

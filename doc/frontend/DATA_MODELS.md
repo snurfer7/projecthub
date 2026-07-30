@@ -61,8 +61,11 @@
 
 ## システム
 
-- **SystemSetting** — id, startTime, endTime, managementTimes, conversionTimes。メール関連: emailTransport（`ses` \| `smtp`）, emailFromOverride, smtpHost, smtpPort, smtpUser, smtpSecure（API の GET ではパスワードは含めず `smtpPasswordSet` を別途返す）。
+- **SystemSetting** — id, startTime, endTime, managementTimes, conversionTimes。メール関連: emailTransport（`ses` \| `smtp`）, emailFromOverride, smtpHost, smtpPort, smtpUser, smtpSecure（API の GET ではパスワードは含めず `smtpPasswordSet` を別途返す）。休日関連は `HolidaySettings` を参照。
 - **EmailSettings（API 応答）** — GET `/admin/settings/email`: emailTransport, emailFromOverride, smtpHost, smtpPort, smtpUser, smtpSecure, smtpPasswordSet。
+- **HolidayDateEntry** — `{ date: string`（`YYYY-MM-DD`）, `name: string }`。
+- **HolidaySettings（API 応答）** — GET `/admin/settings/holidays`: `holidayWeekdays`（number[]、0=日〜6=土）, `holidays`（HolidayDateEntry[]）, `workdays`（HolidayDateEntry[]）。
+- **WorkCalendarSettings（API 応答）** — GET `/settings/calendar`: 時間設定（startTime, endTime, managementTimes, conversionTimes）＋休日設定（holidayWeekdays, holidays, workdays）。ガント等の参照専用。
 
 ## 注意
 

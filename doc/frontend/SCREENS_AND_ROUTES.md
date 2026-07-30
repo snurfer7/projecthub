@@ -31,7 +31,7 @@
 | `/projects/:projectId/wiki` | WikiListPage | Wiki 一覧 |
 | `/projects/:projectId/comments` | ProjectCommentsPage | プロジェクトコメント |
 | `/projects/:projectId/kanban` | KanbanPage | カンバン。**子を持つチケットは非表示**（末端のみ）。親がある末端チケットはカード上に最上位親までのツリーを表示。検索条件にトラッカー・ステータス・担当者・チケット期限（期間）を指定可能 |
-| `/projects/:projectId/gantt` | GanttPage | ガント（プロジェクト単位）。親チケットは子孫の期間を集約表示しバーの移動・リサイズ不可。子はインデント表示。開始日・終了日・期日がすべて未設定のチケットも行として表示（バーはなし）。縦スクロールはページ全体、日付ヘッダーは上部到達で sticky 固定。左右スクロールでバーが可視枠外に出た場合は枠端に末端ヒントを表示（操作不可）。関連の両端が枠外のときは紐づけ線を非表示 |
+| `/projects/:projectId/gantt` | GanttPage | ガント（プロジェクト単位）。親チケットは子孫の期間を集約表示しバーの移動・リサイズ不可。子はインデント表示。開始日・終了日・期日がすべて未設定のチケットも行として表示（バーはなし）。縦スクロールはページ全体、日付ヘッダーは上部到達で sticky 固定。左右スクロールでバーが可視枠外に出た場合は枠端に末端ヒントを表示（操作不可）。関連の両端が枠外のときは紐づけ線を非表示。**休日設定**（`GET /settings/calendar`）を反映し、日表示で非営業日列を赤系で強調。予定工数から終了を算出するとき非営業日をスキップ |
 | `/projects/:projectId/time-entries` | TimeEntriesPage | 工数一覧 |
 | `/projects/:projectId/activities` | ProjectActivitiesPage | 活動履歴一覧（企業活動との N:N 紐づき）。表示条件: `projects.activities` canUse。既存活動の紐づけ追加・解除は `companies.activities` canInput。候補は主企業・関連企業の、当該プロジェクト未紐づけの活動。企業が未設定の場合は紐づけ不可。活動の新規作成は不可（企業詳細側で作成） |
 | `/issues/:id` | IssueDetailPage | チケット詳細。親チケットへのリンクを表示。子がある場合の開始・終了・ステータスは集約値 |
@@ -43,7 +43,7 @@
 | `/associations` | AssociationsPage | 団体マスタ |
 | `/legal-entity-statuses` | LegalEntityStatusesPage | 法人区分マスタ |
 | `/settings` | SettingsPage | 設定（パスワード・ランディング・メニュー表示・**認証方式**・**Microsoft アカウント連携**）。表示: `settings` canUse。認証方式: `settings.fields.authMethod` canInput。Microsoft 連携: `settings.fields.microsoftAccount` canInput。`authMethod === 'sso'` のときはパスワード変更 UI を非表示。`user.status === 'pending'` の場合は遷移不可 |
-| `/admin` | AdminPage | 管理（ユーザー・トラッカー・ステータス・優先度・グループ・**権限設定**・ロール・会社・法人区分・団体・**メール設定**（SES / SMTP・テスト送信）・時間設定等） |
+| `/admin` | AdminPage | 管理（ユーザー・トラッカー・ステータス・優先度・グループ・**権限設定**・ロール・会社・法人区分・団体・**メール設定**（SES / SMTP・テスト送信）・時間設定・**休日設定**等） |
 
 ### その他
 
@@ -69,6 +69,14 @@
   - **グループ割当**: 全グループをチェックボックスで複数選択（1 権限設定 → 複数グループ）
   - **権限マトリクス**: 権限カタログツリー + 各行「使用」「入力」チェックボックス
 - **グループタブ**: グループ詳細に権限設定名を表示。編集モーダルで権限設定ドロップダウンから個別割当も可能。
+
+## 管理 > 休日設定タブ
+
+- 表示: `admin.holiday-settings` canUse。保存・追加・削除・祝日取込: `admin.holiday-settings` canInput。
+- **曜日の休日**: 月〜日のトグル。休日にする曜日を `holidayWeekdays` に反映（内部は 0=日〜6=土）。
+- **個別の休日**: 日付＋名称の一覧。手動追加・削除。**データ取得**ボタンで [国民の祝日 API](https://holidays-jp.github.io/api/v1/date.json) を取得し、即時取込せずモーダルで年単位グループ一覧を表示。年ごとの取込可否トグル後、確定で既存リストへ日付マージ（同日は名称上書き）。
+- **個別の出勤**: 日付＋名称の一覧。曜日休日・個別休日より優先する出勤例外。
+- ガント（プロジェクト一覧ガント含む）は `GET /settings/calendar` で読み、日表示の列強調と予定工数の営業日スキップに利用する。
 
 ## データの取得方針
 

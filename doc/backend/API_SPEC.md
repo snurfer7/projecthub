@@ -150,9 +150,10 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | GET/POST/PUT/DELETE, POST reorder | `/legal-entity-statuses` | 法人区分 | 認証 |
 | GET/POST/PUT/DELETE | `/associations` | 団体 | 認証 |
 | POST/DELETE | `/companies/:id/associations/:associationId` | 会社-団体紐付け | 認証 |
-| GET/PUT | `/settings/time` | 時間設定（管理時間・換算時間） | 管理者 |
-| GET/PUT | `/settings/email` | メール送信設定（SES API / SMTP の切替、送信元、SMTP 接続情報）。SMTP パスワードは保存時にサーバー側で暗号化され、GET では `smtpPasswordSet` のみ返す | 管理者 |
-| POST | `/settings/email/test` | テストメール送信。Body: `toEmail`（保存済み設定で 1 通送信） | 管理者 |
+| GET/PUT | `/settings/time` | 時間設定（管理時間・換算時間） | `admin.time-settings` use / input |
+| GET/PUT | `/settings/email` | メール送信設定（SES API / SMTP の切替、送信元、SMTP 接続情報）。SMTP パスワードは保存時にサーバー側で暗号化され、GET では `smtpPasswordSet` のみ返す | `admin.email-settings` use / input |
+| POST | `/settings/email/test` | テストメール送信。Body: `toEmail`（保存済み設定で 1 通送信） | `admin.email-settings` input |
+| GET/PUT | `/settings/holidays` | 休日設定（曜日休日・個別休日・個別出勤） | `admin.holiday-settings` use / input |
 
 **メール設定（`/settings/email`）**
 
@@ -160,6 +161,14 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 - **`emailFromOverride`**: 空でない場合、環境変数 `EMAIL_FROM` より優先して送信元に使う。空文字でクリア。
 - **SMTP 時の必須**: `smtpHost`, `smtpUser`。初回またはパスワード未保存時は `smtpPassword` が必須。以降の更新でパスワードを変えない場合は `smtpPassword` を送らない（または空）。
 - **暗号化キー**: SMTP パスワードは `EMAIL_ENCRYPTION_KEY`（64 文字 hex 推奨）または未設定時は `JWT_SECRET` から導出したキーで AES-256-GCM 暗号化して DB に保存する。
+
+**休日設定（`/settings/holidays`）**
+
+- **GET 応答 / PUT Body**: `{ holidayWeekdays: number[], holidays: { date: string, name: string }[], workdays: { date: string, name: string }[] }`
+- **`holidayWeekdays`**: 0=日曜〜6=土曜。重複除去・範囲外は 400。未作成時のデフォルトは `[0, 6]`（土日）。
+- **`holidays` / `workdays`**: `date` は `YYYY-MM-DD`。同一配列内で日付重複は後勝ち（または 400）。名称は必須（空文字不可）。日付昇順で返す。
+- **判定優先度（利用側）**: 個別出勤日 ⊂ 個別休日 ⊂ 曜日休日（出勤日があれば出勤、なければ個別休日、なければ曜日）。
+- 国民の祝日 JSON（`https://holidays-jp.github.io/api/v1/date.json`）の取得・プレビューはフロントで行い、ユーザーが選択した年のみを既存 `holidays` にマージして PUT する。
 
 ---
 
@@ -198,6 +207,20 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 |----------|------|------|
 | GET | `/project/:projectId` | 指定プロジェクトのガント用データ。チケットに `parentId` を含み、親の開始・終了は子孫から集約。`startDate` / `endDate` / `dueDate` がすべて未設定のチケットも含む |
 | GET | `/all` | 有効（`active`）プロジェクトのガント用データ（同上。日付未設定チケットも含む）。`projects` は `company: { id, name }` を含む（ガントのプロジェクト行で企業名を表示するため） |
+
+ガントの曜日・個別休日の表示および予定工数からの終了日算出は、下記 **Settings（カレンダー）** の休日設定を参照する（営業日のみ進める。判定優先度は `/admin/settings/holidays` と同じ）。
+
+---
+
+## Settings — `/api/settings`
+
+認証必須（PermissionSet の feature 権限は不要。組織共通の参照専用）。
+
+| メソッド | パス | 概要 | 権限 |
+|----------|------|------|------|
+| GET | `/calendar` | 営業時間・換算時間・休日設定の参照。応答: `startTime`, `endTime`, `managementTimes`, `conversionTimes`, `holidayWeekdays`, `holidays`, `workdays` | 認証のみ |
+
+書き込みは従来どおり `/api/admin/settings/time`・`/api/admin/settings/holidays`。
 
 ---
 

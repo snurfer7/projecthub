@@ -668,6 +668,12 @@ model SystemSetting {
   smtpUser           String?  @map("smtp_user")
   smtpPasswordEnc    String?  @map("smtp_password_enc")
   smtpSecure         Boolean  @default(false) @map("smtp_secure")
+  /// 0=Sun .. 6=Sat。該当曜日を休日とする
+  holidayWeekdays    Int[]    @default([0, 6]) @map("holiday_weekdays")
+  /// [{ date: "YYYY-MM-DD", name: string }]
+  holidays           Json     @default("[]")
+  /// [{ date: "YYYY-MM-DD", name: string }] 個別出勤（休日より優先）
+  workdays           Json     @default("[]")
 
   @@map("system_settings")
 }

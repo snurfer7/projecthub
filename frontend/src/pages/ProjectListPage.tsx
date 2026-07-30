@@ -354,9 +354,9 @@ export default function ProjectListPage() {
       setGanttProjects(res.data.projects);
       setGanttIssues(res.data.issues);
     });
-    api.get('/admin/settings/time').then((res) => {
+    api.get('/settings/calendar').then((res) => {
       setSystemSettings(res.data);
-    });
+    }).catch(() => {});
   }, []);
 
   const loadKanbanData = useCallback(() => {

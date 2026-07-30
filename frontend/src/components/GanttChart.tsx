@@ -9,6 +9,7 @@ import IssueDetail from './IssueDetail';
 import MarkdownRenderer from './MarkdownRenderer';
 import { useAuth } from '../hooks/useAuth';
 import { formatEstimatedHours, formatDateToYYYYMMDD } from '../utils/format';
+import { addWorkingDays, advanceToWorkingDay, isNonWorkingDay } from '../utils/holidayCalendar';
 import Combobox from './Combobox';
 import CustomDatePicker from './CustomDatePicker';
 import { filterProjectsKeepingAncestorsOfTicketed, sortSiblingProjects, type ProjectListSort } from '../utils/projectTree';
@@ -169,6 +170,7 @@ function addHours(date: Date, hours: number): Date {
 
 // 換算時間（estimatedHours）から実際の終了日時を逆算する
 // conversions[i] = セグメントi全体の換算時間（時間）
+// 非営業日（曜日休日・個別休日。個別出勤は営業扱い）はスキップする
 function addConvertedHours(startDate: Date, convertedHours: number, settings?: SystemSetting): Date {
   if (!settings || !settings.conversionTimes?.length || !settings.startTime || !settings.endTime || convertedHours <= 0) {
     return addHours(startDate, convertedHours);
@@ -194,15 +196,33 @@ function addConvertedHours(startDate: Date, convertedHours: number, settings?: S
     current.setHours(Math.floor(workStart / 60), workStart % 60, 0, 0);
   }
 
-  // 1日の合計換算時間を超える場合、日数を加算
+  // 休日なら次の営業日の開始へ
+  {
+    const next = advanceToWorkingDay(current, settings);
+    if (next.getTime() !== current.getTime()) {
+      current.setTime(next.getTime());
+      current.setHours(Math.floor(workStart / 60), workStart % 60, 0, 0);
+    }
+  }
+
+  // 1日の合計換算時間を超える場合、営業日数を加算
   if (totalDayConversion > 0 && remaining > totalDayConversion) {
     const daysToAdd = Math.floor((remaining - 1e-4) / totalDayConversion);
-    current.setDate(current.getDate() + daysToAdd);
+    const moved = addWorkingDays(current, daysToAdd, settings);
+    current.setTime(moved.getTime());
     remaining -= daysToAdd * totalDayConversion;
   }
 
   let safety = 0;
   while (remaining > 1e-9 && safety++ < 1000) {
+    {
+      const next = advanceToWorkingDay(current, settings);
+      if (next.getTime() !== current.getTime()) {
+        current.setTime(next.getTime());
+        current.setHours(Math.floor(workStart / 60), workStart % 60, 0, 0);
+      }
+    }
+
     const nowMin = current.getHours() * 60 + current.getMinutes();
 
     if (nowMin >= workEnd) {
@@ -270,9 +290,17 @@ function snapToStartPoint(date: Date, settings?: SystemSetting): Date {
   // 有効な開始スナップ点: [開始時刻, ...管理時刻] (終了時刻を除く)
   const snapPoints = [workStart, ...managementMins].filter(v => v < workEnd).sort((a, b) => a - b);
 
-  const dateMin = date.getHours() * 60 + date.getMinutes();
-  const result = new Date(date);
+  let result = new Date(date);
   result.setSeconds(0, 0);
+
+  // 休日なら次の営業日の開始へ
+  if (isNonWorkingDay(result, settings)) {
+    result = advanceToWorkingDay(result, settings);
+    result.setHours(Math.floor(workStart / 60), workStart % 60, 0, 0);
+    return result;
+  }
+
+  const dateMin = result.getHours() * 60 + result.getMinutes();
 
   if (dateMin < workStart) {
     // 開始時刻より前 → 開始時刻へ
@@ -309,8 +337,10 @@ function snapToEndPoint(date: Date, settings?: SystemSetting): Date {
   const isExactSnap = snapPoints.some(snap => Math.abs(snap - (dateMin + date.getSeconds() / 60)) < epsilon);
 
   if (dateMin >= workEnd && !isExactSnap) {
-    // 終了時刻以降 → 翌日の最初のスナップ点へ（ただし基本は当日内に収まるはず）
+    // 終了時刻以降 → 翌営業日の最初のスナップ点へ（ただし基本は当日内に収まるはず）
     result.setDate(result.getDate() + 1);
+    const next = advanceToWorkingDay(result, settings);
+    result.setTime(next.getTime());
     const firstSnap = snapPoints[0];
     result.setHours(Math.floor(firstSnap / 60), firstSnap % 60, 0, 0);
   } else if (isExactSnap) {
@@ -1013,6 +1043,19 @@ export default function GanttChart({
     return lines;
   }, [chartStart, totalDays, dayWidth, zoom]);
 
+  // 日表示: 非営業日列の背景バンド
+  const holidayBands = useMemo(() => {
+    if (zoom !== 'day') return [] as { offset: number; width: number }[];
+    const bands: { offset: number; width: number }[] = [];
+    for (let i = 0; i < totalDays; i++) {
+      const date = addDays(chartStart, i);
+      if (isNonWorkingDay(date, systemSettings)) {
+        bands.push({ offset: i * dayWidth, width: dayWidth });
+      }
+    }
+    return bands;
+  }, [chartStart, totalDays, dayWidth, zoom, systemSettings]);
+
   // showProject時にプロジェクトごとにグループ化（ツリー表示対応）
   const { groupedIssues, issueDepthById } = useMemo(() => {
     const depthMap = new Map<number, number>();
@@ -1596,11 +1639,20 @@ export default function GanttChart({
                   {zoom === 'day' && (
                     <div className="flex h-6 items-center border-b">
                       <div className="flex relative h-full items-center">
-                        {months.map((m, i) => (
-                          <div key={`day-num-${i}`} style={{ width: m.days * dayWidth }} className="text-center text-[10px] h-full flex items-center justify-center border-l bg-gray-50 text-gray-500">
-                            {m.dates[0].getDate()}
-                          </div>
-                        ))}
+                        {months.map((m, i) => {
+                          const nonWorking = isNonWorkingDay(m.dates[0], systemSettings);
+                          return (
+                            <div
+                              key={`day-num-${i}`}
+                              style={{ width: m.days * dayWidth }}
+                              className={`text-center text-[10px] h-full flex items-center justify-center border-l ${
+                                nonWorking ? 'bg-red-50 text-red-500 font-medium' : 'bg-gray-50 text-gray-500'
+                              }`}
+                            >
+                              {m.dates[0].getDate()}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -1611,10 +1663,12 @@ export default function GanttChart({
                       <div className="flex relative h-full items-center">
                         {months.map((m, i) => {
                           const dayOfWeek = getDayOfWeekName(m.dates[0]);
-                          const isWeekend = m.dates[0].getDay() === 0 || m.dates[0].getDay() === 6;
+                          const nonWorking = isNonWorkingDay(m.dates[0], systemSettings);
                           return (
                             <div key={`day-week-${i}`} style={{ width: m.days * dayWidth }}
-                              className={`text-center text-[10px] h-full flex items-center justify-center border-l bg-gray-50 font-medium ${isWeekend ? 'text-red-400' : 'text-gray-400'}`}>
+                              className={`text-center text-[10px] h-full flex items-center justify-center border-l font-medium ${
+                                nonWorking ? 'bg-red-50 text-red-400' : 'bg-gray-50 text-gray-400'
+                              }`}>
                               {dayOfWeek}
                             </div>
                           );
@@ -1686,6 +1740,13 @@ export default function GanttChart({
                         </span>
                       </div>
                       <div className="relative flex-1 cursor-pointer group-hover:bg-slate-200 transition-colors" title="クリックしてチケット追加" style={{ height: GANTT_ROW_CONTENT_HEIGHT }} onClick={(e) => handleProjectRowClick(e, group.projectId)}>
+                        {holidayBands.map((band, i) => (
+                          <div
+                            key={`ph-${i}`}
+                            className="absolute top-0 bottom-0 pointer-events-none bg-red-50/70"
+                            style={{ left: band.offset, width: band.width }}
+                          />
+                        ))}
                         {/* グリッド線 */}
                         {gridLines.map((line, i) => (
                           <div key={i} className="absolute top-0 bottom-0" style={{
@@ -1761,6 +1822,13 @@ export default function GanttChart({
                         )}
                       </div>
                       <div className={`relative flex-1 ${relationDrag?.toIssueId === issue.id ? 'bg-sky-50' : ''}`} style={{ height: GANTT_ROW_CONTENT_HEIGHT }} data-issue-id={issue.id}>
+                        {holidayBands.map((band, i) => (
+                          <div
+                            key={`ih-${i}`}
+                            className="absolute top-0 bottom-0 pointer-events-none bg-red-50/70"
+                            style={{ left: band.offset, width: band.width }}
+                          />
+                        ))}
                         {/* グリッド線 */}
                         {gridLines.map((line, i) => (
                           <div key={i} className="absolute top-0 bottom-0" style={{

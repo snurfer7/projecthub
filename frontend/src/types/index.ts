@@ -473,6 +473,9 @@ export interface SystemSetting {
   endTime: string;
   managementTimes: string[];
   conversionTimes: number[];
+  holidayWeekdays?: number[];
+  holidays?: HolidayDateEntry[];
+  workdays?: HolidayDateEntry[];
 }
 
 export type ProjectListViewMode = 'list' | 'gantt' | 'kanban' | 'time';
@@ -540,4 +543,28 @@ export interface EmailSettings {
   smtpUser: string | null;
   smtpSecure: boolean;
   smtpPasswordSet: boolean;
+}
+
+/** 個別休日・出勤日（YYYY-MM-DD + 名称） */
+export interface HolidayDateEntry {
+  date: string;
+  name: string;
+}
+
+/** GET /admin/settings/holidays — holidayWeekdays: 0=日〜6=土 */
+export interface HolidaySettings {
+  holidayWeekdays: number[];
+  holidays: HolidayDateEntry[];
+  workdays: HolidayDateEntry[];
+}
+
+/** GET /settings/calendar — 営業時間＋休日（ガント等の参照用） */
+export interface WorkCalendarSettings {
+  startTime: string;
+  endTime: string;
+  managementTimes: string[];
+  conversionTimes: number[];
+  holidayWeekdays: number[];
+  holidays: HolidayDateEntry[];
+  workdays: HolidayDateEntry[];
 }

@@ -25,9 +25,9 @@ export default function GanttPage() {
       setProject(res.data.project);
       setIssues(res.data.issues);
     });
-    api.get('/admin/settings/time').then((res) => {
+    api.get('/settings/calendar').then((res) => {
       setSystemSettings(res.data);
-    });
+    }).catch(() => {});
   }, [projectId]);
 
   useEffect(() => { loadIssues(); }, [loadIssues]);
