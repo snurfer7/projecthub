@@ -190,6 +190,18 @@ export async function grantFullRolePermissionsToAllRoles(): Promise<void> {
   }
 }
 
+/** Remove RolePermission rows for resources that are not role-scoped. */
+export async function pruneNonRoleFromRolePermissions(): Promise<void> {
+  const nonRole = await prisma.permissionResource.findMany({
+    where: { scope: { not: 'role' } },
+    select: { id: true },
+  });
+  if (nonRole.length === 0) return;
+  await prisma.rolePermission.deleteMany({
+    where: { resourceId: { in: nonRole.map((r) => r.id) } },
+  });
+}
+
 /** Remove PermissionSetPermission rows for role-scoped resources. */
 export async function pruneRoleScopedFromPermissionSets(): Promise<void> {
   const roleResources = await prisma.permissionResource.findMany({

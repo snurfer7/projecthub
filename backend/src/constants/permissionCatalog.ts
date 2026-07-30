@@ -55,8 +55,9 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
       { code: 'projects.kanban', name: 'カンバン', scope: 'role', position: 5 },
       { code: 'projects.gantt', name: 'ガント', scope: 'role', position: 6 },
       { code: 'projects.time-entries', name: '工数', scope: 'role', position: 7 },
-      { code: 'projects.saved-searches', name: '保存済み検索', scope: 'role', position: 8 },
-      { code: 'projects.activities', name: '活動履歴', scope: 'role', position: 9 },
+      { code: 'projects.activities', name: '活動履歴', scope: 'role', position: 8 },
+      /** プロジェクト一覧機能のためグループ権限（ロール対象外） */
+      { code: 'projects.saved-searches', name: '保存済み検索', scope: 'group', position: 0 },
     ],
   },
   {

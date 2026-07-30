@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { requirePermission } from '../middleware/permissions';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -16,6 +17,7 @@ function isValidViewMode(v: unknown): v is ViewMode {
 router.get(
   '/',
   authenticateToken,
+  requirePermission('projects.saved-searches', 'use'),
   async (req: AuthRequest, res: Response) => {
     const { viewMode } = req.query;
     if (!isValidViewMode(viewMode)) {
@@ -38,6 +40,7 @@ router.get(
 router.post(
   '/',
   authenticateToken,
+  requirePermission('projects.saved-searches', 'input'),
   async (req: AuthRequest, res: Response) => {
     const { viewMode, name, filter, isDefault } = req.body ?? {};
     if (!isValidViewMode(viewMode)) {
@@ -88,6 +91,7 @@ router.post(
 router.put(
   '/:id',
   authenticateToken,
+  requirePermission('projects.saved-searches', 'input'),
   async (req: AuthRequest, res: Response) => {
     const id = Number(req.params.id);
     if (isNaN(id)) {
@@ -140,6 +144,7 @@ router.put(
 router.delete(
   '/:id',
   authenticateToken,
+  requirePermission('projects.saved-searches', 'input'),
   async (req: AuthRequest, res: Response) => {
     const id = Number(req.params.id);
     if (isNaN(id)) {

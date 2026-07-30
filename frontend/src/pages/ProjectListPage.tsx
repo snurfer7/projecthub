@@ -15,6 +15,7 @@ import TextInput from '../components/TextInput';
 import DateInput from '../components/DateInput';
 import TimeRecordTree from '../components/TimeRecordTree';
 import { useAuth } from '../hooks/useAuth';
+import { usePermissions } from '../hooks/usePermissions';
 import { useProjectListFilters } from '../hooks/useProjectListFilters';
 import { filterProjects, filteredProjectIdSet } from '../utils/projectFilter';
 import { filterIssues, filterIssuesByProjectIds } from '../utils/issueFilter';
@@ -91,6 +92,7 @@ export default function ProjectListPage() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const { user } = useAuth();
+  const { canUse } = usePermissions(user?.permissions);
 
   // 保存済み検索
   const [activeSavedSearchId, setActiveSavedSearchId] = useState<number | null>(null);
@@ -257,6 +259,7 @@ export default function ProjectListPage() {
   const savedSearchRequestGenRef = useRef(0);
   const applyDefaultSavedSearch = useCallback(
     async (mode: ProjectListViewMode) => {
+      if (!canUse('projects.saved-searches')) return;
       const gen = ++savedSearchRequestGenRef.current;
       try {
         const res = await api.get('/saved-searches', { params: { viewMode: mode } });
@@ -268,7 +271,7 @@ export default function ProjectListPage() {
         // 接続エラーは無視
       }
     },
-    [applyFilter],
+    [applyFilter, canUse],
   );
 
   // ビュー切替時: 条件リセット → デフォルト保存済み検索を適用

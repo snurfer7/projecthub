@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Bookmark, Star, Trash2, ChevronDown, Check, Plus, Save, Pencil } from 'lucide-react';
 import api from '../api/client';
 import type { SavedSearch, ProjectListViewMode } from '../types';
+import { useAuth } from '../hooks/useAuth';
+import { usePermissions } from '../hooks/usePermissions';
 
 interface SavedSearchDropdownProps {
   viewMode: ProjectListViewMode;
@@ -22,6 +24,10 @@ export default function SavedSearchDropdown({
   onLoad,
   onListChange,
 }: SavedSearchDropdownProps) {
+  const { user } = useAuth();
+  const { canUse, canInput } = usePermissions(user?.permissions);
+  const canViewSaved = canUse('projects.saved-searches');
+  const canInputSaved = canInput('projects.saved-searches');
   const [isOpen, setIsOpen] = useState(false);
   const [searches, setSearches] = useState<SavedSearch[]>([]);
   const [saving, setSaving] = useState(false);
@@ -33,13 +39,15 @@ export default function SavedSearchDropdown({
   const [renameName, setRenameName] = useState('');
   const [renameError, setRenameError] = useState('');
   const [renaming, setRenaming] = useState(false);
-  /** API が 403 を返した場合は input 不可とみなす */
-  const [canInputSaved, setCanInputSaved] = useState(true);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [fetchError, setFetchError] = useState('');
 
   const fetchSearches = useCallback(async () => {
+    if (!canViewSaved) {
+      setSearches([]);
+      return;
+    }
     setFetchError('');
     try {
       const res = await api.get('/saved-searches', { params: { viewMode } });
@@ -50,7 +58,7 @@ export default function SavedSearchDropdown({
         setFetchError(err?.response?.data?.error || `取得エラー (${err?.response?.status ?? 'network'})`);
       }
     }
-  }, [viewMode]);
+  }, [viewMode, canViewSaved]);
 
   // viewMode が変わったら再取得
   useEffect(() => {
@@ -80,32 +88,37 @@ export default function SavedSearchDropdown({
     setRenameError('');
   }
 
+  if (!canViewSaved) return null;
+
   const handleToggleDefault = async (e: React.MouseEvent, search: SavedSearch) => {
     e.stopPropagation();
+    if (!canInputSaved) return;
     try {
       await api.put(`/saved-searches/${search.id}`, { isDefault: !search.isDefault });
       await fetchSearches();
       onListChange?.();
-    } catch (err: any) {
-      if (err?.response?.status === 403) setCanInputSaved(false);
+    } catch {
+      /* ignore */
     }
   };
 
   const handleDelete = async (e: React.MouseEvent, search: SavedSearch) => {
     e.stopPropagation();
+    if (!canInputSaved) return;
     if (!window.confirm(`「${search.name}」を削除しますか？`)) return;
     try {
       await api.delete(`/saved-searches/${search.id}`);
       await fetchSearches();
       onListChange?.();
-    } catch (err: any) {
-      if (err?.response?.status === 403) setCanInputSaved(false);
+    } catch {
+      /* ignore */
     }
   };
 
   /** 指定した保存済み検索を現在の条件で上書き */
   const handleOverwrite = async (e: React.MouseEvent, search: SavedSearch) => {
     e.stopPropagation();
+    if (!canInputSaved) return;
     if (!window.confirm(`「${search.name}」を現在の条件で上書きしますか？`)) return;
     try {
       await api.put(`/saved-searches/${search.id}`, { filter: currentFilter });
@@ -115,13 +128,14 @@ export default function SavedSearchDropdown({
       onLoad({ ...search, filter: currentFilter });
       setIsOpen(false);
       resetForm();
-    } catch (err: any) {
-      if (err?.response?.status === 403) setCanInputSaved(false);
+    } catch {
+      /* ignore */
     }
   };
 
   const startRename = (e: React.MouseEvent, search: SavedSearch) => {
     e.stopPropagation();
+    if (!canInputSaved) return;
     setShowSaveForm(false);
     setSaveError('');
     setRenamingId(search.id);
@@ -152,7 +166,6 @@ export default function SavedSearchDropdown({
       onListChange?.();
     } catch (err: any) {
       if (err?.response?.status === 403) {
-        setCanInputSaved(false);
         setRenameError('名称変更の権限がありません');
       } else {
         setRenameError(err.response?.data?.error || '名称の変更に失敗しました');
@@ -163,6 +176,7 @@ export default function SavedSearchDropdown({
   };
 
   const handleSave = async () => {
+    if (!canInputSaved) return;
     if (!saveName.trim()) {
       setSaveError('名称を入力してください');
       return;
@@ -181,7 +195,6 @@ export default function SavedSearchDropdown({
       onListChange?.();
     } catch (err: any) {
       if (err?.response?.status === 403) {
-        setCanInputSaved(false);
         setSaveError('保存の権限がありません');
       } else {
         setSaveError(err.response?.data?.error || '保存に失敗しました');

@@ -71,7 +71,7 @@
 
 | code | name | resourceType | 親 |
 |------|------|--------------|-----|
-| `projects.saved-searches` | 保存済み検索 | feature | `projects` |
+| `projects.saved-searches` | 保存済み検索 | feature / **scope=group** | `projects`（プロジェクト一覧向け。ロール対象外） |
 | `projects.activities` | 活動履歴 | feature | `projects` |
 | `projects.issues.fields.parent` | 親チケット | field | `projects.issues` |
 | `settings.fields.authMethod` | 認証方式 | field | `settings` |

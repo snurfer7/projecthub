@@ -3,6 +3,7 @@ import { PERMISSION_CATALOG, flattenPermissionCatalog } from '../constants/permi
 import {
   clearProjectPermissionCache,
   grantFullRolePermissionsToAllRoles,
+  pruneNonRoleFromRolePermissions,
   pruneRoleScopedFromPermissionSets,
 } from './projectPermissions';
 import { clearPermissionCache } from './permissions';
@@ -61,6 +62,7 @@ export async function syncPermissionCatalog(): Promise<void> {
   clearProjectPermissionCache();
 
   await pruneRoleScopedFromPermissionSets();
+  await pruneNonRoleFromRolePermissions();
   await grantFullRolePermissionsToAllRoles();
 
   const fullAccessSet = await prisma.permissionSet.findUnique({ where: { name: '全権限' } });

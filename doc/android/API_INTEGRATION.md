@@ -29,7 +29,7 @@ Backend の [API_SPEC.md](../backend/API_SPEC.md) に合わせた対応一覧。
   - ページング版の `ContactDto`/`DealDto` は `company: { id, name }` を含む（全社横断一覧での企業名表示用）。`DealDto` はさらに `contact`（`{id, firstName, lastName}`）、`assignedTo`（`UserRefDto`）を含む。
   - `GET api/crm/deals` は権限 `deals` use が必要（403 の場合はエラー表示）。
 - **Wiki（プロジェクト）**: `GET api/wiki/project/{projectId}`（一覧）, `GET api/wiki/{pageId}`（ページ取得）
-- **Saved Searches**: `GET api/saved-searches?viewMode=`（`viewMode` 必須: `list`|`gantt`|`kanban`|`time`）, `POST api/saved-searches`（Body `{viewMode, name, filter, isDefault?}`）, `PUT api/saved-searches/{id}`（Body `{name?, filter?, isDefault?}`）, `DELETE api/saved-searches/{id}`（204）。認証のみ（権限コードなし。`projects.saved-searches` は UI 側の canInput 判定用）。
+- **Saved Searches**: `GET api/saved-searches?viewMode=`（`viewMode` 必須: `list`|`gantt`|`kanban`|`time`）, `POST api/saved-searches`（Body `{viewMode, name, filter, isDefault?}`）, `PUT api/saved-searches/{id}`（Body `{name?, filter?, isDefault?}`）, `DELETE api/saved-searches/{id}`（204）。権限: `projects.saved-searches`（グループ PermissionSet。use=一覧、input=作成・更新・削除）。
   - **Android が使う viewMode は `list`（チケット一覧）と `kanban`（カンバン）のみ**。`gantt`・`time` は使わない。
   - `filter` は Prisma 上不透明な JSON のため Android 独自の形状（`IssueFilterCriteria` をシリアライズしたもの）で問題ないが、**同一ユーザーの web 側保存済み検索と同じ一覧に混在する**ため、保存時に必ず `"client": "android"` をトップレベルに含め、一覧表示時は `filter.client == "android"` のものだけを表示する（web の条件を誤って適用しないため）。Kotlin 側の型は `com.google.gson.JsonObject`（データクラス化しない）。
 - **Gantt**: `GET api/gantt/project/{projectId}` — レスポンス `{ project: { id, name, dueDate, parentId }, issues: IssueDto[] }`。`issues` は親の開始・終了・ステータスがサーバ側で子孫から集約済み（クライアント側での再集約は不要）。日付未設定のチケットも行として含まれる。権限 `projects.gantt` use（403 の場合は「ガントの閲覧権限がありません」と表示）。`GET api/gantt/all`（全プロジェクト横断）はモバイルでは未使用。

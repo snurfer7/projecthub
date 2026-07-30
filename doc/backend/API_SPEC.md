@@ -190,10 +190,10 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 | メソッド | パス | 概要 | 権限 |
 |----------|------|------|------|
-| GET | `/` | 一覧。Query: `viewMode`（必須: `list` \| `gantt` \| `kanban` \| `time`）| 認証のみ |
-| POST | `/` | 作成。Body: `{ viewMode, name, filter, isDefault? }` | 認証のみ |
-| PUT | `/:id` | 更新。Body: `{ name?, filter?, isDefault? }` | 認証のみ（他ユーザーのデータは 404） |
-| DELETE | `/:id` | 削除 | 認証のみ（他ユーザーのデータは 404） |
+| GET | `/` | 一覧。Query: `viewMode`（必須: `list` \| `gantt` \| `kanban` \| `time`）| `projects.saved-searches` use（グループ権限） |
+| POST | `/` | 作成。Body: `{ viewMode, name, filter, isDefault? }` | `projects.saved-searches` input |
+| PUT | `/:id` | 更新。Body: `{ name?, filter?, isDefault? }` | `projects.saved-searches` input（他ユーザーのデータは 404） |
+| DELETE | `/:id` | 削除 | `projects.saved-searches` input（他ユーザーのデータは 404） |
 
 **isDefault の挙動**: `isDefault: true` で作成・更新した場合、同一ユーザー × 同一 viewMode の他の保存済み検索条件の `isDefault` を自動的に `false` に更新する。
 
