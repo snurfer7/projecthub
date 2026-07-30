@@ -46,13 +46,13 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | PUT | `/:id` | プロジェクト情報の更新。権限: `projects` use + ロール `projects.overview` input |
 | DELETE | `/:id` | プロジェクト削除。権限: `projects` use + ロール `projects.overview` input |
 | POST | `/:id/members` | メンバー追加。ロール `projects.members` input |
-| PUT | `/:id/members/:memberId` | メンバー・ロール更新。ロール `projects.members` input |
-| DELETE | `/:id/members/:memberId` | メンバー削除。ロール `projects.members` input |
+| PUT | `/:id/members/:memberId` | メンバー・ロール更新。ロール `projects.members` input。更新の結果メンバーが 0 件になる場合は、操作ユーザーを全ロール付きで自動追加 |
+| DELETE | `/:id/members/:memberId` | メンバー削除。ロール `projects.members` input。削除の結果メンバーが 0 件になる場合は、操作ユーザーを全ロール付きで自動追加 |
 | GET | `/roles/available` | 利用可能ロール一覧。権限: `projects` use |
 | GET | `/:id/groups` | プロジェクト紐付けグループ一覧。ロール `projects.members` use |
 | POST | `/:id/groups` | グループ紐付け。ロール `projects.members` input |
 | PUT | `/:id/groups/:groupId/role` | グループのロール設定更新。ロール `projects.members` input |
-| DELETE | `/:id/groups/:groupId` | グループ紐付け解除。ロール `projects.members` input |
+| DELETE | `/:id/groups/:groupId` | グループ紐付け解除。ロール `projects.members` input。解除の結果メンバーが 0 件になる場合は、操作ユーザーを全ロール付きで自動追加 |
 | GET | `/:id/comments` | コメント一覧（メンバー必須） |
 | POST | `/:id/comments` | コメント追加（メンバー必須） |
 | PUT | `/:id/comments/:commentId` | コメント更新（メンバー必須） |

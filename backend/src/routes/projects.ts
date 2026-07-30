@@ -6,6 +6,7 @@ import {
   requireProjectMember,
   projectListAccessWhere,
   isRequestAdmin,
+  ensureProjectHasMember,
 } from '../services/projectAccess';
 import {
   requireProjectPermission,
@@ -282,6 +283,7 @@ router.put('/:id/members/:memberId', requirePermission('projects', 'use'), requi
   try {
     const { roleIds } = req.body; // roleIds for individual assignment
     const memberId = Number(req.params.memberId);
+    const projectId = Number(req.params.id);
 
     if (!Array.isArray(roleIds)) {
       res.status(400).json({ error: 'ロールを配列で指定してください' });
@@ -312,6 +314,9 @@ router.put('/:id/members/:memberId', requirePermission('projects', 'use'), requi
       if (rolesCount === 0) {
         await tx.projectMember.delete({ where: { id: memberId } });
       }
+      if (req.userId) {
+        await ensureProjectHasMember(tx, projectId, req.userId);
+      }
     });
 
     const member = await prisma.projectMember.findUnique({
@@ -328,6 +333,7 @@ router.put('/:id/members/:memberId', requirePermission('projects', 'use'), requi
 router.delete('/:id/members/:memberId', requirePermission('projects', 'use'), requireProjectPermission('projects.members', 'input', { paramName: 'id' }), async (req: AuthRequest, res: Response) => {
   try {
     const memberId = Number(req.params.memberId);
+    const projectId = Number(req.params.id);
     await prisma.$transaction(async (tx: any) => {
       await tx.projectMemberRole.deleteMany({
         where: { projectMemberId: memberId, sourceGroupId: null }
@@ -338,6 +344,9 @@ router.delete('/:id/members/:memberId', requirePermission('projects', 'use'), re
       });
       if (rolesCount === 0) {
         await tx.projectMember.delete({ where: { id: memberId } });
+      }
+      if (req.userId) {
+        await ensureProjectHasMember(tx, projectId, req.userId);
       }
     });
     res.json({ message: '個別ロールを削除しました' });
@@ -548,6 +557,10 @@ router.delete('/:id/groups/:groupId', requirePermission('projects', 'use'), requ
       await tx.projectGroup.deleteMany({
         where: { projectId, groupId }
       });
+
+      if (req.userId) {
+        await ensureProjectHasMember(tx, projectId, req.userId);
+      }
     });
 
     res.json({ message: 'グループの割り当てを解除しました' });

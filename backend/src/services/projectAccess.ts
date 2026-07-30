@@ -133,6 +133,31 @@ export function sendProjectAccessDenied(res: Response): void {
   res.status(403).json({ error: PROJECT_ACCESS_DENIED_MESSAGE });
 }
 
+/**
+ * If the project has no ProjectMember rows after a removal, add `userId`
+ * with every Role assigned individually (sourceGroupId = null).
+ * Call inside the same transaction as the removal.
+ */
+export async function ensureProjectHasMember(
+  tx: any,
+  projectId: number,
+  userId: number
+): Promise<void> {
+  const count = await tx.projectMember.count({ where: { projectId } });
+  if (count > 0) return;
+
+  const roles = await tx.role.findMany({ select: { id: true } });
+  await tx.projectMember.create({
+    data: {
+      projectId,
+      userId,
+      ...(roles.length > 0
+        ? { roles: { create: roles.map((r: { id: number }) => ({ roleId: r.id, sourceGroupId: null })) } }
+        : {}),
+    },
+  });
+}
+
 /** Middleware: require ProjectMember (or isAdmin) for req.params[paramName]. */
 export function requireProjectMember(paramName: string = 'id') {
   return async (req: AuthRequest, res: Response, next: NextFunction) => {
