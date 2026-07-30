@@ -67,6 +67,25 @@ const GANTT_HEADER_BORDER = 1;
 /** 左右スクロールでバーが枠外に出たときに残す末端の幅 (px) */
 const GANTT_BAR_EDGE_TIP = 8;
 
+/** 次がルート（depth 0）または末尾なら、ルートプロジェクト塊の区切り */
+function isRootBlockEnd(nextDepth: number | null): boolean {
+  return nextDepth === null || nextDepth === 0;
+}
+
+function rowBorderStyle(rootStart: boolean, rootEnd: boolean): { borderTop?: string; borderBottom: string } {
+  return {
+    ...(rootStart ? { borderTop: '3px double #475569' } : {}),
+    borderBottom: rootEnd ? '3px double #475569' : '1px solid #E5E7EB',
+  };
+}
+
+/** border-box で総高 GANTT_ROW_HEIGHT を維持するためのコンテンツ高 */
+function rowContentHeight(rootStart: boolean, rootEnd: boolean): number {
+  const top = rootStart ? 3 : 0;
+  const bottom = rootEnd ? 3 : 1;
+  return GANTT_ROW_HEIGHT - top - bottom;
+}
+
 /**
  * スクロール可視範囲に合わせてバー位置を調整する。
  * 枠外に完全に出たバーは、可視領域の端に末端の一部だけ残す（表示専用のヒント）。
@@ -95,15 +114,15 @@ function clampBarToScrollViewport(
 }
 
 function ganttHeaderHeight(zoom: ZoomLevel): number {
-  // 日: 30+24+24+24 / 月: 30+24 / 年: 30  + sticky の border-b
-  const content = zoom === 'day' ? 102 : zoom === 'month' ? 54 : 30;
+  // 日: 30+24+24+24 / 月・年: 30+24  + sticky の border-b
+  const content = zoom === 'day' ? 102 : 54;
   return content + GANTT_HEADER_BORDER;
 }
 
 /** ヘッダー内で日付表示行が始まる位置（年・月行を除いた上端オフセット） */
 function ganttDateRowTop(zoom: ZoomLevel): number {
-  // 日: 年(30)+月(24) を除いた日付・曜日行から / 月: 年(30) を除いた月行から / 年: 年行そのもの
-  return zoom === 'day' ? 54 : zoom === 'month' ? 30 : 0;
+  // 日: 年(30)+月(24) を除いた日付・曜日行から / 月・年: 年(30) を除いた月行から
+  return zoom === 'day' ? 54 : 30;
 }
 
 /** 関係線: S字・かぎ足の水平スタブ長 (px) */
@@ -1024,24 +1043,41 @@ export default function GanttChart({
     return clampBarToScrollViewport(visibleLeft, visibleWidth, scrollView.left, scrollView.right);
   }, [getOffset, dayWidth, drag, totalDays, systemSettings, filteredIssues, scrollView]);
 
-  // グリッド線
+  // グリッド線（year > month > week > day の太さで年月境界を一目で判別）
+  type GridLineKind = 'year' | 'month' | 'week' | 'day';
   const gridLines = useMemo(() => {
-    const lines: { offset: number; bold: boolean }[] = [];
+    const lines: { offset: number; kind: GridLineKind }[] = [];
     for (let i = 0; i <= totalDays; i++) {
       const date = addDays(chartStart, i);
-      const dayOfWeek = date.getDay();
+      const isMonthStart = date.getDate() === 1;
+      const isYearStart = isMonthStart && date.getMonth() === 0;
       if (zoom === 'day') {
-        lines.push({ offset: i * dayWidth, bold: dayOfWeek === 1 });
-      } else if (zoom === 'month' && date.getDate() === 1) {
-        lines.push({ offset: i * dayWidth, bold: true });
-      } else if (zoom === 'year') {
-        if (date.getDate() === 1) {
-          lines.push({ offset: i * dayWidth, bold: date.getMonth() === 0 });
-        }
+        let kind: GridLineKind = 'day';
+        if (isYearStart) kind = 'year';
+        else if (isMonthStart) kind = 'month';
+        else if (date.getDay() === 1) kind = 'week';
+        lines.push({ offset: i * dayWidth, kind });
+      } else if (zoom === 'month' && isMonthStart) {
+        lines.push({ offset: i * dayWidth, kind: isYearStart ? 'year' : 'month' });
+      } else if (zoom === 'year' && isMonthStart) {
+        lines.push({ offset: i * dayWidth, kind: isYearStart ? 'year' : 'month' });
       }
     }
     return lines;
   }, [chartStart, totalDays, dayWidth, zoom]);
+
+  const gridLineStyle = (kind: GridLineKind): { width: number; backgroundColor: string } => {
+    switch (kind) {
+      case 'year':
+        return { width: 3, backgroundColor: '#64748B' }; // slate-500
+      case 'month':
+        return { width: 2, backgroundColor: '#94A3B8' }; // slate-400
+      case 'week':
+        return { width: 2, backgroundColor: '#CBD5E1' }; // slate-300
+      default:
+        return { width: 1, backgroundColor: '#E2E8F0' }; // slate-200
+    }
+  };
 
   // 日表示: 非営業日列の背景バンド
   const holidayBands = useMemo(() => {
@@ -1602,14 +1638,18 @@ export default function GanttChart({
               >
                 <div className="relative" style={{ width: totalDays * dayWidth, height: ganttHeaderHeight(zoom) - GANTT_HEADER_BORDER }}>
                   {/* 1段目：年 */}
-                  <div className="flex h-[30px] items-center border-b">
+                  <div className="flex h-[30px] items-center border-b border-slate-300">
                     <div className="flex relative h-full items-center">
                       {months.map((m, i) => {
                         if (!m.isNewYear) return null;
                         return (
-                          <div key={`year-${i}`} style={{ width: m.yearSpan * dayWidth }} className="relative h-full flex items-center border-l bg-gray-50">
-                            <span style={{ position: 'sticky', left: 4 }} className="text-sm text-gray-500 font-medium whitespace-nowrap">
-                              {m.year}
+                          <div
+                            key={`year-${i}`}
+                            style={{ width: m.yearSpan * dayWidth, borderLeftWidth: 3, borderLeftColor: '#64748B' }}
+                            className="relative h-full flex items-center border-l border-solid bg-slate-100"
+                          >
+                            <span style={{ position: 'sticky', left: 4 }} className="text-sm text-slate-700 font-semibold whitespace-nowrap px-1">
+                              {m.year}年
                             </span>
                           </div>
                         );
@@ -1617,23 +1657,29 @@ export default function GanttChart({
                     </div>
                   </div>
 
-                  {/* 2段目：月（日表示・月表示のみ） */}
-                  {(zoom === 'day' || zoom === 'month') && (
-                    <div className="flex h-6 items-center border-b">
-                      <div className="flex relative h-full items-center">
-                        {months.map((m, i) => {
-                          if (!m.isNewMonth) return null;
-                          return (
-                            <div key={`month-${i}`} style={{ width: m.monthSpan * dayWidth }} className="relative h-full flex items-center border-l bg-gray-50">
-                              <span style={{ position: 'sticky', left: 4 }} className="text-xs text-gray-500 font-medium whitespace-nowrap">
-                                {m.month}月
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
+                  {/* 2段目：月 */}
+                  <div className="flex h-6 items-center border-b border-slate-200">
+                    <div className="flex relative h-full items-center">
+                      {months.map((m, i) => {
+                        if (!m.isNewMonth) return null;
+                        return (
+                          <div
+                            key={`month-${i}`}
+                            style={{
+                              width: m.monthSpan * dayWidth,
+                              borderLeftWidth: m.isNewYear ? 3 : 2,
+                              borderLeftColor: m.isNewYear ? '#64748B' : '#94A3B8',
+                            }}
+                            className="relative h-full flex items-center border-l border-solid bg-slate-50"
+                          >
+                            <span style={{ position: 'sticky', left: 4 }} className="text-xs text-slate-600 font-semibold whitespace-nowrap px-1">
+                              {m.month}月
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
-                  )}
+                  </div>
 
                   {/* 3段目：日（日表示のみ） */}
                   {zoom === 'day' && (
@@ -1644,8 +1690,12 @@ export default function GanttChart({
                           return (
                             <div
                               key={`day-num-${i}`}
-                              style={{ width: m.days * dayWidth }}
-                              className={`text-center text-[10px] h-full flex items-center justify-center border-l ${
+                              style={{
+                                width: m.days * dayWidth,
+                                borderLeftWidth: m.isNewYear ? 3 : m.isNewMonth ? 2 : 1,
+                                borderLeftColor: m.isNewYear ? '#64748B' : m.isNewMonth ? '#94A3B8' : '#E2E8F0',
+                              }}
+                              className={`text-center text-[10px] h-full flex items-center justify-center border-l border-solid ${
                                 nonWorking ? 'bg-red-50 text-red-500 font-medium' : 'bg-gray-50 text-gray-500'
                               }`}
                             >
@@ -1665,10 +1715,17 @@ export default function GanttChart({
                           const dayOfWeek = getDayOfWeekName(m.dates[0]);
                           const nonWorking = isNonWorkingDay(m.dates[0], systemSettings);
                           return (
-                            <div key={`day-week-${i}`} style={{ width: m.days * dayWidth }}
-                              className={`text-center text-[10px] h-full flex items-center justify-center border-l font-medium ${
+                            <div
+                              key={`day-week-${i}`}
+                              style={{
+                                width: m.days * dayWidth,
+                                borderLeftWidth: m.isNewYear ? 3 : m.isNewMonth ? 2 : 1,
+                                borderLeftColor: m.isNewYear ? '#64748B' : m.isNewMonth ? '#94A3B8' : '#E2E8F0',
+                              }}
+                              className={`text-center text-[10px] h-full flex items-center justify-center border-l border-solid font-medium ${
                                 nonWorking ? 'bg-red-50 text-red-400' : 'bg-gray-50 text-gray-400'
-                              }`}>
+                              }`}
+                            >
                               {dayOfWeek}
                             </div>
                           );
@@ -1710,15 +1767,26 @@ export default function GanttChart({
           <div className="overflow-x-auto relative" ref={chartRef}>
             <div className="relative" style={{ minWidth: totalDays * dayWidth + leftColWidth }}>
             {/* チケット行 */}
-            {groupedIssues.map((group) => (
+            {groupedIssues.map((group, groupIndex) => {
+              const nextGroup = groupedIssues[groupIndex + 1];
+              const nextProjectDepth = nextGroup ? nextGroup.depth : null;
+              const ticketsVisible = !collapsedProjects.has(group.projectId) && group.issues.length > 0;
+
+              return (
               <div key={group.projectId}>
                 {showProject && (() => {
                   const projectIssuesBar = getProjectBarFromIssues(group.issues);
                   const projectDueDateBar = getProjectDueDateBar(group.projectDueDate);
                   const indentPx = group.depth * 16;
                   const isCollapsed = collapsedProjects.has(group.projectId);
+                  // 先頭ルートの上・塊の末尾の下は二重線。それ以外は従来の1px
+                  const projectRootStart = groupIndex === 0;
+                  const projectRootEnd = !ticketsVisible && isRootBlockEnd(nextProjectDepth);
                   return (
-                    <div className="flex border-b bg-slate-100 group" style={{ height: GANTT_ROW_HEIGHT, boxSizing: 'border-box' }}>
+                    <div
+                      className="flex bg-slate-100 group"
+                      style={{ height: GANTT_ROW_HEIGHT, boxSizing: 'border-box', ...rowBorderStyle(projectRootStart, projectRootEnd) }}
+                    >
                       <div style={{ width: leftColWidth }} className="flex-shrink-0 py-0.5 text-xs font-semibold text-slate-700 border-r truncate flex items-center sticky left-0 z-20 bg-slate-100 group-hover:bg-slate-200" title={group.companyName ? `${group.companyName} / ${group.projectName}` : group.projectName}>
                         <span style={{ paddingLeft: indentPx + 4 }} className="flex items-center gap-1 min-w-0">
                           {group.hasChildren ? (
@@ -1739,7 +1807,7 @@ export default function GanttChart({
                           </Link>
                         </span>
                       </div>
-                      <div className="relative flex-1 cursor-pointer group-hover:bg-slate-200 transition-colors" title="クリックしてチケット追加" style={{ height: GANTT_ROW_CONTENT_HEIGHT }} onClick={(e) => handleProjectRowClick(e, group.projectId)}>
+                      <div className="relative flex-1 cursor-pointer group-hover:bg-slate-200 transition-colors" title="クリックしてチケット追加" style={{ height: rowContentHeight(projectRootStart, projectRootEnd) }} onClick={(e) => handleProjectRowClick(e, group.projectId)}>
                         {holidayBands.map((band, i) => (
                           <div
                             key={`ph-${i}`}
@@ -1749,9 +1817,9 @@ export default function GanttChart({
                         ))}
                         {/* グリッド線 */}
                         {gridLines.map((line, i) => (
-                          <div key={i} className="absolute top-0 bottom-0" style={{
-                            left: line.offset, width: 1,
-                            backgroundColor: line.bold ? '#D1D5DB' : '#E5E7EB',
+                          <div key={i} className="absolute top-0 bottom-0 pointer-events-none" style={{
+                            left: line.offset,
+                            ...gridLineStyle(line.kind),
                           }} />
                         ))}
                         {/* チケット期間バー */}
@@ -1787,15 +1855,23 @@ export default function GanttChart({
                   );
                 })()}
 
-                {!collapsedProjects.has(group.projectId) && group.issues.map((issue) => {
+                {!collapsedProjects.has(group.projectId) && group.issues.map((issue, issueIndex) => {
                   const bar = getBarPosition(issue);
                   const color = issue.status?.isClosed ? '#9CA3AF' : (trackerColorMap[issue.trackerId] || '#0EA5E9');
                   const isDragging = drag?.issueId === issue.id;
                   const isParent = issueHasChildren(issue, filteredIssues);
                   const issueDepth = issueDepthById.get(issue.id) ?? 0;
+                  const isLastTicket = issueIndex === group.issues.length - 1;
+                  const ticketRootEnd = showProject
+                    ? isLastTicket && isRootBlockEnd(nextProjectDepth)
+                    : false;
 
                   return (
-                    <div key={issue.id} className="flex border-b group hover:bg-gray-50 text-[11px]" style={{ height: GANTT_ROW_HEIGHT, boxSizing: 'border-box' }}>
+                    <div
+                      key={issue.id}
+                      className="flex group hover:bg-gray-50 text-[11px]"
+                      style={{ height: GANTT_ROW_HEIGHT, boxSizing: 'border-box', ...rowBorderStyle(false, ticketRootEnd) }}
+                    >
                       <div style={{ width: leftColWidth }} className="flex-shrink-0 px-2 py-0.5 text-xs truncate border-r flex items-center sticky left-0 z-20 bg-white group-hover:bg-gray-50" data-issue-id={issue.id}>
                         {showProject && <span className="inline-block w-4 flex-shrink-0" />}
                         <span className="inline-block flex-shrink-0" style={{ width: issueDepth * 12 }} />
@@ -1821,7 +1897,7 @@ export default function GanttChart({
                           </button>
                         )}
                       </div>
-                      <div className={`relative flex-1 ${relationDrag?.toIssueId === issue.id ? 'bg-sky-50' : ''}`} style={{ height: GANTT_ROW_CONTENT_HEIGHT }} data-issue-id={issue.id}>
+                      <div className={`relative flex-1 ${relationDrag?.toIssueId === issue.id ? 'bg-sky-50' : ''}`} style={{ height: rowContentHeight(false, ticketRootEnd) }} data-issue-id={issue.id}>
                         {holidayBands.map((band, i) => (
                           <div
                             key={`ih-${i}`}
@@ -1831,9 +1907,9 @@ export default function GanttChart({
                         ))}
                         {/* グリッド線 */}
                         {gridLines.map((line, i) => (
-                          <div key={i} className="absolute top-0 bottom-0" style={{
-                            left: line.offset, width: 1,
-                            backgroundColor: line.bold ? '#D1D5DB' : '#E5E7EB',
+                          <div key={i} className="absolute top-0 bottom-0 pointer-events-none" style={{
+                            left: line.offset,
+                            ...gridLineStyle(line.kind),
                           }} />
                         ))}
 
@@ -1933,7 +2009,8 @@ export default function GanttChart({
                   );
                 })}
               </div>
-            ))}
+              );
+            })}
 
             {/* 関係線 (SVG) */}
             <svg
