@@ -287,11 +287,11 @@ export default function Layout({ user, onLogout, children }: Props) {
           </footer>
         </aside>
 
-        {/* Content Area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Content Area（min-w-0: サイドバー横並びで子の min-content 幅に押し広げられないようにする） */}
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           {/* Main Content */}
-          <main className="flex-1 overflow-y-auto w-full bg-gray-50">
-            <div className="max-w-full mx-auto px-4 py-6">
+          <main className="flex-1 overflow-y-auto overflow-x-hidden w-full min-w-0 bg-gray-50">
+            <div className="max-w-full min-w-0 mx-auto px-4 py-6">
               <Breadcrumb />
               {children}
             </div>

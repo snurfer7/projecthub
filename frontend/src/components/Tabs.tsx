@@ -23,8 +23,8 @@ export default function Tabs({
   className = '',
 }: TabsProps) {
   return (
-    <div className={`border-b mb-4 ${className}`}>
-      <div className="flex gap-0">
+    <div className={`border-b mb-4 min-w-0 ${className}`}>
+      <div className="flex gap-0 overflow-x-auto">
         {tabs.map((tab) => {
           const isButton = !!onTabChange && !!tab.key;
           const isActive = isButton
@@ -35,7 +35,7 @@ export default function Tabs({
                 : tab.path ? currentPath.startsWith(tab.path) : false
               : false;
 
-          const baseClass = `px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+          const baseClass = `px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap flex-shrink-0 ${
             isActive
               ? 'border-sky-600 text-sky-600'
               : 'border-transparent text-gray-500 hover:text-gray-700'

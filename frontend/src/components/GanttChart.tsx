@@ -636,7 +636,7 @@ export default function GanttChart({
 
   type HeaderInfo = { label: string; days: number; dates: Date[]; year: number; month: number; isNewYear: boolean; isNewMonth: boolean; yearSpan: number; monthSpan: number };
 
-  const chartRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<HTMLDivElement | null>(null);
   const dayWidth = ZOOM_CONFIG[zoom].dayWidth;
   const leftColWidth = customLeftColWidth !== null ? customLeftColWidth : (showProject ? 360 : 300);
   /** タイムライン領域の横スクロール可視範囲（タイムライン座標） */
