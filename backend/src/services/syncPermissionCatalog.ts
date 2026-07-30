@@ -6,7 +6,8 @@ const prisma = new PrismaClient();
 /**
  * 権限カタログ（permissionCatalog.ts）の内容を DB の PermissionResource テーブルに同期する。
  * 新規エントリは追加、既存は名前・位置を更新、カタログから削除されたものは DB からも削除する。
- * 「全権限」権限セットに新規エントリを追加し、デフォルトグループに全ユーザーを追加する。
+ * 「全権限」が既に存在する場合のみ、新規リソースを全許可で追記する（作成・グループ割当はしない）。
+ * 「全権限」／「デフォルト」グループの作成は初期 seed（seed-permissions）のみ。
  */
 export async function syncPermissionCatalog(): Promise<void> {
   const flat = flattenPermissionCatalog(PERMISSION_CATALOG);
@@ -48,15 +49,12 @@ export async function syncPermissionCatalog(): Promise<void> {
     }
   }
 
-  const allResources = await prisma.permissionResource.findMany();
-
-  let fullAccessSet = await prisma.permissionSet.findUnique({ where: { name: '全権限' } });
+  const fullAccessSet = await prisma.permissionSet.findUnique({ where: { name: '全権限' } });
   if (!fullAccessSet) {
-    fullAccessSet = await prisma.permissionSet.create({
-      data: { name: '全権限', description: 'すべての機能・項目へのアクセス' },
-    });
+    return;
   }
 
+  const allResources = await prisma.permissionResource.findMany();
   for (const resource of allResources) {
     await prisma.permissionSetPermission.upsert({
       where: {
@@ -73,34 +71,5 @@ export async function syncPermissionCatalog(): Promise<void> {
       },
       update: { canUse: true, canInput: true },
     });
-  }
-
-  let defaultGroup = await prisma.group.findUnique({ where: { name: 'デフォルト' } });
-  if (!defaultGroup) {
-    defaultGroup = await prisma.group.create({
-      data: { name: 'デフォルト', permissionSetId: fullAccessSet.id },
-    });
-  } else {
-    await prisma.group.update({
-      where: { id: defaultGroup.id },
-      data: { permissionSetId: fullAccessSet.id },
-    });
-  }
-
-  await prisma.group.updateMany({
-    where: { permissionSetId: null },
-    data: { permissionSetId: fullAccessSet.id },
-  });
-
-  const allUsers = await prisma.user.findMany({ select: { id: true } });
-  for (const user of allUsers) {
-    const existing = await prisma.groupMember.findUnique({
-      where: { groupId_userId: { groupId: defaultGroup.id, userId: user.id } },
-    });
-    if (!existing) {
-      await prisma.groupMember.create({
-        data: { groupId: defaultGroup.id, userId: user.id },
-      });
-    }
   }
 }

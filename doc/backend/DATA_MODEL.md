@@ -8,8 +8,9 @@
 - **Group** — グループ。GroupMember で User と多対多。Issue の担当グループ、ProjectGroup、ProjectMemberRole の sourceGroup として使用。**`permissionSetId`（任意）** で PermissionSet を参照（1 グループ = 最大 1 権限設定）。
 - **GroupMember** — Group と User の多対多中間。ユーザーは複数グループに所属可能。
 - **PermissionResource** — 権限カタログ（機能・項目）。code（例: `projects.issues.fields.subject`）, name, resourceType（`feature` \| `field`）, parentId, position。親子ツリー構造。
-- **PermissionSet** — 権限設定。name, description。**1 つの権限設定に複数 Group を割り当て可能**（Group.permissionSetId の 1:N）。
+- **PermissionSet** — 権限設定。name, description。**1 つの権限設定に複数 Group を割り当て可能**（Group.permissionSetId の 1:N）。初期 seed 時のみ「全権限」を自動作成する（起動時同期では作成しない）。
 - **PermissionSetPermission** — 権限設定と PermissionResource の対応。canUse（使用可否）, canInput（入力可否）。`(permissionSetId, resourceId)` はユニーク。
+- **デフォルトグループ** — 初期 seed 時のみ名前「デフォルト」の Group を作成し、「全権限」を割当・全ユーザーを所属させる。起動時や seed 再実行では再作成・再割当しない。
 
 ### 権限解決
 

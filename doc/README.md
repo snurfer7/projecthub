@@ -58,7 +58,7 @@
    - [backend/src/constants/permissionCatalog.ts](../backend/src/constants/permissionCatalog.ts) に code・表示名・親子を追加
    - [backend/prisma/seed-permissions.ts](../backend/prisma/seed-permissions.ts) がカタログを参照していることを確認（通常は `permissionCatalog.ts` の更新のみで足りる）
    - 本番 seed は `npm run build` 後に `npm run prisma:seed:permissions:prod`（`dist/` 経由。`src/` は本番に無い）
-   - 既存 DB 環境では seed 再実行またはマイグレーション用 upsert で `permission_resources` に反映
+   - 既存 DB 環境では起動時のカタログ同期、または seed 再実行で `permission_resources` に反映（「全権限」「デフォルト」グループの作成は PermissionSet 0件の初期構築時のみ）
 3. **バックエンド**
    - ルートに `requirePermission` / `requireAnyPermission` を適用
    - 部分更新 API では `assertFieldPermissions` で body キーと field code を検証

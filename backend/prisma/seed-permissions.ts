@@ -99,62 +99,77 @@ export async function seedPermissions() {
   }
 
   const allResources = await prisma.permissionResource.findMany();
+
+  // 「全権限」「デフォルト」グループの作成とメンバー割当は初期構築時のみ
+  // （PermissionSet が1件も無いときを初期構築とみなす）
+  const isInitialBootstrap = (await prisma.permissionSet.count()) === 0;
+
   let fullAccessSet = await prisma.permissionSet.findUnique({ where: { name: '全権限' } });
-  if (!fullAccessSet) {
+  let defaultGroup = await prisma.group.findUnique({ where: { name: 'デフォルト' } });
+
+  if (isInitialBootstrap) {
     fullAccessSet = await prisma.permissionSet.create({
       data: { name: '全権限', description: 'すべての機能・項目へのアクセス' },
     });
-  }
 
-  for (const resource of allResources) {
-    await prisma.permissionSetPermission.upsert({
-      where: {
-        permissionSetId_resourceId: {
+    for (const resource of allResources) {
+      await prisma.permissionSetPermission.create({
+        data: {
           permissionSetId: fullAccessSet.id,
           resourceId: resource.id,
+          canUse: true,
+          canInput: true,
         },
-      },
-      create: {
-        permissionSetId: fullAccessSet.id,
-        resourceId: resource.id,
-        canUse: true,
-        canInput: true,
-      },
-      update: { canUse: true, canInput: true },
-    });
-  }
+      });
+    }
 
-  let defaultGroup = await prisma.group.findUnique({ where: { name: 'デフォルト' } });
-  if (!defaultGroup) {
     defaultGroup = await prisma.group.create({
       data: { name: 'デフォルト', permissionSetId: fullAccessSet.id },
     });
-  } else {
-    await prisma.group.update({
-      where: { id: defaultGroup.id },
+
+    await prisma.group.updateMany({
+      where: { permissionSetId: null },
       data: { permissionSetId: fullAccessSet.id },
     });
-  }
 
-  // 権限設定未割当のグループにも全権限を付与（メンバーが権限ゼロにならないようにする）
-  await prisma.group.updateMany({
-    where: { permissionSetId: null },
-    data: { permissionSetId: fullAccessSet.id },
-  });
-
-  const allUsers = await prisma.user.findMany({ select: { id: true } });
-  for (const user of allUsers) {
-    const existing = await prisma.groupMember.findUnique({
-      where: { groupId_userId: { groupId: defaultGroup.id, userId: user.id } },
-    });
-    if (!existing) {
+    const allUsers = await prisma.user.findMany({ select: { id: true } });
+    for (const user of allUsers) {
       await prisma.groupMember.create({
         data: { groupId: defaultGroup.id, userId: user.id },
       });
     }
+
+    console.log(
+      `Seeded ${allResources.length} permission resources; created 全権限 and デフォルト group (initial bootstrap)`
+    );
+    return { fullAccessSet, defaultGroup };
   }
 
-  console.log(`Seeded ${allResources.length} permission resources, default group with full access`);
+  // 再実行時: 既存の「全権限」があればカタログ差分を全許可で追記するのみ
+  if (fullAccessSet) {
+    for (const resource of allResources) {
+      await prisma.permissionSetPermission.upsert({
+        where: {
+          permissionSetId_resourceId: {
+            permissionSetId: fullAccessSet.id,
+            resourceId: resource.id,
+          },
+        },
+        create: {
+          permissionSetId: fullAccessSet.id,
+          resourceId: resource.id,
+          canUse: true,
+          canInput: true,
+        },
+        update: { canUse: true, canInput: true },
+      });
+    }
+  }
+
+  console.log(
+    `Seeded ${allResources.length} permission resources` +
+      (fullAccessSet ? ' (updated existing 全権限)' : ' (全権限なし・作成スキップ)')
+  );
   return { fullAccessSet, defaultGroup };
 }
 

@@ -59,9 +59,13 @@ PostgreSQL + Prisma で永続化し、JWT で認証する。
 |--------|---------|
 | カタログ定義 | `backend/src/constants/permissionCatalog.ts` |
 | seed | `backend/prisma/seed-permissions.ts` |
+| 起動時カタログ同期 | `backend/src/services/syncPermissionCatalog.ts` |
 | API ガード | `backend/src/middleware/permissions.ts`（`requirePermission`） |
 | 解決・フィールド検証 | `backend/src/services/permissions.ts` |
 | フロント | `frontend/src/hooks/usePermissions.ts`, `PermissionGate`, `PermissionRoute` |
+
+- **初期構築（seed）**: PermissionSet が0件のときのみ「全権限」権限セットと「デフォルト」グループを作成し、既存ユーザーをデフォルトへ所属させる。
+- **起動時同期**: `PermissionResource` のカタログ同期のみ。既存の「全権限」があれば新規リソースを全許可で追記する。グループの作成・メンバー割当は行わない。
 
 新 API を追加したら、同 PR で `requirePermission('<code>', 'use' \| 'input')` を必ず付ける。
 
