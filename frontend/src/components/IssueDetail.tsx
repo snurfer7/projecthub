@@ -295,7 +295,9 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh }: IssueD
                 </div>
 
                 {issue.description && (
-                    <div className="prose prose-sm max-w-none mb-4 text-gray-700 whitespace-pre-wrap">{issue.description}</div>
+                    <div className="prose prose-sm max-w-none mb-4 text-gray-700 prose-p:my-1 prose-headings:my-2">
+                        <MarkdownRenderer content={issue.description} />
+                    </div>
                 )}
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm border-t pt-4">
