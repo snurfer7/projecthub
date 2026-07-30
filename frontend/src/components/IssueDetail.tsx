@@ -11,6 +11,7 @@ import Combobox from './Combobox';
 import TimeEntryModal from './TimeEntryModal';
 import { usePermissions } from '../hooks/usePermissions';
 import { getCachedProjectPermissions, setProjectPermissionsCache } from '../utils/projectPermissionsCache';
+import { issueAssigneeUsers } from '../utils/issueAssignees';
 
 interface IssueDetailProps {
     issueId: string;
@@ -334,11 +335,23 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh, permissi
                     <div>
                         <span className="text-gray-500">担当者:</span>
                         <span className="ml-1">
-                            {issue.assignedToGroup ? (
-                                <span className="inline-flex items-center gap-1"><Users className="w-3.5 h-3.5 text-indigo-400" /> {issue.assignedToGroup.name}</span>
-                            ) : issue.assignedTo ? (
-                                `${issue.assignedTo.lastName} ${issue.assignedTo.firstName}`
-                            ) : '未割当'}
+                            {(() => {
+                                const users = issueAssigneeUsers(issue);
+                                const hasAny = issue.assignedToGroup || users.length > 0;
+                                if (!hasAny) return '未割当';
+                                return (
+                                    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+                                        {issue.assignedToGroup && (
+                                            <span className="inline-flex items-center gap-1">
+                                                <Users className="w-3.5 h-3.5 text-indigo-400" /> {issue.assignedToGroup.name}
+                                            </span>
+                                        )}
+                                        {users.map((u) => (
+                                            <span key={u.id}>{u.lastName} {u.firstName}</span>
+                                        ))}
+                                    </span>
+                                );
+                            })()}
                         </span>
                     </div>
                     <div>

@@ -150,7 +150,7 @@ export default function IssueForm({
     const [trackerId, setTrackerId] = useState('');
     const [statusId, setStatusId] = useState('');
     const [priorityId, setPriorityId] = useState('');
-    const [assignedToPrincipal, setAssignedToPrincipal] = useState('');
+    const [assignedToPrincipals, setAssignedToPrincipals] = useState<string[]>([]);
     const [subject, setSubject] = useState('');
     const [description, setDescription] = useState('');
     const [startDate, setStartDate] = useState(initialStartDate || '');
@@ -243,7 +243,15 @@ export default function IssueForm({
                 setStatusId(String(issue.statusId));
                 setOriginalStatusId(issue.statusId);
                 setPriorityId(String(issue.priorityId));
-                setAssignedToPrincipal(issue.assignedToGroupId ? `g:${issue.assignedToGroupId}` : issue.assignedToId ? `u:${issue.assignedToId}` : '');
+                const principals: string[] = [];
+                if (issue.assignedToGroupId) principals.push(`g:${issue.assignedToGroupId}`);
+                const users = issue.assignees?.length
+                    ? issue.assignees
+                    : issue.assignedTo
+                        ? [issue.assignedTo]
+                        : [];
+                for (const u of users) principals.push(`u:${u.id}`);
+                setAssignedToPrincipals(principals);
                 setSubject(issue.subject);
                 setDescription(issue.description || '');
                 setStartDate(issue.startDate ? toLocalDatetimeString(issue.startDate) : '');
@@ -265,8 +273,14 @@ export default function IssueForm({
         e.preventDefault();
         setError('');
         try {
-            const extractedUserId = assignedToPrincipal && assignedToPrincipal.startsWith('u:') ? Number(assignedToPrincipal.slice(2)) : null;
-            const extractedGroupId = assignedToPrincipal && assignedToPrincipal.startsWith('g:') ? Number(assignedToPrincipal.slice(2)) : null;
+            const extractedUserIds = assignedToPrincipals
+                .filter((p) => p.startsWith('u:'))
+                .map((p) => Number(p.slice(2)))
+                .filter((n) => Number.isInteger(n) && n > 0);
+            const groupPrincipals = assignedToPrincipals.filter((p) => p.startsWith('g:'));
+            const extractedGroupId = groupPrincipals.length > 0
+                ? Number(groupPrincipals[groupPrincipals.length - 1].slice(2))
+                : null;
 
             if (estimatedHours && !Number.isInteger(Number(estimatedHours))) {
                 setError('予定工数は整数で入力してください');
@@ -276,7 +290,7 @@ export default function IssueForm({
             const data: any = {
                 trackerId: Number(trackerId),
                 priorityId: Number(priorityId),
-                assignedToId: extractedUserId,
+                assignedToIds: extractedUserIds,
                 assignedToGroupId: extractedGroupId,
                 subject,
                 description,
@@ -386,11 +400,21 @@ export default function IssueForm({
                             options={[
                                 ...(meta.groups || []).map((g) => ({ value: `g:${g.id}`, label: `(グループ) ${g.name}` })),
                                 ...(meta.users || [])
-                                    .filter((u) => u.status === 'active' || assignedToPrincipal === `u:${u.id}`)
+                                    .filter((u) => u.status === 'active' || assignedToPrincipals.includes(`u:${u.id}`))
                                     .map((u) => ({ value: `u:${u.id}`, label: `${u.lastName} ${u.firstName}` }))
                             ]}
-                            value={assignedToPrincipal}
-                            onChange={setAssignedToPrincipal}
+                            value={assignedToPrincipals}
+                            onChange={(val) => {
+                                const next = (Array.isArray(val) ? val : [val]).map(String).filter(Boolean);
+                                const users = next.filter((v) => v.startsWith('u:'));
+                                const groups = next.filter((v) => v.startsWith('g:'));
+                                // 担当グループは単一（最後に選んだもの）
+                                setAssignedToPrincipals([
+                                    ...users,
+                                    ...(groups.length > 0 ? [groups[groups.length - 1]] : []),
+                                ]);
+                            }}
+                            isMulti
                             disabled={fieldDisabled('projects.issues.fields.assignee')}
                         />
                         <Combobox

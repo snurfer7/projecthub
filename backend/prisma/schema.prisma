@@ -36,7 +36,7 @@ model User {
   assignedDeals      Deal[]            @relation("DealAssignee")
   groupMembers       GroupMember[]
   issueComments      IssueComment[]
-  assignedIssues     Issue[]           @relation("IssueAssignee")
+  issueAssignees     IssueAssignee[]
   authoredIssues     Issue[]           @relation("IssueAuthor")
   projectComments    ProjectComment[]
   projectMembers     ProjectMember[]
@@ -358,7 +358,6 @@ model Issue {
   statusId          Int             @map("status_id")
   priorityId        Int             @map("priority_id")
   authorId          Int             @map("author_id")
-  assignedToId      Int?            @map("assigned_to_id")
   subject           String
   description       String?
   startDate         DateTime?       @map("start_date")
@@ -375,8 +374,8 @@ model Issue {
   comments          IssueComment[]
   relationsFrom     IssueRelation[] @relation("IssueFrom")
   relationsTo       IssueRelation[] @relation("IssueTo")
+  assignees         IssueAssignee[]
   assignedToGroup   Group?          @relation("IssueAssigneeGroup", fields: [assignedToGroupId], references: [id])
-  assignedTo        User?           @relation("IssueAssignee", fields: [assignedToId], references: [id])
   author            User            @relation("IssueAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   priority          IssuePriority   @relation(fields: [priorityId], references: [id], onDelete: Cascade)
   project           Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -388,6 +387,18 @@ model Issue {
 
   @@index([parentId])
   @@map("issues")
+}
+
+model IssueAssignee {
+  issueId   Int      @map("issue_id")
+  userId    Int      @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([issueId, userId])
+  @@index([userId])
+  @@map("issue_assignees")
 }
 
 model IssueRelation {

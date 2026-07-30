@@ -16,6 +16,7 @@ import { filterProjectsKeepingAncestorsOfTicketed, sortSiblingProjects, type Pro
 import type { PermissionMap } from '../types';
 import { usePermissions } from '../hooks/usePermissions';
 import { prefetchProjectPermissions, projectMapCanInput, getCachedProjectPermissions } from '../utils/projectPermissionsCache';
+import { formatIssueAssignees, issueHasAssigneeUser } from '../utils/issueAssignees';
 
 interface GanttChartProps {
   issues: Issue[];
@@ -923,12 +924,10 @@ export default function GanttChart({
       if (hasUserFilter || hasGroupFilter || hasGroupMemberFilter) {
         const userMatch =
           hasUserFilter &&
-          issue.assignedToId != null &&
-          filterAssignedToIds.some((id) => String(id) === String(issue.assignedToId));
+          issueHasAssigneeUser(issue, filterAssignedToIds);
         const groupMemberMatch =
           hasGroupMemberFilter &&
-          issue.assignedToId != null &&
-          filterAssignedToGroupMemberIds!.some((id) => String(id) === String(issue.assignedToId));
+          issueHasAssigneeUser(issue, filterAssignedToGroupMemberIds!);
         const groupMatch =
           hasGroupFilter &&
           issue.assignedToGroupId != null &&
@@ -2281,7 +2280,9 @@ export default function GanttChart({
                   ) : null;
                 })()}
                 {tooltip.issue.dueDate && <div>期日: {new Date(tooltip.issue.dueDate).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })}</div>}
-                {tooltip.issue.assignedTo && <div>担当: {tooltip.issue.assignedTo.lastName} {tooltip.issue.assignedTo.firstName}</div>}
+                {formatIssueAssignees(tooltip.issue) && (
+                  <div>担当: {formatIssueAssignees(tooltip.issue)}</div>
+                )}
                 {tooltip.issue.estimatedHours && (
                   <div>
                     予定工数: {tooltip.issue.estimatedHours}h

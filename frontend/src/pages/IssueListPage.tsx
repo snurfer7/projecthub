@@ -11,6 +11,7 @@ import { useAuth } from '../hooks/useAuth';
 import PermissionGate from '../components/PermissionGate';
 import Combobox from '../components/Combobox';
 import type { ProjectOutletContext } from './ProjectDetailPage';
+import { issueAssigneeUsers } from '../utils/issueAssignees';
 
 type TreeDisplayRow = {
   issue: Issue;
@@ -238,15 +239,23 @@ export default function IssueListPage() {
                     {issue.priority?.name}
                   </td>
                   <td className="px-4 py-3 text-gray-600">
-                    {issue.assignedToGroup ? (
-                      <span className="inline-flex items-center gap-1">
-                        <Users className="w-3.5 h-3.5 text-indigo-400" /> {issue.assignedToGroup.name}
-                      </span>
-                    ) : issue.assignedTo ? (
-                      `${issue.assignedTo.lastName} ${issue.assignedTo.firstName}`
-                    ) : (
-                      '-'
-                    )}
+                    {(() => {
+                      const users = issueAssigneeUsers(issue);
+                      const hasAny = issue.assignedToGroup || users.length > 0;
+                      if (!hasAny) return '-';
+                      return (
+                        <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+                          {issue.assignedToGroup && (
+                            <span className="inline-flex items-center gap-1">
+                              <Users className="w-3.5 h-3.5 text-indigo-400" /> {issue.assignedToGroup.name}
+                            </span>
+                          )}
+                          {users.map((u) => (
+                            <span key={u.id}>{u.lastName} {u.firstName}</span>
+                          ))}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">

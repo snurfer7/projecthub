@@ -86,6 +86,9 @@ services:
     volumes:
       - ./backend/src:/app/backend/src
       - ./backend/prisma:/app/backend/prisma
+      # schema 変更時の Prisma Client 自動再生成（イメージ再ビルドなしで有効化）
+      - ./scripts/start.sh:/app/backend/start.sh:ro
+      - ./scripts/dev-server.mjs:/app/backend/dev-server.mjs:ro
     depends_on:
       db:
         condition: service_healthy

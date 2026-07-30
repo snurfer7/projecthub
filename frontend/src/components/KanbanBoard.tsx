@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Users, Plus } from 'lucide-react';
 import { Issue, IssueStatus } from '../types';
 import { buildIssueByIdMap, getAncestorChain, isLeafIssue } from '../utils/issueTree';
+import { formatIssueAssignees } from '../utils/issueAssignees';
 
 interface KanbanBoardProps {
     statuses: IssueStatus[];
@@ -110,11 +111,7 @@ const IssueCard = React.forwardRef<HTMLDivElement, {
     onMouseLeave: () => void,
     onIssueClick?: (issueId: number) => void;
 }>(({ issue, ancestors, showProjectName, isDragging, canDrag, onDragStart, onDragEnd, onMouseEnter, onMouseLeave, onIssueClick }, ref) => {
-    const assigneeName = issue.assignedToGroup
-        ? issue.assignedToGroup.name
-        : issue.assignedTo
-            ? `${issue.assignedTo.lastName} ${issue.assignedTo.firstName}`
-            : null;
+    const assigneeName = formatIssueAssignees(issue) || null;
 
     return (
         <div
@@ -168,8 +165,8 @@ const IssueCard = React.forwardRef<HTMLDivElement, {
                     </span>
                 )}
                 {assigneeName && (
-                    <span className="text-xs text-slate-500 font-medium flex items-center gap-1.5 ml-auto">
-                        {issue.assignedToGroup && <Users className="w-3 h-3 text-indigo-400" />}
+                    <span className="text-xs text-slate-500 font-medium flex items-center gap-1.5 ml-auto max-w-[60%] truncate" title={assigneeName}>
+                        {issue.assignedToGroup && <Users className="w-3 h-3 text-indigo-400 flex-shrink-0" />}
                         {assigneeName}
                     </span>
                 )}

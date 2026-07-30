@@ -27,7 +27,7 @@
 | `/projects/:projectId` | ProjectDetailPage | プロジェクト詳細。メンバー以外は参照不可。タブはロールの `myPermissions`（`projects.issues` 等 canUse）で表示制御。設定モーダルは `projects.overview` canInput |
 | `/projects/:projectId/` (index) | ProjectOverview | 概要タブ。**プロジェクト情報**は `projects.overview`（canUse=表示 / canInput=設定編集）、**メンバー**は `projects.members`（canUse=表示 / canInput=追加・編集・削除）。メンバー／グループ追加時のロール選択初期値は `isDefaultRole` のロール（複数可）。それぞれ独立して設定可能 |
 | `/projects/:projectId/issues` | IssueListPage | チケット一覧。親子階層でツリー表示し、子を持つ行は折りたたみ可能（フィルタ結果に親が含まれない子はルートとして表示）。新規・編集・削除: `projects.issues` canInput |
-| `/projects/:projectId/issues/new` | IssueFormPage | チケット新規作成。親チケット選択可（`projects.issues.fields.parent`）。ステータス選択肢はロールの利用可能ステータス（`meta.workflow.assignableStatusIds`）に制限。子を持つ編集時はステータス・開始日・開始時刻・終了日・終了時刻は入力不可で子孫集約値を表示（ステータスは position 最小）。保存: `projects.issues` canInput |
+| `/projects/:projectId/issues/new` | IssueFormPage | チケット新規作成。親チケット選択可（`projects.issues.fields.parent`）。**担当者は複数ユーザー＋担当グループ（単一）を選択可**（`projects.issues.fields.assignee`）。ステータス選択肢はロールの利用可能ステータス（`meta.workflow.assignableStatusIds`）に制限。子を持つ編集時はステータス・開始日・開始時刻・終了日・終了時刻は入力不可で子孫集約値を表示（ステータスは position 最小）。保存: `projects.issues` canInput |
 | `/projects/:projectId/wiki` | WikiListPage | Wiki 一覧。作成・編集・削除・並び替え: `projects.wiki` canInput |
 | `/projects/:projectId/comments` | ProjectCommentsPage | プロジェクトコメント。追加・編集・削除: `projects.comments` canInput |
 | `/projects/:projectId/kanban` | KanbanPage | カンバン。**子を持つチケットは非表示**（末端のみ）。親がある末端チケットはカード上に最上位親までのツリーを表示。検索条件にトラッカー・ステータス・担当者・チケット期限（期間）を指定可能。列は全ステータス。ドラッグ移動はロールのステータス遷移（`meta.workflow`）で制限。列からの新規は利用可能ステータスのみ。新規・ステータス移動・編集: `projects.issues` canInput |

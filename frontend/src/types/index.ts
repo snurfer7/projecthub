@@ -221,7 +221,8 @@ export interface Issue {
   statusId: number;
   priorityId: number;
   authorId: number;
-  assignedToId?: number;
+  /** @deprecated use assignees — 先頭担当の後方互換 */
+  assignedToId?: number | null;
   assignedToGroupId?: number;
   parentId?: number | null;
   subject: string;
@@ -238,6 +239,8 @@ export interface Issue {
   status?: IssueStatus;
   priority?: IssuePriority;
   author?: { id: number; firstName: string; lastName: string };
+  assignees?: { id: number; firstName: string; lastName: string }[];
+  /** @deprecated use assignees — 先頭担当の後方互換 */
   assignedTo?: { id: number; firstName: string; lastName: string } | null;
   assignedToGroup?: { id: number; name: string } | null;
   parent?: { id: number; subject: string } | null;

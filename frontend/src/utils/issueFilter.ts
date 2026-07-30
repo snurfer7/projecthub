@@ -4,6 +4,7 @@ import {
   type DateRangeRelativePreset,
   type DateRangeSpecifyMode,
 } from './dateRangeSpecify';
+import { issueHasAssigneeUser } from './issueAssignees';
 
 export type IssueFilterCriteria = {
   trackerIds: (number | string)[];
@@ -88,12 +89,10 @@ export function matchesIssueFilter(issue: Issue, criteria: IssueFilterCriteria):
   if (hasUserFilter || hasGroupFilter || hasGroupMemberFilter) {
     const userMatch =
       hasUserFilter &&
-      issue.assignedToId != null &&
-      criteria.assignedToIds.some((id) => String(id) === String(issue.assignedToId));
+      issueHasAssigneeUser(issue, criteria.assignedToIds);
     const groupMemberMatch =
       hasGroupMemberFilter &&
-      issue.assignedToId != null &&
-      criteria.assignedToGroupMemberIds.some((id) => String(id) === String(issue.assignedToId));
+      issueHasAssigneeUser(issue, criteria.assignedToGroupMemberIds);
     const groupMatch =
       hasGroupFilter &&
       issue.assignedToGroupId != null &&

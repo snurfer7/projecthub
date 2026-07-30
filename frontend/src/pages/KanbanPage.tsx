@@ -12,6 +12,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import TicketSearchSection from '../components/TicketSearchSection';
 import { isLeafIssue } from '../utils/issueTree';
 import { isStatusAssignable, isStatusTransitionAllowed } from '../utils/issueWorkflow';
+import { issueHasAssigneeUser } from '../utils/issueAssignees';
 import type { ProjectOutletContext } from './ProjectDetailPage';
 
 export default function KanbanPage() {
@@ -64,9 +65,7 @@ export default function KanbanPage() {
         return false;
       }
       if (filterAssignedToIds.length > 0) {
-        const matchUser = issue.assignedToId != null
-          && filterAssignedToIds.some((id) => String(id) === String(issue.assignedToId));
-        if (!matchUser) return false;
+        if (!issueHasAssigneeUser(issue, filterAssignedToIds)) return false;
       }
       if (dueDateStart || dueDateEnd) {
         if (!issue.dueDate) return false;

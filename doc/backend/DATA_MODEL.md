@@ -4,7 +4,7 @@
 
 ## 認証・ユーザー
 
-- **User** — ユーザー。email, passwordHash, firstName, lastName, role, isAdmin, landingPage, show*Menu。**認証**: `authMethod`（`password` \| `sso`）, `microsoftOid`（Entra object id・ユニーク・任意）, `microsoftTenantId`（任意）。Microsoft 連携の主キーはメールではなく `microsoftOid`（UPN 変更後も継続）。SSO ログイン成功時（oid 一致）は `User.email` を Entra のログイン ID（UPN）へ自動同期する（他ユーザーと衝突時はスキップ）。GroupMember, ProjectMember, Issue（author/assignedTo）, TimeEntry, WikiPage, 各種 Comment 等と関連。**API アクセスはグループ経由の権限設定で制御**（`isAdmin` / `role=admin` でもバイパスしない）。
+- **User** — ユーザー。email, passwordHash, firstName, lastName, role, isAdmin, landingPage, show*Menu。**認証**: `authMethod`（`password` \| `sso`）, `microsoftOid`（Entra object id・ユニーク・任意）, `microsoftTenantId`（任意）。Microsoft 連携の主キーはメールではなく `microsoftOid`（UPN 変更後も継続）。SSO ログイン成功時（oid 一致）は `User.email` を Entra のログイン ID（UPN）へ自動同期する（他ユーザーと衝突時はスキップ）。GroupMember, ProjectMember, Issue（author / **IssueAssignee 経由の担当**）, TimeEntry, WikiPage, 各種 Comment 等と関連。**API アクセスはグループ経由の権限設定で制御**（`isAdmin` / `role=admin` でもバイパスしない）。
 - **Group** — グループ。GroupMember で User と多対多。Issue の担当グループ、ProjectGroup、ProjectMemberRole の sourceGroup として使用。**`permissionSetId`（任意）** で PermissionSet を参照（1 グループ = 最大 1 権限設定）。
 - **GroupMember** — Group と User の多対多中間。ユーザーは複数グループに所属可能。
 - **PermissionResource** — 権限カタログ（機能・項目）。code, name, resourceType（`feature` \| `field`）, **scope（`group` \| `role`）**, parentId, position。`projects` は group、配下（`projects.overview`＝プロジェクト情報 / `projects.members`＝メンバー / issues / fields 等）は role。
@@ -66,7 +66,8 @@
 - **ProjectMemberRole** — メンバーのロール。Role と Group（sourceGroupId、グループ経由で付与した場合）と関連。
 - **ProjectGroup** — プロジェクトに紐づくグループ。
 - **ProjectRelatedCompany** — プロジェクトと関連会社（Company + Location + Contact の組み合わせ）。
-- **Issue** — チケット。Project, Tracker, IssueStatus, IssuePriority, User（author, assignedTo）, Group（assignedToGroup）, IssueRelation, IssueComment, TimeEntry, Attachment と関連。**親子階層**（`parentId` → 同一プロジェクト内の親チケット。循環参照不可）。スケジュール用に `startDate`（開始日時）, `endDate`（終了日時）, `dueDate`（期日）, `estimatedHours`（予定工数）を持つ。**子チケットを持つ親チケット**の `startDate` / `endDate` は入力不可で、全子孫チケットの開始の最小・終了の最大を表示する。**ステータス**も入力不可で、子孫のステータスのうち `IssueStatus.position` が最小（一覧で一番上）のものを表示する（API 応答でも集約値を返す。DB 上の親自身の日時・ステータスは子がある場合更新しない）。ガントチャートのバーも同様に集約表示し、親バーのドラッグ／リサイズは不可。
+- **Issue** — チケット。Project, Tracker, IssueStatus, IssuePriority, User（author）, Group（**assignedToGroup**・担当グループ・任意・単一）, **IssueAssignee**（担当ユーザー・N:N）, IssueRelation, IssueComment, TimeEntry, Attachment と関連。**担当者**は複数ユーザーを同時に割り当て可能（`IssueAssignee`）。担当グループ（`assignedToGroupId`）は従来どおり単一で、ユーザー担当と併用可。**親子階層**（`parentId` → 同一プロジェクト内の親チケット。循環参照不可）。スケジュール用に `startDate`（開始日時）, `endDate`（終了日時）, `dueDate`（期日）, `estimatedHours`（予定工数）を持つ。**子チケットを持つ親チケット**の `startDate` / `endDate` は入力不可で、全子孫チケットの開始の最小・終了の最大を表示する。**ステータス**も入力不可で、子孫のステータスのうち `IssueStatus.position` が最小（一覧で一番上）のものを表示する（API 応答でも集約値を返す。DB 上の親自身の日時・ステータスは子がある場合更新しない）。ガントチャートのバーも同様に集約表示し、親バーのドラッグ／リサイズは不可。
+- **IssueAssignee** — チケットと担当ユーザーの多対多（`issueId` + `userId` 複合主キー）。API 応答では `assignees: { id, firstName, lastName }[]` として展開する。
 - **IssueRelation** — チケット間関連。relationType（例: precedes）。
 - **IssueComment** — チケットコメント。Attachment 可。
 - **WikiPage** — プロジェクト Wiki。親子階層（parentId）。author, project と関連。

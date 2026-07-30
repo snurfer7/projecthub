@@ -9,6 +9,7 @@ import {
   getProjectIdsWithPermission,
   requireProjectPermission,
 } from '../services/projectPermissions';
+import { issueAssigneesInclude, shapeIssueAssignees } from '../utils/issueAssignees';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -18,7 +19,8 @@ const issueInclude = {
   tracker: true,
   status: true,
   priority: true,
-  assignedTo: { select: { id: true, firstName: true, lastName: true } },
+  ...issueAssigneesInclude,
+  assignedToGroup: { select: { id: true, name: true } },
   relationsFrom: true,
   _count: { select: { comments: true, children: true } },
 } as const;
@@ -90,12 +92,13 @@ async function loadGanttIssues(where: Record<string, unknown>) {
     .map((id) => byId.get(id)!)
     .filter(Boolean)
     .map((issue) => {
+      const shaped = shapeIssueAssignees(issue);
       const childCount = issue._count?.children ?? 0;
-      if (childCount === 0) return issue;
+      if (childCount === 0) return shaped;
       const agg = aggById.get(issue.id);
-      if (!agg) return issue;
+      if (!agg) return shaped;
       return {
-        ...issue,
+        ...shaped,
         startDate: agg.startDate,
         endDate: agg.endDate,
         statusId: agg.statusId ?? issue.statusId,
@@ -138,7 +141,7 @@ router.get(
       const filterTrackerIds = parseNumericQueryIds(trackerIds ?? trackerId);
       if (filterTrackerIds.length > 0) where.trackerId = { in: filterTrackerIds };
       const assigneeIds = parseNumericQueryIds(assignedToIds ?? assignedToId);
-      if (assigneeIds.length > 0) where.assignedToId = { in: assigneeIds };
+      if (assigneeIds.length > 0) where.assignees = { some: { userId: { in: assigneeIds } } };
       const filterStatusIds = parseNumericQueryIds(statusIds ?? statusId);
       if (filterStatusIds.length > 0) where.statusId = { in: filterStatusIds };
 
@@ -187,7 +190,7 @@ router.get('/all', requirePermission('projects', 'use'), async (req: AuthRequest
     const filterTrackerIds = parseNumericQueryIds(trackerIds ?? trackerId);
     if (filterTrackerIds.length > 0) where.trackerId = { in: filterTrackerIds };
     const assigneeIds = parseNumericQueryIds(assignedToIds ?? assignedToId);
-    if (assigneeIds.length > 0) where.assignedToId = { in: assigneeIds };
+    if (assigneeIds.length > 0) where.assignees = { some: { userId: { in: assigneeIds } } };
     const filterStatusIds = parseNumericQueryIds(statusIds ?? statusId);
     if (filterStatusIds.length > 0) where.statusId = { in: filterStatusIds };
 

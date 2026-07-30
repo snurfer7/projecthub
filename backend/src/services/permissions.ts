@@ -253,6 +253,19 @@ function fieldValueChanged(bodyKey: string, oldVal: unknown, newVal: unknown): b
     return o !== n;
   }
 
+  if (bodyKey === 'assignedToIds') {
+    const toSorted = (v: unknown): number[] => {
+      if (!Array.isArray(v)) return [];
+      return [...new Set(v.map((x) => Number(x)).filter((n) => Number.isInteger(n) && n > 0))].sort(
+        (a, b) => a - b,
+      );
+    };
+    const o = toSorted(oldVal);
+    const n = toSorted(newVal);
+    if (o.length !== n.length) return true;
+    return o.some((id, i) => id !== n[i]);
+  }
+
   return String(oldVal ?? '') !== String(newVal ?? '');
 }
 

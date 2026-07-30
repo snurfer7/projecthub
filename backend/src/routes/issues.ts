@@ -26,6 +26,13 @@ import {
   assertStatusTransition,
   resolveIssueWorkflow,
 } from '../services/issueWorkflow';
+import {
+  issueAssigneesInclude,
+  parseAssignedToIdsFromBody,
+  shapeIssueAssignees,
+  syncIssueAssignees,
+  validateAssignableUserIds,
+} from '../utils/issueAssignees';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -91,7 +98,7 @@ router.get('/', requirePermission('projects', 'use'), async (req: AuthRequest, r
     if (filterTrackerIds.length > 0) where.trackerId = { in: filterTrackerIds };
     if (priorityId && String(priorityId).trim() !== '' && !isNaN(Number(priorityId))) where.priorityId = Number(priorityId);
     const assigneeIds = parseNumericQueryIds(assignedToIds ?? assignedToId);
-    if (assigneeIds.length > 0) where.assignedToId = { in: assigneeIds };
+    if (assigneeIds.length > 0) where.assignees = { some: { userId: { in: assigneeIds } } };
     if (assignedToGroupId && String(assignedToGroupId).trim() !== '' && !isNaN(Number(assignedToGroupId))) where.assignedToGroupId = Number(assignedToGroupId);
 
     if (permittedIds.length === 0) {
@@ -107,7 +114,7 @@ router.get('/', requirePermission('projects', 'use'), async (req: AuthRequest, r
         status: true,
         priority: true,
         author: { select: { id: true, firstName: true, lastName: true } },
-        assignedTo: { select: { id: true, firstName: true, lastName: true } },
+        ...issueAssigneesInclude,
         assignedToGroup: { select: { id: true, name: true } },
         parent: { select: parentSelect },
         relationsFrom: true,
@@ -123,11 +130,12 @@ router.get('/', requirePermission('projects', 'use'), async (req: AuthRequest, r
 
     res.json(
       issues.map((issue) => {
-        if ((issue._count?.children ?? 0) === 0) return issue;
+        const shaped = shapeIssueAssignees(issue);
+        if ((issue._count?.children ?? 0) === 0) return shaped;
         const agg = aggById.get(issue.id);
-        if (!agg) return issue;
+        if (!agg) return shaped;
         return {
-          ...issue,
+          ...shaped,
           startDate: agg.startDate,
           endDate: agg.endDate,
           statusId: agg.statusId ?? issue.statusId,
@@ -252,7 +260,7 @@ router.get('/:id', requirePermission('projects', 'use'), async (req: AuthRequest
         status: true,
         priority: true,
         author: { select: { id: true, firstName: true, lastName: true } },
-        assignedTo: { select: { id: true, firstName: true, lastName: true } },
+        ...issueAssigneesInclude,
         assignedToGroup: { select: { id: true, name: true } },
         parent: { select: parentSelect },
         children: { select: childSelect, orderBy: [{ position: 'asc' }, { id: 'asc' }] },
@@ -293,12 +301,13 @@ router.get('/:id', requirePermission('projects', 'use'), async (req: AuthRequest
       return;
     }
 
+    const shaped = shapeIssueAssignees(issue);
     if (issue.children.length > 0) {
       const aggById = await loadParentAggregations([issue.projectId]);
       const agg = aggById.get(issue.id);
       if (agg) {
         res.json({
-          ...issue,
+          ...shaped,
           startDate: agg.startDate,
           endDate: agg.endDate,
           statusId: agg.statusId ?? issue.statusId,
@@ -307,7 +316,7 @@ router.get('/:id', requirePermission('projects', 'use'), async (req: AuthRequest
         return;
       }
     }
-    res.json(issue);
+    res.json(shaped);
   } catch (e) {
     res.status(500).json({ error: 'チケットの取得に失敗しました' });
   }
@@ -381,7 +390,7 @@ router.delete('/relations/:relationId', requirePermission('projects', 'use'), as
 // Create issue
 router.post('/', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
-    const { projectId, trackerId, statusId, priorityId, assignedToId, assignedToGroupId, subject, description, startDate, endDate, dueDate, estimatedHours, parentId } = req.body;
+    const { projectId, trackerId, statusId, priorityId, assignedToGroupId, subject, description, startDate, endDate, dueDate, estimatedHours, parentId } = req.body;
     const pid = Number(projectId);
     if (!(await hasProjectPermission(req.userId!, pid, 'projects.issues', 'input'))) {
       res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
@@ -393,10 +402,16 @@ router.post('/', requirePermission('projects', 'use'), async (req: AuthRequest, 
       res.status(403).json({ error: `フィールドの編集権限がありません: ${deniedDt}` });
       return;
     }
+    const assignedToIds = parseAssignedToIdsFromBody(req.body);
     const deniedParent = assertFieldPermissions(
       permissions,
       req.body,
-      { parentId: 'projects.issues.fields.parent' },
+      {
+        parentId: 'projects.issues.fields.parent',
+        assignedToIds: 'projects.issues.fields.assignee',
+        assignedToId: 'projects.issues.fields.assignee',
+        assignedToGroupId: 'projects.issues.fields.assignee',
+      },
       {}
     );
     if (deniedParent) {
@@ -407,11 +422,10 @@ router.post('/', requirePermission('projects', 'use'), async (req: AuthRequest, 
       return res.status(400).json({ error: '予定工数は整数で入力してください' });
     }
 
-    if (assignedToId) {
-      const user = await prisma.user.findUnique({ where: { id: Number(assignedToId) } });
-      if (user && (user.status === 'pending' || user.status === 'inactive')) {
-        return res.status(400).json({ error: '選択されたユーザー（仮登録または無効）は担当者に指定できません' });
-      }
+    const nextAssigneeIds = assignedToIds ?? [];
+    const assigneeError = await validateAssignableUserIds(prisma, nextAssigneeIds);
+    if (assigneeError) {
+      return res.status(400).json({ error: assigneeError });
     }
 
     const parentError = await validateIssueParentId(prisma, {
@@ -437,7 +451,6 @@ router.post('/', requirePermission('projects', 'use'), async (req: AuthRequest, 
         statusId,
         priorityId,
         authorId: req.userId!,
-        assignedToId: assignedToId || null,
         assignedToGroupId: assignedToGroupId || null,
         parentId: parentId ? Number(parentId) : null,
         subject,
@@ -446,16 +459,21 @@ router.post('/', requirePermission('projects', 'use'), async (req: AuthRequest, 
         endDate: endDate ? new Date(endDate) : null,
         dueDate: dueDate ? new Date(dueDate) : null,
         estimatedHours: estimatedHours ? Math.round(Number(estimatedHours)) : null,
+        ...(nextAssigneeIds.length > 0
+          ? { assignees: { create: nextAssigneeIds.map((userId) => ({ userId })) } }
+          : {}),
       },
       include: {
         tracker: true,
         status: true,
         priority: true,
         author: { select: { id: true, firstName: true, lastName: true } },
+        ...issueAssigneesInclude,
+        assignedToGroup: { select: { id: true, name: true } },
         parent: { select: parentSelect },
       },
     });
-    res.status(201).json(issue);
+    res.status(201).json(shapeIssueAssignees(issue));
   } catch (e) {
     console.error('POST /issues:', e);
     res.status(500).json({ error: 'チケットの作成に失敗しました' });
@@ -474,7 +492,6 @@ router.put('/:id', requirePermission('projects', 'use'), async (req: AuthRequest
         trackerId: true,
         statusId: true,
         priorityId: true,
-        assignedToId: true,
         assignedToGroupId: true,
         description: true,
         startDate: true,
@@ -483,6 +500,7 @@ router.put('/:id', requirePermission('projects', 'use'), async (req: AuthRequest
         estimatedHours: true,
         doneRatio: true,
         parentId: true,
+        assignees: { select: { userId: true } },
       },
     });
     if (!existingIssue) {
@@ -508,6 +526,7 @@ router.put('/:id', requirePermission('projects', 'use'), async (req: AuthRequest
       res.status(403).json({ error: `フィールドの編集権限がありません: ${deniedDt}` });
       return;
     }
+    const existingAssigneeIds = existingIssue.assignees.map((a) => a.userId);
     const denied = assertFieldPermissions(
       permissions,
       req.body,
@@ -516,6 +535,7 @@ router.put('/:id', requirePermission('projects', 'use'), async (req: AuthRequest
         trackerId: 'projects.issues.fields.tracker',
         statusId: 'projects.issues.fields.status',
         priorityId: 'projects.issues.fields.priority',
+        assignedToIds: 'projects.issues.fields.assignee',
         assignedToId: 'projects.issues.fields.assignee',
         assignedToGroupId: 'projects.issues.fields.assignee',
         description: 'projects.issues.fields.description',
@@ -524,13 +544,13 @@ router.put('/:id', requirePermission('projects', 'use'), async (req: AuthRequest
         doneRatio: 'projects.issues.fields.doneRatio',
         parentId: 'projects.issues.fields.parent',
       },
-      existingIssue as Record<string, unknown>
+      { ...existingIssue, assignedToIds: existingAssigneeIds } as Record<string, unknown>
     );
     if (denied) {
       res.status(403).json({ error: `フィールドの編集権限がありません: ${denied}` });
       return;
     }
-    const { trackerId, statusId, priorityId, assignedToId, assignedToGroupId, subject, description, startDate, endDate, dueDate, estimatedHours, doneRatio, parentId } = req.body;
+    const { trackerId, statusId, priorityId, assignedToGroupId, subject, description, startDate, endDate, dueDate, estimatedHours, doneRatio, parentId } = req.body;
     const data: any = {};
     if (estimatedHours !== undefined && estimatedHours !== null && !Number.isInteger(Number(estimatedHours))) {
       return res.status(400).json({ error: '予定工数は整数で入力してください' });
@@ -549,7 +569,6 @@ router.put('/:id', requirePermission('projects', 'use'), async (req: AuthRequest
       data.statusId = nextStatusId;
     }
     if (priorityId !== undefined) data.priorityId = priorityId;
-    if (assignedToId !== undefined) data.assignedToId = assignedToId || null;
     if (assignedToGroupId !== undefined) data.assignedToGroupId = assignedToGroupId || null;
     if (subject !== undefined) data.subject = subject;
     if (description !== undefined) data.description = description;
@@ -571,11 +590,13 @@ router.put('/:id', requirePermission('projects', 'use'), async (req: AuthRequest
       data.parentId = nextParentId;
     }
 
-    if (assignedToId) {
-      const user = await prisma.user.findUnique({ where: { id: Number(assignedToId) } });
-      if (user && (user.status === 'pending' || user.status === 'inactive')) {
-        return res.status(400).json({ error: '選択されたユーザー（仮登録または無効）は担当者に指定できません' });
+    const nextAssigneeIds = parseAssignedToIdsFromBody(req.body);
+    if (nextAssigneeIds) {
+      const assigneeError = await validateAssignableUserIds(prisma, nextAssigneeIds);
+      if (assigneeError) {
+        return res.status(400).json({ error: assigneeError });
       }
+      await syncIssueAssignees(prisma, issueId, nextAssigneeIds);
     }
 
     const issue = await prisma.issue.update({
@@ -586,19 +607,20 @@ router.put('/:id', requirePermission('projects', 'use'), async (req: AuthRequest
         status: true,
         priority: true,
         author: { select: { id: true, firstName: true, lastName: true } },
-        assignedTo: { select: { id: true, firstName: true, lastName: true } },
+        ...issueAssigneesInclude,
         assignedToGroup: { select: { id: true, name: true } },
         parent: { select: parentSelect },
         _count: { select: { children: true } },
       },
     });
 
+    const shaped = shapeIssueAssignees(issue);
     if ((issue._count?.children ?? 0) > 0) {
       const aggById = await loadParentAggregations([existingIssue.projectId]);
       const agg = aggById.get(issue.id);
       if (agg) {
         res.json({
-          ...issue,
+          ...shaped,
           startDate: agg.startDate,
           endDate: agg.endDate,
           statusId: agg.statusId ?? issue.statusId,
@@ -607,7 +629,7 @@ router.put('/:id', requirePermission('projects', 'use'), async (req: AuthRequest
         return;
       }
     }
-    res.json(issue);
+    res.json(shaped);
   } catch (e) {
     console.error('チケット更新エラー:', e);
     res.status(500).json({ error: 'チケットの更新に失敗しました' });

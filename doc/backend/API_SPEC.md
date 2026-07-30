@@ -68,11 +68,11 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 | メソッド | パス | 概要 |
 |----------|------|------|
-| GET | `/` | チケット一覧（所属プロジェクトのみ）。Query: `projectId`, `statusId` / `statusIds`（複数）, `trackerId` / `trackerIds`（複数）, `priorityId`, `assignedToId` / `assignedToIds`（複数担当者）, `assignedToGroupId`。複数 ID はカンマ区切りまたは配列。応答に `parentId` / `parent` / `_count.children` を含み、子を持つチケットの `startDate` / `endDate` / `statusId`（`status`）は子孫から集約した値（ステータスは position 最小）。`project` は `{ id, name, company: { id, name } \| null }` を含む（カンバン等クロスプロジェクト表示での企業名表示用） |
+| GET | `/` | チケット一覧（所属プロジェクトのみ）。Query: `projectId`, `statusId` / `statusIds`（複数）, `trackerId` / `trackerIds`（複数）, `priorityId`, `assignedToId` / `assignedToIds`（担当ユーザーのいずれかが一致）, `assignedToGroupId`。複数 ID はカンマ区切りまたは配列。応答に **`assignees`**（`{ id, firstName, lastName }[]`）, `assignedToGroup`, `parentId` / `parent` / `_count.children` を含み、子を持つチケットの `startDate` / `endDate` / `statusId`（`status`）は子孫から集約した値（ステータスは position 最小）。`project` は `{ id, name, company: { id, name } \| null }` を含む（カンバン等クロスプロジェクト表示での企業名表示用）。後方互換で `assignedTo` / `assignedToId` は `assignees` の先頭（無ければ null） |
 | GET | `/meta/options` | メタ（trackers, statuses, priorities, users, groups）。Query: `projectId`（任意）。`projectId` 指定時はメンバー必須で、プロジェクトメンバー・紐付きグループのみ返し、応答に **`workflow`**（当該ユーザーのロールに基づく利用可能ステータス・遷移）を含む。未指定時は全ユーザー・全グループを返し `workflow` は含めない。`statuses` は常に全マスタ（カンバン列・フィルタ用） |
-| GET | `/:id` | チケット詳細（所属プロジェクトのみ）。`parent` / `children`（id, subject, startDate, endDate）を含む。子がある場合 `startDate` / `endDate` / `status` は集約値 |
-| POST | `/` | チケット作成（対象プロジェクトのメンバー必須）。Body に `parentId`（任意・同一プロジェクト・循環不可）。`statusId` はロールの利用可能ステータスに含まれること（否則 400）。権限: 項目 `projects.issues.fields.parent`（`parentId` 指定時） |
-| PUT | `/:id` | チケット更新（所属プロジェクトのみ）。Body に `parentId`（任意・null で解除）。子チケットがある場合 `startDate` / `endDate` / `statusId` の更新は 400。`statusId` 変更時はロールの利用可能ステータス＋ステータス遷移を検証（否則 400）。権限: `projects.issues.fields.parent` 等 |
+| GET | `/:id` | チケット詳細（所属プロジェクトのみ）。`assignees` / `assignedToGroup` / `parent` / `children`（id, subject, startDate, endDate）を含む。子がある場合 `startDate` / `endDate` / `status` は集約値 |
+| POST | `/` | チケット作成（対象プロジェクトのメンバー必須）。Body: **`assignedToIds`**（任意・`number[]`。空配列で担当ユーザーなし。旧 `assignedToId` 単数も受理し 1 件配列相当）, `assignedToGroupId`（任意）, `parentId`（任意・同一プロジェクト・循環不可）等。仮登録・無効ユーザーは 400。`statusId` はロールの利用可能ステータスに含まれること（否則 400）。権限: `projects.issues.fields.assignee`（`assignedToIds` / `assignedToGroupId` / 旧 `assignedToId` 指定時）, `projects.issues.fields.parent`（`parentId` 指定時） |
+| PUT | `/:id` | チケット更新（所属プロジェクトのみ）。Body: **`assignedToIds`**（指定時は中間テーブルをその集合に同期。空配列で全解除。未指定時は変更しない。旧 `assignedToId` も受理）, `assignedToGroupId`, `parentId`（任意・null で解除）等。子チケットがある場合 `startDate` / `endDate` / `statusId` の更新は 400。`statusId` 変更時はロールの利用可能ステータス＋ステータス遷移を検証（否則 400）。権限: `projects.issues.fields.assignee` / `projects.issues.fields.parent` 等 |
 | DELETE | `/:id` | チケット削除（所属プロジェクトのみ） |
 | PUT | `/reorder` | 順序更新。Body: `issues: [{ id, position }]`（対象チケットのプロジェクトへの所属必須） |
 | POST | `/:id/relations` | 関連追加（所属プロジェクトのみ） |

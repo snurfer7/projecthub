@@ -16,6 +16,18 @@ docker-compose down && docker-compose build && docker-compose up -d
 - **Backend**: ポート 3000（既定で LocalStack S3 にファイルを保存）
 - **Frontend**: ポート 5173
 
+### Prisma スキーマ変更時（ローカル Docker）
+
+`schema.prisma` / `prisma/migrations` はコンテナにマウントされますが、**Prisma Client（`node_modules/.prisma`）はコンテナ内生成物**です。そのためスキーマだけ変えても、起動中プロセスの Client が古いままだと `Unknown field ...` になります。
+
+**回避（推奨）**
+
+1. マイグレーション追加後は DB 反映のため backend を再起動する:  
+   `docker compose restart backend`  
+   （起動時に `prisma migrate deploy` と Client 生成が走る）
+2. 以降、`schema.prisma` を保存すると **自動で `prisma generate` → サーバー再起動**する（`scripts/dev-server.mjs`）。
+3. ホスト側だけで `npx prisma generate` しても、コンテナの Client は更新されない（`node_modules` は共有していない）。
+
 旧 CRM のデータ移行（`npm run migrate:legacy-crm`）は **ローカル DB 上でのみ**実行し、本番では実行しない想定です。本番への反映は DB・S3 を手動で持ち込みます（手順は [backend/migration/legacy-crm/README.md](backend/migration/legacy-crm/README.md) を参照）。
 
 ### メール送信のローカルテスト方法
