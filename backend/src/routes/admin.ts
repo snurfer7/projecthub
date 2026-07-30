@@ -500,9 +500,6 @@ router.post('/roles', requirePermission('admin.roles', 'input'), async (req: Aut
     const { name, position, isDefaultRole } = req.body;
     const max = await prisma.role.aggregate({ _max: { position: true } });
     const nextPos = (max._max.position ?? 0) + 1;
-    if (isDefaultRole) {
-      await prisma.role.updateMany({ data: { isDefaultRole: false } });
-    }
     res.status(201).json(
       await prisma.role.create({
         data: { name, position: position ?? nextPos, isDefaultRole: !!isDefaultRole },
@@ -524,9 +521,6 @@ router.put('/roles/:id', requirePermission('admin.roles', 'input'), async (req: 
     const data: any = { name };
     if (position !== undefined) data.position = position;
     if (isDefaultRole !== undefined) {
-      if (isDefaultRole) {
-        await prisma.role.updateMany({ where: { id: { not: id } }, data: { isDefaultRole: false } });
-      }
       data.isDefaultRole = !!isDefaultRole;
     }
 

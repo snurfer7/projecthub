@@ -25,7 +25,7 @@
 - **Tracker** — チケット種別（Bug, Feature 等）。
 - **IssueStatus** — ステータス（Open, Closed 等）。isClosed, position。RoleStatus, WorkflowTransition と関連。
 - **IssuePriority** — 優先度。
-- **Role** — プロジェクト内ロール。RoleStatus、WorkflowTransition、**RolePermission**（プロジェクト詳細権限）と関連。`isDefaultRole` はプロジェクト作成時に作成者へ付与する初期ロール。
+- **Role** — プロジェクト内ロール。RoleStatus、WorkflowTransition、**RolePermission**（プロジェクト詳細権限）と関連。`isDefaultRole` はメンバー／グループ追加時のロール選択の初期値（複数可）。プロジェクト作成時の作成者には全ロールを付与する。
 - **RolePermission** — Role と PermissionResource（scope=role）の対応。canUse / canInput。
 - **RoleStatus** — Role と IssueStatus の対応。「利用可能なステータス」。チケット作成時の初期ステータスおよび遷移先として設定可能な範囲をロール単位で制限する。
 - **WorkflowTransition** — ロールごとの「旧ステータス → 新ステータス」の遷移許可。チケット更新・カンバン移動時に検証する。

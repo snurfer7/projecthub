@@ -124,12 +124,9 @@ router.post('/', requirePermission('projects', 'input'), async (req: AuthRequest
       return res.status(400).json({ error: 'プロジェクト名と識別子が必要です' });
     }
 
-    // Role for the creator
-    const managerRole =
-      (await prisma.role.findFirst({ where: { isDefaultRole: true } })) ||
-      (await prisma.role.findFirst({ where: { name: '管理者' } })) ||
-      (await prisma.role.findFirst());
-    if (!managerRole) return res.status(500).json({ error: 'ロールが見つかりません' });
+    // Creator gets every Role (same as ensureProjectHasMember fallback)
+    const allRoles = await prisma.role.findMany({ select: { id: true } });
+    if (allRoles.length === 0) return res.status(500).json({ error: 'ロールが見つかりません' });
 
     const project = await prisma.project.create({
       data: {
@@ -153,8 +150,10 @@ router.post('/', requirePermission('projects', 'input'), async (req: AuthRequest
         members: {
           create: {
             userId: req.userId!,
-            roles: { create: { roleId: managerRole.id, sourceGroupId: null } }
-          }
+            roles: {
+              create: allRoles.map((r) => ({ roleId: r.id, sourceGroupId: null })),
+            },
+          },
         },
       },
     });

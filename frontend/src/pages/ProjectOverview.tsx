@@ -47,8 +47,9 @@ export default function ProjectOverview() {
     useEffect(() => {
         if (!canEditMembers) return;
         api.get('/projects/roles/available').then((res) => {
-            setRoles(res.data);
-            if (res.data.length > 0) setSelectedRoleIds(new Set([res.data[0].id]));
+            const list: Role[] = res.data;
+            setRoles(list);
+            setSelectedRoleIds(new Set(list.filter((r) => r.isDefaultRole).map((r) => r.id)));
         }).catch(() => { });
         api.get('/admin/groups').then((res) => setAllGroups(res.data)).catch(() => { });
         api.get('/issues/meta/options').then((res) => setAllUsers(res.data.users)).catch(() => { });

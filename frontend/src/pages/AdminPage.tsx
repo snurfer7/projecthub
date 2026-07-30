@@ -1250,9 +1250,9 @@ export default function AdminPage({ user }: Props) {
                   onChange={(e) => setMasterIsDefaultRole(e.target.checked)}
                   className="rounded border-gray-300 text-sky-600 focus:ring-sky-500"
                 />
-                <span className="text-sm font-medium text-gray-700">プロジェクトの初期ロール</span>
+                <span className="text-sm font-medium text-gray-700">初期ロール</span>
               </label>
-              <p className="text-xs text-gray-500 mt-1 ml-6">プロジェクト作成時に作成者へ自動で割り当てられるロールです。有効にできるのは1つのみです。</p>
+              <p className="text-xs text-gray-500 mt-1 ml-6">プロジェクトのメンバー追加時に、ロール選択の初期値として使われます。複数のロールに設定できます。</p>
             </div>
           )}
 
