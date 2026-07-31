@@ -13,9 +13,11 @@ interface TimeEntryModalProps {
   onSuccess: () => void;
   projectId: number;
   entry?: TimeEntry;
+  /** 指定時はチケットを固定し、チケット選択 UI を出さない（チケット詳細からの追加・編集） */
+  fixedIssueId?: number;
 }
 
-export default function TimeEntryModal({ isOpen, onClose, onSuccess, projectId, entry }: TimeEntryModalProps) {
+export default function TimeEntryModal({ isOpen, onClose, onSuccess, projectId, entry, fixedIssueId }: TimeEntryModalProps) {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [issueId, setIssueId] = useState('');
   const [hours, setHours] = useState('');
@@ -23,33 +25,39 @@ export default function TimeEntryModal({ isOpen, onClose, onSuccess, projectId, 
   const [spentOn, setSpentOn] = useState(new Date().toISOString().split('T')[0]);
   const [comments, setComments] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const issueLocked = fixedIssueId != null;
 
   useEffect(() => {
     if (isOpen) {
-      api.get('/issues', { params: { projectId } }).then((res) => setIssues(res.data)).catch(() => {});
-      
+      if (!issueLocked) {
+        api.get('/issues', { params: { projectId } }).then((res) => setIssues(res.data)).catch(() => {});
+      }
+
       if (entry) {
-        setIssueId(entry.issueId ? String(entry.issueId) : '');
+        setIssueId(entry.issueId ? String(entry.issueId) : (fixedIssueId != null ? String(fixedIssueId) : ''));
         setHours(String(entry.hours));
         setActivity(entry.activity);
         setSpentOn(entry.spentOn.split('T')[0]);
         setComments(entry.comments || '');
       } else {
-        setIssueId('');
+        setIssueId(fixedIssueId != null ? String(fixedIssueId) : '');
         setHours('');
         setActivity('開発');
         setSpentOn(new Date().toISOString().split('T')[0]);
         setComments('');
       }
     }
-  }, [isOpen, entry, projectId]);
+  }, [isOpen, entry, projectId, fixedIssueId, issueLocked]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
+    const resolvedIssueId = fixedIssueId != null
+      ? fixedIssueId
+      : (issueId ? Number(issueId) : null);
     const data = {
       projectId: Number(projectId),
-      issueId: issueId ? Number(issueId) : null,
+      issueId: resolvedIssueId,
       hours: Number(hours),
       activity,
       spentOn,
@@ -90,16 +98,18 @@ export default function TimeEntryModal({ isOpen, onClose, onSuccess, projectId, 
     >
       <form id="time-entry-form" onSubmit={handleSubmit}>
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Combobox
-                label="チケット"
-                options={issues.map((i) => ({ value: String(i.id), label: `#${i.id} ${i.subject}` }))}
-                value={issueId}
-                onChange={setIssueId}
-                size="medium"
-              />
-            </div>
+          <div className={`grid grid-cols-1 ${issueLocked ? '' : 'md:grid-cols-2'} gap-4`}>
+            {!issueLocked && (
+              <div>
+                <Combobox
+                  label="チケット"
+                  options={issues.map((i) => ({ value: String(i.id), label: `#${i.id} ${i.subject}` }))}
+                  value={issueId}
+                  onChange={setIssueId}
+                  size="medium"
+                />
+              </div>
+            )}
             <div>
               <NumberInput
                 label="時間 *"

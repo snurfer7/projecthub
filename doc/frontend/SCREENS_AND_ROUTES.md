@@ -34,7 +34,7 @@
 | `/projects/:projectId/gantt` | GanttPage | ガント（プロジェクト単位）。親チケットは子孫の期間を集約表示しバーの移動・リサイズ不可。子はインデント表示。開始日・終了日・期日がすべて未設定のチケットも行として表示（バーはなし）。縦スクロールはページ全体、日付ヘッダーは上部到達で sticky 固定。ヘッダーは年・月を階層表示し、タイムラインの縦線は年境界／月境界（やや太）／週境界で区分。行の区切りはルートプロジェクト塊の境界（ヘッダー下・塊末尾）を濃い実線、親子チケット間を破線、それ以外を通常の実線とする。左右スクロールでバーが可視枠外に出た場合は枠端に末端ヒントを表示（操作不可）。関連の両端が枠外のときは紐づけ線を非表示。**休日設定**（`GET /settings/calendar`）を反映し、日表示で非営業日列を赤系で強調。予定工数から終了を算出するとき非営業日をスキップ。バー移動・新規・関連作成: `projects.issues` canInput |
 | `/projects/:projectId/time-entries` | TimeEntriesPage | 工数一覧。追加・編集・削除: `projects.time-entries` canInput |
 | `/projects/:projectId/activities` | ProjectActivitiesPage | 活動履歴一覧（企業活動との N:N 紐づき）。表示条件: `projects.activities` canUse。既存活動の紐づけ追加・解除は `companies.activities` canInput。候補は主企業・関連企業の、当該プロジェクト未紐づけの活動。企業が未設定の場合は紐づけ不可。活動の新規作成は不可（企業詳細側で作成） |
-| `/issues/:id` | IssueDetailPage | チケット詳細。説明は Markdown 表示。親チケットへのリンクを表示。子がある場合の開始・終了・ステータスは集約値。編集・コメント・関連: `projects.issues` canInput。時間記録: `projects.time-entries` canInput |
+| `/issues/:id` | IssueDetailPage | チケット詳細。説明は Markdown 表示。親チケットへのリンクを表示。子がある場合の開始・終了・ステータスは集約値。編集・コメント・関連: `projects.issues` canInput。時間記録: `projects.time-entries` canInput。**時間記録の追加・編集モーダル**はこのチケットに固定し、チケット選択 UI は表示しない（`TimeEntryModal` に `fixedIssueId` を渡す）。プロジェクト工数一覧からの追加ではチケット選択可 |
 | `/issues/:id/edit` | IssueFormPage | チケット編集（親チケット・開始/終了の挙動は新規作成と同様）。ステータスは現在値＋許可された遷移先のみ選択可 |
 | `/companies` | CompaniesPage | 会社一覧（API ページング・サーバー側検索。ページサイズ変更・前後ページ）。検索語・ページ・件数・法人格表示の有無は `sessionStorage` に保持し、企業詳細から一覧へ戻った際に復元する。ヘッダー（トップバー）の「企業」をクリックしたときは当該保持を削除し条件を初期化する |
 | `/deals` | DealsPage | 商談一覧（全企業横断）。`GET /crm/deals`（`page`, `pageSize`, `q`, `status`）でサーバー側ページング・検索。ステータス絞り込みドロップダウン付き。行クリックで `/companies/:id?tab=deals` へ遷移。表示条件: `deals` canUse |

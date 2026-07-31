@@ -715,6 +715,7 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh, permissi
                 onSuccess={load}
                 projectId={issue.projectId}
                 entry={editingTimeEntry}
+                fixedIssueId={issue.id}
             />
         </div>
     );
