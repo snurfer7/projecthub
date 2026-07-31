@@ -38,7 +38,7 @@ interface ProjectListFilterPanelProps {
   issueCount?: number;
   entryCount?: number;
   onNewProjectClick: () => void;
-  /** 一覧／ガントのプロジェクト並び替えモーダルを開く */
+  /** 一覧／ガント／時間のプロジェクト並び替えモーダルを開く */
   onSortClick?: () => void;
   /** ガント／カンバン／時間のチケット並び替えモーダルを開く */
   onIssueSortClick?: () => void;
@@ -412,7 +412,7 @@ export default function ProjectListFilterPanel({
 
       <div className="p-3 space-y-3">
         <FilterRow label="プロジェクト">
-          {(viewMode === 'list' || viewMode === 'gantt') && onSortClick && (
+          {(viewMode === 'list' || viewMode === 'gantt' || viewMode === 'time') && onSortClick && (
             <button
               type="button"
               onClick={onSortClick}

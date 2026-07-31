@@ -528,7 +528,7 @@ export interface SavedSearchFilter {
   timeRecordDateRelative?: DateRangeRelativePreset | '';
   /** 記録者。ユーザー ID およびグループ選択 `g:{groupId}`（API 時はメンバー ID へ展開） */
   timeRecordFilterUserIds?: (number | string)[];
-  /** 一覧: 複合並び替え（ルートのみ。省略時は既存の並びを維持） */
+  /** 一覧／ガント／時間: プロジェクト複合並び替え（省略時は既存の並びを維持） */
   listSort?: {
     key: string;
     direction: 'asc' | 'desc';

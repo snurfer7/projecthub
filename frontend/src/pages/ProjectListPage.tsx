@@ -855,6 +855,7 @@ export default function ProjectListPage() {
           issues={timeFilteredIssues}
           timeEntries={timeEntries}
           onRefresh={loadTimeData}
+          projectSort={listSort}
           issueSort={issueSort}
         />
       )}
