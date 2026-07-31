@@ -534,6 +534,13 @@ export interface SavedSearchFilter {
     /** 省略値の位置（企業名・期限など。省略時は末尾） */
     emptyPlacement?: 'first' | 'last';
   }[];
+  /** ガント／カンバン／時間: チケット複合並び替え（省略時は既存の並びを維持） */
+  issueSort?: {
+    key: string;
+    direction: 'asc' | 'desc';
+    /** 省略値の位置（期日・開始日・終了日・担当者など。省略時は末尾） */
+    emptyPlacement?: 'first' | 'last';
+  }[];
 }
 
 export interface SavedSearch {

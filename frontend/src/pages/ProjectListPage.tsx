@@ -7,6 +7,7 @@ import Modal from '../components/Modal';
 import GanttChart from '../components/GanttChart';
 import ProjectListFilterPanel from '../components/ProjectListFilterPanel';
 import ProjectListSortModal from '../components/ProjectListSortModal';
+import IssueListSortModal from '../components/IssueListSortModal';
 import KanbanBoard from '../components/KanbanBoard';
 import IssueDetail from '../components/IssueDetail';
 import { IssueFormModal } from '../components/IssueForm';
@@ -32,6 +33,15 @@ import {
   type ProjectListSortDirection,
   type ProjectListSortKey,
 } from '../utils/projectTree';
+import {
+  ISSUE_LIST_SORT_OPTIONS,
+  createIssueSortEntry,
+  isOptionalIssueSortKey,
+  type IssueListEmptyPlacement,
+  type IssueListSort,
+  type IssueListSortDirection,
+  type IssueListSortKey,
+} from '../utils/issueSort';
 import type { ProjectListViewMode } from '../utils/projectListStorage';
 import { generateIdentifier } from '../utils/format';
 import {
@@ -64,6 +74,8 @@ export default function ProjectListPage() {
     setShowEmptyProjects,
     listSort,
     setListSort,
+    issueSort,
+    setIssueSort,
   } = useProjectListFilters(initialViewMode);
 
   useEffect(() => {
@@ -85,6 +97,7 @@ export default function ProjectListPage() {
   const [ganttCollapsedProjects, setGanttCollapsedProjects] = useState<Set<number>>(new Set());
   const [listCollapsedIds, setListCollapsedIds] = useState<Set<number>>(() => new Set());
   const [showSortModal, setShowSortModal] = useState(false);
+  const [showIssueSortModal, setShowIssueSortModal] = useState(false);
 
   const [kanbanIssues, setKanbanIssues] = useState<Issue[]>([]);
   const [kanbanStatuses, setKanbanStatuses] = useState<IssueStatus[]>([]);
@@ -250,9 +263,31 @@ export default function ProjectListPage() {
         }
         if (parsed.length > 0) setListSort(parsed);
       }
+      if (Array.isArray(f.issueSort)) {
+        const validKeys = new Set(ISSUE_LIST_SORT_OPTIONS.map((o) => o.key));
+        const parsed: IssueListSort[] = [];
+        const seen = new Set<IssueListSortKey>();
+        for (const item of f.issueSort) {
+          if (!item || typeof item !== 'object') continue;
+          const key = item.key as IssueListSortKey;
+          const direction = item.direction as IssueListSortDirection;
+          if (!validKeys.has(key) || (direction !== 'asc' && direction !== 'desc')) continue;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const entry = createIssueSortEntry(key, direction);
+          if (
+            isOptionalIssueSortKey(key) &&
+            (item.emptyPlacement === 'first' || item.emptyPlacement === 'last')
+          ) {
+            entry.emptyPlacement = item.emptyPlacement as IssueListEmptyPlacement;
+          }
+          parsed.push(entry);
+        }
+        if (parsed.length > 0) setIssueSort(parsed);
+      }
       setActiveSavedSearchId(search.id);
     },
-    [setProjectFilter, setIssueFilter, setGanttZoom, setShowEmptyProjects, setListSort, viewMode],
+    [setProjectFilter, setIssueFilter, setGanttZoom, setShowEmptyProjects, setListSort, setIssueSort, viewMode],
   );
 
   /** 保存済み検索のデフォルトを自動適用（表示モード切替時）。古い応答は破棄する */
@@ -662,7 +697,9 @@ export default function ProjectListPage() {
         entryCount={viewMode === 'time' ? timeEntries.length : undefined}
         onNewProjectClick={openCreateProjectModal}
         onSortClick={() => setShowSortModal(true)}
+        onIssueSortClick={() => setShowIssueSortModal(true)}
         listSort={listSort}
+        issueSort={issueSort}
         activeSavedSearchId={activeSavedSearchId}
         onLoadSavedSearch={applyFilter}
       />
@@ -763,6 +800,7 @@ export default function ProjectListPage() {
           showProject
           showEmptyProjects={showEmptyProjects}
           projectSort={listSort}
+          issueSort={issueSort}
           systemSettings={systemSettings}
           onUpdateIssue={handleUpdateIssue}
           onIssueCreated={loadGanttData}
@@ -794,6 +832,7 @@ export default function ProjectListPage() {
           onDrop={handleKanbanDrop}
           onIssueClick={handleIssueClick}
           showProjectName={true}
+          issueSort={issueSort}
         />
       )}
 
@@ -803,6 +842,7 @@ export default function ProjectListPage() {
           issues={timeFilteredIssues}
           timeEntries={timeEntries}
           onRefresh={loadTimeData}
+          issueSort={issueSort}
         />
       )}
 
@@ -812,6 +852,16 @@ export default function ProjectListPage() {
         value={listSort}
         onApply={(sort) => {
           setListSort(sort);
+          setActiveSavedSearchId(null);
+        }}
+      />
+
+      <IssueListSortModal
+        isOpen={showIssueSortModal}
+        onClose={() => setShowIssueSortModal(false)}
+        value={issueSort}
+        onApply={(sort) => {
+          setIssueSort(sort);
           setActiveSavedSearchId(null);
         }}
       />

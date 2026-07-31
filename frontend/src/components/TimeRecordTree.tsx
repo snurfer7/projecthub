@@ -4,6 +4,7 @@ import api from '../api/client';
 import { Project, Issue, TimeEntry, PermissionMap } from '../types';
 import DateInput from './DateInput';
 import { prefetchProjectPermissions, projectMapCanInput } from '../utils/projectPermissionsCache';
+import { sortSiblingIssues, type IssueListSort } from '../utils/issueSort';
 
 const ACTIVITY_OPTIONS = ['開発', '設計', 'レビュー', 'テスト', 'ドキュメント', 'その他'];
 
@@ -12,6 +13,8 @@ interface TimeRecordTreeProps {
   issues: Issue[];
   timeEntries: TimeEntry[];
   onRefresh: () => void;
+  /** プロジェクト配下のチケット並び替え */
+  issueSort?: IssueListSort[];
 }
 
 interface TreeIssue {
@@ -26,7 +29,7 @@ interface ProjectNode {
   children: ProjectNode[];
 }
 
-export default function TimeRecordTree({ projects, issues, timeEntries, onRefresh }: TimeRecordTreeProps) {
+export default function TimeRecordTree({ projects, issues, timeEntries, onRefresh, issueSort }: TimeRecordTreeProps) {
   const [collapsedProjects, setCollapsedProjects] = useState<Set<number>>(new Set());
   const [collapsedIssues, setCollapsedIssues] = useState<Set<number>>(new Set());
   const [permByProject, setPermByProject] = useState<Record<number, PermissionMap>>({});
@@ -75,7 +78,7 @@ export default function TimeRecordTree({ projects, issues, timeEntries, onRefres
     }
 
     const issuesByProjectId = new Map<number, TreeIssue[]>();
-    for (const issue of filteredIssues) {
+    for (const issue of sortSiblingIssues(filteredIssues, issueSort)) {
       if (!issuesByProjectId.has(issue.projectId)) issuesByProjectId.set(issue.projectId, []);
       issuesByProjectId.get(issue.projectId)!.push({
         issue,
@@ -110,7 +113,7 @@ export default function TimeRecordTree({ projects, issues, timeEntries, onRefres
       .filter((p) => hasContent(p.id))
       .map((p) => buildNode(p, 0))
       .filter((n): n is ProjectNode => n !== null);
-  }, [projects, issues, timeEntries]);
+  }, [projects, issues, timeEntries, issueSort]);
 
   const toggleProject = (id: number) => {
     setCollapsedProjects((prev) => {

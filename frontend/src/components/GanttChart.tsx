@@ -13,6 +13,7 @@ import { addWorkingDays, advanceToWorkingDay, isNonWorkingDay } from '../utils/h
 import Combobox from './Combobox';
 import CustomDatePicker from './CustomDatePicker';
 import { filterProjectsKeepingAncestorsOfTicketed, sortSiblingProjects, type ProjectListSort } from '../utils/projectTree';
+import { orderIssuesHierarchically, type IssueListSort } from '../utils/issueSort';
 import type { PermissionMap } from '../types';
 import { usePermissions } from '../hooks/usePermissions';
 import { prefetchProjectPermissions, projectMapCanInput, getCachedProjectPermissions } from '../utils/projectPermissionsCache';
@@ -26,6 +27,8 @@ interface GanttChartProps {
   showEmptyProjects?: boolean;
   /** プロジェクトの並び替え（兄弟間。親子のまとまりは維持） */
   projectSort?: ProjectListSort[];
+  /** チケットの並び替え（兄弟間。親子のまとまりは維持） */
+  issueSort?: IssueListSort[];
   /** チケット作成・編集モーダル用のプロジェクトロール権限（単一プロジェクト時） */
   issueFormPermissions?: PermissionMap;
   onUpdateIssue: (id: number, data: { startDate?: string; endDate?: string; dueDate?: string }) => Promise<void>;
@@ -452,33 +455,6 @@ function resolveIssueScheduleWithChildren(
   return result;
 }
 
-function orderIssuesHierarchically(issues: Issue[]): { issue: Issue; depth: number }[] {
-  const byId = new Map(issues.map((i) => [i.id, i]));
-  const childrenMap = new Map<number, Issue[]>();
-  for (const issue of issues) {
-    if (issue.parentId != null && byId.has(issue.parentId)) {
-      const list = childrenMap.get(issue.parentId) ?? [];
-      list.push(issue);
-      childrenMap.set(issue.parentId, list);
-    }
-  }
-  const roots = issues.filter((i) => i.parentId == null || !byId.has(i.parentId));
-  const result: { issue: Issue; depth: number }[] = [];
-  const visited = new Set<number>();
-  const visit = (issue: Issue, depth: number) => {
-    if (visited.has(issue.id)) return;
-    visited.add(issue.id);
-    result.push({ issue, depth });
-    const children = (childrenMap.get(issue.id) ?? []).sort((a, b) => a.id - b.id);
-    children.forEach((c) => visit(c, depth + 1));
-  };
-  roots.sort((a, b) => a.id - b.id).forEach((r) => visit(r, 0));
-  issues.forEach((i) => {
-    if (!visited.has(i.id)) visit(i, 0);
-  });
-  return result;
-}
-
 function convertRangeOnZoomChange(
   fromZoom: ZoomLevel,
   toZoom: ZoomLevel,
@@ -551,6 +527,7 @@ export default function GanttChart({
   showProject,
   showEmptyProjects = true,
   projectSort,
+  issueSort,
   onUpdateIssue, 
   onIssueCreated, 
   onRelationCreated, 
@@ -1161,7 +1138,7 @@ export default function GanttChart({
     const depthMap = new Map<number, number>();
 
     if (!showProject) {
-      const ordered = orderIssuesHierarchically(filteredIssues);
+      const ordered = orderIssuesHierarchically(filteredIssues, issueSort);
       ordered.forEach(({ issue, depth }) => depthMap.set(issue.id, depth));
       return {
         groupedIssues: [{
@@ -1224,7 +1201,7 @@ export default function GanttChart({
     }
 
     Object.values(groups).forEach((group) => {
-      const ordered = orderIssuesHierarchically(group.issues);
+      const ordered = orderIssuesHierarchically(group.issues, issueSort);
       group.issues = ordered.map((o) => o.issue);
       ordered.forEach(({ issue, depth }) => depthMap.set(issue.id, depth));
     });
@@ -1300,7 +1277,7 @@ export default function GanttChart({
     });
 
     return { groupedIssues: result, issueDepthById: depthMap };
-  }, [filteredIssues, projects, showProject, showEmptyProjects, collapsedProjects, projectSort]);
+  }, [filteredIssues, projects, showProject, showEmptyProjects, collapsedProjects, projectSort, issueSort]);
 
   // 各チケットの絶対位置を計算（線引き用）
   const issuePositions = useMemo(() => {

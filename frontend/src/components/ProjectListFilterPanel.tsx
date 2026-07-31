@@ -6,6 +6,7 @@ import { SELF_COMPANY_FILTER_VALUE, type ProjectFilterCriteria } from '../utils/
 import type { IssueFilterCriteria } from '../utils/issueFilter';
 import type { ProjectListViewMode } from '../utils/projectListStorage';
 import type { ProjectListSort } from '../utils/projectTree';
+import type { IssueListSort } from '../utils/issueSort';
 import Combobox, { type ComboboxOption } from './Combobox';
 import TextInput from './TextInput';
 import CustomDatePicker from './CustomDatePicker';
@@ -37,10 +38,14 @@ interface ProjectListFilterPanelProps {
   issueCount?: number;
   entryCount?: number;
   onNewProjectClick: () => void;
-  /** 一覧の並び替えモーダルを開く（list 表示時のみ） */
+  /** 一覧／ガントのプロジェクト並び替えモーダルを開く */
   onSortClick?: () => void;
+  /** ガント／カンバン／時間のチケット並び替えモーダルを開く */
+  onIssueSortClick?: () => void;
   /** 一覧の並び替え条件（保存済み検索に含める） */
   listSort: ProjectListSort[];
+  /** チケットの並び替え条件（保存済み検索に含める） */
+  issueSort: IssueListSort[];
   /** 保存済み検索: 現在アクティブな ID */
   activeSavedSearchId: number | null;
   /** 保存済み検索をロードしたときのコールバック */
@@ -103,7 +108,9 @@ export default function ProjectListFilterPanel({
   entryCount,
   onNewProjectClick,
   onSortClick,
+  onIssueSortClick,
   listSort,
+  issueSort,
   activeSavedSearchId,
   onLoadSavedSearch,
 }: ProjectListFilterPanelProps) {
@@ -371,6 +378,7 @@ export default function ProjectListFilterPanel({
       : {}),
     timeRecordFilterUserIds,
     listSort,
+    issueSort,
   };
 
   return (
@@ -393,16 +401,6 @@ export default function ProjectListFilterPanel({
           currentFilter={currentFilter}
           onLoad={onLoadSavedSearch}
         />
-        { (viewMode === 'list' || viewMode === 'gantt') && onSortClick && (
-          <button
-            type="button"
-            onClick={onSortClick}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 shadow-sm transition-all whitespace-nowrap shrink-0"
-          >
-            <ArrowUpDown size={15} />
-            並び替え
-          </button>
-        )}
         <button
           type="button"
           onClick={onNewProjectClick}
@@ -414,6 +412,16 @@ export default function ProjectListFilterPanel({
 
       <div className="p-3 space-y-3">
         <FilterRow label="プロジェクト">
+          {(viewMode === 'list' || viewMode === 'gantt') && onSortClick && (
+            <button
+              type="button"
+              onClick={onSortClick}
+              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 min-h-[32px] whitespace-nowrap shrink-0"
+            >
+              <ArrowUpDown size={12} />
+              並び替え
+            </button>
+          )}
           <DateRangeSpecify
             label="期限日"
             value={{
@@ -462,6 +470,16 @@ export default function ProjectListFilterPanel({
 
         {showTicketFilters && (
           <FilterRow label="チケット">
+            {onIssueSortClick && (
+              <button
+                type="button"
+                onClick={onIssueSortClick}
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 min-h-[32px] whitespace-nowrap shrink-0"
+              >
+                <ArrowUpDown size={12} />
+                並び替え
+              </button>
+            )}
             {showTicketDueDateFilter && (
               <DateRangeSpecify
                 label="期限"

@@ -13,6 +13,15 @@ import {
   type ProjectListSortKey,
 } from './projectTree';
 import {
+  DEFAULT_ISSUE_LIST_SORT,
+  createIssueSortEntry,
+  isOptionalIssueSortKey,
+  type IssueListEmptyPlacement,
+  type IssueListSort,
+  type IssueListSortDirection,
+  type IssueListSortKey,
+} from './issueSort';
+import {
   isDateRangeRelativePreset,
   isDateRangeSpecifyMode,
   type DateRangeRelativePreset,
@@ -35,6 +44,8 @@ export type PersistedProjectList = {
   showEmptyProjects: boolean;
   /** 一覧: 複合列ソート（ルートのみ・優先順） */
   listSort: ProjectListSort[];
+  /** ガント／カンバン／時間: チケット複合並び替え */
+  issueSort: IssueListSort[];
 };
 
 export function defaultPersistedProjectList(): Omit<PersistedProjectList, 'v'> {
@@ -45,6 +56,7 @@ export function defaultPersistedProjectList(): Omit<PersistedProjectList, 'v'> {
     ganttZoom: 'day',
     showEmptyProjects: true,
     listSort: [...DEFAULT_PROJECT_LIST_SORT],
+    issueSort: [...DEFAULT_ISSUE_LIST_SORT],
   };
 }
 
@@ -90,6 +102,47 @@ function parseListSort(o: Record<string, unknown>): ProjectListSort[] {
     return [createSortEntry(o.listSortKey, o.listSortDirection)];
   }
   return [...DEFAULT_PROJECT_LIST_SORT];
+}
+
+function isIssueSortKey(v: unknown): v is IssueListSortKey {
+  return (
+    v === 'id' ||
+    v === 'subject' ||
+    v === 'tracker' ||
+    v === 'status' ||
+    v === 'priority' ||
+    v === 'dueDate' ||
+    v === 'startDate' ||
+    v === 'endDate' ||
+    v === 'assignee'
+  );
+}
+
+function isIssueSortDirection(v: unknown): v is IssueListSortDirection {
+  return v === 'asc' || v === 'desc';
+}
+
+function isIssueEmptyPlacement(v: unknown): v is IssueListEmptyPlacement {
+  return v === 'first' || v === 'last';
+}
+
+function parseIssueSort(o: Record<string, unknown>): IssueListSort[] {
+  if (!Array.isArray(o.issueSort)) return [...DEFAULT_ISSUE_LIST_SORT];
+  const parsed: IssueListSort[] = [];
+  const seen = new Set<IssueListSortKey>();
+  for (const item of o.issueSort) {
+    if (!item || typeof item !== 'object') continue;
+    const s = item as Record<string, unknown>;
+    if (!isIssueSortKey(s.key) || !isIssueSortDirection(s.direction)) continue;
+    if (seen.has(s.key)) continue;
+    seen.add(s.key);
+    const entry = createIssueSortEntry(s.key, s.direction);
+    if (isOptionalIssueSortKey(s.key) && isIssueEmptyPlacement(s.emptyPlacement)) {
+      entry.emptyPlacement = s.emptyPlacement;
+    }
+    parsed.push(entry);
+  }
+  return parsed.length > 0 ? parsed : [...DEFAULT_ISSUE_LIST_SORT];
 }
 
 function isViewMode(v: unknown): v is ProjectListViewMode {
@@ -196,6 +249,7 @@ export function readPersistedProjectList(): Omit<PersistedProjectList, 'v'> | nu
       ganttZoom: o.ganttZoom,
       showEmptyProjects: typeof o.showEmptyProjects === 'boolean' ? o.showEmptyProjects : true,
       listSort: parseListSort(o as unknown as Record<string, unknown>),
+      issueSort: parseIssueSort(o as unknown as Record<string, unknown>),
     };
   } catch {
     return null;

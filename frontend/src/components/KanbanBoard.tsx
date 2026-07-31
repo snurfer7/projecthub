@@ -4,6 +4,7 @@ import { Users, Plus } from 'lucide-react';
 import { Issue, IssueStatus } from '../types';
 import { buildIssueByIdMap, getAncestorChain, isLeafIssue } from '../utils/issueTree';
 import { formatIssueAssignees } from '../utils/issueAssignees';
+import { sortSiblingIssues, type IssueListSort } from '../utils/issueSort';
 
 interface KanbanBoardProps {
     statuses: IssueStatus[];
@@ -21,6 +22,8 @@ interface KanbanBoardProps {
     canDropToStatus?: (issueId: number, targetStatusId: number) => boolean;
     /** 列からの新規作成可否（未指定時はすべて許可） */
     canCreateInStatus?: (statusId: number) => boolean;
+    /** 列内のチケット並び替え */
+    issueSort?: IssueListSort[];
 }
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -197,6 +200,7 @@ export default function KanbanBoard({
     canDrag = true,
     canDropToStatus,
     canCreateInStatus,
+    issueSort,
 }: KanbanBoardProps) {
     const [draggingIssueId, setDraggingIssueId] = useState<number | null>(null);
     const [dragOverStatusId, setDragOverStatusId] = useState<number | null>(null);
@@ -209,8 +213,11 @@ export default function KanbanBoard({
     const byId = useMemo(() => buildIssueByIdMap(hierarchy), [hierarchy]);
 
     const leafIssues = useMemo(
-        () => issues.filter((issue) => isLeafIssue(issue, hierarchy)),
-        [issues, hierarchy]
+        () => sortSiblingIssues(
+            issues.filter((issue) => isLeafIssue(issue, hierarchy)),
+            issueSort,
+        ),
+        [issues, hierarchy, issueSort]
     );
 
     const handleDragStart = (issueId: number) => {
