@@ -526,6 +526,7 @@ export interface SavedSearchFilter {
   timeRecordEndDate?: string;
   timeRecordDateMode?: DateRangeSpecifyMode;
   timeRecordDateRelative?: DateRangeRelativePreset | '';
+  /** 記録者。ユーザー ID およびグループ選択 `g:{groupId}`（API 時はメンバー ID へ展開） */
   timeRecordFilterUserIds?: (number | string)[];
   /** 一覧: 複合並び替え（ルートのみ。省略時は既存の並びを維持） */
   listSort?: {

@@ -474,6 +474,11 @@ export default function TimeRecordTree({ projects, issues, timeEntries, onRefres
     return rows;
   };
 
+  const grandTotalHours = useMemo(
+    () => projectTree.reduce((sum, node) => sum + calcChildHours(node), 0),
+    [projectTree],
+  );
+
   if (projectTree.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow">
@@ -498,6 +503,20 @@ export default function TimeRecordTree({ projects, issues, timeEntries, onRefres
           </tr>
         </thead>
         <tbody>{projectTree.flatMap((node) => renderProjectNode(node))}</tbody>
+        <tfoot>
+          <tr className="border-t-2 border-slate-200 bg-slate-100">
+            <td></td>
+            <td className="px-3 py-2.5 font-semibold text-gray-700">合計</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td className="px-3 py-2.5 text-sm font-semibold text-gray-800 whitespace-nowrap">
+              {grandTotalHours.toFixed(1)}h
+            </td>
+            <td></td>
+            <td></td>
+          </tr>
+        </tfoot>
       </table>
     </div>
   );

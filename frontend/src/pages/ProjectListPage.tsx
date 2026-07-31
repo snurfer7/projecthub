@@ -52,6 +52,7 @@ import {
   type DateRangeSpecifyMode,
 } from '../utils/dateRangeSpecify';
 import type { DateRangeSpecifyValue } from '../components/DateRangeSpecify';
+import { resolveTimeRecordFilterUserIds } from '../utils/timeRecordFilter';
 
 export default function ProjectListPage() {
   const navigate = useNavigate();
@@ -421,19 +422,31 @@ export default function ProjectListPage() {
       timeRecordDate.start,
       timeRecordDate.end,
     );
-    const entryParams: Record<string, string | number> = {};
-    if (recordRange.start) entryParams.startDate = recordRange.start;
-    if (recordRange.end) entryParams.endDate = recordRange.end;
-    if (timeRecordFilterUserIds.length > 0) {
-      entryParams.userIds = timeRecordFilterUserIds.join(',');
-    }
 
     Promise.all([
       api.get('/issues', { params: issueParams }),
-      api.get('/time-entries', { params: entryParams }),
-    ]).then(([issuesRes, entriesRes]) => {
-      setTimeIssues(issuesRes.data);
-      setTimeEntries(entriesRes.data);
+      api.get('/issues/meta/options'),
+    ]).then(([issuesRes, metaRes]) => {
+      const groups = (metaRes.data.groups ?? []) as { id: number; members: { userId: number }[] }[];
+      const resolvedUserIds = resolveTimeRecordFilterUserIds(timeRecordFilterUserIds, groups);
+
+      const entryParams: Record<string, string | number> = {};
+      if (recordRange.start) entryParams.startDate = recordRange.start;
+      if (recordRange.end) entryParams.endDate = recordRange.end;
+
+      if (timeRecordFilterUserIds.length > 0 && resolvedUserIds.length === 0) {
+        setTimeIssues(issuesRes.data);
+        setTimeEntries([]);
+        return;
+      }
+      if (resolvedUserIds.length > 0) {
+        entryParams.userIds = resolvedUserIds.join(',');
+      }
+
+      return api.get('/time-entries', { params: entryParams }).then((entriesRes) => {
+        setTimeIssues(issuesRes.data);
+        setTimeEntries(entriesRes.data);
+      });
     });
   }, [
     issueFilter.trackerIds,

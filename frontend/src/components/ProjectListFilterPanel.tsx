@@ -594,8 +594,12 @@ export default function ProjectListFilterPanel({
             <Combobox
               label="記録者"
               value={timeRecordFilterUserIds}
-              options={users.map((u) => ({ value: u.id.toString(), label: `${u.lastName} ${u.firstName}` }))}
-              onChange={onTimeRecordFilterUserIdsChange}
+              options={assigneeOptions}
+              onChange={(values: (string | number)[]) => {
+                onTimeRecordFilterUserIdsChange(
+                  values.filter((v) => String(v) !== '__ungrouped__'),
+                );
+              }}
               placeholder="全員"
               isMulti={true}
               size="small"
