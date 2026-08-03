@@ -112,9 +112,19 @@ async function syncActivityProjectLinks(
 
 router.use(authenticateToken);
 
+const contactLocationSelect = {
+  id: true,
+  name: true,
+  postalCode: true,
+  prefecture: true,
+  city: true,
+  street: true,
+  building: true,
+} satisfies Prisma.LocationSelect;
+
 const contactListInclude = {
   company: { select: { id: true, name: true } },
-  details: { include: { location: { select: { id: true, name: true } } } },
+  details: { include: { location: { select: contactLocationSelect } } },
   _count: { select: { comments: true } },
 } satisfies Prisma.ContactInclude;
 

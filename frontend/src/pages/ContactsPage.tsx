@@ -23,6 +23,14 @@ function joinDetailField(
   return details.map(pick).filter(Boolean).join(' / ') || '';
 }
 
+function formatLocationAddress(
+  location: NonNullable<NonNullable<Contact['details']>[number]['location']>,
+) {
+  return [location.prefecture, location.city, location.street, location.building]
+    .filter(Boolean)
+    .join('');
+}
+
 export default function ContactsPage() {
   const navigate = useNavigate();
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -101,12 +109,27 @@ export default function ContactsPage() {
     setExporting(true);
     try {
       const rows = await fetchAllForExport();
-      const header = ['姓', '名', '企業', '拠点', '所属', '役職', '電話', 'メール', '備考', 'コメント数'];
+      const header = [
+        '姓',
+        '名',
+        '企業',
+        '拠点',
+        '郵便番号',
+        '住所',
+        '所属',
+        '役職',
+        '電話',
+        'メール',
+        '備考',
+        'コメント数',
+      ];
       const data = rows.map((c) => [
         c.lastName,
         c.firstName,
         c.company ? formatCompanyName(c.company) : '',
         joinDetailField(c, (d) => d.location?.name ?? ''),
+        joinDetailField(c, (d) => d.location?.postalCode ?? ''),
+        joinDetailField(c, (d) => (d.location ? formatLocationAddress(d.location) : '')),
         joinDetailField(c, (d) => d.department ?? ''),
         joinDetailField(c, (d) => d.position ?? ''),
         joinDetailField(c, (d) => d.phone ?? ''),
@@ -155,6 +178,8 @@ export default function ContactsPage() {
               <th className="text-left px-4 py-3 font-medium text-gray-600">名前</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">企業</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">拠点</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">郵便番号</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">住所</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">所属</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">役職</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">電話</th>
@@ -164,7 +189,7 @@ export default function ContactsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
+                <td colSpan={9} className="px-4 py-12 text-center text-gray-500">
                   読み込み中…
                 </td>
               </tr>
@@ -213,6 +238,27 @@ export default function ContactsPage() {
                               {d.location?.name || '-'}
                             </div>
                           ))
+                        : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {details.length > 0
+                        ? details.map((d, i) => (
+                            <div key={i} className="text-xs">
+                              {d.location?.postalCode || '-'}
+                            </div>
+                          ))
+                        : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {details.length > 0
+                        ? details.map((d, i) => {
+                            const address = d.location ? formatLocationAddress(d.location) : '';
+                            return (
+                              <div key={i} className="text-xs">
+                                {address || '-'}
+                              </div>
+                            );
+                          })
                         : '-'}
                     </td>
                     <td className="px-4 py-3 text-gray-600">

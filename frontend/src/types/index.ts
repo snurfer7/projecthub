@@ -379,7 +379,15 @@ export interface ContactDetail {
   phone?: string;
   email?: string;
   locationId?: number | null;
-  location?: { id: number; name: string } | null;
+  location?: {
+    id: number;
+    name: string;
+    postalCode?: string | null;
+    prefecture?: string | null;
+    city?: string | null;
+    street?: string | null;
+    building?: string | null;
+  } | null;
   isPrimary: boolean;
 }
 
