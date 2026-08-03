@@ -14,6 +14,7 @@ import DateInput from './DateInput';
 import { formatEstimatedHours } from '../utils/format';
 import { getCachedProjectPermissions } from '../utils/projectPermissionsCache';
 import { getSelectableStatuses } from '../utils/issueWorkflow';
+import { buildGroupedUserOptions } from '../utils/groupedUserOptions';
 
 function toLocalDatetimeString(dateString?: string | null) {
     if (!dateString) return '';
@@ -343,6 +344,24 @@ export default function IssueForm({
         });
     }, [meta, isEdit, statusId, originalStatusId]);
 
+    const assigneeOptions = useMemo(() => {
+        if (!meta) return [];
+        const activeUsers = (meta.users || []).filter(
+            (u) => u.status === 'active' || assignedToPrincipals.includes(`u:${u.id}`),
+        );
+        const groups = (meta.groups || []).map((g) => ({
+            id: g.id,
+            name: g.name,
+            members: g.members ?? [],
+        }));
+        return buildGroupedUserOptions({
+            users: activeUsers,
+            groups,
+            userValue: (u) => `u:${u.id}`,
+            groupHeadersSelectable: true,
+        });
+    }, [meta, assignedToPrincipals]);
+
     if (!meta) return <div className="text-center py-12 text-gray-500">読み込み中...</div>;
 
     const formClassName = inModal ? 'space-y-4' : 'bg-white rounded-lg shadow p-6 space-y-4';
@@ -412,15 +431,12 @@ export default function IssueForm({
                         />
                         <Combobox
                             label="担当者"
-                            options={[
-                                ...(meta.groups || []).map((g) => ({ value: `g:${g.id}`, label: `(グループ) ${g.name}` })),
-                                ...(meta.users || [])
-                                    .filter((u) => u.status === 'active' || assignedToPrincipals.includes(`u:${u.id}`))
-                                    .map((u) => ({ value: `u:${u.id}`, label: `${u.lastName} ${u.firstName}` }))
-                            ]}
+                            options={assigneeOptions}
                             value={assignedToPrincipals}
                             onChange={(val) => {
-                                const next = (Array.isArray(val) ? val : [val]).map(String).filter(Boolean);
+                                const next = (Array.isArray(val) ? val : [val])
+                                    .map(String)
+                                    .filter((v) => v && !v.startsWith('__'));
                                 const users = next.filter((v) => v.startsWith('u:'));
                                 const groups = next.filter((v) => v.startsWith('g:'));
                                 // 担当グループは単一（最後に選んだもの）

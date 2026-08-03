@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, FormEvent } from 'react';
+import { useState, useEffect, useRef, useMemo, FormEvent } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/client';
 import { Company, Contact, Deal, Activity, Association } from '../types';
@@ -17,6 +17,10 @@ import NumberInput from '../components/NumberInput';
 import DateInput from '../components/DateInput';
 import Tabs from '../components/Tabs';
 import { Project } from '../types';
+import {
+  buildGroupedUserOptions,
+  deriveGroupsFromUserMemberships,
+} from '../utils/groupedUserOptions';
 
 
 const DEAL_STATUSES: { value: string; label: string; color: string }[] = [
@@ -93,7 +97,13 @@ export default function CompanyDetailPage() {
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [dealForm, setDealForm] = useState({ name: '', amount: '', status: 'prospecting', probability: '', expectedCloseDate: '', contactId: '', assignedToId: '', notes: '' });
   const [dealError, setDealError] = useState('');
-  const [users, setUsers] = useState<{ id: number; firstName: string; lastName: string; status: string }[]>([]);
+  const [users, setUsers] = useState<{
+    id: number;
+    firstName: string;
+    lastName: string;
+    status: string;
+    groupMembers?: { group: { id: number; name: string } }[];
+  }[]>([]);
 
   // Company Edit
   const [showCompanyModal, setShowCompanyModal] = useState(false);
@@ -142,7 +152,26 @@ export default function CompanyDetailPage() {
   const loadDeals = () => api.get(`/crm/deals?companyId=${id}`).then((res) => setDeals(res.data));
   const loadActivities = () => api.get(`/crm/activities?companyId=${id}`).then((res) => setActivities(res.data));
   const loadMasterAssociations = () => api.get('/admin/associations').then((res) => setMasterAssociations(res.data));
-  const loadUsers = () => api.get('/admin/users').then((res) => setUsers(res.data.map((u: { id: number; firstName: string; lastName: string; status: string }) => ({ id: u.id, firstName: u.firstName, lastName: u.lastName, status: u.status }))));
+  const loadUsers = () =>
+    api.get('/admin/users').then((res) =>
+      setUsers(
+        res.data.map(
+          (u: {
+            id: number;
+            firstName: string;
+            lastName: string;
+            status: string;
+            groupMembers?: { group: { id: number; name: string } }[];
+          }) => ({
+            id: u.id,
+            firstName: u.firstName,
+            lastName: u.lastName,
+            status: u.status,
+            groupMembers: u.groupMembers,
+          }),
+        ),
+      ),
+    );
   const loadLocations = () => api.get(`/companies/${id}/locations`).then((res) => setLocations(res.data));
 
   useEffect(() => {
@@ -466,6 +495,24 @@ export default function CompanyDetailPage() {
       alert(err.response?.data?.error || '協会の削除に失敗しました');
     }
   };
+
+  const dealAssigneeOptions = useMemo(() => {
+    const eligible = users.filter((u) => u.status === 'active' || dealForm.assignedToId === String(u.id));
+    return buildGroupedUserOptions({
+      users: eligible,
+      groups: deriveGroupsFromUserMemberships(eligible),
+      groupHeadersSelectable: false,
+    });
+  }, [users, dealForm.assignedToId]);
+
+  const activityAssigneeOptions = useMemo(() => {
+    const eligible = users.filter((u) => u.status === 'active' || activityForm.assignedToId === String(u.id));
+    return buildGroupedUserOptions({
+      users: eligible,
+      groups: deriveGroupsFromUserMemberships(eligible),
+      groupHeadersSelectable: false,
+    });
+  }, [users, activityForm.assignedToId]);
 
   if (!company) return <div className="text-center py-8 text-gray-500">読み込み中...</div>;
 
@@ -1082,9 +1129,7 @@ export default function CompanyDetailPage() {
             <Combobox
               label="自社担当者"
               value={dealForm.assignedToId}
-              options={users
-                .filter(u => u.status === 'active' || dealForm.assignedToId === String(u.id))
-                .map(u => ({ value: u.id.toString(), label: `${u.lastName} ${u.firstName}` }))}
+              options={dealAssigneeOptions}
               onChange={(val) => setDealForm({ ...dealForm, assignedToId: val })}
             />
           </div>
@@ -1148,9 +1193,7 @@ export default function CompanyDetailPage() {
           <Combobox
             label="自社担当者"
             value={activityForm.assignedToId}
-            options={users
-              .filter(u => u.status === 'active' || activityForm.assignedToId === String(u.id))
-              .map(u => ({ value: u.id.toString(), label: `${u.lastName} ${u.firstName}` }))}
+            options={activityAssigneeOptions}
             onChange={(val) => setActivityForm({ ...activityForm, assignedToId: val })}
           />
           <div className="flex items-center gap-2">

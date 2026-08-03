@@ -1,3 +1,5 @@
+import { UNGROUPED_OPTION_VALUE } from './groupedUserOptions';
+
 /** 記録者フィルタの選択値（ユーザー ID / `g:{groupId}`）を API 用ユーザー ID に展開する */
 export function resolveTimeRecordFilterUserIds(
   selection: (number | string)[],
@@ -7,7 +9,7 @@ export function resolveTimeRecordFilterUserIds(
     .filter((v) => String(v).startsWith('g:'))
     .map((v) => String(v).slice(2));
   const userIds = selection
-    .filter((v) => !String(v).startsWith('g:') && String(v) !== '__ungrouped__')
+    .filter((v) => !String(v).startsWith('g:') && String(v) !== UNGROUPED_OPTION_VALUE)
     .map((v) => String(v));
   const memberIds = groupIds.flatMap((gid) => {
     const g = groups.find((grp) => String(grp.id) === String(gid));

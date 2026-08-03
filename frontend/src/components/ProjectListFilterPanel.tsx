@@ -14,6 +14,11 @@ import SavedSearchDropdown from './SavedSearchDropdown';
 import DateRangeSpecify, { type DateRangeSpecifyValue } from './DateRangeSpecify';
 import { formatDateToYYYYMMDD } from '../utils/format';
 import { toSavedDateRangeFields } from '../utils/dateRangeSpecify';
+import {
+  buildGroupedUserOptions,
+  splitGroupedAssigneeSelection,
+  UNGROUPED_OPTION_VALUE,
+} from '../utils/groupedUserOptions';
 
 interface ProjectListFilterPanelProps {
   viewMode: ProjectListViewMode;
@@ -129,54 +134,10 @@ export default function ProjectListFilterPanel({
     });
   }, [viewMode]);
 
-  const assigneeOptions = useMemo((): ComboboxOption[] => {
-    const userById = new Map(users.map((u) => [u.id, u]));
-    const options: ComboboxOption[] = [];
-    const usersInAnyGroup = new Set<number>();
-
-    const sortedGroups = [...groups].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
-    for (const g of sortedGroups) {
-      options.push({
-        value: `g:${g.id}`,
-        label: g.name,
-        isGroupHeader: true,
-      });
-      const members = [...g.members]
-        .map((m) => userById.get(m.userId))
-        .filter((u): u is { id: number; firstName: string; lastName: string } => !!u)
-        .sort((a, b) =>
-          `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'ja'),
-        );
-      for (const u of members) {
-        usersInAnyGroup.add(u.id);
-        options.push({
-          value: u.id.toString(),
-          label: `${u.lastName} ${u.firstName}`,
-        });
-      }
-    }
-
-    const ungrouped = users
-      .filter((u) => !usersInAnyGroup.has(u.id))
-      .sort((a, b) =>
-        `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'ja'),
-      );
-    if (ungrouped.length > 0) {
-      options.push({
-        value: '__ungrouped__',
-        label: '未所属',
-        isGroupLabel: true,
-      });
-      for (const u of ungrouped) {
-        options.push({
-          value: u.id.toString(),
-          label: `${u.lastName} ${u.firstName}`,
-        });
-      }
-    }
-
-    return options;
-  }, [users, groups]);
+  const assigneeOptions = useMemo(
+    (): ComboboxOption[] => buildGroupedUserOptions({ users, groups }),
+    [users, groups],
+  );
 
   const showTicketFilters = viewMode !== 'list';
   const showTicketDueDateFilter = showTicketFilters && viewMode !== 'time';
@@ -546,16 +507,7 @@ export default function ProjectListFilterPanel({
               ]}
               options={assigneeOptions}
               onChange={(values: (string | number)[]) => {
-                const groupIds = values.filter((v) => String(v).startsWith('g:')).map((v) => String(v).slice(2));
-                const userIds = values.filter((v) => !String(v).startsWith('g:') && String(v) !== '__ungrouped__');
-                const memberIds: string[] = Array.from(
-                  new Set(
-                    groupIds.flatMap((gid: string) => {
-                      const g = groups.find((grp) => String(grp.id) === String(gid));
-                      return g ? g.members.map((m) => String(m.userId)) : [];
-                    }),
-                  ),
-                );
+                const { userIds, groupIds, memberIds } = splitGroupedAssigneeSelection(values, groups);
                 onIssueFilterChange({ assignedToIds: userIds, assignedToGroupIds: groupIds, assignedToGroupMemberIds: memberIds });
               }}
               placeholder="全員"
@@ -597,7 +549,7 @@ export default function ProjectListFilterPanel({
               options={assigneeOptions}
               onChange={(values: (string | number)[]) => {
                 onTimeRecordFilterUserIdsChange(
-                  values.filter((v) => String(v) !== '__ungrouped__'),
+                  values.filter((v) => String(v) !== UNGROUPED_OPTION_VALUE),
                 );
               }}
               placeholder="全員"

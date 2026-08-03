@@ -12,7 +12,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import TicketSearchSection from '../components/TicketSearchSection';
 import { isLeafIssue } from '../utils/issueTree';
 import { isStatusAssignable, isStatusTransitionAllowed } from '../utils/issueWorkflow';
-import { issueHasAssigneeUser } from '../utils/issueAssignees';
+import { matchesIssueFilter } from '../utils/issueFilter';
 import type { ProjectOutletContext } from './ProjectDetailPage';
 
 export default function KanbanPage() {
@@ -27,6 +27,8 @@ export default function KanbanPage() {
   const [filterTrackerIds, setFilterTrackerIds] = useState<(number | string)[]>([]);
   const [filterStatusIds, setFilterStatusIds] = useState<(number | string)[]>([]);
   const [filterAssignedToIds, setFilterAssignedToIds] = useState<(number | string)[]>([]);
+  const [filterAssignedToGroupIds, setFilterAssignedToGroupIds] = useState<(number | string)[]>([]);
+  const [filterAssignedToGroupMemberIds, setFilterAssignedToGroupMemberIds] = useState<(number | string)[]>([]);
   const [dueDateStart, setDueDateStart] = useState('');
   const [dueDateEnd, setDueDateEnd] = useState('');
   const [isNewIssueModalOpen, setIsNewIssueModalOpen] = useState(false);
@@ -58,24 +60,32 @@ export default function KanbanPage() {
   const leafIssues = useMemo(() => {
     return issues.filter((issue) => {
       if (!isLeafIssue(issue, issues)) return false;
-      if (filterTrackerIds.length > 0 && !filterTrackerIds.some((id) => String(id) === String(issue.trackerId))) {
-        return false;
-      }
-      if (filterStatusIds.length > 0 && !filterStatusIds.some((id) => String(id) === String(issue.statusId))) {
-        return false;
-      }
-      if (filterAssignedToIds.length > 0) {
-        if (!issueHasAssigneeUser(issue, filterAssignedToIds)) return false;
-      }
-      if (dueDateStart || dueDateEnd) {
-        if (!issue.dueDate) return false;
-        const due = issue.dueDate.slice(0, 10);
-        if (dueDateStart && due < dueDateStart) return false;
-        if (dueDateEnd && due > dueDateEnd) return false;
-      }
-      return true;
+      return matchesIssueFilter(issue, {
+        trackerIds: filterTrackerIds,
+        statusIds: filterStatusIds,
+        assignedToIds: filterAssignedToIds,
+        assignedToGroupIds: filterAssignedToGroupIds,
+        assignedToGroupMemberIds: filterAssignedToGroupMemberIds,
+        dueDateStart,
+        dueDateEnd,
+        dueDateMode: 'direct',
+        dueDateRelative: '',
+        scheduleDateStart: '',
+        scheduleDateEnd: '',
+        scheduleDateMode: 'direct',
+        scheduleDateRelative: '',
+      });
     });
-  }, [issues, filterTrackerIds, filterStatusIds, filterAssignedToIds, dueDateStart, dueDateEnd]);
+  }, [
+    issues,
+    filterTrackerIds,
+    filterStatusIds,
+    filterAssignedToIds,
+    filterAssignedToGroupIds,
+    filterAssignedToGroupMemberIds,
+    dueDateStart,
+    dueDateEnd,
+  ]);
 
   const handleDrop = async (issueId: number, targetStatusId: number) => {
     if (!canEditIssues) return;
@@ -135,6 +145,8 @@ export default function KanbanPage() {
     setFilterTrackerIds([]);
     setFilterStatusIds([]);
     setFilterAssignedToIds([]);
+    setFilterAssignedToGroupIds([]);
+    setFilterAssignedToGroupMemberIds([]);
     setDueDateStart('');
     setDueDateEnd('');
   }, []);
@@ -161,6 +173,10 @@ export default function KanbanPage() {
           onFilterStatusIdsChange={setFilterStatusIds}
           filterAssignedToIds={filterAssignedToIds}
           onFilterAssignedToIdsChange={setFilterAssignedToIds}
+          filterAssignedToGroupIds={filterAssignedToGroupIds}
+          onFilterAssignedToGroupIdsChange={setFilterAssignedToGroupIds}
+          filterAssignedToGroupMemberIds={filterAssignedToGroupMemberIds}
+          onFilterAssignedToGroupMemberIdsChange={setFilterAssignedToGroupMemberIds}
           dueDateStart={dueDateStart}
           onDueDateStartChange={setDueDateStart}
           dueDateEnd={dueDateEnd}

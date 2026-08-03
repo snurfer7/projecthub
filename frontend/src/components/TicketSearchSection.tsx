@@ -6,6 +6,11 @@ import Combobox from './Combobox';
 import CustomDatePicker from './CustomDatePicker';
 import DateInput from './DateInput';
 import { formatDateToYYYYMMDD } from '../utils/format';
+import {
+  buildGroupedUserOptions,
+  splitGroupedAssigneeSelection,
+  type GroupedUserOptionGroup,
+} from '../utils/groupedUserOptions';
 
 type ZoomLevel = 'day' | 'month' | 'year';
 
@@ -21,6 +26,10 @@ interface TicketSearchSectionProps {
   onFilterStatusIdsChange: (values: (number | string)[]) => void;
   filterAssignedToIds: (number | string)[];
   onFilterAssignedToIdsChange: (values: (number | string)[]) => void;
+  filterAssignedToGroupIds?: (number | string)[];
+  filterAssignedToGroupMemberIds?: (number | string)[];
+  onFilterAssignedToGroupIdsChange?: (values: (number | string)[]) => void;
+  onFilterAssignedToGroupMemberIdsChange?: (values: (number | string)[]) => void;
   dueDateStart?: string;
   onDueDateStartChange?: (value: string) => void;
   dueDateEnd?: string;
@@ -28,12 +37,6 @@ interface TicketSearchSectionProps {
   onResetFilter?: () => void;
   issueCount: number;
 }
-
-const ZOOM_CONFIG: Record<ZoomLevel, { dayWidth: number; label: string }> = {
-  day: { dayWidth: 30, label: '日' },
-  month: { dayWidth: 4, label: '月' },
-  year: { dayWidth: 1.5, label: '年' },
-};
 
 export default function TicketSearchSection({
   zoom,
@@ -47,6 +50,9 @@ export default function TicketSearchSection({
   onFilterStatusIdsChange,
   filterAssignedToIds,
   onFilterAssignedToIdsChange,
+  filterAssignedToGroupIds = [],
+  onFilterAssignedToGroupIdsChange,
+  onFilterAssignedToGroupMemberIdsChange,
   dueDateStart,
   onDueDateStartChange,
   dueDateEnd,
@@ -57,14 +63,21 @@ export default function TicketSearchSection({
   const [trackers, setTrackers] = useState<Tracker[]>([]);
   const [statuses, setStatuses] = useState<IssueStatus[]>([]);
   const [assignees, setAssignees] = useState<{ id: number; firstName: string; lastName: string }[]>([]);
+  const [groups, setGroups] = useState<GroupedUserOptionGroup[]>([]);
 
   useEffect(() => {
     api.get('/issues/meta/options').then((res) => {
       setTrackers(res.data.trackers);
       setStatuses(res.data.statuses);
       setAssignees(res.data.users);
+      setGroups(res.data.groups ?? []);
     });
   }, []);
+
+  const assigneeOptions = useMemo(
+    () => buildGroupedUserOptions({ users: assignees, groups }),
+    [assignees, groups],
+  );
 
   const years = useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -126,10 +139,23 @@ export default function TicketSearchSection({
     }
   };
 
+  const handleAssigneeChange = (values: (string | number)[]) => {
+    const { userIds, groupIds, memberIds } = splitGroupedAssigneeSelection(values, groups);
+    if (onFilterAssignedToGroupIdsChange || onFilterAssignedToGroupMemberIdsChange) {
+      onFilterAssignedToIdsChange(userIds);
+      onFilterAssignedToGroupIdsChange?.(groupIds);
+      onFilterAssignedToGroupMemberIdsChange?.(memberIds);
+    } else {
+      // グループ状態を持てない呼び出し側向け: メンバー ID をユーザー条件に展開
+      onFilterAssignedToIdsChange(Array.from(new Set([...userIds.map(String), ...memberIds])));
+    }
+  };
+
   const hasActiveFilter =
     filterTrackerIds.length > 0 ||
     filterStatusIds.length > 0 ||
     filterAssignedToIds.length > 0 ||
+    filterAssignedToGroupIds.length > 0 ||
     (onDueDateStartChange != null && ((dueDateStart ?? '') !== '' || (dueDateEnd ?? '') !== '')) ||
     (onStartValueChange != null && ((startValue ?? '') !== '' || (endValue ?? '') !== ''));
 
@@ -266,13 +292,16 @@ export default function TicketSearchSection({
 
       <Combobox
         label="担当者"
-        value={filterAssignedToIds}
-        options={assignees.map((a: { id: number; firstName: string; lastName: string }) => ({ value: a.id.toString(), label: `${a.lastName} ${a.firstName}` }))}
-        onChange={onFilterAssignedToIdsChange}
+        value={[
+          ...filterAssignedToIds.map((id) => String(id)),
+          ...filterAssignedToGroupIds.map((id) => `g:${id}`),
+        ]}
+        options={assigneeOptions}
+        onChange={handleAssigneeChange}
         placeholder="全担当者"
         isMulti={true}
         size="small"
-        className="w-72"
+        className="w-[16.5rem]"
       />
 
       {hasActiveFilter && onResetFilter && (

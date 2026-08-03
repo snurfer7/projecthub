@@ -1,13 +1,16 @@
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
 import { Pencil, Trash2, Check, X, Users, ChevronRight } from 'lucide-react';
 import api from '../api/client';
-import { Project, ProjectMember, ProjectGroup, Role, Group } from '../types';
+import { Project, ProjectMember, ProjectGroup, Role } from '../types';
 import { formatCompanyName, formatContactDisplayName } from '../utils/format';
 import ConfirmationModal from '../components/ConfirmationModal';
 import Combobox from '../components/Combobox';
 import { usePermissions } from '../hooks/usePermissions';
 import type { ProjectOutletContext } from './ProjectDetailPage';
+import {
+  type GroupedUserOptionGroup,
+} from '../utils/groupedUserOptions';
 
 
 export default function ProjectOverview() {
@@ -19,7 +22,7 @@ export default function ProjectOverview() {
     const canEditMembers = canInput('projects.members');
 
     const [roles, setRoles] = useState<Role[]>([]);
-    const [allGroups, setAllGroups] = useState<Group[]>([]);
+    const [allGroups, setAllGroups] = useState<GroupedUserOptionGroup[]>([]);
     const [allUsers, setAllUsers] = useState<{ id: number; firstName: string; lastName: string; status: string }[]>([]);
 
     // Add form state
@@ -51,8 +54,16 @@ export default function ProjectOverview() {
             setRoles(list);
             setSelectedRoleIds(new Set(list.filter((r) => r.isDefaultRole).map((r) => r.id)));
         }).catch(() => { });
-        api.get('/admin/groups').then((res) => setAllGroups(res.data)).catch(() => { });
-        api.get('/issues/meta/options').then((res) => setAllUsers(res.data.users)).catch(() => { });
+        api.get('/issues/meta/options').then((res) => {
+            setAllUsers(res.data.users);
+            setAllGroups(
+                (res.data.groups ?? []).map((g: { id: number; name: string; members?: { userId: number }[] }) => ({
+                    id: g.id,
+                    name: g.name,
+                    members: g.members ?? [],
+                })),
+            );
+        }).catch(() => { });
     }, [canEditMembers]);
 
     // ── Derived sets ──────────────────────────────────────────────────────────
@@ -76,6 +87,50 @@ export default function ProjectOverview() {
     // Selectable users (not yet individually added and not in any assigned group)
     const currentIndividualUserIds = new Set(individualMembers.map(m => m.userId));
     const selectableUsers = allUsers.filter(u => u.status === 'active' && !currentIndividualUserIds.has(u.id) && !allGroupUserIds.has(u.id));
+
+    const groupedPrincipalList = useMemo(() => {
+        const userById = new Map(selectableUsers.map((u) => [u.id, u]));
+        const usersInAnyGroup = new Set<number>();
+        const sortedGroups = [...selectableGroups].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+        const sections: {
+            key: string;
+            label: string;
+            selectable: boolean;
+            users: { id: number; firstName: string; lastName: string }[];
+        }[] = [];
+
+        for (const g of sortedGroups) {
+            const members = [...g.members]
+                .map((m) => userById.get(m.userId))
+                .filter((u): u is { id: number; firstName: string; lastName: string; status: string } => !!u)
+                .sort((a, b) =>
+                    `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'ja'),
+                );
+            for (const u of members) usersInAnyGroup.add(u.id);
+            sections.push({
+                key: `g:${g.id}`,
+                label: g.name,
+                selectable: true,
+                users: members,
+            });
+        }
+
+        const ungrouped = selectableUsers
+            .filter((u) => !usersInAnyGroup.has(u.id))
+            .sort((a, b) =>
+                `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'ja'),
+            );
+        if (ungrouped.length > 0) {
+            sections.push({
+                key: '__ungrouped__',
+                label: '未所属',
+                selectable: false,
+                users: ungrouped,
+            });
+        }
+
+        return sections;
+    }, [selectableGroups, selectableUsers]);
 
     // ── Toggles ───────────────────────────────────────────────────────────────
     const togglePrincipal = (key: string) => {
@@ -116,7 +171,7 @@ export default function ProjectOverview() {
                 const [type, id] = key.split(':');
                 if (type === 'u') {
                     await api.post(`/projects/${project.id}/members`, { userId: Number(id), roleIds });
-                } else {
+                } else if (type === 'g') {
                     await api.post(`/projects/${project.id}/groups`, { groupId: Number(id), roleIds });
                 }
             }
@@ -513,36 +568,47 @@ export default function ProjectOverview() {
                                     <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tight">対象を選択</span>
                                     <span className="px-1.5 py-0.5 bg-white border border-gray-200 rounded-md text-[9px] font-bold text-gray-500">{selectedPrincipals.size}件</span>
                                 </div>
-                                <div className="overflow-y-auto h-52 divide-y divide-gray-50 text-sm">
-                                    {selectableGroups.length > 0 && (
-                                        <>
-                                            <div className="px-3.5 py-1.5 bg-indigo-50/30 text-[9px] font-bold text-indigo-400 sticky top-0 uppercase tracking-widest backdrop-blur-sm">グループ</div>
-                                            {selectableGroups.map(g => (
-                                                <label key={`g:${g.id}`} className={`flex items-center gap-3 px-3.5 py-2.5 hover:bg-indigo-50/40 cursor-pointer group transition-colors ${selectedPrincipals.has(`g:${g.id}`) ? 'bg-indigo-50/60' : ''}`}>
-                                                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${selectedPrincipals.has(`g:${g.id}`) ? 'bg-indigo-500 border-indigo-500' : 'border-gray-200 bg-white group-hover:border-indigo-300'}`}>
-                                                        {selectedPrincipals.has(`g:${g.id}`) && <Check className="w-2.5 h-2.5 text-white" strokeWidth={4} />}
+                                <div className="overflow-y-auto h-52 text-sm">
+                                    {groupedPrincipalList.length === 0 ? (
+                                        <p className="p-5 text-center text-gray-400 text-xs italic">追加可能な対象はありません</p>
+                                    ) : (
+                                        groupedPrincipalList.map((section) => (
+                                            <div key={section.key} className="border-b border-gray-50 last:border-b-0">
+                                                {section.selectable ? (
+                                                    <label className={`flex items-center gap-3 px-3.5 py-2.5 hover:bg-indigo-50/40 cursor-pointer group transition-colors ${selectedPrincipals.has(section.key) ? 'bg-indigo-50/60' : ''}`}>
+                                                        <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${selectedPrincipals.has(section.key) ? 'bg-indigo-500 border-indigo-500' : 'border-gray-200 bg-white group-hover:border-indigo-300'}`}>
+                                                            {selectedPrincipals.has(section.key) && <Check className="w-2.5 h-2.5 text-white" strokeWidth={4} />}
+                                                        </div>
+                                                        <Users className={`w-4 h-4 ${selectedPrincipals.has(section.key) ? 'text-indigo-500' : 'text-gray-300 group-hover:text-indigo-400'}`} />
+                                                        <span className={`text-[12px] font-semibold ${selectedPrincipals.has(section.key) ? 'text-indigo-700' : 'text-slate-600 group-hover:text-indigo-600'}`}>{section.label}</span>
+                                                        <input type="checkbox" className="hidden" checked={selectedPrincipals.has(section.key)} onChange={() => togglePrincipal(section.key)} />
+                                                    </label>
+                                                ) : (
+                                                    <div className="px-3.5 pt-2.5 pb-1 text-[11px] font-semibold text-slate-500 select-none">
+                                                        {section.label}
                                                     </div>
-                                                    <Users className={`w-4 h-4 ${selectedPrincipals.has(`g:${g.id}`) ? 'text-indigo-500' : 'text-gray-300 group-hover:text-indigo-400'}`} />
-                                                    <span className={`text-[13px] ${selectedPrincipals.has(`g:${g.id}`) ? 'text-indigo-700 font-semibold' : 'text-gray-600 group-hover:text-indigo-600'}`}>{g.name}</span>
-                                                    <input type="checkbox" className="hidden" checked={selectedPrincipals.has(`g:${g.id}`)} onChange={() => togglePrincipal(`g:${g.id}`)} />
-                                                </label>
-                                            ))}
-                                        </>
-                                    )}
-                                    <div className="px-3.5 py-1.5 bg-sky-50/30 text-[9px] font-bold text-sky-400 sticky top-0 uppercase tracking-widest backdrop-blur-sm">ユーザー</div>
-                                    {selectableUsers.length > 0 ? selectableUsers.map(u => (
-                                        <label key={`u:${u.id}`} className={`flex items-center gap-3 px-3.5 py-2.5 hover:bg-sky-50/40 cursor-pointer group transition-colors ${selectedPrincipals.has(`u:${u.id}`) ? 'bg-sky-50/60' : ''}`}>
-                                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${selectedPrincipals.has(`u:${u.id}`) ? 'bg-sky-500 border-sky-500' : 'border-gray-200 bg-white group-hover:border-sky-300'}`}>
-                                                {selectedPrincipals.has(`u:${u.id}`) && <Check className="w-2.5 h-2.5 text-white" strokeWidth={4} />}
+                                                )}
+                                                {section.users.map((u) => {
+                                                    const key = `u:${u.id}`;
+                                                    const selected = selectedPrincipals.has(key);
+                                                    return (
+                                                        <label
+                                                            key={key}
+                                                            className={`flex items-center gap-3 pl-9 pr-3.5 py-2 hover:bg-sky-50/40 cursor-pointer group transition-colors ${selected ? 'bg-sky-50/60' : ''}`}
+                                                        >
+                                                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${selected ? 'bg-sky-500 border-sky-500' : 'border-gray-200 bg-white group-hover:border-sky-300'}`}>
+                                                                {selected && <Check className="w-2.5 h-2.5 text-white" strokeWidth={4} />}
+                                                            </div>
+                                                            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${selected ? 'bg-sky-200 text-sky-700' : 'bg-gray-100 text-gray-400 group-hover:bg-sky-100 group-hover:text-sky-500'}`}>
+                                                                {u.lastName[0]}{u.firstName[0]}
+                                                            </div>
+                                                            <span className={`text-[13px] ${selected ? 'text-sky-700 font-semibold' : 'text-gray-600 group-hover:text-sky-600'}`}>{u.lastName} {u.firstName}</span>
+                                                            <input type="checkbox" className="hidden" checked={selected} onChange={() => togglePrincipal(key)} />
+                                                        </label>
+                                                    );
+                                                })}
                                             </div>
-                                            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${selectedPrincipals.has(`u:${u.id}`) ? 'bg-sky-200 text-sky-700' : 'bg-gray-100 text-gray-400 group-hover:bg-sky-100 group-hover:text-sky-500'}`}>
-                                                {u.lastName[0]}{u.firstName[0]}
-                                            </div>
-                                            <span className={`text-[13px] ${selectedPrincipals.has(`u:${u.id}`) ? 'text-sky-700 font-semibold' : 'text-gray-600 group-hover:text-sky-600'}`}>{u.lastName} {u.firstName}</span>
-                                            <input type="checkbox" className="hidden" checked={selectedPrincipals.has(`u:${u.id}`)} onChange={() => togglePrincipal(`u:${u.id}`)} />
-                                        </label>
-                                    )) : (
-                                        <p className="p-5 text-center text-gray-400 text-xs italic">追加可能なユーザーはいません</p>
+                                        ))
                                     )}
                                 </div>
                             </div>

@@ -1,8 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import api from '../api/client';
 import Combobox from './Combobox';
 import DateInput from './DateInput';
+import {
+  buildGroupedUserOptions,
+  splitGroupedAssigneeSelection,
+  type GroupedUserOptionGroup,
+  UNGROUPED_OPTION_VALUE,
+} from '../utils/groupedUserOptions';
 
 interface TimeRecordSearchSectionProps {
   startDate: string;
@@ -26,10 +32,19 @@ export default function TimeRecordSearchSection({
   entryCount,
 }: TimeRecordSearchSectionProps) {
   const [users, setUsers] = useState<{ id: number; firstName: string; lastName: string }[]>([]);
+  const [groups, setGroups] = useState<GroupedUserOptionGroup[]>([]);
 
   useEffect(() => {
-    api.get('/issues/meta/options').then((res) => setUsers(res.data.users));
+    api.get('/issues/meta/options').then((res) => {
+      setUsers(res.data.users);
+      setGroups(res.data.groups ?? []);
+    });
   }, []);
+
+  const userOptions = useMemo(
+    () => buildGroupedUserOptions({ users, groups }),
+    [users, groups],
+  );
 
   const hasActiveFilter =
     startDate !== '' || endDate !== '' || filterUserIds.length > 0;
@@ -64,12 +79,19 @@ export default function TimeRecordSearchSection({
       <Combobox
         label="担当者"
         value={filterUserIds}
-        options={users.map((u) => ({ value: u.id.toString(), label: `${u.lastName} ${u.firstName}` }))}
-        onChange={onFilterUserIdsChange}
+        options={userOptions}
+        onChange={(values: (string | number)[]) => {
+          // 時間記録フィルタはグループ選択を g:{id} のまま保持し、呼び出し側で展開する
+          const { userIds, groupIds } = splitGroupedAssigneeSelection(values, groups);
+          onFilterUserIdsChange([
+            ...userIds,
+            ...groupIds.map((id) => `g:${id}`),
+          ].filter((v) => String(v) !== UNGROUPED_OPTION_VALUE));
+        }}
         placeholder="全担当者"
         isMulti={true}
         size="small"
-        className="w-72"
+        className="w-[16.5rem]"
       />
 
       {hasActiveFilter && onResetFilter && (

@@ -18,6 +18,8 @@ export default function GanttPage() {
   const [filterTrackerIds, setFilterTrackerIds] = useState<(number | string)[]>([]);
   const [filterStatusIds, setFilterStatusIds] = useState<(number | string)[]>([]);
   const [filterAssignedToIds, setFilterAssignedToIds] = useState<(number | string)[]>([]);
+  const [filterAssignedToGroupIds, setFilterAssignedToGroupIds] = useState<(number | string)[]>([]);
+  const [filterAssignedToGroupMemberIds, setFilterAssignedToGroupMemberIds] = useState<(number | string)[]>([]);
   const [collapsedProjects, setCollapsedProjects] = useState<Set<number>>(new Set());
 
   const loadIssues = useCallback(() => {
@@ -64,6 +66,8 @@ export default function GanttPage() {
     setFilterTrackerIds([]);
     setFilterStatusIds([]);
     setFilterAssignedToIds([]);
+    setFilterAssignedToGroupIds([]);
+    setFilterAssignedToGroupMemberIds([]);
     setStartValue('');
     setEndValue('');
   }, []);
@@ -87,6 +91,10 @@ export default function GanttPage() {
             onFilterStatusIdsChange={setFilterStatusIds}
             filterAssignedToIds={filterAssignedToIds}
             onFilterAssignedToIdsChange={setFilterAssignedToIds}
+            filterAssignedToGroupIds={filterAssignedToGroupIds}
+            onFilterAssignedToGroupIdsChange={setFilterAssignedToGroupIds}
+            filterAssignedToGroupMemberIds={filterAssignedToGroupMemberIds}
+            onFilterAssignedToGroupMemberIdsChange={setFilterAssignedToGroupMemberIds}
             onResetFilter={resetTicketSearchFilter}
             issueCount={issues.length}
           />
@@ -112,6 +120,8 @@ export default function GanttPage() {
         onFilterStatusIdsChange={setFilterStatusIds}
         filterAssignedToIds={filterAssignedToIds}
         onFilterAssignedToIdsChange={setFilterAssignedToIds}
+        filterAssignedToGroupIds={filterAssignedToGroupIds}
+        filterAssignedToGroupMemberIds={filterAssignedToGroupMemberIds}
         collapsedProjects={collapsedProjects}
         onCollapsedProjectsChange={setCollapsedProjects}
       />

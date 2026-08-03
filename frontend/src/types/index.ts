@@ -449,7 +449,7 @@ export interface IssueMetaOptions {
   statuses: IssueStatus[];
   priorities: IssuePriority[];
   users: { id: number; firstName: string; lastName: string; status: string }[];
-  groups?: { id: number; name: string }[];
+  groups?: { id: number; name: string; members?: { userId: number }[] }[];
   workflow?: IssueMetaWorkflow;
 }
 
