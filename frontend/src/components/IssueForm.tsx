@@ -1,6 +1,7 @@
 import { useState, useEffect, FormEvent, useId, useMemo } from 'react';
 import api from '../api/client';
 import { Issue, IssueMetaOptions, SystemSetting, PermissionMap } from '../types';
+import { useAuth } from '../hooks/useAuth';
 import { usePermissions } from '../hooks/usePermissions';
 import Modal from './Modal';
 import MarkdownEditor from './MarkdownEditor';
@@ -142,6 +143,7 @@ export default function IssueForm({
     formId: formIdProp,
 }: IssueFormProps) {
     const isEdit = !!issueId;
+    const { user } = useAuth();
     const { canInput, canInputField } = usePermissions(permissions);
     const fieldDisabled = (code: string) => (permissions ? !canInputField(code) : false);
     const canSave = canInput('projects.issues');
@@ -177,19 +179,26 @@ export default function IssueForm({
             setTotalDayConversion(total);
 
             if (!isEdit) {
+                let resolvedStartDate = '';
                 if (!initialStartDate) {
                     const now = new Date();
                     const year = now.getFullYear();
                     const month = String(now.getMonth() + 1).padStart(2, '0');
                     const day = String(now.getDate()).padStart(2, '0');
                     const today = `${year}-${month}-${day}`;
-                    setStartDate(`${today}T${data.startTime}`);
+                    resolvedStartDate = `${today}T${data.startTime}`;
                 } else {
-                    setStartDate(initialStartDate.includes('T') ? initialStartDate : `${initialStartDate}T${data.startTime}`);
+                    resolvedStartDate = initialStartDate.includes('T')
+                        ? initialStartDate
+                        : `${initialStartDate}T${data.startTime}`;
                 }
+                setStartDate(resolvedStartDate);
 
                 if (initialEndDate) {
                     setEndDate(initialEndDate.includes('T') ? initialEndDate : `${initialEndDate}T${data.endTime}`);
+                } else {
+                    const startDay = resolvedStartDate.slice(0, 10);
+                    setEndDate(`${startDay}T${data.endTime}`);
                 }
 
                 if (initialDueDate) {
@@ -218,11 +227,17 @@ export default function IssueForm({
                 const normal = res.data.priorities.find((p: any) => p.name === '通常');
                 setPriorityId(String(normal?.id || res.data.priorities[0].id));
             }
+            if (!isEdit && user) {
+                const inCandidates = (res.data.users || []).some(
+                    (u: { id: number; status?: string }) => u.id === user.id && u.status === 'active'
+                );
+                setAssignedToPrincipals(inCandidates ? [`u:${user.id}`] : []);
+            }
         }).catch((err) => {
             setError('メタデータの取得に失敗しました');
             setMeta({ trackers: [], statuses: [], priorities: [], users: [] });
         });
-    }, [isEdit, currentProjectId, defaultStatusId]);
+    }, [isEdit, currentProjectId, defaultStatusId, user?.id]);
 
     useEffect(() => {
         if (!currentProjectId) {
