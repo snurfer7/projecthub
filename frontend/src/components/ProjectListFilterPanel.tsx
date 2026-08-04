@@ -125,16 +125,15 @@ export default function ProjectListFilterPanel({
   const [groups, setGroups] = useState<{ id: number; name: string; members: { userId: number }[] }[]>([]);
 
   useEffect(() => {
-    if (viewMode === 'list') return;
     api.get('/issues/meta/options').then((res) => {
       setTrackers(res.data.trackers);
       setStatuses(res.data.statuses);
       setUsers(res.data.users);
       setGroups(res.data.groups ?? []);
     });
-  }, [viewMode]);
+  }, []);
 
-  const assigneeOptions = useMemo(
+  const groupedUserOptions = useMemo(
     (): ComboboxOption[] => buildGroupedUserOptions({ users, groups }),
     [users, groups],
   );
@@ -168,6 +167,8 @@ export default function ProjectListFilterPanel({
     projectFilter.dueDateMode === 'relative' ||
     projectFilter.companyIds.length > 0 ||
     projectFilter.statuses.length > 0 ||
+    projectFilter.memberIds.length > 0 ||
+    projectFilter.memberGroupIds.length > 0 ||
     issueFilter.trackerIds.length > 0 ||
     issueFilter.statusIds.length > 0 ||
     issueFilter.assignedToIds.length > 0 ||
@@ -289,6 +290,9 @@ export default function ProjectListFilterPanel({
       searchQuery: projectFilter.searchQuery,
       companyIds: projectFilter.companyIds,
       statuses: projectFilter.statuses,
+      memberIds: projectFilter.memberIds,
+      memberGroupIds: projectFilter.memberGroupIds,
+      memberGroupMemberIds: projectFilter.memberGroupMemberIds,
       dueDateMode: projectDueSaved.mode,
       dueDateRelative: projectDueSaved.relative,
       ...(projectDueSaved.start !== undefined
@@ -427,6 +431,26 @@ export default function ProjectListFilterPanel({
             isMulti={true}
             size="small"
           />
+          <Combobox
+            label="メンバー"
+            value={[
+              ...projectFilter.memberIds.map((id) => String(id)),
+              ...projectFilter.memberGroupIds.map((id) => `g:${id}`),
+            ]}
+            options={groupedUserOptions}
+            onChange={(values: (string | number)[]) => {
+              const { userIds, groupIds, memberIds } = splitGroupedAssigneeSelection(values, groups);
+              onProjectFilterChange({
+                memberIds: userIds,
+                memberGroupIds: groupIds,
+                memberGroupMemberIds: memberIds,
+              });
+            }}
+            placeholder="全員"
+            isMulti={true}
+            size="small"
+            className="w-[16.5rem]"
+          />
         </FilterRow>
 
         {showTicketFilters && (
@@ -505,7 +529,7 @@ export default function ProjectListFilterPanel({
                 ...issueFilter.assignedToIds.map((id) => String(id)),
                 ...issueFilter.assignedToGroupIds.map((id) => `g:${id}`),
               ]}
-              options={assigneeOptions}
+              options={groupedUserOptions}
               onChange={(values: (string | number)[]) => {
                 const { userIds, groupIds, memberIds } = splitGroupedAssigneeSelection(values, groups);
                 onIssueFilterChange({ assignedToIds: userIds, assignedToGroupIds: groupIds, assignedToGroupMemberIds: memberIds });
@@ -546,7 +570,7 @@ export default function ProjectListFilterPanel({
             <Combobox
               label="記録者"
               value={timeRecordFilterUserIds}
-              options={assigneeOptions}
+              options={groupedUserOptions}
               onChange={(values: (string | number)[]) => {
                 onTimeRecordFilterUserIdsChange(
                   values.filter((v) => String(v) !== UNGROUPED_OPTION_VALUE),

@@ -51,7 +51,7 @@
 
 - **DateRangeSpecifyMode** — `relative`（相対指定）| `direct`（直接指定）。
 - **DateRangeRelativePreset** — グループ付き相対期間。今日周辺: `today` / `tomorrow` / `yesterday`。直近・将来: `last7Days`（直近7日間・今日含む）/ `last30Days`（直近30日間・今日含む）/ `next7Days`（今後7日間・今日〜+6日）。週単位: `thisWeek`（月〜日）/ `nextWeek` / `lastWeek`。月単位: `thisMonth`（1日〜末日）/ `nextMonth` / `lastMonth`。年度単位: `thisFiscalYear`（6月〜翌3月）/ `lastFiscalYear`（前年度）。
-- **ProjectFilterCriteria** — `searchQuery`, `dueDateStart`, `dueDateEnd`, `dueDateMode`, `dueDateRelative`, `companyIds`, `statuses`。
+- **ProjectFilterCriteria** — `searchQuery`, `dueDateStart`, `dueDateEnd`, `dueDateMode`, `dueDateRelative`, `companyIds`, `statuses`, `memberIds`, `memberGroupIds`, `memberGroupMemberIds`（メンバー絞り込み。ユーザー ID・グループ ID・グループ選択時の展開メンバー ID。チケット担当者フィルタと同型）。
 - **IssueFilterCriteria** — `trackerIds`, `statusIds`, `assignedToIds`, `assignedToGroupIds`, `assignedToGroupMemberIds`, `dueDateStart`, `dueDateEnd`, `dueDateMode`, `dueDateRelative`（チケット期限。ガント／カンバン等）, `scheduleDateStart`, `scheduleDateEnd`, `scheduleDateMode`, `scheduleDateRelative`（チケット開始日〜終了日との期間重なり。主に時間タブ）。相対指定時は対応する `*Mode`=`relative` と `*Relative` プリセットを保持し、絞り込み時に日付範囲を再計算する。
 
 ## 保存済み検索

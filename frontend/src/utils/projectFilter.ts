@@ -18,6 +18,9 @@ export type ProjectFilterCriteria = {
   dueDateRelative: DateRangeRelativePreset | '';
   companyIds: (number | string)[];
   statuses: string[];
+  memberIds: (number | string)[];
+  memberGroupIds: (number | string)[];
+  memberGroupMemberIds: (number | string)[];
 };
 
 export function defaultProjectFilterCriteria(): ProjectFilterCriteria {
@@ -29,6 +32,9 @@ export function defaultProjectFilterCriteria(): ProjectFilterCriteria {
     dueDateRelative: '',
     companyIds: [],
     statuses: [],
+    memberIds: [],
+    memberGroupIds: [],
+    memberGroupMemberIds: [],
   };
 }
 
@@ -78,6 +84,31 @@ export function matchesProjectFilter(project: Project, criteria: ProjectFilterCr
 
   if (criteria.statuses.length > 0 && !criteria.statuses.includes(project.status)) {
     return false;
+  }
+
+  const hasMemberFilter = criteria.memberIds.length > 0;
+  const hasMemberGroupFilter = criteria.memberGroupIds.length > 0;
+  const hasMemberGroupMemberFilter = criteria.memberGroupMemberIds.length > 0;
+  if (hasMemberFilter || hasMemberGroupFilter || hasMemberGroupMemberFilter) {
+    const memberUserMatch =
+      hasMemberFilter &&
+      (project.members?.some((m) =>
+        criteria.memberIds.some((id) => String(id) === String(m.userId)),
+      ) ??
+        false);
+    const memberGroupMemberMatch =
+      hasMemberGroupMemberFilter &&
+      (project.members?.some((m) =>
+        criteria.memberGroupMemberIds.some((id) => String(id) === String(m.userId)),
+      ) ??
+        false);
+    const memberGroupMatch =
+      hasMemberGroupFilter &&
+      (project.groups?.some((g) =>
+        criteria.memberGroupIds.some((id) => String(id) === String(g.groupId)),
+      ) ??
+        false);
+    if (!memberUserMatch && !memberGroupMemberMatch && !memberGroupMatch) return false;
   }
 
   const { dueDateStart, dueDateEnd, dueDateMode, dueDateRelative } = criteria;

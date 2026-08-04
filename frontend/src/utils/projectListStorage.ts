@@ -169,6 +169,13 @@ function parseProjectFilter(o: unknown): ProjectFilterCriteria | null {
   if (typeof f.dueDateEnd !== 'string') return null;
   if (!Array.isArray(f.companyIds)) return null;
   const statuses = Array.isArray(f.statuses) ? (f.statuses as string[]) : [];
+  const memberIds = Array.isArray(f.memberIds) ? (f.memberIds as (number | string)[]) : [];
+  const memberGroupIds = Array.isArray(f.memberGroupIds)
+    ? (f.memberGroupIds as (number | string)[])
+    : [];
+  const memberGroupMemberIds = Array.isArray(f.memberGroupMemberIds)
+    ? (f.memberGroupMemberIds as (number | string)[])
+    : [];
   return {
     searchQuery: f.searchQuery,
     dueDateStart: f.dueDateStart,
@@ -177,6 +184,9 @@ function parseProjectFilter(o: unknown): ProjectFilterCriteria | null {
     dueDateRelative: parseDateRangeRelative(f.dueDateRelative),
     companyIds: f.companyIds,
     statuses,
+    memberIds,
+    memberGroupIds,
+    memberGroupMemberIds,
   };
 }
 

@@ -151,6 +151,9 @@ export default function ProjectListPage() {
         const savedProject = f.projectFilter;
         setProjectFilter((prev) => {
           const next = { ...prev, ...savedProject };
+          next.memberIds = savedProject.memberIds ?? [];
+          next.memberGroupIds = savedProject.memberGroupIds ?? [];
+          next.memberGroupMemberIds = savedProject.memberGroupMemberIds ?? [];
           if (next.dueDateMode === 'relative' && isDateRangeRelativePreset(next.dueDateRelative)) {
             const range = resolveRelativeDateRange(next.dueDateRelative);
             next.dueDateStart = range.start;

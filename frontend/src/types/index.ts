@@ -506,6 +506,9 @@ export interface SavedSearchFilter {
     searchQuery: string;
     companyIds: (number | string)[];
     statuses: string[];
+    memberIds?: (number | string)[];
+    memberGroupIds?: (number | string)[];
+    memberGroupMemberIds?: (number | string)[];
     dueDateStart?: string;
     dueDateEnd?: string;
     dueDateMode?: DateRangeSpecifyMode;
