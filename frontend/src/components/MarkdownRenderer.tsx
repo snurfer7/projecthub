@@ -33,9 +33,9 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) => {
                 h2: ({ children }) => <h2 className="text-xl font-bold mb-3 text-slate-800">{children}</h2>,
                 h3: ({ children }) => <h3 className="text-lg font-bold mb-2 text-slate-800">{children}</h3>,
                 p: ({ children }) => <p className="text-slate-700 mb-4 leading-relaxed">{children}</p>,
-                ul: ({ children }) => <ul className="list-disc list-inside mb-4 text-slate-700 space-y-2">{children}</ul>,
-                ol: ({ children }) => <ol className="list-decimal list-inside mb-4 text-slate-700 space-y-2">{children}</ol>,
-                li: ({ children }) => <li className="ml-4">{children}</li>,
+                ul: ({ children }) => <ul className="list-disc list-outside mb-4 pl-6 text-slate-700 space-y-2">{children}</ul>,
+                ol: ({ children }) => <ol className="list-decimal list-outside mb-4 pl-6 text-slate-700 space-y-2">{children}</ol>,
+                li: ({ children }) => <li className="leading-relaxed [&>p]:mb-0">{children}</li>,
                 a: ({ href, children }) => (
                     <a href={href} className="text-sky-600 hover:text-sky-700 underline">
                         {children}
