@@ -66,6 +66,7 @@ export default function KanbanPage() {
         assignedToIds: filterAssignedToIds,
         assignedToGroupIds: filterAssignedToGroupIds,
         assignedToGroupMemberIds: filterAssignedToGroupMemberIds,
+        includeUnassigned: false,
         dueDateStart,
         dueDateEnd,
         dueDateMode: 'direct',
