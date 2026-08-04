@@ -36,3 +36,11 @@ export function issueHasAssigneeUser(
   }
   return false;
 }
+
+/** 担当ユーザー・担当グループのいずれも未設定 */
+export function isIssueUnassigned(
+  issue: Pick<Issue, 'assignees' | 'assignedTo' | 'assignedToId' | 'assignedToGroupId' | 'assignedToGroup'>,
+): boolean {
+  if (issue.assignedToGroupId != null || issue.assignedToGroup) return false;
+  return issueAssigneeUsers(issue).length === 0 && issue.assignedToId == null;
+}

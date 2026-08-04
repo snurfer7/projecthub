@@ -520,6 +520,8 @@ export interface SavedSearchFilter {
     assignedToIds: (number | string)[];
     assignedToGroupIds: (number | string)[];
     assignedToGroupMemberIds: (number | string)[];
+    /** true のとき担当未設定チケットを担当者条件の OR 対象に含める */
+    includeUnassigned?: boolean;
     dueDateStart?: string;
     dueDateEnd?: string;
     dueDateMode?: DateRangeSpecifyMode;

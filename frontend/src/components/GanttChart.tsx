@@ -17,7 +17,7 @@ import { orderIssuesHierarchically, type IssueListSort } from '../utils/issueSor
 import type { PermissionMap } from '../types';
 import { usePermissions } from '../hooks/usePermissions';
 import { prefetchProjectPermissions, projectMapCanInput, getCachedProjectPermissions } from '../utils/projectPermissionsCache';
-import { formatIssueAssignees, issueHasAssigneeUser } from '../utils/issueAssignees';
+import { formatIssueAssignees, issueHasAssigneeUser, isIssueUnassigned } from '../utils/issueAssignees';
 
 interface GanttChartProps {
   issues: Issue[];
@@ -49,6 +49,8 @@ interface GanttChartProps {
   onFilterAssignedToIdsChange?: (values: (number | string)[]) => void;
   filterAssignedToGroupIds?: (number | string)[];
   filterAssignedToGroupMemberIds?: (number | string)[];
+  /** true のとき担当未設定チケットを担当者条件の OR 対象に含める */
+  filterIncludeUnassigned?: boolean;
   collapsedProjects?: Set<number>;
   onCollapsedProjectsChange?: (collapsed: Set<number>) => void;
 }
@@ -546,6 +548,7 @@ export default function GanttChart({
   onFilterAssignedToIdsChange,
   filterAssignedToGroupIds: propsFilterAssignedToGroupIds = [],
   filterAssignedToGroupMemberIds: propsFilterAssignedToGroupMemberIds = [],
+  filterIncludeUnassigned = false,
   collapsedProjects: propsCollapsedProjects = new Set(),
   onCollapsedProjectsChange,
   issueFormPermissions,
@@ -898,7 +901,7 @@ export default function GanttChart({
       const hasUserFilter = filterAssignedToIds.length > 0;
       const hasGroupFilter = filterAssignedToGroupIds != null && filterAssignedToGroupIds.length > 0;
       const hasGroupMemberFilter = filterAssignedToGroupMemberIds != null && filterAssignedToGroupMemberIds.length > 0;
-      if (hasUserFilter || hasGroupFilter || hasGroupMemberFilter) {
+      if (hasUserFilter || hasGroupFilter || hasGroupMemberFilter || filterIncludeUnassigned) {
         const userMatch =
           hasUserFilter &&
           issueHasAssigneeUser(issue, filterAssignedToIds);
@@ -909,14 +912,15 @@ export default function GanttChart({
           hasGroupFilter &&
           issue.assignedToGroupId != null &&
           filterAssignedToGroupIds!.some((id) => String(id) === String(issue.assignedToGroupId));
-        if (!userMatch && !groupMemberMatch && !groupMatch) return false;
+        const unassignedMatch = filterIncludeUnassigned && isIssueUnassigned(issue);
+        if (!userMatch && !groupMemberMatch && !groupMatch && !unassignedMatch) return false;
       }
       if (filterStatusIds.length > 0 && !filterStatusIds.some((id) => String(id) === String(issue.statusId))) {
         return false;
       }
       return true;
     });
-  }, [issues, filterTrackerIds, filterAssignedToIds, filterAssignedToGroupIds, filterAssignedToGroupMemberIds, filterStatusIds]);
+  }, [issues, filterTrackerIds, filterAssignedToIds, filterAssignedToGroupIds, filterAssignedToGroupMemberIds, filterIncludeUnassigned, filterStatusIds]);
 
   const trackerColorMap = useMemo(() => {
     const map: Record<number, string> = {};

@@ -4,7 +4,10 @@ import {
   type DateRangeRelativePreset,
   type DateRangeSpecifyMode,
 } from './dateRangeSpecify';
-import { issueHasAssigneeUser } from './issueAssignees';
+import { issueHasAssigneeUser, isIssueUnassigned } from './issueAssignees';
+
+/** 担当者フィルタの「未割当」選択肢 value */
+export const UNASSIGNED_ASSIGNEE_VALUE = '__unassigned__';
 
 export type IssueFilterCriteria = {
   trackerIds: (number | string)[];
@@ -13,6 +16,8 @@ export type IssueFilterCriteria = {
   assignedToGroupIds: (number | string)[];
   /** 選択されたグループのメンバー userId を展開したもの（担当者フィルターの OR 拡張用） */
   assignedToGroupMemberIds: (number | string)[];
+  /** true のとき担当ユーザー・担当グループ未設定のチケットを担当者条件の OR 対象に含める */
+  includeUnassigned: boolean;
   dueDateStart: string;
   dueDateEnd: string;
   dueDateMode: DateRangeSpecifyMode;
@@ -32,6 +37,7 @@ export function defaultIssueFilterCriteria(): IssueFilterCriteria {
     assignedToIds: [],
     assignedToGroupIds: [],
     assignedToGroupMemberIds: [],
+    includeUnassigned: false,
     dueDateStart: '',
     dueDateEnd: '',
     dueDateMode: 'direct',
@@ -86,7 +92,8 @@ export function matchesIssueFilter(issue: Issue, criteria: IssueFilterCriteria):
   const hasUserFilter = criteria.assignedToIds.length > 0;
   const hasGroupFilter = criteria.assignedToGroupIds.length > 0;
   const hasGroupMemberFilter = criteria.assignedToGroupMemberIds.length > 0;
-  if (hasUserFilter || hasGroupFilter || hasGroupMemberFilter) {
+  const includeUnassigned = criteria.includeUnassigned === true;
+  if (hasUserFilter || hasGroupFilter || hasGroupMemberFilter || includeUnassigned) {
     const userMatch =
       hasUserFilter &&
       issueHasAssigneeUser(issue, criteria.assignedToIds);
@@ -97,7 +104,8 @@ export function matchesIssueFilter(issue: Issue, criteria: IssueFilterCriteria):
       hasGroupFilter &&
       issue.assignedToGroupId != null &&
       criteria.assignedToGroupIds.some((id) => String(id) === String(issue.assignedToGroupId));
-    if (!userMatch && !groupMemberMatch && !groupMatch) return false;
+    const unassignedMatch = includeUnassigned && isIssueUnassigned(issue);
+    if (!userMatch && !groupMemberMatch && !groupMatch && !unassignedMatch) return false;
   }
 
   const dueRange = effectiveDateRange(

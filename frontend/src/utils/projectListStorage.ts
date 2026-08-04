@@ -219,6 +219,7 @@ function parseIssueFilter(o: unknown): IssueFilterCriteria | null {
   const assignedToGroupMemberIds = Array.isArray(f.assignedToGroupMemberIds)
     ? (f.assignedToGroupMemberIds as (number | string)[])
     : [];
+  const includeUnassigned = f.includeUnassigned === true;
   const scheduleDateStart = typeof f.scheduleDateStart === 'string' ? f.scheduleDateStart : '';
   const scheduleDateEnd = typeof f.scheduleDateEnd === 'string' ? f.scheduleDateEnd : '';
   return {
@@ -227,6 +228,7 @@ function parseIssueFilter(o: unknown): IssueFilterCriteria | null {
     assignedToIds,
     assignedToGroupIds,
     assignedToGroupMemberIds,
+    includeUnassigned,
     dueDateStart: f.dueDateStart,
     dueDateEnd: f.dueDateEnd,
     dueDateMode: parseDateRangeMode(f.dueDateMode),

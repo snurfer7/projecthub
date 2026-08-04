@@ -4,6 +4,7 @@ import api from '../api/client';
 import { Company, IssueStatus, Tracker, SavedSearch } from '../types';
 import { SELF_COMPANY_FILTER_VALUE, type ProjectFilterCriteria } from '../utils/projectFilter';
 import type { IssueFilterCriteria } from '../utils/issueFilter';
+import { UNASSIGNED_ASSIGNEE_VALUE } from '../utils/issueFilter';
 import type { ProjectListViewMode } from '../utils/projectListStorage';
 import type { ProjectListSort } from '../utils/projectTree';
 import type { IssueListSort } from '../utils/issueSort';
@@ -138,6 +139,14 @@ export default function ProjectListFilterPanel({
     [users, groups],
   );
 
+  const issueAssigneeOptions = useMemo(
+    (): ComboboxOption[] => [
+      { value: UNASSIGNED_ASSIGNEE_VALUE, label: '未割当', divider: true },
+      ...groupedUserOptions,
+    ],
+    [groupedUserOptions],
+  );
+
   const showTicketFilters = viewMode !== 'list';
   const showTicketDueDateFilter = showTicketFilters && viewMode !== 'time';
   const showTicketScheduleFilter = viewMode === 'time';
@@ -173,6 +182,7 @@ export default function ProjectListFilterPanel({
     issueFilter.statusIds.length > 0 ||
     issueFilter.assignedToIds.length > 0 ||
     issueFilter.assignedToGroupIds.length > 0 ||
+    issueFilter.includeUnassigned ||
     (showTicketDueDateFilter &&
       (issueFilter.dueDateMode === 'relative' ||
         issueFilter.dueDateStart !== '' ||
@@ -305,6 +315,7 @@ export default function ProjectListFilterPanel({
       assignedToIds: issueFilter.assignedToIds,
       assignedToGroupIds: issueFilter.assignedToGroupIds,
       assignedToGroupMemberIds: issueFilter.assignedToGroupMemberIds,
+      includeUnassigned: issueFilter.includeUnassigned,
       ...(issueDueSaved
         ? {
             dueDateMode: issueDueSaved.mode,
@@ -526,13 +537,23 @@ export default function ProjectListFilterPanel({
             <Combobox
               label="担当者"
               value={[
+                ...(issueFilter.includeUnassigned ? [UNASSIGNED_ASSIGNEE_VALUE] : []),
                 ...issueFilter.assignedToIds.map((id) => String(id)),
                 ...issueFilter.assignedToGroupIds.map((id) => `g:${id}`),
               ]}
-              options={groupedUserOptions}
+              options={issueAssigneeOptions}
               onChange={(values: (string | number)[]) => {
-                const { userIds, groupIds, memberIds } = splitGroupedAssigneeSelection(values, groups);
-                onIssueFilterChange({ assignedToIds: userIds, assignedToGroupIds: groupIds, assignedToGroupMemberIds: memberIds });
+                const includeUnassigned = values.some((v) => String(v) === UNASSIGNED_ASSIGNEE_VALUE);
+                const { userIds, groupIds, memberIds } = splitGroupedAssigneeSelection(
+                  values.filter((v) => String(v) !== UNASSIGNED_ASSIGNEE_VALUE),
+                  groups,
+                );
+                onIssueFilterChange({
+                  assignedToIds: userIds,
+                  assignedToGroupIds: groupIds,
+                  assignedToGroupMemberIds: memberIds,
+                  includeUnassigned,
+                });
               }}
               placeholder="全員"
               isMulti={true}

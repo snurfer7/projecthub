@@ -129,6 +129,7 @@ export default function ProjectListPage() {
       assignedToIds: [],
       assignedToGroupIds: [],
       assignedToGroupMemberIds: [],
+      includeUnassigned: false,
       dueDateStart: '',
       dueDateEnd: '',
       dueDateMode: 'direct',
@@ -171,6 +172,7 @@ export default function ProjectListPage() {
         const savedIssue = f.issueFilter;
         setIssueFilter((prev) => {
           const next = { ...prev, ...savedIssue };
+          next.includeUnassigned = savedIssue.includeUnassigned === true;
           if (viewMode === 'time') {
             next.dueDateStart = '';
             next.dueDateEnd = '';
@@ -356,6 +358,7 @@ export default function ProjectListPage() {
         assignedToIds: [],
         assignedToGroupIds: [],
         assignedToGroupMemberIds: [],
+        includeUnassigned: false,
         dueDateStart: '',
         dueDateEnd: '',
         dueDateMode: 'direct',
@@ -415,7 +418,8 @@ export default function ProjectListPage() {
     const issueParams: Record<string, string | number> = {};
     if (issueFilter.trackerIds.length > 0) issueParams.trackerIds = issueFilter.trackerIds.join(',');
     if (issueFilter.statusIds.length > 0) issueParams.statusIds = issueFilter.statusIds.join(',');
-    if (issueFilter.assignedToIds.length > 0) {
+    // 未割当を含む場合は API 側の担当者絞り込みをせず、クライアントで OR 判定する
+    if (issueFilter.assignedToIds.length > 0 && !issueFilter.includeUnassigned) {
       issueParams.assignedToIds = issueFilter.assignedToIds.join(',');
     }
 
@@ -455,6 +459,7 @@ export default function ProjectListPage() {
     issueFilter.trackerIds,
     issueFilter.statusIds,
     issueFilter.assignedToIds,
+    issueFilter.includeUnassigned,
     timeRecordDate,
     timeRecordFilterUserIds,
   ]);
@@ -835,6 +840,7 @@ export default function ProjectListPage() {
           onFilterAssignedToIdsChange={(values) => { updateIssueFilter({ assignedToIds: values }); setActiveSavedSearchId(null); }}
           filterAssignedToGroupIds={issueFilter.assignedToGroupIds}
           filterAssignedToGroupMemberIds={issueFilter.assignedToGroupMemberIds}
+          filterIncludeUnassigned={issueFilter.includeUnassigned}
           collapsedProjects={ganttCollapsedProjects}
           onCollapsedProjectsChange={setGanttCollapsedProjects}
         />
