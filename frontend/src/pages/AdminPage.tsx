@@ -57,6 +57,7 @@ export default function AdminPage({ user }: Props) {
   const [masterType, setMasterType] = useState<'roles' | 'trackers' | 'statuses' | 'priorities' | null>(null);
   const [editingMasterId, setEditingMasterId] = useState<number | null>(null);
   const [masterName, setMasterName] = useState('');
+  const [masterIsClosed, setMasterIsClosed] = useState(false);
   const [masterError, setMasterError] = useState('');
   const [masterStatusIds, setMasterStatusIds] = useState<number[]>([]);
   const [masterTransitions, setMasterTransitions] = useState<Set<string>>(new Set());
@@ -108,7 +109,7 @@ export default function AdminPage({ user }: Props) {
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [userStatusFilters, setUserStatusFilters] = useState<UserAccountStatus[]>(DEFAULT_USER_STATUS_FILTERS);
 
-  const { canUse, canInput } = usePermissions(user.permissions);
+  const { canUse, canInput, canInputField } = usePermissions(user.permissions);
 
   const filteredUsers = useMemo(() => {
     const q = userSearchQuery.trim().toLowerCase();
@@ -428,6 +429,7 @@ export default function AdminPage({ user }: Props) {
     setMasterType(type);
     setEditingMasterId(null);
     setMasterName('');
+    setMasterIsClosed(false);
     setMasterError('');
     setMasterStatusIds([]);
     setMasterTransitions(new Set());
@@ -440,6 +442,7 @@ export default function AdminPage({ user }: Props) {
     setMasterType(type);
     setEditingMasterId(item.id);
     setMasterName(item.name);
+    setMasterIsClosed(type === 'statuses' ? !!item.isClosed : false);
     setMasterError('');
     if (type === 'roles' && item.statuses) {
       setMasterStatusIds(item.statuses.map((s: any) => s.statusId));
@@ -472,6 +475,7 @@ export default function AdminPage({ user }: Props) {
     setMasterType(null);
     setEditingMasterId(null);
     setMasterError('');
+    setMasterIsClosed(false);
     setMasterStatusIds([]);
     setMasterTransitions(new Set());
     setMasterIsDefaultRole(false);
@@ -484,6 +488,9 @@ export default function AdminPage({ user }: Props) {
     try {
       if (!masterType) return;
       const data: any = { name: masterName };
+      if (masterType === 'statuses' && canInputField('admin.statuses.fields.isClosed')) {
+        data.isClosed = masterIsClosed;
+      }
       if (masterType === 'roles') {
         data.statusIds = masterStatusIds;
         data.isDefaultRole = masterIsDefaultRole;
@@ -942,6 +949,9 @@ export default function AdminPage({ user }: Props) {
                         <GripVertical className="w-4 h-4" />
                       </div>
                       <span>{item.name}</span>
+                      {tab === 'statuses' && item.isClosed && (
+                        <span className="text-xs text-gray-400">(終了)</span>
+                      )}
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => openEditMasterModal(tab as 'trackers' | 'statuses' | 'priorities', item)} title="編集" className="p-1.5 text-sky-600 hover:bg-sky-50 rounded"><Pencil className="w-4 h-4" /></button>
@@ -1240,6 +1250,22 @@ export default function AdminPage({ user }: Props) {
             />
           </div>
 
+          {masterType === 'statuses' && (
+            <div className="mb-4">
+              <label className={`flex items-center gap-2 ${canInputField('admin.statuses.fields.isClosed') ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
+                <input
+                  type="checkbox"
+                  checked={masterIsClosed}
+                  onChange={(e) => setMasterIsClosed(e.target.checked)}
+                  disabled={!canInputField('admin.statuses.fields.isClosed')}
+                  className="rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                />
+                <span className="text-sm font-medium text-gray-700">終了</span>
+              </label>
+              <p className="text-xs text-gray-500 mt-1 ml-6">オンにすると完了扱いのステータスになります（カンバン列・チケット表示に反映）。</p>
+            </div>
+          )}
+
           {/* Role-specific isDefaultRole checkbox */}
           {masterType === 'roles' && (
             <div className="mb-4">
@@ -1282,7 +1308,7 @@ export default function AdminPage({ user }: Props) {
                         }}
                         className="mr-3 rounded border-gray-300 text-sky-600 focus:ring-sky-500" />
                       <span className="text-sm">{s.name}</span>
-                      {s.isClosed && <span className="ml-2 text-xs text-gray-400">(完了)</span>}
+                      {s.isClosed && <span className="ml-2 text-xs text-gray-400">(終了)</span>}
                     </label>
                   ))
                 ) : (

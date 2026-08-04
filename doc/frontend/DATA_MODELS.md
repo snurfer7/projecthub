@@ -34,7 +34,8 @@
 
 ## チケット
 
-- **Tracker**, **IssueStatus**, **IssuePriority** — マスタ（id, name, position 等）。
+- **Tracker**, **IssuePriority** — マスタ（id, name, position 等）。
+- **IssueStatus** — マスタ（id, name, **isClosed**（終了フラグ）, position）。
 - **Role** — id, name, position, isDefaultRole（メンバー追加時のロール選択初期値・複数可）, statuses, transitions, permissions（プロジェクト詳細の RolePermission）。
 - **Issue** — id, projectId, trackerId, statusId, priorityId, authorId, **assignees**（`{ id, firstName, lastName }[]`・担当ユーザー複数）, assignedToGroupId, subject, description, parentId（親チケット）, startDate, endDate（終了日時）, dueDate（期日）, estimatedHours, doneRatio, createdAt, updatedAt, project, tracker, status, priority, author, assignedToGroup, parent（`{ id, subject }`）, children（子の要約配列または `_count.children`）, comments, attachments, timeEntries, relationsFrom, relationsTo, _count。後方互換で `assignedTo` / `assignedToId` は `assignees` の先頭。子を持つ場合 `startDate` / `endDate` / `status`（statusId）は子孫から集約した表示値（ステータスは position 最小）。`project` は `GET /` 応答では `company: { id, name } | null` を含む場合がある（一覧・カンバン・時間表示での「企業名 / プロジェクト名」形式表示用）。作成・更新 Body は **`assignedToIds: number[]`**（担当ユーザーの同期）と `assignedToGroupId`。
 - **IssueRelation** — issueFromId, issueToId, relationType, issueFrom, issueTo。

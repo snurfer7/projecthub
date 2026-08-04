@@ -23,7 +23,7 @@
 ## マスタ（チケット・ワークフロー）
 
 - **Tracker** — チケット種別（Bug, Feature 等）。
-- **IssueStatus** — ステータス（Open, Closed 等）。isClosed, position。RoleStatus, WorkflowTransition と関連。
+- **IssueStatus** — ステータス（新規, 進行中, 終了 等）。**isClosed**（終了フラグ。true のとき完了扱い。カンバン列・チケットバッジ等の表示に反映）, position。RoleStatus, WorkflowTransition と関連。
 - **IssuePriority** — 優先度。
 - **Role** — プロジェクト内ロール。RoleStatus、WorkflowTransition、**RolePermission**（プロジェクト詳細権限）と関連。`isDefaultRole` はメンバー／グループ追加時のロール選択の初期値（複数可）。プロジェクト作成時の作成者には全ロールを付与する。
 - **RolePermission** — Role と PermissionResource（scope=role）の対応。canUse / canInput。
@@ -91,6 +91,7 @@
 | `settings.fields.authMethod` | 認証方式 | field | `settings` |
 | `settings.fields.microsoftAccount` | Microsoft アカウント連携 | field | `settings` |
 | `admin.holiday-settings` | 休日設定 | feature | `admin` |
+| `admin.statuses.fields.isClosed` | 終了 | field | `admin.statuses` |
 
 ## クライアントとの整合
 

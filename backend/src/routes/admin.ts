@@ -14,9 +14,14 @@ import {
   parseHolidayWeekdays,
 } from '../services/systemCalendar';
 import { clearProjectPermissionCache } from '../services/projectPermissions';
+import { assertFieldPermissions } from '../services/permissions';
 
 const router = Router();
 const prisma = new PrismaClient();
+
+const STATUS_FIELD_PERMS = {
+  isClosed: 'admin.statuses.fields.isClosed',
+} as const;
 
 const TEMP_PASSWORD_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^*';
 
@@ -266,6 +271,11 @@ router.get('/statuses', requirePermission('admin.statuses', 'use'), async (_req:
 
 router.post('/statuses', requirePermission('admin.statuses', 'input'), async (req: AuthRequest, res: Response) => {
   try {
+    const denied = assertFieldPermissions(req.permissions!, req.body, STATUS_FIELD_PERMS);
+    if (denied) {
+      res.status(403).json({ error: '権限がありません', code: denied });
+      return;
+    }
     const { name, isClosed, position } = req.body;
     // when creating new status default to end
     const max = await prisma.issueStatus.aggregate({ _max: { position: true } });
@@ -281,6 +291,16 @@ router.post('/statuses', requirePermission('admin.statuses', 'input'), async (re
 router.put('/statuses/:id', requirePermission('admin.statuses', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
+    const existing = await prisma.issueStatus.findUnique({ where: { id } });
+    if (!existing) {
+      res.status(404).json({ error: 'ステータスが見つかりません' });
+      return;
+    }
+    const denied = assertFieldPermissions(req.permissions!, req.body, STATUS_FIELD_PERMS, existing);
+    if (denied) {
+      res.status(403).json({ error: '権限がありません', code: denied });
+      return;
+    }
     const { name, isClosed, position } = req.body;
     const data: any = {};
     if (name !== undefined) data.name = name;

@@ -115,7 +115,14 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
       { code: 'admin.permission-sets', name: '権限設定', position: 2 },
       { code: 'admin.roles', name: 'ロール', position: 3 },
       { code: 'admin.trackers', name: 'トラッカー', position: 4 },
-      { code: 'admin.statuses', name: 'ステータス', position: 5 },
+      {
+        code: 'admin.statuses',
+        name: 'ステータス',
+        position: 5,
+        children: [
+          { code: 'admin.statuses.fields.isClosed', name: '終了', resourceType: 'field', position: 0 },
+        ],
+      },
       { code: 'admin.priorities', name: '優先度', position: 6 },
       { code: 'admin.time-settings', name: '時間設定', position: 7 },
       { code: 'admin.email-settings', name: 'メール設定', position: 8 },

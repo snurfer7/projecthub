@@ -1933,7 +1933,11 @@ export default function GanttChart({
                         )}
                         <button
                           onClick={(e) => handleTicketClick(e, issue.id)}
-                          className={`text-sky-600 hover:underline truncate text-left ${isParent ? 'font-semibold' : ''}`}
+                          className={`truncate text-left ${isParent ? 'font-semibold' : ''} ${
+                            issue.status?.isClosed
+                              ? 'line-through decoration-double decoration-slate-500 text-slate-500 hover:text-slate-600'
+                              : 'text-sky-600 hover:underline'
+                          }`}
                         >
                           {issue.subject}
                         </button>

@@ -168,7 +168,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | PUT | `/users/:id` | ユーザー更新（`status` を含む） | 管理者 |
 | DELETE | `/users/:id` | ユーザー削除（`status === 'pending'` のユーザーのみ許可） | 管理者 |
 | GET/POST/PUT/DELETE, POST reorder | `/trackers` | トラッカー | 管理者 |
-| GET/POST/PUT/DELETE, POST reorder | `/statuses` | チケットステータス | 管理者 |
+| GET/POST/PUT/DELETE, POST reorder | `/statuses` | チケットステータス。Body: `name`, **`isClosed`**（終了フラグ・boolean）, `position`。`isClosed` の指定・変更は `admin.statuses.fields.isClosed` input | `admin.statuses` use / input |
 | GET/POST/PUT/DELETE, POST reorder | `/priorities` | 優先度 | 管理者 |
 | GET/GET:id/POST/PUT/DELETE | `/groups` | グループ（`permissionSetId` 割当可） | `admin.groups` |
 | GET/POST/PUT/DELETE, POST reorder, GET/PUT transitions | `/roles` | ロール・ワークフロー遷移 | 管理者 |
