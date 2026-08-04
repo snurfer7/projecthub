@@ -4,7 +4,7 @@
 
 ## 認証・ユーザー
 
-- **User** — id, email, firstName, lastName, role, isAdmin, landingPage, show*Menu, createdAt, groupMembers, status（`pending` \| `active` \| `inactive`）, **authMethod**（`password` \| `sso`）, **microsoftLinked**（boolean）, **permissions**（`Record<string, PermissionEntry>`）等。
+- **User** — id, email, firstName, lastName, role, isAdmin, landingPage, show*Menu, createdAt, groupMembers, status（`pending` \| `active` \| `inactive`）, **authMethod**（`password` \| `sso`）, **microsoftLinked**（boolean）, **uiPreferences**（個人 UI 設定。`gantt.columns` にガント左ペイン列の key / visible / width）, **permissions**（`Record<string, PermissionEntry>`）等。
 - **PermissionEntry** — `{ canUse: boolean, canInput: boolean }`。
 - **PermissionResource** — id, code, name, resourceType, parentId, position, children?。
 - **PermissionSet** — id, name, description, createdAt, groups?, permissions?。
@@ -37,7 +37,7 @@
 - **Tracker**, **IssuePriority** — マスタ（id, name, position 等）。
 - **IssueStatus** — マスタ（id, name, **isClosed**（終了フラグ）, position）。
 - **Role** — id, name, position, isDefaultRole（メンバー追加時のロール選択初期値・複数可）, statuses, transitions, permissions（プロジェクト詳細の RolePermission）。
-- **Issue** — id, projectId, trackerId, statusId, priorityId, authorId, **assignees**（`{ id, firstName, lastName }[]`・担当ユーザー複数）, assignedToGroupId, subject, description, parentId（親チケット）, startDate, endDate（終了日時）, dueDate（期日）, estimatedHours, doneRatio, createdAt, updatedAt, project, tracker, status, priority, author, assignedToGroup, parent（`{ id, subject }`）, children（子の要約配列または `_count.children`）, comments, attachments, timeEntries, relationsFrom, relationsTo, _count。後方互換で `assignedTo` / `assignedToId` は `assignees` の先頭。子を持つ場合 `startDate` / `endDate` / `status`（statusId）は子孫から集約した表示値（ステータスは position 最小）。`project` は `GET /` 応答では `company: { id, name } | null` を含む場合がある（一覧・カンバン・時間表示での「企業名 / プロジェクト名」形式表示用）。作成・更新 Body は **`assignedToIds: number[]`**（担当ユーザーの同期）と `assignedToGroupId`。
+- **Issue** — id, projectId, trackerId, statusId, priorityId, authorId, **assignees**（`{ id, firstName, lastName }[]`・担当ユーザー複数）, assignedToGroupId, subject, description, parentId（親チケット）, startDate, endDate（終了日時）, dueDate（期日）, estimatedHours, doneRatio, createdAt, updatedAt, project, tracker, status, priority, author, assignedToGroup, parent（`{ id, subject }`）, children（子の要約配列または `_count.children`）, comments, attachments, timeEntries, relationsFrom, relationsTo, _count。後方互換で `assignedTo` / `assignedToId` は `assignees` の先頭。子を持つ場合 `startDate` / `endDate` / `status`（statusId）は子孫から集約した表示値（ステータスは position 最小）。`project` は `GET /` 応答では `company: { id, name } | null` を含む場合がある（一覧・カンバン・時間表示での「企業名 / プロジェクト名」形式表示用）。作成・更新 Body は **`assignedToIds: number[]`**（担当ユーザーの同期）と `assignedToGroupId`。**ガント API**（`GET /gantt/project/:id`・`GET /gantt/all`）のチケットには **`actualHours`**（当該チケットの時間記録 `hours` 合計。記録なしは `0`）を含む。
 - **IssueRelation** — issueFromId, issueToId, relationType, issueFrom, issueTo。
 - **IssueComment** — issueId, userId, content, user, attachments。
 - **IssueMetaOptions** — trackers, statuses, priorities, users, groups（チケット作成/編集用メタ。`groups` は id・name に加え `members`（`{ userId }`）を含み、担当者コンボの階層表示に用いる）。`projectId` 指定時は **workflow**（`assignableStatusIds`, `allowedTransitions`）を含む。

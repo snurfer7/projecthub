@@ -4,7 +4,7 @@
 
 ## 認証・ユーザー
 
-- **User** — ユーザー。email, passwordHash, firstName, lastName, role, isAdmin, landingPage, show*Menu。**認証**: `authMethod`（`password` \| `sso`）, `microsoftOid`（Entra object id・ユニーク・任意）, `microsoftTenantId`（任意）。Microsoft 連携の主キーはメールではなく `microsoftOid`（UPN 変更後も継続）。SSO ログイン成功時（oid 一致）は `User.email` を Entra のログイン ID（UPN）へ自動同期する（他ユーザーと衝突時はスキップ）。GroupMember, ProjectMember, Issue（author / **IssueAssignee 経由の担当**）, TimeEntry, WikiPage, 各種 Comment 等と関連。**API アクセスはグループ経由の権限設定で制御**（`isAdmin` / `role=admin` でもバイパスしない）。
+- **User** — ユーザー。email, passwordHash, firstName, lastName, role, isAdmin, landingPage, show*Menu。**認証**: `authMethod`（`password` \| `sso`）, `microsoftOid`（Entra object id・ユニーク・任意）, `microsoftTenantId`（任意）。Microsoft 連携の主キーはメールではなく `microsoftOid`（UPN 変更後も継続）。SSO ログイン成功時（oid 一致）は `User.email` を Entra のログイン ID（UPN）へ自動同期する（他ユーザーと衝突時はスキップ）。**`uiPreferences`（JSON）** — 個人 UI 設定。現状はガント左ペイン列（`gantt.columns`: key / visible / width の配列。順序＝表示順。`ticket` は非表示不可）。GroupMember, ProjectMember, Issue（author / **IssueAssignee 経由の担当**）, TimeEntry, WikiPage, 各種 Comment 等と関連。**API アクセスはグループ経由の権限設定で制御**（`isAdmin` / `role=admin` でもバイパスしない）。
 - **Group** — グループ。GroupMember で User と多対多。Issue の担当グループ、ProjectGroup、ProjectMemberRole の sourceGroup として使用。**`permissionSetId`（任意）** で PermissionSet を参照（1 グループ = 最大 1 権限設定）。
 - **GroupMember** — Group と User の多対多中間。ユーザーは複数グループに所属可能。
 - **PermissionResource** — 権限カタログ（機能・項目）。code, name, resourceType（`feature` \| `field`）, **scope（`group` \| `role`）**, parentId, position。`projects` は group、配下（`projects.overview`＝プロジェクト情報 / `projects.members`＝メンバー / issues / fields 等）は role。
@@ -72,7 +72,7 @@
 - **IssueComment** — チケットコメント。Attachment 可。
 - **WikiPage** — プロジェクト Wiki。親子階層（parentId）。author, project と関連。
 - **ProjectComment** — プロジェクトコメント。Attachment 可。
-- **TimeEntry** — 工数。projectId, issueId（任意）, userId, hours, activity, spentOn, comments。
+- **TimeEntry** — 工数。projectId, issueId（任意）, userId, hours, activity, spentOn, comments。ガント API はチケットごとに `hours` の合計を `actualHours` として返す（DB 列ではない計算値）。
 
 ## 添付・その他
 

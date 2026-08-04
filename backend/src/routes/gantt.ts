@@ -88,17 +88,34 @@ async function loadGanttIssues(where: Record<string, unknown>) {
     if (!resultIds.has(issue.id)) resultIds.add(issue.id);
   }
 
-  return [...resultIds]
+  const resultIssueIds = [...resultIds];
+  const hourSums =
+    resultIssueIds.length === 0
+      ? []
+      : await prisma.timeEntry.groupBy({
+          by: ['issueId'],
+          where: { issueId: { in: resultIssueIds } },
+          _sum: { hours: true },
+        });
+  const actualHoursByIssueId = new Map(
+    hourSums
+      .filter((row): row is typeof row & { issueId: number } => row.issueId != null)
+      .map((row) => [row.issueId, row._sum.hours ?? 0])
+  );
+
+  return resultIssueIds
     .map((id) => byId.get(id)!)
     .filter(Boolean)
     .map((issue) => {
       const shaped = shapeIssueAssignees(issue);
+      const actualHours = actualHoursByIssueId.get(issue.id) ?? 0;
       const childCount = issue._count?.children ?? 0;
-      if (childCount === 0) return shaped;
+      if (childCount === 0) return { ...shaped, actualHours };
       const agg = aggById.get(issue.id);
-      if (!agg) return shaped;
+      if (!agg) return { ...shaped, actualHours };
       return {
         ...shaped,
+        actualHours,
         startDate: agg.startDate,
         endDate: agg.endDate,
         statusId: agg.statusId ?? issue.statusId,

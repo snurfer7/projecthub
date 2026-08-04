@@ -27,6 +27,8 @@ model User {
   authMethod         String            @default("password") @map("auth_method")
   microsoftOid       String?           @unique @map("microsoft_oid")
   microsoftTenantId  String?           @map("microsoft_tenant_id")
+  /** UI 個人設定（ガント列の表示・順序・幅など） */
+  uiPreferences      Json              @default("{}") @map("ui_preferences")
   activities         Activity[]
   assignedActivities Activity[]        @relation("ActivityAssignee")
   attachments        Attachment[]

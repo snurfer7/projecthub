@@ -54,7 +54,30 @@ export interface User {
   status: string;
   authMethod?: 'password' | 'sso';
   microsoftLinked?: boolean;
+  /** 個人 UI 設定（ガント列など） */
+  uiPreferences?: UserUiPreferences;
   permissions?: PermissionMap;
+}
+
+export type GanttColumnKey =
+  | 'ticket'
+  | 'priority'
+  | 'assignee'
+  | 'status'
+  | 'schedule'
+  | 'estimated'
+  | 'actual';
+
+export interface GanttColumnConfig {
+  key: GanttColumnKey;
+  visible: boolean;
+  width: number;
+}
+
+export interface UserUiPreferences {
+  gantt?: {
+    columns?: GanttColumnConfig[];
+  };
 }
 
 export interface Company {
@@ -231,6 +254,8 @@ export interface Issue {
   endDate?: string;
   dueDate?: string;
   estimatedHours?: number;
+  /** ガント API のみ。当該チケットの時間記録 hours 合計 */
+  actualHours?: number;
   doneRatio: number;
   createdAt: string;
   updatedAt: string;

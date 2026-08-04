@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback, type MouseEvent as ReactMouseEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { FoldVertical, UnfoldVertical, GripVertical, MessageSquare } from 'lucide-react';
+import { FoldVertical, UnfoldVertical, MessageSquare, Columns3, GripVertical } from 'lucide-react';
 import api from '../api/client';
 import { Issue, IssueComment, Tracker, IssueStatus, IssuePriority, Project, SystemSetting } from '../types';
 import Modal from './Modal';
@@ -18,6 +18,16 @@ import type { PermissionMap } from '../types';
 import { usePermissions } from '../hooks/usePermissions';
 import { prefetchProjectPermissions, projectMapCanInput, getCachedProjectPermissions } from '../utils/projectPermissionsCache';
 import { formatIssueAssignees, issueHasAssigneeUser, isIssueUnassigned } from '../utils/issueAssignees';
+import {
+  ganttColumnDef,
+  ganttColumnLabel,
+  normalizeGanttColumns,
+  sumGanttColumnWidths,
+  visibleGanttColumns,
+  type GanttColumnConfig,
+  type GanttColumnKey,
+} from '../utils/ganttColumns';
+import GanttColumnSettingsModal from './GanttColumnSettingsModal';
 
 interface GanttChartProps {
   issues: Issue[];
@@ -77,6 +87,34 @@ const GANTT_BAR_CENTER_OFFSET = GANTT_BAR_TOP + GANTT_BAR_HEIGHT / 2;
 const GANTT_HEADER_BORDER = 1;
 /** 左右スクロールでバーが枠外に出たときに残す末端の幅 (px) */
 const GANTT_BAR_EDGE_TIP = 8;
+
+function ganttPriorityClass(name: string): string {
+  if (name === '今すぐ' || name === '急いで') return 'text-red-600';
+  if (name === '高め') return 'text-orange-500';
+  return 'text-gray-600';
+}
+
+function formatCompactDateTime(value?: string | null): string {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function formatScheduleRange(startDate?: string | null, endDate?: string | null): string {
+  const start = formatCompactDateTime(startDate);
+  const end = formatCompactDateTime(endDate);
+  if (!start && !end) return '';
+  if (start && end) return `${start}～${end}`;
+  if (start) return `${start}～`;
+  return `～${end}`;
+}
+
+function formatHoursValue(hours: number | null | undefined): string {
+  if (hours == null || hours === 0) return '';
+  const rounded = Math.round(hours * 100) / 100;
+  return Number.isInteger(rounded) ? `${rounded}` : String(rounded);
+}
 
 /** 次がルート（depth 0）または末尾なら、ルートプロジェクト塊の区切り */
 function isRootBlockEnd(nextDepth: number | null): boolean {
@@ -553,10 +591,87 @@ export default function GanttChart({
   onCollapsedProjectsChange,
   issueFormPermissions,
 }: GanttChartProps) {
-  const { user } = useAuth();
+  const { user, patchUser } = useAuth();
   const [resolvedFormPermissions, setResolvedFormPermissions] = useState<PermissionMap>(issueFormPermissions ?? {});
   const [permByProject, setPermByProject] = useState<Record<number, PermissionMap>>({});
   const { canInput: canInputResolved } = usePermissions(resolvedFormPermissions);
+  const [columns, setColumns] = useState<GanttColumnConfig[]>(() =>
+    normalizeGanttColumns(user?.uiPreferences?.gantt?.columns)
+  );
+  const columnsRef = useRef(columns);
+  columnsRef.current = columns;
+  const saveColumnsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
+
+  useEffect(() => {
+    setColumns(normalizeGanttColumns(user?.uiPreferences?.gantt?.columns));
+  }, [user?.id]);
+
+  const persistColumns = useCallback(
+    (next: GanttColumnConfig[]) => {
+      if (saveColumnsTimerRef.current) clearTimeout(saveColumnsTimerRef.current);
+      saveColumnsTimerRef.current = setTimeout(() => {
+        api
+          .put('/auth/ui-preferences', { uiPreferences: { gantt: { columns: next } } })
+          .then((res) => {
+            if (res.data?.uiPreferences) {
+              patchUser({ uiPreferences: res.data.uiPreferences });
+            }
+          })
+          .catch((err) => console.error('Failed to save gantt columns:', err));
+      }, 400);
+    },
+    [patchUser]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (saveColumnsTimerRef.current) clearTimeout(saveColumnsTimerRef.current);
+    };
+  }, []);
+
+  const applyColumns = useCallback(
+    (next: GanttColumnConfig[]) => {
+      const normalized = normalizeGanttColumns(next);
+      setColumns(normalized);
+      persistColumns(normalized);
+    },
+    [persistColumns]
+  );
+
+  const startResizeColumn = useCallback(
+    (key: GanttColumnKey, e: ReactMouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const def = ganttColumnDef(key);
+      const startX = e.clientX;
+      const startWidth = columnsRef.current.find((c) => c.key === key)?.width ?? def.defaultWidth;
+      const onMouseMove = (moveEvent: MouseEvent) => {
+        const width = Math.max(
+          def.minWidth,
+          Math.min(def.maxWidth, Math.round(startWidth + (moveEvent.clientX - startX)))
+        );
+        setColumns((prev) => prev.map((c) => (c.key === key ? { ...c, width } : c)));
+      };
+      const onMouseUp = (upEvent: MouseEvent) => {
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        const width = Math.max(
+          def.minWidth,
+          Math.min(def.maxWidth, Math.round(startWidth + (upEvent.clientX - startX)))
+        );
+        const next = columnsRef.current.map((c) => (c.key === key ? { ...c, width } : c));
+        setColumns(next);
+        persistColumns(next);
+      };
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    },
+    [persistColumns]
+  );
+
+  const visibleColumns = useMemo(() => visibleGanttColumns(columns), [columns]);
+  const leftColWidth = useMemo(() => Math.max(120, sumGanttColumnWidths(visibleColumns)), [visibleColumns]);
 
   useEffect(() => {
     if (issueFormPermissions) setResolvedFormPermissions(issueFormPermissions);
@@ -604,7 +719,6 @@ export default function GanttChart({
   const [internalZoom, setInternalZoom] = useState<ZoomLevel>('day');
   const [internalStartValue, setInternalStartValue] = useState<string>('');
   const [internalEndValue, setInternalEndValue] = useState<string>('');
-  const [customLeftColWidth, setCustomLeftColWidth] = useState<number | null>(null);
 
   const [internalFilterTrackerIds, setInternalFilterTrackerIds] = useState<(number | string)[]>([]);
   const [internalFilterAssignedToIds, setInternalFilterAssignedToIds] = useState<(number | string)[]>([]);
@@ -688,7 +802,6 @@ export default function GanttChart({
 
   const chartRef = useRef<HTMLDivElement | null>(null);
   const dayWidth = ZOOM_CONFIG[zoom].dayWidth;
-  const leftColWidth = customLeftColWidth !== null ? customLeftColWidth : (showProject ? 360 : 300);
   /** タイムライン領域の横スクロール可視範囲（タイムライン座標） */
   const [scrollView, setScrollView] = useState({ left: 0, right: 0 });
 
@@ -1563,23 +1676,11 @@ export default function GanttChart({
     void loadFormPermissionsForProject(projectId);
   }, [chartStart, dayWidth, canInputIssuesForProject]);
 
-  const resizer = (
+  const columnResizeHandle = (key: GanttColumnKey) => (
     <div
-      className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-sky-400 z-20"
-      onMouseDown={(e) => {
-        e.preventDefault();
-        const startX = e.clientX;
-        const startWidth = leftColWidth;
-        const onMouseMove = (moveEvent: MouseEvent) => {
-          setCustomLeftColWidth(Math.max(100, Math.min(800, startWidth + (moveEvent.clientX - startX))));
-        };
-        const onMouseUp = () => {
-          document.removeEventListener('mousemove', onMouseMove);
-          document.removeEventListener('mouseup', onMouseUp);
-        };
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
-      }}
+      className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-sky-400 z-30"
+      onMouseDown={(e) => startResizeColumn(key, e)}
+      title="幅を変更"
     />
   );
 
@@ -1635,10 +1736,9 @@ export default function GanttChart({
                   width: leftColWidth,
                   height: ganttHeaderHeight(zoom) - GANTT_HEADER_BORDER,
                 }}
-                className="flex-shrink-0 bg-gray-50 border-r z-40 flex flex-col justify-start items-start gap-1 pt-1 px-2 relative"
+                className="flex-shrink-0 bg-gray-50 border-r z-40 flex flex-col relative"
               >
-                {resizer}
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 pt-1 px-2 flex-wrap">
                   {(['day', 'month', 'year'] as ZoomLevel[]).map((z) => (
                     <button
                       key={z}
@@ -1666,6 +1766,28 @@ export default function GanttChart({
                       </button>
                     </>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => setColumnSettingsOpen(true)}
+                    className="flex items-center gap-0.5 px-3 py-0 text-xs leading-5 rounded border bg-white border-gray-300 hover:bg-gray-100 text-gray-600"
+                    title="列の表示・順序"
+                  >
+                    <Columns3 size={11} />
+                    列
+                  </button>
+                </div>
+                <div className="mt-auto flex items-stretch border-t border-slate-200 text-[10px] font-medium text-slate-500 leading-tight">
+                  {visibleColumns.map((col, colIndex) => (
+                    <div
+                      key={col.key}
+                      style={{ width: col.width }}
+                      className={`relative flex-shrink-0 px-1 py-0.5 flex items-center truncate ${colIndex > 0 ? 'border-l border-slate-200' : ''}`}
+                      title={ganttColumnLabel(col.key)}
+                    >
+                      {ganttColumnLabel(col.key)}
+                      {columnResizeHandle(col.key)}
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -1827,25 +1949,36 @@ export default function GanttChart({
                       className="flex bg-slate-100 group"
                       style={{ height: GANTT_ROW_HEIGHT, boxSizing: 'border-box', ...rowBorderStyle(projectRootEnd ? 'root' : 'normal') }}
                     >
-                      <div style={{ width: leftColWidth }} className="flex-shrink-0 py-0.5 text-xs font-semibold text-slate-700 border-r truncate flex items-center sticky left-0 z-20 bg-slate-100 group-hover:bg-slate-200" title={group.companyName ? `${group.companyName} / ${group.projectName}` : group.projectName}>
-                        <span style={{ paddingLeft: indentPx + 4 }} className="flex items-center gap-1 min-w-0">
-                          {group.hasChildren ? (
-                            <button
-                              onClick={() => toggleCollapse(group.projectId)}
-                              className="flex-shrink-0 w-4 h-4 text-[10px] flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded"
-                              title={isCollapsed ? '展開' : '折りたたむ'}
-                            >
-                              {isCollapsed ? '▶' : '▼'}
-                            </button>
-                          ) : (
-                            <span className="flex-shrink-0 w-4" />
-                          )}
-                          {group.depth > 0 && <span className="text-slate-400 flex-shrink-0">└</span>}
-                          <Link to={`/projects/${group.projectId}`} className="hover:text-sky-600 truncate">
-                            {group.companyName && <span className="text-slate-500 font-normal">{group.companyName} / </span>}
-                            {group.projectName}
-                          </Link>
-                        </span>
+                      <div style={{ width: leftColWidth }} className="flex-shrink-0 text-xs font-semibold text-slate-700 border-r flex items-stretch sticky left-0 z-20 bg-slate-100 group-hover:bg-slate-200" title={group.companyName ? `${group.companyName} / ${group.projectName}` : group.projectName}>
+                        {visibleColumns.map((col, colIndex) => (
+                          <div
+                            key={col.key}
+                            style={{ width: col.width }}
+                            className={`relative flex-shrink-0 truncate flex items-center ${colIndex > 0 ? 'border-l border-slate-300/60' : ''} ${col.key === 'ticket' ? 'py-0.5' : ''}`}
+                          >
+                            {col.key === 'ticket' ? (
+                              <span style={{ paddingLeft: indentPx + 4 }} className="flex items-center gap-1 min-w-0 px-0.5">
+                                {group.hasChildren ? (
+                                  <button
+                                    onClick={() => toggleCollapse(group.projectId)}
+                                    className="flex-shrink-0 w-4 h-4 text-[10px] flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded"
+                                    title={isCollapsed ? '展開' : '折りたたむ'}
+                                  >
+                                    {isCollapsed ? '▶' : '▼'}
+                                  </button>
+                                ) : (
+                                  <span className="flex-shrink-0 w-4" />
+                                )}
+                                {group.depth > 0 && <span className="text-slate-400 flex-shrink-0">└</span>}
+                                <Link to={`/projects/${group.projectId}`} className="hover:text-sky-600 truncate">
+                                  {group.companyName && <span className="text-slate-500 font-normal">{group.companyName} / </span>}
+                                  {group.projectName}
+                                </Link>
+                              </span>
+                            ) : null}
+                            {columnResizeHandle(col.key)}
+                          </div>
+                        ))}
                       </div>
                       <div
                         className={`relative flex-1 transition-colors ${canInputIssuesForProject(group.projectId) ? 'cursor-pointer group-hover:bg-slate-200' : ''}`}
@@ -1922,34 +2055,113 @@ export default function GanttChart({
                       className="flex group hover:bg-gray-50 text-[11px]"
                       style={{ height: GANTT_ROW_HEIGHT, boxSizing: 'border-box', ...rowBorderStyle(ticketBorder) }}
                     >
-                      <div style={{ width: leftColWidth }} className="flex-shrink-0 px-2 py-0.5 text-xs truncate border-r flex items-center sticky left-0 z-20 bg-white group-hover:bg-gray-50" data-issue-id={issue.id}>
-                        {showProject && <span className="inline-block w-4 flex-shrink-0" />}
-                        <span className="inline-block flex-shrink-0" style={{ width: issueDepth * 12 }} />
-                        <span className="text-gray-400 mr-1 flex-shrink-0">#{issue.id}</span>
-                        {issue.tracker && (
-                          <span className="text-[10px] px-1 py-0 rounded mr-1 text-white flex-shrink-0" style={{ backgroundColor: trackerColorMap[issue.trackerId] || '#0EA5E9' }}>
-                            {issue.tracker.name}
-                          </span>
-                        )}
-                        <button
-                          onClick={(e) => handleTicketClick(e, issue.id)}
-                          className={`truncate text-left ${isParent ? 'font-semibold' : ''} ${
-                            issue.status?.isClosed
-                              ? 'line-through decoration-double decoration-slate-500 text-slate-500 hover:text-slate-600'
-                              : 'text-sky-600 hover:underline'
-                          }`}
-                        >
-                          {issue.subject}
-                        </button>
-                        {(issue._count?.comments ?? 0) > 0 && (
-                          <button
-                            className="ml-1 flex-shrink-0 text-gray-400 hover:text-sky-500"
-                            onClick={(e) => handleOpenCommentModal(e, issue)}
-                            title={`コメント ${issue._count!.comments}件`}
-                          >
-                            <MessageSquare size={13} />
-                          </button>
-                        )}
+                      <div style={{ width: leftColWidth }} className="flex-shrink-0 text-xs border-r flex items-stretch sticky left-0 z-20 bg-white group-hover:bg-gray-50" data-issue-id={issue.id}>
+                        {(() => {
+                          const assigneeLabel = formatIssueAssignees(issue);
+                          const scheduleLabel = formatScheduleRange(issue.startDate, issue.endDate);
+                          const estimatedLabel = formatHoursValue(issue.estimatedHours);
+                          const actualLabel = formatHoursValue(issue.actualHours);
+                          const totalDayConversion = (systemSettings?.conversionTimes || []).reduce((a: number, b: number) => a + b, 0);
+                          const estimatedTitle = issue.estimatedHours
+                            ? `予定工数: ${issue.estimatedHours}h${formatEstimatedHours(issue.estimatedHours, totalDayConversion) ? ` ${formatEstimatedHours(issue.estimatedHours, totalDayConversion)}` : ''}`
+                            : undefined;
+                          const actualTitle = issue.actualHours != null && issue.actualHours > 0
+                            ? `実工数: ${formatHoursValue(issue.actualHours)}h（時間記録合計）`
+                            : undefined;
+
+                          const renderCell = (key: GanttColumnKey) => {
+                            switch (key) {
+                              case 'ticket':
+                                return (
+                                  <>
+                                    {showProject && <span className="inline-block w-4 flex-shrink-0" />}
+                                    <span className="inline-block flex-shrink-0" style={{ width: issueDepth * 12 }} />
+                                    <span className="text-gray-400 mr-1 flex-shrink-0">#{issue.id}</span>
+                                    {issue.tracker && (
+                                      <span className="text-[10px] px-1 py-0 rounded mr-1 text-white flex-shrink-0" style={{ backgroundColor: trackerColorMap[issue.trackerId] || '#0EA5E9' }}>
+                                        {issue.tracker.name}
+                                      </span>
+                                    )}
+                                    <button
+                                      onClick={(e) => handleTicketClick(e, issue.id)}
+                                      className={`truncate text-left ${isParent ? 'font-semibold' : ''} ${
+                                        issue.status?.isClosed
+                                          ? 'line-through decoration-double decoration-slate-500 text-slate-500 hover:text-slate-600'
+                                          : 'text-sky-600 hover:underline'
+                                      }`}
+                                    >
+                                      {issue.subject}
+                                    </button>
+                                    {(issue._count?.comments ?? 0) > 0 && (
+                                      <button
+                                        className="ml-1 flex-shrink-0 text-gray-400 hover:text-sky-500"
+                                        onClick={(e) => handleOpenCommentModal(e, issue)}
+                                        title={`コメント ${issue._count!.comments}件`}
+                                      >
+                                        <MessageSquare size={13} />
+                                      </button>
+                                    )}
+                                  </>
+                                );
+                              case 'priority':
+                                return (
+                                  <span className={`truncate font-medium ${ganttPriorityClass(issue.priority?.name || '')}`} title={issue.priority?.name}>
+                                    {issue.priority?.name || ''}
+                                  </span>
+                                );
+                              case 'assignee':
+                                return (
+                                  <span className="truncate text-gray-600" title={assigneeLabel || undefined}>
+                                    {assigneeLabel}
+                                  </span>
+                                );
+                              case 'status':
+                                return issue.status?.name ? (
+                                  <span
+                                    className={`px-1 rounded text-[10px] font-medium truncate ${
+                                      issue.status.isClosed ? 'bg-gray-100 text-gray-600' : 'bg-green-100 text-green-700'
+                                    }`}
+                                    title={issue.status.name}
+                                  >
+                                    {issue.status.name}
+                                  </span>
+                                ) : null;
+                              case 'schedule':
+                                return (
+                                  <span className="truncate text-gray-600 text-[10px]" title={scheduleLabel || undefined}>
+                                    {scheduleLabel}
+                                  </span>
+                                );
+                              case 'estimated':
+                                return (
+                                  <span className="truncate text-gray-600 tabular-nums w-full text-right" title={estimatedTitle}>
+                                    {estimatedLabel}
+                                  </span>
+                                );
+                              case 'actual':
+                                return (
+                                  <span className="truncate text-gray-600 tabular-nums w-full text-right" title={actualTitle}>
+                                    {actualLabel}
+                                  </span>
+                                );
+                              default:
+                                return null;
+                            }
+                          };
+
+                          return visibleColumns.map((col, colIndex) => (
+                            <div
+                              key={col.key}
+                              style={{ width: col.width }}
+                              className={`relative flex-shrink-0 px-1 flex items-center truncate ${colIndex > 0 ? 'border-l border-gray-100' : ''} ${
+                                col.key === 'estimated' || col.key === 'actual' ? 'justify-end' : ''
+                              }`}
+                            >
+                              {renderCell(col.key)}
+                              {columnResizeHandle(col.key)}
+                            </div>
+                          ));
+                        })()}
                       </div>
                       <div className={`relative flex-1 ${relationDrag?.toIssueId === issue.id ? 'bg-sky-50' : ''}`} style={{ height: GANTT_ROW_CONTENT_HEIGHT }} data-issue-id={issue.id}>
                         {holidayBands.map((band, i) => (
@@ -2173,6 +2385,14 @@ export default function GanttChart({
         )}
       </Modal>
 
+      {/* 列設定モーダル */}
+      <GanttColumnSettingsModal
+        isOpen={columnSettingsOpen}
+        onClose={() => setColumnSettingsOpen(false)}
+        value={columns}
+        onApply={applyColumns}
+      />
+
       {/* チケット追加モーダル */}
       <IssueFormModal
         isOpen={addModal.isOpen}
@@ -2268,6 +2488,8 @@ export default function GanttChart({
                 {formatIssueAssignees(tooltip.issue) && (
                   <div>担当: {formatIssueAssignees(tooltip.issue)}</div>
                 )}
+                {tooltip.issue.priority && <div>優先度: {tooltip.issue.priority.name}</div>}
+                {tooltip.issue.status && <div>ステータス: {tooltip.issue.status.name}</div>}
                 {tooltip.issue.estimatedHours && (
                   <div>
                     予定工数: {tooltip.issue.estimatedHours}h
@@ -2277,6 +2499,9 @@ export default function GanttChart({
                       </span>
                     )}
                   </div>
+                )}
+                {tooltip.issue.actualHours != null && tooltip.issue.actualHours > 0 && (
+                  <div>実工数: {formatHoursValue(tooltip.issue.actualHours)}h</div>
                 )}
                 <div>進捗: {tooltip.issue.doneRatio}%</div>
               </div>

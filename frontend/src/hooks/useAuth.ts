@@ -57,5 +57,14 @@ export function useAuth() {
     return res.data;
   }, []);
 
-  return { user, loading, login, loginWithSsoCode, logout, refreshUser };
+  const patchUser = useCallback((partial: Partial<User>) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...partial };
+      localStorage.setItem('user', JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  return { user, loading, login, loginWithSsoCode, logout, refreshUser, patchUser };
 }

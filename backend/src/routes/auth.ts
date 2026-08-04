@@ -16,9 +16,29 @@ import {
   isMicrosoftSsoConfigured,
   MicrosoftIdClaims,
 } from '../services/microsoftOidc';
+import { mergeUiPreferences, parseUiPreferences, type UserUiPreferences } from '../utils/uiPreferences';
+import type { Prisma } from '@prisma/client';
 
 const router = Router();
 const prisma = new PrismaClient();
+
+const authUserSelect = {
+  id: true,
+  email: true,
+  firstName: true,
+  lastName: true,
+  role: true,
+  isAdmin: true,
+  landingPage: true,
+  showProjectsMenu: true,
+  showGanttMenu: true,
+  showCompanyMenu: true,
+  showAdminMenu: true,
+  status: true,
+  authMethod: true,
+  microsoftOid: true,
+  uiPreferences: true,
+} as const;
 
 type AuthUserRow = {
   id: number;
@@ -35,6 +55,7 @@ type AuthUserRow = {
   status: string;
   authMethod: string;
   microsoftOid: string | null;
+  uiPreferences?: Prisma.JsonValue | null;
 };
 
 function toPublicUser(user: AuthUserRow, permissions: Awaited<ReturnType<typeof resolveUserPermissions>>) {
@@ -53,6 +74,7 @@ function toPublicUser(user: AuthUserRow, permissions: Awaited<ReturnType<typeof 
     status: user.status,
     authMethod: user.authMethod,
     microsoftLinked: Boolean(user.microsoftOid),
+    uiPreferences: parseUiPreferences(user.uiPreferences),
     permissions,
   };
 }
@@ -60,22 +82,7 @@ function toPublicUser(user: AuthUserRow, permissions: Awaited<ReturnType<typeof 
 async function loadAuthUser(userId: number): Promise<AuthUserRow | null> {
   return prisma.user.findUnique({
     where: { id: userId },
-    select: {
-      id: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      role: true,
-      isAdmin: true,
-      landingPage: true,
-      showProjectsMenu: true,
-      showGanttMenu: true,
-      showCompanyMenu: true,
-      showAdminMenu: true,
-      status: true,
-      authMethod: true,
-      microsoftOid: true,
-    },
+    select: authUserSelect,
   });
 }
 
@@ -93,22 +100,7 @@ async function syncEmailFromClaims(userId: number, claims: MicrosoftIdClaims): P
 async function resolveSsoLoginUser(claims: MicrosoftIdClaims): Promise<{ user: AuthUserRow } | { error: string }> {
   const byOid = await prisma.user.findUnique({
     where: { microsoftOid: claims.oid },
-    select: {
-      id: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      role: true,
-      isAdmin: true,
-      landingPage: true,
-      showProjectsMenu: true,
-      showGanttMenu: true,
-      showCompanyMenu: true,
-      showAdminMenu: true,
-      status: true,
-      authMethod: true,
-      microsoftOid: true,
-    },
+    select: authUserSelect,
   });
 
   if (byOid) {
@@ -136,22 +128,7 @@ async function resolveSsoLoginUser(claims: MicrosoftIdClaims): Promise<{ user: A
 
   const byEmail = await prisma.user.findFirst({
     where: { email: { equals: claims.email, mode: 'insensitive' } },
-    select: {
-      id: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      role: true,
-      isAdmin: true,
-      landingPage: true,
-      showProjectsMenu: true,
-      showGanttMenu: true,
-      showCompanyMenu: true,
-      showAdminMenu: true,
-      status: true,
-      authMethod: true,
-      microsoftOid: true,
-    },
+    select: authUserSelect,
   });
 
   if (!byEmail) {
@@ -234,20 +211,7 @@ router.get('/me', authenticateToken, async (req: AuthRequest, res: Response) => 
     const user = await prisma.user.findUnique({
       where: { id: req.userId },
       select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        isAdmin: true,
-        landingPage: true,
-        showProjectsMenu: true,
-        showGanttMenu: true,
-        showCompanyMenu: true,
-        showAdminMenu: true,
-        status: true,
-        authMethod: true,
-        microsoftOid: true,
+        ...authUserSelect,
         groupMembers: { select: { group: { select: { id: true, name: true } } } },
       },
     });
@@ -256,8 +220,13 @@ router.get('/me', authenticateToken, async (req: AuthRequest, res: Response) => 
       return;
     }
     const permissions = await resolveUserPermissions(req.userId!);
-    const { microsoftOid, ...rest } = user;
-    res.json({ ...rest, microsoftLinked: Boolean(microsoftOid), permissions });
+    const { microsoftOid, uiPreferences, ...rest } = user;
+    res.json({
+      ...rest,
+      microsoftLinked: Boolean(microsoftOid),
+      uiPreferences: parseUiPreferences(uiPreferences),
+      permissions,
+    });
   } catch (e) {
     res.status(500).json({ error: 'ユーザー情報の取得に失敗しました' });
   }
@@ -345,6 +314,33 @@ router.put('/menu-settings', authenticateToken, async (req: AuthRequest, res: Re
   } catch (e) {
     console.error('Failed to update menu settings:', e);
     res.status(500).json({ error: 'メニュー表示設定の更新に失敗しました' });
+  }
+});
+
+router.put('/ui-preferences', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const patch = req.body?.uiPreferences;
+    if (patch == null || typeof patch !== 'object' || Array.isArray(patch)) {
+      res.status(400).json({ error: 'uiPreferences オブジェクトを指定してください' });
+      return;
+    }
+    const current = await prisma.user.findUnique({
+      where: { id: req.userId },
+      select: { uiPreferences: true },
+    });
+    if (!current) {
+      res.status(404).json({ error: 'ユーザーが見つかりません' });
+      return;
+    }
+    const merged: UserUiPreferences = mergeUiPreferences(current.uiPreferences, patch);
+    await prisma.user.update({
+      where: { id: req.userId },
+      data: { uiPreferences: merged as Prisma.InputJsonValue },
+    });
+    res.json({ message: '表示設定を更新しました', uiPreferences: merged });
+  } catch (e) {
+    console.error('Failed to update ui preferences:', e);
+    res.status(500).json({ error: '表示設定の更新に失敗しました' });
   }
 });
 

@@ -10,10 +10,11 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 |----------|------|------|------|
 | POST | `/login` | 不要 | パスワードログイン。Body: `email`, `password` → `token`, `user`（`status`, `authMethod`, `microsoftLinked` を含む）。`status === 'inactive'` は 401。`authMethod === 'sso'` のユーザーは 401（Microsoft ログインを案内） |
 | POST | `/register` | 不要 | 登録。Body: `email`, `password`, `firstName`, `lastName` → `token`, `user` |
-| GET | `/me` | 必要 | 現在ユーザー情報（`status`, `authMethod`, `microsoftLinked`, `permissions` を含む）。`permissions` は `Record<string, { canUse: boolean, canInput: boolean }>` |
+| GET | `/me` | 必要 | 現在ユーザー情報（`status`, `authMethod`, `microsoftLinked`, `permissions`, **`uiPreferences`** を含む）。`permissions` は `Record<string, { canUse: boolean, canInput: boolean }>`。`uiPreferences` は個人 UI 設定 JSON（ガント左ペイン列など） |
 | PUT | `/password` | 必要 | パスワード変更。Body: `currentPassword`, `newPassword`。`authMethod === 'sso'` のときは 400。`pending` の場合は更新完了時に `active` へ |
 | PUT | `/landing-page` | 必要 | ランディング設定。Body: `landingPage` (`home` \| `projects` \| `companies`) |
 | PUT | `/menu-settings` | 必要 | メニュー表示。Body: `showProjectsMenu`, `showGanttMenu`, `showCompanyMenu`, `showAdminMenu` |
+| PUT | `/ui-preferences` | 必要 | 個人 UI 設定の部分更新。Body: `{ uiPreferences: { gantt?: { columns?: { key, visible, width }[] } } }`。既存 JSON とマージし、`gantt.columns` 指定時は正規化して置換。列 key は `ticket` \| `priority` \| `assignee` \| `status` \| `schedule` \| `estimated` \| `actual`。`ticket` は常に visible。応答: `{ message, uiPreferences }` |
 | PUT | `/auth-method` | 必要 | 認証方式切替。Body: `authMethod`（`password` \| `sso`）, `newPassword`（`password` へ切替時必須）。権限: `settings` use + `settings.fields.authMethod` input。`sso` へは `microsoftOid` 連携済み必須。`sso` 切替時はパスワードを無効化（ランダムハッシュ） |
 | GET | `/microsoft/start` | 不要 | Microsoft 365（Entra ID）OIDC ログイン開始。Entra へリダイレクト |
 | GET | `/microsoft/callback` | 不要 | OIDC コールバック。成功時はワンタイム `ssoCode` 付きで `FRONTEND_URL/login` へ。失敗時は `ssoError` クエリ付きで同 URL へ。連携フロー成功時は `/settings` へ |
@@ -233,8 +234,10 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 | メソッド | パス | 概要 |
 |----------|------|------|
-| GET | `/project/:projectId` | 指定プロジェクトのガント用データ（メンバー必須）。チケットに `parentId` を含み、親の開始・終了は子孫から集約。`startDate` / `endDate` / `dueDate` がすべて未設定のチケットも含む |
+| GET | `/project/:projectId` | 指定プロジェクトのガント用データ（メンバー必須）。チケットに `parentId` を含み、親の開始・終了・ステータスは子孫から集約。`startDate` / `endDate` / `dueDate` がすべて未設定のチケットも含む。各チケットに `actualHours`（当該チケットの `TimeEntry.hours` 合計。記録なしは `0`）を付与 |
 | GET | `/all` | 所属かつ有効（`active`）プロジェクトのガント用データ（同上。日付未設定チケットも含む）。`projects` は `company: { id, name }` を含む（ガントのプロジェクト行で企業名を表示するため） |
+
+権限: `/project/:projectId` は `projects` use ＋ 当該プロジェクトの `projects.gantt` use。`/all` は `projects` use（返却プロジェクトは `projects.gantt` use のあるものに限定）。
 
 ガントの曜日・個別休日の表示および予定工数からの終了日算出は、下記 **Settings（カレンダー）** の休日設定を参照する（営業日のみ進める。判定優先度は `/admin/settings/holidays` と同じ）。
 
