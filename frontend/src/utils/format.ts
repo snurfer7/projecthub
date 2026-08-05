@@ -8,7 +8,7 @@ export function formatEstimatedHours(hours: number | null | undefined, totalDayC
     }
 
     const days = Math.floor(hours / totalDayConversion);
-    const remainingHours = hours % totalDayConversion;
+    const remainingHours = Math.round((hours % totalDayConversion) * 10) / 10;
 
     if (days === 0) {
         return `(${remainingHours}h)`;

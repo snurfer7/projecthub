@@ -298,10 +298,25 @@ export default function IssueForm({
                 ? Number(groupPrincipals[groupPrincipals.length - 1].slice(2))
                 : null;
 
-            if (estimatedHours && !Number.isInteger(Number(estimatedHours))) {
-                setError('予定工数は整数で入力してください');
-                return;
+            if (estimatedHours !== '' && estimatedHours != null) {
+                const n = Number(estimatedHours);
+                if (!Number.isFinite(n) || n < 0) {
+                    setError('予定工数は0以上の数値で入力してください');
+                    return;
+                }
+                const normalized = Math.round(n * 2) / 2;
+                if (Math.abs(n - normalized) > 1e-9) {
+                    setError('予定工数は0.5刻みで入力してください');
+                    return;
+                }
             }
+
+            const estimatedNormalized = estimatedHours !== '' && estimatedHours != null
+                ? (() => {
+                    const n = Math.round(Number(estimatedHours) * 2) / 2;
+                    return n === 0 ? null : n;
+                })()
+                : null;
 
             const data: any = {
                 trackerId: Number(trackerId),
@@ -311,7 +326,7 @@ export default function IssueForm({
                 subject,
                 description,
                 dueDate: dueDate ? new Date(dueDate).toISOString() : null,
-                estimatedHours: estimatedHours ? Math.round(Number(estimatedHours)) : null,
+                estimatedHours: estimatedNormalized,
                 doneRatio: Number(doneRatio),
             };
             if (!fieldDisabled('projects.issues.fields.parent')) {
@@ -515,7 +530,7 @@ export default function IssueForm({
                             label={`予定工数${totalDayConversion > 0 && estimatedHours ? ` (${formatEstimatedHours(Number(estimatedHours), totalDayConversion)})` : ''}`}
                             value={estimatedHours}
                             onChange={(e) => setEstimatedHours(e.target.value)}
-                            step="1"
+                            step="0.5"
                             min="0"
                             endAdornment="時間"
                             disabled={fieldDisabled('projects.issues.fields.estimatedHours')}

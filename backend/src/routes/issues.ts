@@ -26,6 +26,7 @@ import {
   assertStatusTransition,
   resolveIssueWorkflow,
 } from '../services/issueWorkflow';
+import { estimatedHoursError, normalizeEstimatedHours } from '../utils/estimatedHours';
 import {
   issueAssigneesInclude,
   parseAssignedToIdsFromBody,
@@ -418,8 +419,9 @@ router.post('/', requirePermission('projects', 'use'), async (req: AuthRequest, 
       res.status(403).json({ error: `フィールドの編集権限がありません: ${deniedParent}` });
       return;
     }
-    if (estimatedHours !== undefined && estimatedHours !== null && !Number.isInteger(Number(estimatedHours))) {
-      return res.status(400).json({ error: '予定工数は整数で入力してください' });
+    const estimatedErr = estimatedHoursError(estimatedHours);
+    if (estimatedErr) {
+      return res.status(400).json({ error: estimatedErr });
     }
 
     const nextAssigneeIds = assignedToIds ?? [];
@@ -458,7 +460,7 @@ router.post('/', requirePermission('projects', 'use'), async (req: AuthRequest, 
         startDate: startDate ? new Date(startDate) : null,
         endDate: endDate ? new Date(endDate) : null,
         dueDate: dueDate ? new Date(dueDate) : null,
-        estimatedHours: estimatedHours ? Math.round(Number(estimatedHours)) : null,
+        estimatedHours: normalizeEstimatedHours(estimatedHours),
         ...(nextAssigneeIds.length > 0
           ? { assignees: { create: nextAssigneeIds.map((userId) => ({ userId })) } }
           : {}),
@@ -552,8 +554,9 @@ router.put('/:id', requirePermission('projects', 'use'), async (req: AuthRequest
     }
     const { trackerId, statusId, priorityId, assignedToGroupId, subject, description, startDate, endDate, dueDate, estimatedHours, doneRatio, parentId } = req.body;
     const data: any = {};
-    if (estimatedHours !== undefined && estimatedHours !== null && !Number.isInteger(Number(estimatedHours))) {
-      return res.status(400).json({ error: '予定工数は整数で入力してください' });
+    const estimatedErr = estimatedHoursError(estimatedHours);
+    if (estimatedErr) {
+      return res.status(400).json({ error: estimatedErr });
     }
 
     if (trackerId !== undefined) data.trackerId = trackerId;
@@ -575,7 +578,7 @@ router.put('/:id', requirePermission('projects', 'use'), async (req: AuthRequest
     if (startDate !== undefined) data.startDate = startDate ? new Date(startDate) : null;
     if (endDate !== undefined) data.endDate = endDate ? new Date(endDate) : null;
     if (dueDate !== undefined) data.dueDate = dueDate ? new Date(dueDate) : null;
-    if (estimatedHours !== undefined) data.estimatedHours = estimatedHours ? Math.round(Number(estimatedHours)) : null;
+    if (estimatedHours !== undefined) data.estimatedHours = normalizeEstimatedHours(estimatedHours);
     if (doneRatio !== undefined) data.doneRatio = Number(doneRatio);
     if (parentId !== undefined) {
       const nextParentId = parentId === null || parentId === '' ? null : Number(parentId);
