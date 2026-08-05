@@ -38,7 +38,7 @@ export function authenticateToken(req: AuthRequest, res: Response, next: NextFun
       !Number.isInteger(uid) ||
       uid < 1
     ) {
-      res.status(403).json({ error: 'トークンが無効です' });
+      res.status(401).json({ error: 'トークンが無効です' });
       return;
     }
     req.userId = uid;
@@ -46,7 +46,8 @@ export function authenticateToken(req: AuthRequest, res: Response, next: NextFun
     req.isAdmin = decoded.isAdmin;
     next();
   } catch {
-    res.status(403).json({ error: 'トークンが無効です' });
+    // 期限切れ・改ざん等 → 401（クライアントはログイン画面へ遷移）
+    res.status(401).json({ error: 'トークンが無効です' });
   }
 }
 

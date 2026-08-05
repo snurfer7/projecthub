@@ -5,7 +5,7 @@
 - **ファイル**: `frontend/src/api/client.ts`
 - **実体**: axios インスタンス。`baseURL: '/api'`（Vite の proxy でバックエンドへ転送する想定）。
 - **認証**: リクエストインターセプターで `localStorage.getItem('token')` を取得し、`Authorization: Bearer <token>` を付与。
-- **401 処理**: レスポンスインターセプターで 401 の場合、`localStorage` から token/user を削除し、`window.location.href = '/login'` でログイン画面へ遷移。ただし `auth/login` および `auth/microsoft/exchange` の 401 は画面側でエラー表示するためリダイレクトしない。
+- **401 処理**: レスポンスインターセプターで 401 の場合（トークン未付与・無効・期限切れを含む）、`localStorage` から token/user を削除し、`window.location.href = '/login'` でログイン画面へ遷移。ただし `auth/login` および `auth/microsoft/exchange` の 401 は画面側でエラー表示するためリダイレクトしない。権限不足の 403 ではリダイレクトしない。
 - **Microsoft SSO**: ログインは `/api/auth/microsoft/start` へ遷移 → コールバック後 `/login?ssoCode=` → `POST /auth/microsoft/exchange`。設定からの連携は `GET /auth/microsoft/link/start` の `authorizationUrl` へ遷移。認証方式は `PUT /auth/auth-method`。
 
 ## 権限チェック

@@ -46,7 +46,8 @@ PostgreSQL + Prisma で永続化し、JWT で認証する。
 - **認証方式**: 個人設定で `password` \| `sso` の二択（`PUT /api/auth/auth-method`）。SSO 利用前に Microsoft アカウント連携が必要
 - **登録**: `POST /api/auth/register` — `email`, `password`, `firstName`, `lastName` → `token`, `user`
 - **認証が必要なリクエスト**: ヘッダー `Authorization: Bearer <token>`
-- **トークン取得**: `auth.ts` 内の `generateToken(userId, role, isAdmin)`（JWT、要 `JWT_SECRET` 環境変数）
+- **トークン取得**: `auth.ts` 内の `generateToken(userId, role, isAdmin)`（JWT、要 `JWT_SECRET` 環境変数、有効期限 7 日）
+- **トークン無効・期限切れ**: `authenticateToken` が **401** を返す。フロント／Android は 401 でログイン画面へ遷移する（権限不足の 403 とは区別）
 - **権限制御**: 二層。(1) ユーザー → Group → PermissionSet（`scope=group`、例: `projects`）。(2) プロジェクト内 Role → RolePermission（`scope=role`、例: `projects.issues`）。`GET /api/auth/me` はグループ権限のみ。プロジェクト詳細は `GET /api/projects/:id` の `myPermissions`。**isAdmin / role=admin でもバイパスしない**。
 - **使用可否 (`canUse`)**: 閲覧・GET API・画面アクセス
 - **入力可否 (`canInput`)**: 作成・更新・削除・POST/PUT/DELETE API（canUse が true のときのみ有効）。親の canInput は子（field）の canInput からは推定しない（機能単位の明示設定のみ）
