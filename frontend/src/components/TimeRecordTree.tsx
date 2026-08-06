@@ -406,6 +406,9 @@ export default function TimeRecordTree({ projects, issues, timeEntries, onRefres
                   {issueDepth > 0 && <span className="text-gray-300 select-none flex-shrink-0">└</span>}
                   <span className="text-gray-400 flex-shrink-0">#{issue.id}</span>
                   <span className={`text-gray-700 truncate ${hasChildren ? 'font-semibold' : ''}`}>{issue.subject}</span>
+                  {!issue.startDate && !issue.endDate && (
+                    <span className="text-gray-400 text-[10px] flex-shrink-0 whitespace-nowrap">日付未設定</span>
+                  )}
                 </span>
               </div>
             </td>

@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../api/client';
 import { Issue, Project } from '../types';
 import GanttChart from '../components/GanttChart';
 import TicketSearchSection from '../components/TicketSearchSection';
+import { filterIssues } from '../utils/issueFilter';
+import { buildIssueListQueryParams } from '../utils/issueListQueryParams';
 
 type ZoomLevel = 'day' | 'month' | 'year';
 
@@ -20,10 +22,19 @@ export default function GanttPage() {
   const [filterAssignedToIds, setFilterAssignedToIds] = useState<(number | string)[]>([]);
   const [filterAssignedToGroupIds, setFilterAssignedToGroupIds] = useState<(number | string)[]>([]);
   const [filterAssignedToGroupMemberIds, setFilterAssignedToGroupMemberIds] = useState<(number | string)[]>([]);
+  const [scheduleDateStart, setScheduleDateStart] = useState('');
+  const [scheduleDateEnd, setScheduleDateEnd] = useState('');
+  const [includeUnscheduled, setIncludeUnscheduled] = useState(false);
   const [collapsedProjects, setCollapsedProjects] = useState<Set<number>>(new Set());
 
   const loadIssues = useCallback(() => {
-    api.get(`/gantt/project/${projectId}`).then((res) => {
+    const params = buildIssueListQueryParams({
+      trackerIds: filterTrackerIds,
+      statusIds: filterStatusIds,
+      assignedToIds: filterAssignedToIds,
+      assignedToGroupIds: filterAssignedToGroupIds,
+    });
+    api.get(`/gantt/project/${projectId}`, { params }).then((res) => {
       setProject(res.data.project);
       setIssues(res.data.issues);
     });
@@ -33,7 +44,7 @@ export default function GanttPage() {
     api.get('/settings/calendar').then((res) => {
       setSystemSettings(res.data);
     }).catch(() => {});
-  }, [projectId]);
+  }, [projectId, filterTrackerIds, filterStatusIds, filterAssignedToIds, filterAssignedToGroupIds]);
 
   useEffect(() => { loadIssues(); }, [loadIssues]);
 
@@ -52,15 +63,27 @@ export default function GanttPage() {
     }
   }, [loadIssues]);
 
-  const parentProjectIds = project ? new Set([project.id]) : new Set<number>();
-
-  const collapseAll = useCallback(() => {
-    setCollapsedProjects(new Set(parentProjectIds));
-  }, [parentProjectIds]);
-
-  const expandAll = useCallback(() => {
-    setCollapsedProjects(new Set());
-  }, []);
+  const scheduleFilteredIssues = useMemo(
+    () =>
+      filterIssues(issues, {
+        trackerIds: [],
+        statusIds: [],
+        assignedToIds: [],
+        assignedToGroupIds: [],
+        assignedToGroupMemberIds: [],
+        includeUnassigned: false,
+        dueDateStart: '',
+        dueDateEnd: '',
+        dueDateMode: 'direct',
+        dueDateRelative: '',
+        scheduleDateStart,
+        scheduleDateEnd,
+        scheduleDateMode: 'direct',
+        scheduleDateRelative: '',
+        includeUnscheduled,
+      }),
+    [issues, scheduleDateStart, scheduleDateEnd, includeUnscheduled],
+  );
 
   const resetTicketSearchFilter = useCallback(() => {
     setFilterTrackerIds([]);
@@ -68,6 +91,9 @@ export default function GanttPage() {
     setFilterAssignedToIds([]);
     setFilterAssignedToGroupIds([]);
     setFilterAssignedToGroupMemberIds([]);
+    setScheduleDateStart('');
+    setScheduleDateEnd('');
+    setIncludeUnscheduled(false);
     setStartValue('');
     setEndValue('');
   }, []);
@@ -95,13 +121,19 @@ export default function GanttPage() {
             onFilterAssignedToGroupIdsChange={setFilterAssignedToGroupIds}
             filterAssignedToGroupMemberIds={filterAssignedToGroupMemberIds}
             onFilterAssignedToGroupMemberIdsChange={setFilterAssignedToGroupMemberIds}
+            scheduleDateStart={scheduleDateStart}
+            onScheduleDateStartChange={setScheduleDateStart}
+            scheduleDateEnd={scheduleDateEnd}
+            onScheduleDateEndChange={setScheduleDateEnd}
+            includeUnscheduled={includeUnscheduled}
+            onIncludeUnscheduledChange={setIncludeUnscheduled}
             onResetFilter={resetTicketSearchFilter}
-            issueCount={issues.length}
+            issueCount={scheduleFilteredIssues.length}
           />
         </div>
       </div>
       <GanttChart
-        issues={issues}
+        issues={scheduleFilteredIssues}
         projects={project ? [project] : []}
         systemSettings={systemSettings}
         issueFormPermissions={project?.myPermissions}
@@ -114,14 +146,11 @@ export default function GanttPage() {
         onStartValueChange={setStartValue}
         endValue={endValue}
         onEndValueChange={setEndValue}
-        filterTrackerIds={filterTrackerIds}
-        onFilterTrackerIdsChange={setFilterTrackerIds}
-        filterStatusIds={filterStatusIds}
-        onFilterStatusIdsChange={setFilterStatusIds}
-        filterAssignedToIds={filterAssignedToIds}
-        onFilterAssignedToIdsChange={setFilterAssignedToIds}
-        filterAssignedToGroupIds={filterAssignedToGroupIds}
-        filterAssignedToGroupMemberIds={filterAssignedToGroupMemberIds}
+        filterTrackerIds={[]}
+        filterStatusIds={[]}
+        filterAssignedToIds={[]}
+        filterAssignedToGroupIds={[]}
+        filterAssignedToGroupMemberIds={[]}
         collapsedProjects={collapsedProjects}
         onCollapsedProjectsChange={setCollapsedProjects}
       />

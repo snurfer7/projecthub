@@ -34,6 +34,12 @@ interface TicketSearchSectionProps {
   onDueDateStartChange?: (value: string) => void;
   dueDateEnd?: string;
   onDueDateEndChange?: (value: string) => void;
+  scheduleDateStart?: string;
+  onScheduleDateStartChange?: (value: string) => void;
+  scheduleDateEnd?: string;
+  onScheduleDateEndChange?: (value: string) => void;
+  includeUnscheduled?: boolean;
+  onIncludeUnscheduledChange?: (value: boolean) => void;
   onResetFilter?: () => void;
   issueCount: number;
 }
@@ -57,6 +63,12 @@ export default function TicketSearchSection({
   onDueDateStartChange,
   dueDateEnd,
   onDueDateEndChange,
+  scheduleDateStart,
+  onScheduleDateStartChange,
+  scheduleDateEnd,
+  onScheduleDateEndChange,
+  includeUnscheduled = false,
+  onIncludeUnscheduledChange,
   onResetFilter,
   issueCount,
 }: TicketSearchSectionProps) {
@@ -140,14 +152,15 @@ export default function TicketSearchSection({
   };
 
   const handleAssigneeChange = (values: (string | number)[]) => {
-    const { userIds, groupIds, memberIds } = splitGroupedAssigneeSelection(values, groups);
+    const { userIds, groupIds } = splitGroupedAssigneeSelection(values, groups);
     if (onFilterAssignedToGroupIdsChange || onFilterAssignedToGroupMemberIdsChange) {
       onFilterAssignedToIdsChange(userIds);
       onFilterAssignedToGroupIdsChange?.(groupIds);
-      onFilterAssignedToGroupMemberIdsChange?.(memberIds);
+      // グループ選択は担当グループ一致のみ（メンバー展開しない）
+      onFilterAssignedToGroupMemberIdsChange?.([]);
     } else {
-      // グループ状態を持てない呼び出し側向け: メンバー ID をユーザー条件に展開
-      onFilterAssignedToIdsChange(Array.from(new Set([...userIds.map(String), ...memberIds])));
+      // グループ状態を持てない呼び出し側向け: グループ選択は条件に反映できないためユーザーのみ
+      onFilterAssignedToIdsChange(userIds);
     }
   };
 
@@ -157,9 +170,15 @@ export default function TicketSearchSection({
     filterAssignedToIds.length > 0 ||
     filterAssignedToGroupIds.length > 0 ||
     (onDueDateStartChange != null && ((dueDateStart ?? '') !== '' || (dueDateEnd ?? '') !== '')) ||
+    (onScheduleDateStartChange != null &&
+      ((scheduleDateStart ?? '') !== '' ||
+        (scheduleDateEnd ?? '') !== '' ||
+        includeUnscheduled)) ||
     (onStartValueChange != null && ((startValue ?? '') !== '' || (endValue ?? '') !== ''));
 
   const showPeriod = onStartValueChange != null && onEndValueChange != null;
+  const showScheduleFilter =
+    onScheduleDateStartChange != null && onScheduleDateEndChange != null;
 
   return (
     <div className="bg-white rounded-lg shadow p-3 flex flex-wrap items-center gap-3">
@@ -262,6 +281,45 @@ export default function TicketSearchSection({
                 className="w-48"
               />
             </div>
+          </div>
+          <div className="w-px h-6 bg-gray-200" />
+        </>
+      )}
+
+      {showScheduleFilter && (
+        <>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">開始・終了:</span>
+            <div className="flex items-center gap-1">
+              <DateInput
+                value={scheduleDateStart || ''}
+                onChange={onScheduleDateStartChange}
+                size="small"
+                showFloatingLabel={false}
+                placeholder="開始"
+                className="w-48"
+              />
+              <span className="text-gray-400 text-xs">〜</span>
+              <DateInput
+                value={scheduleDateEnd || ''}
+                onChange={onScheduleDateEndChange}
+                size="small"
+                showFloatingLabel={false}
+                placeholder="終了"
+                className="w-48"
+              />
+            </div>
+            {onIncludeUnscheduledChange && (
+              <label className="flex items-center gap-1.5 cursor-pointer select-none ml-1">
+                <input
+                  type="checkbox"
+                  checked={includeUnscheduled}
+                  onChange={(e) => onIncludeUnscheduledChange(e.target.checked)}
+                  className="rounded border-gray-300 text-sky-600 focus:ring-sky-500 w-3.5 h-3.5"
+                />
+                <span className="text-xs text-gray-600">開始・終了未設定を含む</span>
+              </label>
+            )}
           </div>
           <div className="w-px h-6 bg-gray-200" />
         </>

@@ -13,6 +13,7 @@ import TicketSearchSection from '../components/TicketSearchSection';
 import { isLeafIssue } from '../utils/issueTree';
 import { isStatusAssignable, isStatusTransitionAllowed } from '../utils/issueWorkflow';
 import { matchesIssueFilter } from '../utils/issueFilter';
+import { buildIssueListQueryParams } from '../utils/issueListQueryParams';
 import type { ProjectOutletContext } from './ProjectDetailPage';
 
 export default function KanbanPage() {
@@ -31,6 +32,9 @@ export default function KanbanPage() {
   const [filterAssignedToGroupMemberIds, setFilterAssignedToGroupMemberIds] = useState<(number | string)[]>([]);
   const [dueDateStart, setDueDateStart] = useState('');
   const [dueDateEnd, setDueDateEnd] = useState('');
+  const [scheduleDateStart, setScheduleDateStart] = useState('');
+  const [scheduleDateEnd, setScheduleDateEnd] = useState('');
+  const [includeUnscheduled, setIncludeUnscheduled] = useState(false);
   const [isNewIssueModalOpen, setIsNewIssueModalOpen] = useState(false);
   const [newIssueStatusId, setNewIssueStatusId] = useState<number | undefined>(undefined);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -38,10 +42,17 @@ export default function KanbanPage() {
   const [selectedIssueId, setSelectedIssueId] = useState<number | null>(null);
   const { user } = useAuth();
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
+      const params = buildIssueListQueryParams({
+        projectId,
+        trackerIds: filterTrackerIds,
+        statusIds: filterStatusIds,
+        assignedToIds: filterAssignedToIds,
+        assignedToGroupIds: filterAssignedToGroupIds,
+      });
       const [issuesRes, metaRes] = await Promise.all([
-        api.get('/issues', { params: { projectId } }),
+        api.get('/issues', { params }),
         api.get('/issues/meta/options', { params: { projectId } }),
       ]);
 
@@ -51,41 +62,41 @@ export default function KanbanPage() {
     } catch (e) {
       console.error('Failed to fetch kanban data:', e);
     }
-  };
+  }, [projectId, filterTrackerIds, filterStatusIds, filterAssignedToIds, filterAssignedToGroupIds]);
 
   useEffect(() => {
     fetchData();
-  }, [projectId]);
+  }, [fetchData]);
 
   const leafIssues = useMemo(() => {
     return issues.filter((issue) => {
       if (!isLeafIssue(issue, issues)) return false;
+      // トラッカー／ステータス／担当者は API 側で絞り込み済み。期日・開始終了はクライアント
       return matchesIssueFilter(issue, {
-        trackerIds: filterTrackerIds,
-        statusIds: filterStatusIds,
-        assignedToIds: filterAssignedToIds,
-        assignedToGroupIds: filterAssignedToGroupIds,
-        assignedToGroupMemberIds: filterAssignedToGroupMemberIds,
+        trackerIds: [],
+        statusIds: [],
+        assignedToIds: [],
+        assignedToGroupIds: [],
+        assignedToGroupMemberIds: [],
         includeUnassigned: false,
         dueDateStart,
         dueDateEnd,
         dueDateMode: 'direct',
         dueDateRelative: '',
-        scheduleDateStart: '',
-        scheduleDateEnd: '',
+        scheduleDateStart,
+        scheduleDateEnd,
         scheduleDateMode: 'direct',
         scheduleDateRelative: '',
+        includeUnscheduled,
       });
     });
   }, [
     issues,
-    filterTrackerIds,
-    filterStatusIds,
-    filterAssignedToIds,
-    filterAssignedToGroupIds,
-    filterAssignedToGroupMemberIds,
     dueDateStart,
     dueDateEnd,
+    scheduleDateStart,
+    scheduleDateEnd,
+    includeUnscheduled,
   ]);
 
   const handleDrop = async (issueId: number, targetStatusId: number) => {
@@ -150,6 +161,9 @@ export default function KanbanPage() {
     setFilterAssignedToGroupMemberIds([]);
     setDueDateStart('');
     setDueDateEnd('');
+    setScheduleDateStart('');
+    setScheduleDateEnd('');
+    setIncludeUnscheduled(false);
   }, []);
 
   return (
@@ -182,6 +196,12 @@ export default function KanbanPage() {
           onDueDateStartChange={setDueDateStart}
           dueDateEnd={dueDateEnd}
           onDueDateEndChange={setDueDateEnd}
+          scheduleDateStart={scheduleDateStart}
+          onScheduleDateStartChange={setScheduleDateStart}
+          scheduleDateEnd={scheduleDateEnd}
+          onScheduleDateEndChange={setScheduleDateEnd}
+          includeUnscheduled={includeUnscheduled}
+          onIncludeUnscheduledChange={setIncludeUnscheduled}
           onResetFilter={resetTicketSearchFilter}
           issueCount={leafIssues.length}
         />

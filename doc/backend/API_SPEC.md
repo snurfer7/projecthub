@@ -69,7 +69,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 | メソッド | パス | 概要 |
 |----------|------|------|
-| GET | `/` | チケット一覧（所属プロジェクトのみ）。Query: `projectId`, `statusId` / `statusIds`（複数）, `trackerId` / `trackerIds`（複数）, `priorityId`, `assignedToId` / `assignedToIds`（担当ユーザーのいずれかが一致）, `assignedToGroupId`。複数 ID はカンマ区切りまたは配列。応答に **`assignees`**（`{ id, firstName, lastName }[]`）, `assignedToGroup`, `parentId` / `parent` / `_count.children` を含み、子を持つチケットの `startDate` / `endDate` / `statusId`（`status`）は子孫から集約した値（ステータスは position 最小）。`project` は `{ id, name, company: { id, name } \| null }` を含む（カンバン等クロスプロジェクト表示での企業名表示用）。後方互換で `assignedTo` / `assignedToId` は `assignees` の先頭（無ければ null） |
+| GET | `/` | チケット一覧（所属プロジェクトのみ）。Query: `projectId`, `statusId` / `statusIds`（複数）, `trackerId` / `trackerIds`（複数）, `priorityId`, `assignedToId` / `assignedToIds`（担当ユーザーのいずれかが一致）, `assignedToGroupId` / `assignedToGroupIds`（担当グループのいずれかが一致）。複数 ID はカンマ区切りまたは配列。**担当者条件**: `assignedToIds`（または単数 `assignedToId`）と `assignedToGroupIds`（または単数 `assignedToGroupId`）を同時指定した場合は **OR**（ユーザー担当に一致 **または** 担当グループに一致）。片方のみのときはその条件のみ。応答に **`assignees`**（`{ id, firstName, lastName }[]`）, `assignedToGroup`, `parentId` / `parent` / `_count.children` を含み、子を持つチケットの `startDate` / `endDate` / `statusId`（`status`）は子孫から集約した値（ステータスは position 最小）。`project` は `{ id, name, company: { id, name } \| null }` を含む（カンバン等クロスプロジェクト表示での企業名表示用）。後方互換で `assignedTo` / `assignedToId` は `assignees` の先頭（無ければ null） |
 | GET | `/meta/options` | メタ（trackers, statuses, priorities, users, groups）。Query: `projectId`（任意）。`projectId` 指定時はメンバー必須で、プロジェクトメンバー・紐付きグループのみ返し、応答に **`workflow`**（当該ユーザーのロールに基づく利用可能ステータス・遷移）を含む。未指定時は全ユーザー・全グループを返し `workflow` は含めない。`statuses` は常に全マスタ（カンバン列・フィルタ用） |
 | GET | `/:id` | チケット詳細（所属プロジェクトのみ）。`assignees` / `assignedToGroup` / `parent` / `children`（id, subject, startDate, endDate）を含む。子がある場合 `startDate` / `endDate` / `status` は集約値 |
 | POST | `/` | チケット作成（対象プロジェクトのメンバー必須）。Body: **`assignedToIds`**（任意・`number[]`。空配列で担当ユーザーなし。旧 `assignedToId` 単数も受理し 1 件配列相当）, `assignedToGroupId`（任意）, `parentId`（任意・同一プロジェクト・循環不可）, **`estimatedHours`**（任意・0 以上・**0.5 刻み**の数値。空／null で未設定）等。仮登録・無効ユーザーは 400。`statusId` はロールの利用可能ステータスに含まれること（否則 400）。権限: `projects.issues.fields.assignee`（`assignedToIds` / `assignedToGroupId` / 旧 `assignedToId` 指定時）, `projects.issues.fields.parent`（`parentId` 指定時）, `projects.issues.fields.estimatedHours`（`estimatedHours` 指定時） |
@@ -234,8 +234,8 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 | メソッド | パス | 概要 |
 |----------|------|------|
-| GET | `/project/:projectId` | 指定プロジェクトのガント用データ（メンバー必須）。チケットに `parentId` を含み、親の開始・終了・ステータスは子孫から集約。`startDate` / `endDate` / `dueDate` がすべて未設定のチケットも含む。各チケットに `actualHours`（当該チケットの `TimeEntry.hours` 合計。記録なしは `0`）を付与 |
-| GET | `/all` | 所属かつ有効（`active`）プロジェクトのガント用データ（同上。日付未設定チケットも含む）。`projects` は `company: { id, name }` を含む（ガントのプロジェクト行で企業名を表示するため） |
+| GET | `/project/:projectId` | 指定プロジェクトのガント用データ（メンバー必須）。チケットに `parentId` を含み、親の開始・終了・ステータスは子孫から集約。`startDate` / `endDate` / `dueDate` がすべて未設定のチケットも含む。各チケットに `actualHours`（当該チケットの `TimeEntry.hours` 合計。記録なしは `0`）を付与。Query（任意・複数はカンマ区切りまたは配列）: `trackerId` / `trackerIds`, `statusId` / `statusIds`, `assignedToId` / `assignedToIds`, `assignedToGroupId` / `assignedToGroupIds`。担当者条件は `GET /api/issues` と同様にユーザー担当と担当グループを **OR** |
+| GET | `/all` | 所属かつ有効（`active`）プロジェクトのガント用データ（同上。日付未設定チケットも含む）。`projects` は `company: { id, name }` を含む（ガントのプロジェクト行で企業名を表示するため）。Query は `/project/:projectId` と同じ（トラッカー／ステータス／担当者）。担当者条件はユーザー担当と担当グループを **OR** |
 
 権限: `/project/:projectId` は `projects` use ＋ 当該プロジェクトの `projects.gantt` use。`/all` は `projects` use（返却プロジェクトは `projects.gantt` use のあるものに限定）。
 

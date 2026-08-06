@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
 import { parseNumericQueryIds } from '../utils/queryParams';
+import { applyAssigneeOrFilter } from '../utils/issueAssigneeFilter';
 import { applyAggregatedParentFields } from '../utils/issueParent';
 import { getAccessibleProjectIds, isRequestAdmin } from '../services/projectAccess';
 import {
@@ -141,7 +142,7 @@ router.get(
   async (req: AuthRequest, res: Response) => {
     try {
       const projectId = Number(req.params.projectId);
-      const { trackerId, trackerIds, assignedToId, assignedToIds, statusId, statusIds } = req.query;
+      const { trackerId, trackerIds, assignedToId, assignedToIds, assignedToGroupId, assignedToGroupIds, statusId, statusIds } = req.query;
 
       const project = await prisma.project.findUnique({
         where: { id: projectId },
@@ -157,8 +158,7 @@ router.get(
       };
       const filterTrackerIds = parseNumericQueryIds(trackerIds ?? trackerId);
       if (filterTrackerIds.length > 0) where.trackerId = { in: filterTrackerIds };
-      const assigneeIds = parseNumericQueryIds(assignedToIds ?? assignedToId);
-      if (assigneeIds.length > 0) where.assignees = { some: { userId: { in: assigneeIds } } };
+      applyAssigneeOrFilter(where, { assignedToId, assignedToIds, assignedToGroupId, assignedToGroupIds });
       const filterStatusIds = parseNumericQueryIds(statusIds ?? statusId);
       if (filterStatusIds.length > 0) where.statusId = { in: filterStatusIds };
 
@@ -174,7 +174,7 @@ router.get(
 // Get gantt data for all projects
 router.get('/all', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
-    const { trackerId, trackerIds, assignedToId, assignedToIds, statusId, statusIds } = req.query;
+    const { trackerId, trackerIds, assignedToId, assignedToIds, assignedToGroupId, assignedToGroupIds, statusId, statusIds } = req.query;
 
     const accessibleIds = await getAccessibleProjectIds(req.userId!, isRequestAdmin(req));
     const permittedIds = await getProjectIdsWithPermission(req.userId!, accessibleIds, 'projects.gantt', 'use');
@@ -206,8 +206,7 @@ router.get('/all', requirePermission('projects', 'use'), async (req: AuthRequest
     };
     const filterTrackerIds = parseNumericQueryIds(trackerIds ?? trackerId);
     if (filterTrackerIds.length > 0) where.trackerId = { in: filterTrackerIds };
-    const assigneeIds = parseNumericQueryIds(assignedToIds ?? assignedToId);
-    if (assigneeIds.length > 0) where.assignees = { some: { userId: { in: assigneeIds } } };
+    applyAssigneeOrFilter(where, { assignedToId, assignedToIds, assignedToGroupId, assignedToGroupIds });
     const filterStatusIds = parseNumericQueryIds(statusIds ?? statusId);
     if (filterStatusIds.length > 0) where.statusId = { in: filterStatusIds };
 

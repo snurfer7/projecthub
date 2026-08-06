@@ -216,10 +216,9 @@ function parseIssueFilter(o: unknown): IssueFilterCriteria | null {
   const assignedToGroupIds = Array.isArray(f.assignedToGroupIds)
     ? (f.assignedToGroupIds as (number | string)[])
     : [];
-  const assignedToGroupMemberIds = Array.isArray(f.assignedToGroupMemberIds)
-    ? (f.assignedToGroupMemberIds as (number | string)[])
-    : [];
+  // グループ選択は担当グループ一致のみ。保存済みのメンバー展開は読み捨てる
   const includeUnassigned = f.includeUnassigned === true;
+  const includeUnscheduled = f.includeUnscheduled === true;
   const scheduleDateStart = typeof f.scheduleDateStart === 'string' ? f.scheduleDateStart : '';
   const scheduleDateEnd = typeof f.scheduleDateEnd === 'string' ? f.scheduleDateEnd : '';
   return {
@@ -227,7 +226,7 @@ function parseIssueFilter(o: unknown): IssueFilterCriteria | null {
     statusIds,
     assignedToIds,
     assignedToGroupIds,
-    assignedToGroupMemberIds,
+    assignedToGroupMemberIds: [],
     includeUnassigned,
     dueDateStart: f.dueDateStart,
     dueDateEnd: f.dueDateEnd,
@@ -237,6 +236,7 @@ function parseIssueFilter(o: unknown): IssueFilterCriteria | null {
     scheduleDateEnd,
     scheduleDateMode: parseDateRangeMode(f.scheduleDateMode),
     scheduleDateRelative: parseDateRangeRelative(f.scheduleDateRelative),
+    includeUnscheduled,
   };
 }
 

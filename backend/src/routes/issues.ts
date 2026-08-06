@@ -4,6 +4,7 @@ import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
 import { assertFieldPermissions, assertDatetimeFieldPermissions } from '../services/permissions';
 import { parseNumericQueryIds } from '../utils/queryParams';
+import { applyAssigneeOrFilter } from '../utils/issueAssigneeFilter';
 import {
   applyAggregatedParentFields,
   issueHasChildren,
@@ -73,7 +74,7 @@ router.use(authenticateToken);
 // List issues (with filters)
 router.get('/', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
-    const { projectId, statusId, statusIds, trackerId, trackerIds, priorityId, assignedToId, assignedToIds, assignedToGroupId } = req.query;
+    const { projectId, statusId, statusIds, trackerId, trackerIds, priorityId, assignedToId, assignedToIds, assignedToGroupId, assignedToGroupIds } = req.query;
     const accessibleIds = await getAccessibleProjectIds(req.userId!, isRequestAdmin(req));
     const permittedIds = await getProjectIdsWithPermission(req.userId!, accessibleIds, 'projects.issues', 'use');
     const where: any = {};
@@ -98,9 +99,7 @@ router.get('/', requirePermission('projects', 'use'), async (req: AuthRequest, r
     const filterTrackerIds = parseNumericQueryIds(trackerIds ?? trackerId);
     if (filterTrackerIds.length > 0) where.trackerId = { in: filterTrackerIds };
     if (priorityId && String(priorityId).trim() !== '' && !isNaN(Number(priorityId))) where.priorityId = Number(priorityId);
-    const assigneeIds = parseNumericQueryIds(assignedToIds ?? assignedToId);
-    if (assigneeIds.length > 0) where.assignees = { some: { userId: { in: assigneeIds } } };
-    if (assignedToGroupId && String(assignedToGroupId).trim() !== '' && !isNaN(Number(assignedToGroupId))) where.assignedToGroupId = Number(assignedToGroupId);
+    applyAssigneeOrFilter(where, { assignedToId, assignedToIds, assignedToGroupId, assignedToGroupIds });
 
     if (permittedIds.length === 0) {
       res.json([]);

@@ -152,6 +152,10 @@ const IssueCard = React.forwardRef<HTMLDivElement, {
                 {issue.subject}
             </Link>
 
+            {!issue.startDate && !issue.endDate && (
+                <div className="text-[10px] text-gray-400 mb-1">日付未設定</div>
+            )}
+
             {showProjectName && issue.project && (
                 <div
                   className="text-[10px] text-gray-400 mb-2 truncate"

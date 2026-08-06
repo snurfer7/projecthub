@@ -585,7 +585,7 @@ export default function GanttChart({
   filterAssignedToIds: propsFilterAssignedToIds = [],
   onFilterAssignedToIdsChange,
   filterAssignedToGroupIds: propsFilterAssignedToGroupIds = [],
-  filterAssignedToGroupMemberIds: propsFilterAssignedToGroupMemberIds = [],
+  filterAssignedToGroupMemberIds: _propsFilterAssignedToGroupMemberIds = [],
   filterIncludeUnassigned = false,
   collapsedProjects: propsCollapsedProjects = new Set(),
   onCollapsedProjectsChange,
@@ -768,7 +768,7 @@ export default function GanttChart({
     onFilterAssignedToIdsChange?.(v);
   };
   const filterAssignedToGroupIds = propsFilterAssignedToGroupIds;
-  const filterAssignedToGroupMemberIds = propsFilterAssignedToGroupMemberIds;
+  // filterAssignedToGroupMemberIds は後方互換の props のみ（マッチングには使わない）
 
   const collapsedProjects = propsCollapsedProjects ?? internalCollapsedProjects;
   const setCollapsedProjects = (c: Set<number>) => {
@@ -1013,27 +1013,24 @@ export default function GanttChart({
       }
       const hasUserFilter = filterAssignedToIds.length > 0;
       const hasGroupFilter = filterAssignedToGroupIds != null && filterAssignedToGroupIds.length > 0;
-      const hasGroupMemberFilter = filterAssignedToGroupMemberIds != null && filterAssignedToGroupMemberIds.length > 0;
-      if (hasUserFilter || hasGroupFilter || hasGroupMemberFilter || filterIncludeUnassigned) {
+      if (hasUserFilter || hasGroupFilter || filterIncludeUnassigned) {
         const userMatch =
           hasUserFilter &&
           issueHasAssigneeUser(issue, filterAssignedToIds);
-        const groupMemberMatch =
-          hasGroupMemberFilter &&
-          issueHasAssigneeUser(issue, filterAssignedToGroupMemberIds!);
+        // グループ選択は担当グループ一致のみ（所属メンバーのユーザー担当は含めない）
         const groupMatch =
           hasGroupFilter &&
           issue.assignedToGroupId != null &&
           filterAssignedToGroupIds!.some((id) => String(id) === String(issue.assignedToGroupId));
         const unassignedMatch = filterIncludeUnassigned && isIssueUnassigned(issue);
-        if (!userMatch && !groupMemberMatch && !groupMatch && !unassignedMatch) return false;
+        if (!userMatch && !groupMatch && !unassignedMatch) return false;
       }
       if (filterStatusIds.length > 0 && !filterStatusIds.some((id) => String(id) === String(issue.statusId))) {
         return false;
       }
       return true;
     });
-  }, [issues, filterTrackerIds, filterAssignedToIds, filterAssignedToGroupIds, filterAssignedToGroupMemberIds, filterIncludeUnassigned, filterStatusIds]);
+  }, [issues, filterTrackerIds, filterAssignedToIds, filterAssignedToGroupIds, filterIncludeUnassigned, filterStatusIds]);
 
   const trackerColorMap = useMemo(() => {
     const map: Record<number, string> = {};
@@ -2128,8 +2125,11 @@ export default function GanttChart({
                                 ) : null;
                               case 'schedule':
                                 return (
-                                  <span className="truncate text-gray-600 text-[10px]" title={scheduleLabel || undefined}>
-                                    {scheduleLabel}
+                                  <span
+                                    className={`truncate text-[10px] ${scheduleLabel ? 'text-gray-600' : 'text-gray-400'}`}
+                                    title={scheduleLabel || '日付未設定'}
+                                  >
+                                    {scheduleLabel || '日付未設定'}
                                   </span>
                                 );
                               case 'estimated':

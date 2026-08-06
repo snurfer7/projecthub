@@ -149,7 +149,7 @@ export default function ProjectListFilterPanel({
 
   const showTicketFilters = viewMode !== 'list';
   const showTicketDueDateFilter = showTicketFilters && viewMode !== 'time';
-  const showTicketScheduleFilter = viewMode === 'time';
+  const showTicketScheduleFilter = showTicketFilters;
   const showGanttRange = viewMode === 'gantt';
   const showTimeRecordFilters = viewMode === 'time';
 
@@ -183,6 +183,7 @@ export default function ProjectListFilterPanel({
     issueFilter.assignedToIds.length > 0 ||
     issueFilter.assignedToGroupIds.length > 0 ||
     issueFilter.includeUnassigned ||
+    (showTicketScheduleFilter && issueFilter.includeUnscheduled) ||
     (showTicketDueDateFilter &&
       (issueFilter.dueDateMode === 'relative' ||
         issueFilter.dueDateStart !== '' ||
@@ -316,6 +317,7 @@ export default function ProjectListFilterPanel({
       assignedToGroupIds: issueFilter.assignedToGroupIds,
       assignedToGroupMemberIds: issueFilter.assignedToGroupMemberIds,
       includeUnassigned: issueFilter.includeUnassigned,
+      includeUnscheduled: issueFilter.includeUnscheduled,
       ...(issueDueSaved
         ? {
             dueDateMode: issueDueSaved.mode,
@@ -496,23 +498,34 @@ export default function ProjectListFilterPanel({
               />
             )}
             {showTicketScheduleFilter && (
-              <DateRangeSpecify
-                label="開始・終了"
-                value={{
-                  mode: issueFilter.scheduleDateMode,
-                  relative: issueFilter.scheduleDateRelative,
-                  start: issueFilter.scheduleDateStart,
-                  end: issueFilter.scheduleDateEnd,
-                }}
-                onChange={(next) =>
-                  onIssueFilterChange({
-                    scheduleDateMode: next.mode,
-                    scheduleDateRelative: next.relative,
-                    scheduleDateStart: next.start,
-                    scheduleDateEnd: next.end,
-                  })
-                }
-              />
+              <>
+                <DateRangeSpecify
+                  label="開始・終了"
+                  value={{
+                    mode: issueFilter.scheduleDateMode,
+                    relative: issueFilter.scheduleDateRelative,
+                    start: issueFilter.scheduleDateStart,
+                    end: issueFilter.scheduleDateEnd,
+                  }}
+                  onChange={(next) =>
+                    onIssueFilterChange({
+                      scheduleDateMode: next.mode,
+                      scheduleDateRelative: next.relative,
+                      scheduleDateStart: next.start,
+                      scheduleDateEnd: next.end,
+                    })
+                  }
+                />
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={issueFilter.includeUnscheduled}
+                    onChange={(e) => onIssueFilterChange({ includeUnscheduled: e.target.checked })}
+                    className="rounded border-gray-300 text-sky-600 focus:ring-sky-500 w-3.5 h-3.5"
+                  />
+                  <span className="text-xs text-gray-600">開始・終了未設定を含む</span>
+                </label>
+              </>
             )}
             <Combobox
               label="トラッカー"
@@ -544,14 +557,14 @@ export default function ProjectListFilterPanel({
               options={issueAssigneeOptions}
               onChange={(values: (string | number)[]) => {
                 const includeUnassigned = values.some((v) => String(v) === UNASSIGNED_ASSIGNEE_VALUE);
-                const { userIds, groupIds, memberIds } = splitGroupedAssigneeSelection(
+                const { userIds, groupIds } = splitGroupedAssigneeSelection(
                   values.filter((v) => String(v) !== UNASSIGNED_ASSIGNEE_VALUE),
                   groups,
                 );
                 onIssueFilterChange({
                   assignedToIds: userIds,
                   assignedToGroupIds: groupIds,
-                  assignedToGroupMemberIds: memberIds,
+                  assignedToGroupMemberIds: [],
                   includeUnassigned,
                 });
               }}

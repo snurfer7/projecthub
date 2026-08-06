@@ -108,7 +108,7 @@ export function buildGroupedUserOptions({
   return options;
 }
 
-/** 担当者フィルタの onChange 値を user / group / メンバー展開に分解する */
+/** 担当者フィルタの onChange 値を user / group に分解する（memberIds はプロジェクトメンバー絞り込み等で利用） */
 export function splitGroupedAssigneeSelection(
   values: (string | number)[],
   groups: GroupedUserOptionGroup[],

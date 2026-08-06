@@ -14,7 +14,10 @@ export type IssueFilterCriteria = {
   statusIds: (number | string)[];
   assignedToIds: (number | string)[];
   assignedToGroupIds: (number | string)[];
-  /** 選択されたグループのメンバー userId を展開したもの（担当者フィルターの OR 拡張用） */
+  /**
+   * 後方互換用（保存済み検索など）。グループ選択時はメンバー展開しないため常に空。
+   * マッチングには使わない。
+   */
   assignedToGroupMemberIds: (number | string)[];
   /** true のとき担当ユーザー・担当グループ未設定のチケットを担当者条件の OR 対象に含める */
   includeUnassigned: boolean;
@@ -22,12 +25,17 @@ export type IssueFilterCriteria = {
   dueDateEnd: string;
   dueDateMode: DateRangeSpecifyMode;
   dueDateRelative: DateRangeRelativePreset | '';
-  /** チケット開始日〜終了日との重なり判定用（フィルタ期間の開始） */
+  /** チケット開始日〜終了日との重なり判定用（フィルタ期間の開始。ガント／カンバン／時間） */
   scheduleDateStart: string;
   /** チケット開始日〜終了日との重なり判定用（フィルタ期間の終了） */
   scheduleDateEnd: string;
   scheduleDateMode: DateRangeSpecifyMode;
   scheduleDateRelative: DateRangeRelativePreset | '';
+  /**
+   * true のとき開始・終了期間指定ありでも、開始・終了とも未設定のチケットを
+   * 期間重なりと OR で含める（省略時・false は従来どおり除外）
+   */
+  includeUnscheduled: boolean;
 };
 
 export function defaultIssueFilterCriteria(): IssueFilterCriteria {
@@ -46,6 +54,7 @@ export function defaultIssueFilterCriteria(): IssueFilterCriteria {
     scheduleDateEnd: '',
     scheduleDateMode: 'direct',
     scheduleDateRelative: '',
+    includeUnscheduled: false,
   };
 }
 
@@ -60,11 +69,18 @@ function toDateOnly(value: string | null | undefined): string | null {
   return value.slice(0, 10);
 }
 
+/** 開始日・終了日がともに未設定（親は API 集約後の値で判定） */
+export function isIssueUnscheduled(
+  issue: Pick<Issue, 'startDate' | 'endDate'> | { startDate?: string | null; endDate?: string | null },
+): boolean {
+  return !toDateOnly(issue.startDate) && !toDateOnly(issue.endDate);
+}
+
 /**
  * チケットの開始日〜終了日と、指定期間が一部でも重なるか。
  * - フィルタ片側のみ: 他端は無限として扱う
  * - チケット片側のみ: その日を点（開始＝終了）として扱う
- * - チケット両方未設定: 重ならない
+ * - チケット両方未設定: 重ならない（`includeUnscheduled` は呼び出し側で OR）
  */
 export function overlapsScheduleRange(
   issueStart: string | null | undefined,
@@ -91,21 +107,18 @@ export function matchesIssueFilter(issue: Issue, criteria: IssueFilterCriteria):
   if (!matchesIdList(issue.statusId, criteria.statusIds)) return false;
   const hasUserFilter = criteria.assignedToIds.length > 0;
   const hasGroupFilter = criteria.assignedToGroupIds.length > 0;
-  const hasGroupMemberFilter = criteria.assignedToGroupMemberIds.length > 0;
   const includeUnassigned = criteria.includeUnassigned === true;
-  if (hasUserFilter || hasGroupFilter || hasGroupMemberFilter || includeUnassigned) {
+  if (hasUserFilter || hasGroupFilter || includeUnassigned) {
     const userMatch =
       hasUserFilter &&
       issueHasAssigneeUser(issue, criteria.assignedToIds);
-    const groupMemberMatch =
-      hasGroupMemberFilter &&
-      issueHasAssigneeUser(issue, criteria.assignedToGroupMemberIds);
+    // グループ選択は担当グループ一致のみ（所属メンバーのユーザー担当は含めない）
     const groupMatch =
       hasGroupFilter &&
       issue.assignedToGroupId != null &&
       criteria.assignedToGroupIds.some((id) => String(id) === String(issue.assignedToGroupId));
     const unassignedMatch = includeUnassigned && isIssueUnassigned(issue);
-    if (!userMatch && !groupMemberMatch && !groupMatch && !unassignedMatch) return false;
+    if (!userMatch && !groupMatch && !unassignedMatch) return false;
   }
 
   const dueRange = effectiveDateRange(
@@ -127,8 +140,15 @@ export function matchesIssueFilter(issue: Issue, criteria: IssueFilterCriteria):
     criteria.scheduleDateStart,
     criteria.scheduleDateEnd,
   );
-  if (!overlapsScheduleRange(issue.startDate, issue.endDate, scheduleRange.start, scheduleRange.end)) {
-    return false;
+  const overlaps = overlapsScheduleRange(
+    issue.startDate,
+    issue.endDate,
+    scheduleRange.start,
+    scheduleRange.end,
+  );
+  if (!overlaps) {
+    const includeUnscheduled = criteria.includeUnscheduled === true;
+    if (!(includeUnscheduled && isIssueUnscheduled(issue))) return false;
   }
 
   return true;

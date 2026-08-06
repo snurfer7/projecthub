@@ -20,6 +20,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { useProjectListFilters } from '../hooks/useProjectListFilters';
 import { filterProjects, filteredProjectIdSet } from '../utils/projectFilter';
 import { filterIssues, filterIssuesByProjectIds } from '../utils/issueFilter';
+import { buildIssueListQueryParams } from '../utils/issueListQueryParams';
 import { isLeafIssue } from '../utils/issueTree';
 import {
   buildProjectTreeDisplayRows,
@@ -138,6 +139,7 @@ export default function ProjectListPage() {
       scheduleDateEnd: '',
       scheduleDateMode: 'direct',
       scheduleDateRelative: '',
+      includeUnscheduled: false,
     });
     setTimeRecordDate({ mode: 'direct', relative: '', start: '', end: '' });
     setTimeRecordFilterUserIds([]);
@@ -172,19 +174,16 @@ export default function ProjectListPage() {
         const savedIssue = f.issueFilter;
         setIssueFilter((prev) => {
           const next = { ...prev, ...savedIssue };
+          next.assignedToGroupMemberIds = [];
           next.includeUnassigned = savedIssue.includeUnassigned === true;
+          next.includeUnscheduled = savedIssue.includeUnscheduled === true;
           if (viewMode === 'time') {
             next.dueDateStart = '';
             next.dueDateEnd = '';
             next.dueDateMode = 'direct';
             next.dueDateRelative = '';
-          } else {
-            next.scheduleDateStart = '';
-            next.scheduleDateEnd = '';
-            next.scheduleDateMode = 'direct';
-            next.scheduleDateRelative = '';
           }
-          if (viewMode !== 'time') {
+          if (viewMode === 'gantt' || viewMode === 'kanban') {
             if (next.dueDateMode === 'relative' && isDateRangeRelativePreset(next.dueDateRelative)) {
               const range = resolveRelativeDateRange(next.dueDateRelative);
               next.dueDateStart = range.start;
@@ -196,7 +195,7 @@ export default function ProjectListPage() {
               next.dueDateEnd = savedIssue.dueDateEnd ?? '';
             }
           }
-          if (viewMode === 'time') {
+          if (viewMode === 'gantt' || viewMode === 'kanban' || viewMode === 'time') {
             if (next.scheduleDateMode === 'relative' && isDateRangeRelativePreset(next.scheduleDateRelative)) {
               const range = resolveRelativeDateRange(next.scheduleDateRelative);
               next.scheduleDateStart = range.start;
@@ -210,6 +209,12 @@ export default function ProjectListPage() {
               next.scheduleDateStart = savedIssue.scheduleDateStart ?? '';
               next.scheduleDateEnd = savedIssue.scheduleDateEnd ?? '';
             }
+          } else {
+            next.scheduleDateStart = '';
+            next.scheduleDateEnd = '';
+            next.scheduleDateMode = 'direct';
+            next.scheduleDateRelative = '';
+            next.includeUnscheduled = false;
           }
           return next;
         });
@@ -367,6 +372,7 @@ export default function ProjectListPage() {
         scheduleDateEnd: '',
         scheduleDateMode: 'direct',
         scheduleDateRelative: '',
+        includeUnscheduled: false,
       });
       setTimeRecordDate({ mode: 'direct', relative: '', start: '', end: '' });
       setTimeRecordFilterUserIds([]);
@@ -395,33 +401,59 @@ export default function ProjectListPage() {
   };
 
   const loadGanttData = useCallback(() => {
-    api.get('/gantt/all').then((res) => {
+    const params = buildIssueListQueryParams({
+      trackerIds: issueFilter.trackerIds,
+      statusIds: issueFilter.statusIds,
+      assignedToIds: issueFilter.assignedToIds,
+      assignedToGroupIds: issueFilter.assignedToGroupIds,
+      includeUnassigned: issueFilter.includeUnassigned,
+    });
+    api.get('/gantt/all', { params }).then((res) => {
       setGanttProjects(res.data.projects);
       setGanttIssues(res.data.issues);
     });
     api.get('/settings/calendar').then((res) => {
       setSystemSettings(res.data);
     }).catch(() => {});
-  }, []);
+  }, [
+    issueFilter.trackerIds,
+    issueFilter.statusIds,
+    issueFilter.assignedToIds,
+    issueFilter.assignedToGroupIds,
+    issueFilter.includeUnassigned,
+  ]);
 
   const loadKanbanData = useCallback(() => {
+    const params = buildIssueListQueryParams({
+      trackerIds: issueFilter.trackerIds,
+      statusIds: issueFilter.statusIds,
+      assignedToIds: issueFilter.assignedToIds,
+      assignedToGroupIds: issueFilter.assignedToGroupIds,
+      includeUnassigned: issueFilter.includeUnassigned,
+    });
     Promise.all([
-      api.get('/issues'),
+      api.get('/issues', { params }),
       api.get('/issues/meta/options'),
     ]).then(([issuesRes, metaRes]) => {
       setKanbanIssues(issuesRes.data);
       setKanbanStatuses(metaRes.data.statuses);
     });
-  }, []);
+  }, [
+    issueFilter.trackerIds,
+    issueFilter.statusIds,
+    issueFilter.assignedToIds,
+    issueFilter.assignedToGroupIds,
+    issueFilter.includeUnassigned,
+  ]);
 
   const loadTimeData = useCallback(() => {
-    const issueParams: Record<string, string | number> = {};
-    if (issueFilter.trackerIds.length > 0) issueParams.trackerIds = issueFilter.trackerIds.join(',');
-    if (issueFilter.statusIds.length > 0) issueParams.statusIds = issueFilter.statusIds.join(',');
-    // 未割当を含む場合は API 側の担当者絞り込みをせず、クライアントで OR 判定する
-    if (issueFilter.assignedToIds.length > 0 && !issueFilter.includeUnassigned) {
-      issueParams.assignedToIds = issueFilter.assignedToIds.join(',');
-    }
+    const issueParams = buildIssueListQueryParams({
+      trackerIds: issueFilter.trackerIds,
+      statusIds: issueFilter.statusIds,
+      assignedToIds: issueFilter.assignedToIds,
+      assignedToGroupIds: issueFilter.assignedToGroupIds,
+      includeUnassigned: issueFilter.includeUnassigned,
+    });
 
     const recordRange = effectiveDateRange(
       timeRecordDate.mode,
@@ -459,6 +491,7 @@ export default function ProjectListPage() {
     issueFilter.trackerIds,
     issueFilter.statusIds,
     issueFilter.assignedToIds,
+    issueFilter.assignedToGroupIds,
     issueFilter.includeUnassigned,
     timeRecordDate,
     timeRecordFilterUserIds,
@@ -599,10 +632,20 @@ export default function ProjectListPage() {
     [ganttProjects, projectIds],
   );
 
-  const filteredGanttIssues = useMemo(
-    () => filterIssues(filterIssuesByProjectIds(ganttIssues, projectIds), issueFilter),
-    [ganttIssues, projectIds, issueFilter],
-  );
+  const filteredGanttIssues = useMemo(() => {
+    // トラッカー／ステータス／担当者は API 側で絞り込み済み（祖先補完あり）。
+    // 未割当を含むときだけ担当者条件をクライアントで OR 判定する。
+    const criteria = {
+      ...issueFilter,
+      trackerIds: [] as (number | string)[],
+      statusIds: [] as (number | string)[],
+      assignedToIds: issueFilter.includeUnassigned ? issueFilter.assignedToIds : [],
+      assignedToGroupIds: issueFilter.includeUnassigned ? issueFilter.assignedToGroupIds : [],
+      assignedToGroupMemberIds: [] as (number | string)[],
+      includeUnassigned: issueFilter.includeUnassigned === true,
+    };
+    return filterIssues(filterIssuesByProjectIds(ganttIssues, projectIds), criteria);
+  }, [ganttIssues, projectIds, issueFilter]);
 
   const ganttDisplayProjectCount = useMemo(() => {
     if (showEmptyProjects) return filteredGanttProjects.length;
@@ -615,14 +658,28 @@ export default function ProjectListPage() {
     [kanbanIssues, projectIds],
   );
 
-  const kanbanFilteredIssues = useMemo(
-    () => filterIssues(kanbanProjectIssues, issueFilter).filter((issue) => isLeafIssue(issue, kanbanProjectIssues)),
-    [kanbanProjectIssues, issueFilter],
-  );
+  const kanbanFilteredIssues = useMemo(() => {
+    const criteria = {
+      ...issueFilter,
+      trackerIds: [] as (number | string)[],
+      statusIds: [] as (number | string)[],
+      assignedToIds: issueFilter.includeUnassigned ? issueFilter.assignedToIds : [],
+      assignedToGroupIds: issueFilter.includeUnassigned ? issueFilter.assignedToGroupIds : [],
+      assignedToGroupMemberIds: [] as (number | string)[],
+      includeUnassigned: issueFilter.includeUnassigned === true,
+    };
+    return filterIssues(kanbanProjectIssues, criteria).filter((issue) => isLeafIssue(issue, kanbanProjectIssues));
+  }, [kanbanProjectIssues, issueFilter]);
 
   const timeFilteredIssues = useMemo(() => {
     const criteria = {
       ...issueFilter,
+      trackerIds: [] as (number | string)[],
+      statusIds: [] as (number | string)[],
+      assignedToIds: issueFilter.includeUnassigned ? issueFilter.assignedToIds : [],
+      assignedToGroupIds: issueFilter.includeUnassigned ? issueFilter.assignedToGroupIds : [],
+      assignedToGroupMemberIds: [] as (number | string)[],
+      includeUnassigned: issueFilter.includeUnassigned === true,
       dueDateStart: '',
       dueDateEnd: '',
     };
@@ -832,14 +889,11 @@ export default function ProjectListPage() {
           onStartValueChange={setGanttStartValue}
           endValue={ganttEndValue}
           onEndValueChange={setGanttEndValue}
-          filterTrackerIds={issueFilter.trackerIds}
-          onFilterTrackerIdsChange={(values) => { updateIssueFilter({ trackerIds: values }); setActiveSavedSearchId(null); }}
-          filterStatusIds={issueFilter.statusIds}
-          onFilterStatusIdsChange={(values) => { updateIssueFilter({ statusIds: values }); setActiveSavedSearchId(null); }}
-          filterAssignedToIds={issueFilter.assignedToIds}
-          onFilterAssignedToIdsChange={(values) => { updateIssueFilter({ assignedToIds: values }); setActiveSavedSearchId(null); }}
-          filterAssignedToGroupIds={issueFilter.assignedToGroupIds}
-          filterAssignedToGroupMemberIds={issueFilter.assignedToGroupMemberIds}
+          filterTrackerIds={[]}
+          filterStatusIds={[]}
+          filterAssignedToIds={issueFilter.includeUnassigned ? issueFilter.assignedToIds : []}
+          filterAssignedToGroupIds={issueFilter.includeUnassigned ? issueFilter.assignedToGroupIds : []}
+          filterAssignedToGroupMemberIds={[]}
           filterIncludeUnassigned={issueFilter.includeUnassigned}
           collapsedProjects={ganttCollapsedProjects}
           onCollapsedProjectsChange={setGanttCollapsedProjects}

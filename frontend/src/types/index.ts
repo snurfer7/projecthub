@@ -544,6 +544,7 @@ export interface SavedSearchFilter {
     statusIds: (number | string)[];
     assignedToIds: (number | string)[];
     assignedToGroupIds: (number | string)[];
+    /** 後方互換用。グループ選択時はメンバー展開しないため未使用（常に空） */
     assignedToGroupMemberIds: (number | string)[];
     /** true のとき担当未設定チケットを担当者条件の OR 対象に含める */
     includeUnassigned?: boolean;
@@ -551,11 +552,13 @@ export interface SavedSearchFilter {
     dueDateEnd?: string;
     dueDateMode?: DateRangeSpecifyMode;
     dueDateRelative?: DateRangeRelativePreset | '';
-    /** チケット開始日〜終了日との期間重なり（時間タブ） */
+    /** チケット開始日〜終了日との期間重なり（ガント／カンバン／時間） */
     scheduleDateStart?: string;
     scheduleDateEnd?: string;
     scheduleDateMode?: DateRangeSpecifyMode;
     scheduleDateRelative?: DateRangeRelativePreset | '';
+    /** true のとき開始・終了とも未設定のチケットを期間重なりと OR で含める */
+    includeUnscheduled?: boolean;
   };
   ganttZoom?: 'day' | 'month' | 'year';
   /** ガント: チケットなしのプロジェクトを表示するか（省略時 true） */
