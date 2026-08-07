@@ -113,6 +113,7 @@ export default function ProjectListPage() {
   const [activeSavedSearchId, setActiveSavedSearchId] = useState<number | null>(null);
 
   const [timeIssues, setTimeIssues] = useState<Issue[]>([]);
+  const [timeStatuses, setTimeStatuses] = useState<IssueStatus[]>([]);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [timeRecordDate, setTimeRecordDate] = useState<DateRangeSpecifyValue>({
     mode: 'direct',
@@ -498,6 +499,7 @@ export default function ProjectListPage() {
       api.get('/issues/meta/options'),
     ]).then(([issuesRes, metaRes]) => {
       if (gen !== timeLoadGenRef.current) return;
+      setTimeStatuses(metaRes.data.statuses ?? []);
       const groups = (metaRes.data.groups ?? []) as { id: number; members: { userId: number }[] }[];
       const resolvedUserIds = resolveTimeRecordFilterUserIds(timeRecordFilterUserIds, groups);
 
@@ -950,6 +952,7 @@ export default function ProjectListPage() {
         <TimeRecordTree
           projects={filteredProjects}
           issues={timeFilteredIssues}
+          statuses={timeStatuses}
           timeEntries={timeEntries}
           onRefresh={loadTimeData}
           projectSort={listSort}

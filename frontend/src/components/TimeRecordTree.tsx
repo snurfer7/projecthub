@@ -1,13 +1,15 @@
 import { useState, useMemo, useEffect, type CSSProperties, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight, Briefcase, Plus, Pencil, Trash2 } from 'lucide-react';
 import api from '../api/client';
-import { Project, Issue, TimeEntry, PermissionMap } from '../types';
+import { Project, Issue, IssueStatus, IssueMetaWorkflow, TimeEntry, PermissionMap } from '../types';
 import DateInput from './DateInput';
 import { prefetchProjectPermissions, projectMapCanInput } from '../utils/projectPermissionsCache';
 import { orderIssuesHierarchically, type IssueListSort } from '../utils/issueSort';
 import { sortSiblingProjects, type ProjectListSort } from '../utils/projectTree';
+import { getSelectableStatuses } from '../utils/issueWorkflow';
 
 const ACTIVITY_OPTIONS = ['開発', '設計', 'レビュー', 'テスト', 'ドキュメント', 'その他'];
+const DONE_RATIO_OPTIONS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 
 /** ガントと同程度の行高（コンテンツ 24px + 区切り線 1px） */
 const TIME_ROW_CONTENT_HEIGHT = 24;
@@ -16,6 +18,9 @@ const TIME_ROW_HEIGHT = TIME_ROW_CONTENT_HEIGHT + 1;
 const TIME_INDENT_STEP = 16;
 /** ∨マークとプロジェクト名／チケット名の間隔（全角スペース相当） */
 const CHEVRON_LABEL_GAP = '1em';
+
+const selectClassName =
+  'w-full max-w-[8.5rem] border border-gray-300 rounded px-1 py-0.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed';
 
 /** ガントと同様: ルート塊末尾は濃い実線、それ以外（プロジェクト↔チケット・チケット間・時間記録行同士）は通常の実線 */
 type RowBorderKind = 'root' | 'normal';
@@ -55,6 +60,7 @@ function entryIndentPx(projectDepth: number, issueDepth: number): number {
 interface TimeRecordTreeProps {
   projects: Project[];
   issues: Issue[];
+  statuses: IssueStatus[];
   timeEntries: TimeEntry[];
   onRefresh: () => void;
   /** プロジェクトの複合並び替え（ルート・兄弟間） */
@@ -67,6 +73,8 @@ interface TreeIssue {
   issue: Issue;
   depth: number;
   hasChildren: boolean;
+  /** API 上の子有無（フィルタ外の子含む）。ステータス編集ロック用 */
+  statusLocked: boolean;
   entries: TimeEntry[];
 }
 
@@ -83,10 +91,21 @@ interface FlatRowMeta {
   rootProjectId: number;
 }
 
-export default function TimeRecordTree({ projects, issues, timeEntries, onRefresh, projectSort, issueSort }: TimeRecordTreeProps) {
+export default function TimeRecordTree({
+  projects,
+  issues,
+  statuses,
+  timeEntries,
+  onRefresh,
+  projectSort,
+  issueSort,
+}: TimeRecordTreeProps) {
   const [collapsedProjects, setCollapsedProjects] = useState<Set<number>>(new Set());
   const [collapsedIssues, setCollapsedIssues] = useState<Set<number>>(new Set());
   const [permByProject, setPermByProject] = useState<Record<number, PermissionMap>>({});
+  const [workflowByProject, setWorkflowByProject] = useState<Record<number, IssueMetaWorkflow | null>>({});
+  const [localIssues, setLocalIssues] = useState<Issue[]>(issues);
+  const [updatingIssueIds, setUpdatingIssueIds] = useState<Set<number>>(new Set());
 
   // New entry state
   const [addingForIssueId, setAddingForIssueId] = useState<number | null>(null);
@@ -105,6 +124,10 @@ export default function TimeRecordTree({ projects, issues, timeEntries, onRefres
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    setLocalIssues(issues);
+  }, [issues]);
+
+  useEffect(() => {
     const ids = projects.map((p) => p.id);
     if (ids.length === 0) return;
     let cancelled = false;
@@ -116,12 +139,92 @@ export default function TimeRecordTree({ projects, issues, timeEntries, onRefres
     };
   }, [projects]);
 
+  useEffect(() => {
+    const ids = [...new Set(projects.map((p) => p.id))];
+    if (ids.length === 0) return;
+    let cancelled = false;
+    Promise.all(
+      ids.map(async (id) => {
+        try {
+          const res = await api.get('/issues/meta/options', { params: { projectId: id } });
+          return [id, (res.data.workflow as IssueMetaWorkflow | undefined) ?? null] as const;
+        } catch {
+          return [id, null] as const;
+        }
+      }),
+    ).then((entries) => {
+      if (cancelled) return;
+      const next: Record<number, IssueMetaWorkflow | null> = {};
+      for (const [id, workflow] of entries) next[id] = workflow;
+      setWorkflowByProject(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [projects]);
+
   const canEditTime = (projectId: number) =>
     projectMapCanInput(permByProject[projectId], 'projects.time-entries');
 
+  const canEditIssueField = (projectId: number, fieldCode: string) =>
+    projectMapCanInput(permByProject[projectId], 'projects.issues') &&
+    projectMapCanInput(permByProject[projectId], fieldCode);
+
+  const markUpdating = (issueId: number, on: boolean) => {
+    setUpdatingIssueIds((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(issueId);
+      else next.delete(issueId);
+      return next;
+    });
+  };
+
+  const handleStatusChange = async (issue: Issue, nextStatusId: number) => {
+    if (issue.statusId === nextStatusId) return;
+    const status = statuses.find((s) => s.id === nextStatusId);
+    const previous = { statusId: issue.statusId, status: issue.status };
+    setLocalIssues((prev) =>
+      prev.map((i) =>
+        i.id === issue.id ? { ...i, statusId: nextStatusId, status: status ?? i.status } : i,
+      ),
+    );
+    markUpdating(issue.id, true);
+    try {
+      await api.put(`/issues/${issue.id}`, { statusId: nextStatusId });
+      onRefresh();
+    } catch (e: any) {
+      setLocalIssues((prev) =>
+        prev.map((i) => (i.id === issue.id ? { ...i, ...previous } : i)),
+      );
+      alert(e.response?.data?.error || 'ステータスの更新に失敗しました');
+    } finally {
+      markUpdating(issue.id, false);
+    }
+  };
+
+  const handleDoneRatioChange = async (issue: Issue, nextDoneRatio: number) => {
+    if (issue.doneRatio === nextDoneRatio) return;
+    const previous = issue.doneRatio;
+    setLocalIssues((prev) =>
+      prev.map((i) => (i.id === issue.id ? { ...i, doneRatio: nextDoneRatio } : i)),
+    );
+    markUpdating(issue.id, true);
+    try {
+      await api.put(`/issues/${issue.id}`, { doneRatio: nextDoneRatio });
+      onRefresh();
+    } catch (e: any) {
+      setLocalIssues((prev) =>
+        prev.map((i) => (i.id === issue.id ? { ...i, doneRatio: previous } : i)),
+      );
+      alert(e.response?.data?.error || '進捗率の更新に失敗しました');
+    } finally {
+      markUpdating(issue.id, false);
+    }
+  };
+
   const projectTree = useMemo<ProjectNode[]>(() => {
     const projectIds = new Set(projects.map((p) => p.id));
-    const filteredIssues = issues.filter((i) => projectIds.has(i.projectId));
+    const filteredIssues = localIssues.filter((i) => projectIds.has(i.projectId));
 
     const entriesByIssueId = new Map<number, TimeEntry[]>();
     for (const entry of timeEntries) {
@@ -150,6 +253,7 @@ export default function TimeRecordTree({ projects, issues, timeEntries, onRefres
           issue,
           depth,
           hasChildren: childIds.has(issue.id),
+          statusLocked: childIds.has(issue.id) || (issue._count?.children ?? 0) > 0,
           entries: entriesByIssueId.get(issue.id) || [],
         })),
       );
@@ -188,7 +292,7 @@ export default function TimeRecordTree({ projects, issues, timeEntries, onRefres
       .filter((p) => hasContent(p.id))
       .map((p) => buildNode(p, 0))
       .filter((n): n is ProjectNode => n !== null);
-  }, [projects, issues, timeEntries, projectSort, issueSort]);
+  }, [projects, localIssues, timeEntries, projectSort, issueSort]);
 
   const toggleProject = (id: number) => {
     setCollapsedProjects((prev) => {
@@ -332,6 +436,77 @@ export default function TimeRecordTree({ projects, issues, timeEntries, onRefres
     return 'normal';
   };
 
+  const renderIssueStatusCell = (issue: Issue, projectId: number, statusLocked: boolean) => {
+    const canEdit = canEditIssueField(projectId, 'projects.issues.fields.status') && !statusLocked;
+    const statusLabel = issue.status?.name ?? statuses.find((s) => s.id === issue.statusId)?.name ?? '—';
+    if (!canEdit) {
+      return (
+        <td className="px-2 align-middle text-gray-600 whitespace-nowrap" title={statusLocked ? '子チケットから算出' : undefined}>
+          {statusLabel}
+        </td>
+      );
+    }
+    const options = getSelectableStatuses(statuses, workflowByProject[projectId], {
+      mode: 'edit',
+      currentStatusId: issue.statusId,
+    });
+    return (
+      <td className="px-1 align-middle">
+        <select
+          value={issue.statusId}
+          disabled={updatingIssueIds.has(issue.id)}
+          onChange={(e) => handleStatusChange(issue, Number(e.target.value))}
+          className={selectClassName}
+          aria-label={`チケット #${issue.id} のステータス`}
+        >
+          {options.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      </td>
+    );
+  };
+
+  const renderIssueDoneRatioCell = (issue: Issue, projectId: number) => {
+    const canEdit = canEditIssueField(projectId, 'projects.issues.fields.doneRatio');
+    if (!canEdit) {
+      return (
+        <td className="px-2 align-middle text-gray-600 whitespace-nowrap">
+          {issue.doneRatio}%
+        </td>
+      );
+    }
+    const ratioOptions = DONE_RATIO_OPTIONS.includes(issue.doneRatio)
+      ? DONE_RATIO_OPTIONS
+      : [...DONE_RATIO_OPTIONS, issue.doneRatio].sort((a, b) => a - b);
+    return (
+      <td className="px-1 align-middle">
+        <select
+          value={issue.doneRatio}
+          disabled={updatingIssueIds.has(issue.id)}
+          onChange={(e) => handleDoneRatioChange(issue, Number(e.target.value))}
+          className={selectClassName}
+          aria-label={`チケット #${issue.id} の進捗率`}
+        >
+          {ratioOptions.map((v) => (
+            <option key={v} value={v}>
+              {v}%
+            </option>
+          ))}
+        </select>
+      </td>
+    );
+  };
+
+  const emptyIssueFieldCells = (
+    <>
+      <td></td>
+      <td></td>
+    </>
+  );
+
   const renderProjectNode = (node: ProjectNode, metaOffset: { i: number }): ReactNode[] => {
     const { project, depth, treeIssues, children } = node;
     const isCollapsed = collapsedProjects.has(project.id);
@@ -364,6 +539,7 @@ export default function TimeRecordTree({ projects, issues, timeEntries, onRefres
             </div>
           </div>
         </td>
+        {emptyIssueFieldCells}
         <td></td>
         <td></td>
         <td></td>
@@ -375,7 +551,7 @@ export default function TimeRecordTree({ projects, issues, timeEntries, onRefres
 
     if (!isCollapsed) {
       let skipUntilDepth: number | null = null;
-      treeIssues.forEach(({ issue, depth: issueDepth, hasChildren, entries }) => {
+      treeIssues.forEach(({ issue, depth: issueDepth, hasChildren, statusLocked, entries }) => {
         if (skipUntilDepth != null) {
           if (issueDepth > skipUntilDepth) return;
           skipUntilDepth = null;
@@ -412,6 +588,8 @@ export default function TimeRecordTree({ projects, issues, timeEntries, onRefres
                 </span>
               </div>
             </td>
+            {renderIssueStatusCell(issue, project.id, statusLocked)}
+            {renderIssueDoneRatioCell(issue, project.id)}
             <td></td>
             <td></td>
             <td></td>
@@ -447,6 +625,7 @@ export default function TimeRecordTree({ projects, issues, timeEntries, onRefres
                 <td className="py-1.5 text-amber-600 font-medium align-middle" style={{ paddingLeft: entryPad }}>
                   編集
                 </td>
+                {emptyIssueFieldCells}
                 <td className="px-2 py-1 align-middle">
                   <DateInput
                     value={editEntrySpentOn}
@@ -511,6 +690,7 @@ export default function TimeRecordTree({ projects, issues, timeEntries, onRefres
             rows.push(
               <tr key={`e-${entry.id}`} className="bg-white group text-xs" style={rowStyle(takeBorder(), { entry: true })}>
                 <td className="align-middle" style={{ paddingLeft: entryPad }}></td>
+                {emptyIssueFieldCells}
                 <td className="px-3 py-1.5 align-middle text-gray-600 whitespace-nowrap">
                   {entry.spentOn.split('T')[0]}
                 </td>
@@ -551,6 +731,7 @@ export default function TimeRecordTree({ projects, issues, timeEntries, onRefres
               <td className="py-1.5 text-sky-500 font-medium align-middle" style={{ paddingLeft: entryPad }}>
                 新規
               </td>
+              {emptyIssueFieldCells}
               <td className="px-2 py-1 align-middle">
                 <DateInput
                   value={newEntrySpentOn}
@@ -639,6 +820,8 @@ export default function TimeRecordTree({ projects, issues, timeEntries, onRefres
         <thead className="bg-gray-50" style={{ borderBottom: '1px solid #64748B' }}>
           <tr style={{ height: TIME_ROW_HEIGHT, boxSizing: 'border-box' }}>
             <th className="text-left px-2 font-medium text-gray-600">プロジェクト / チケット</th>
+            <th className="text-left px-2 font-medium text-gray-600 w-28">ステータス</th>
+            <th className="text-left px-2 font-medium text-gray-600 w-20">進捗率</th>
             <th className="text-left px-2 font-medium text-gray-600 w-28">日付</th>
             <th className="text-left px-2 font-medium text-gray-600 w-28">ユーザー</th>
             <th className="text-left px-2 font-medium text-gray-600 w-24">活動</th>
@@ -653,6 +836,8 @@ export default function TimeRecordTree({ projects, issues, timeEntries, onRefres
         <tfoot>
           <tr className="bg-slate-100" style={{ height: TIME_ROW_HEIGHT, boxSizing: 'border-box' }}>
             <td className="px-2 font-semibold text-gray-700 align-middle">合計</td>
+            <td></td>
+            <td></td>
             <td></td>
             <td></td>
             <td></td>
