@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { codesForFieldInputCheck } from '../constants/fieldPermissionAliases';
+import { clearProjectMembershipCache } from './projectMembership';
 
 export type PermissionEntry = { canUse: boolean; canInput: boolean };
 export type PermissionMap = Record<string, PermissionEntry>;
@@ -73,6 +74,7 @@ export function clearPermissionCache() {
   resourceTreeCache = null;
   globalGroupCache = null;
   globalGroupCacheExpiresAt = 0;
+  clearProjectMembershipCache();
 }
 
 export function applyInheritance(

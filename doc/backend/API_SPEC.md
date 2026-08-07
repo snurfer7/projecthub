@@ -35,7 +35,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 ## Projects — `/api/projects`
 
-**メンバー可視性**: `POST /`（作成）と `GET /roles/available` を除き、操作対象プロジェクトに `ProjectMember` として登録されているユーザーのみアクセス可。一覧は所属プロジェクトのみ返す。非メンバーは **403**（`このプロジェクトを参照する権限がありません`）。**例外**: `isAdmin` のユーザーは全プロジェクトを参照・操作可能。作成者は作成時に自動でメンバーとなり、**全ロール**を付与される。
+**メンバー可視性**: `POST /`（作成）と `GET /roles/available` を除き、操作対象プロジェクトに対し次のいずれかでアクセス可。(1) 個別 `ProjectMember`。(2) 割当 `ProjectGroup` がユーザーのカバレッジ（直接所属グループ ∪ 祖先）に含まれる（子孫グループ所属も割当グループの実効メンバー）。一覧も同条件。非メンバーは **403**（`このプロジェクトを参照する権限がありません`）。**例外**: `isAdmin` は全プロジェクト可。作成者は作成時に個別メンバー（全ロール）。DB には画面で選んだグループ ID・個別メンバー ID（とロール）のみ保存し、所属の展開は読取時に行う。グループへの後からの所属追加・階層変更は再同期不要で一覧・権限に反映される。
 
 **二層権限**: グループ PermissionSet の `projects`（use/input）でアプリ機能のゲート。プロジェクト詳細（プロジェクト情報更新・メンバー・チケット・Wiki 等および項目権限）は **RolePermission**（プロジェクト内ロール）で制御。`GET /:id` 応答に `myPermissions`（当該ユーザーのロール権限マップ）を含む。不足時は **403**（`このプロジェクトでの操作権限がありません`）。`User.isAdmin` / `role=admin` では原則ロール権限をバイパスしない。**例外は 2 つ**:
 
@@ -49,14 +49,15 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | POST | `/` | プロジェクト作成。権限: `projects` input |
 | PUT | `/:id` | プロジェクト情報の更新。権限: `projects` use + ロール `projects.overview` input |
 | DELETE | `/:id` | プロジェクト削除。権限: `projects` use + ロール `projects.overview` input |
-| POST | `/:id/members` | メンバー追加。ロール `projects.members` input（`isAdmin` はロール権限不要） |
-| PUT | `/:id/members/:memberId` | メンバー・ロール更新。ロール `projects.members` input（`isAdmin` はロール権限不要）。更新の結果メンバーが 0 件になる場合は、操作ユーザーを全ロール付きで自動追加 |
-| DELETE | `/:id/members/:memberId` | メンバー削除。ロール `projects.members` input（`isAdmin` はロール権限不要）。削除の結果メンバーが 0 件になる場合は、操作ユーザーを全ロール付きで自動追加 |
+| POST | `/:id/members` | 個別メンバー追加。Body: `userId`, `roleIds`。ロール `projects.members` input（`isAdmin` はロール権限不要） |
+| PUT | `/:id/members/:memberId` | 個別メンバーのロール更新。空配列で個別割当削除。ロール `projects.members` input（`isAdmin` はロール権限不要）。個別もグループ割当も 0 件になる場合は操作ユーザーを全ロール付きで自動追加 |
+| DELETE | `/:id/members/:memberId` | 個別メンバー削除。ロール `projects.members` input（`isAdmin` はロール権限不要）。同上の空割当防止 |
 | GET | `/roles/available` | 利用可能ロール一覧。権限: `projects` use |
-| GET | `/:id/groups` | プロジェクト紐付けグループ一覧。ロール `projects.members` use（`isAdmin` はロール権限不要） |
-| POST | `/:id/groups` | グループ紐付け。ロール `projects.members` input（`isAdmin` はロール権限不要） |
-| PUT | `/:id/groups/:groupId/role` | グループのロール設定更新。ロール `projects.members` input（`isAdmin` はロール権限不要） |
-| DELETE | `/:id/groups/:groupId` | グループ紐付け解除。ロール `projects.members` input（`isAdmin` はロール権限不要）。解除の結果メンバーが 0 件になる場合は、操作ユーザーを全ロール付きで自動追加 |
+| GET | `/:id/groups` | 割当グループ一覧（`roleIds`・実効メンバーを含む）。ロール `projects.members` use（`isAdmin` はロール権限不要） |
+| POST | `/:id/groups` | グループ割当。Body: `groupId`, `roleIds`（`ProjectGroup` に保存のみ。所属ユーザーは展開しない）。ロール `projects.members` input（`isAdmin` はロール権限不要） |
+| PUT | `/:id/groups/:groupId/role` | 割当グループの `roleIds` 更新。ロール `projects.members` input（`isAdmin` はロール権限不要） |
+| DELETE | `/:id/groups/:groupId` | グループ割当解除。ロール `projects.members` input（`isAdmin` はロール権限不要）。空割当防止あり |
+| GET | `/:id` | 詳細。`members` は個別割当のみ。`groups[].roleIds` と `groups[].group.members` は割当グループの実効メンバー（子孫所属含む）を展開して返す。`myPermissions` は個別＋グループ割当ロールから解決 |
 | GET | `/:id/comments` | コメント一覧（メンバー必須） |
 | POST | `/:id/comments` | コメント追加（メンバー必須） |
 | PUT | `/:id/comments/:commentId` | コメント更新（メンバー必須） |

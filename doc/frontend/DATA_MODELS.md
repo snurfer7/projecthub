@@ -27,8 +27,8 @@
 ## プロジェクト
 
 - **Project** — id, name, identifier, description, status, companyId, locationId, contactId, parentId, dueDate, remarks, createdAt, company, location, contact, parent, children, members, groups, relatedCompanies, **myPermissions**（当該ユーザーのロール権限マップ。詳細 GET 時）, _count。
-- **ProjectMember** — userId, roles, user。**ProjectMemberRole** — roleId, role, sourceGroupId。
-- **ProjectGroup** — groupId, group。
+- **ProjectMember** — 個別割当のみ。userId, roles, user。**ProjectMemberRole** — roleId, role（グループ由来は `ProjectGroup.roleIds`）。
+- **ProjectGroup** — groupId, **roleIds**, group（`members` は API が実効メンバーへ展開済み）。
 - **ProjectRelatedCompany** — projectId, companyId, locationId, contactId, remarks, company, location, contact。
 - **ProjectComment** — projectId, userId, content, user, attachments。
 

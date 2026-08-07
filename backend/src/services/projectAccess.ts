@@ -1,6 +1,11 @@
 import { PrismaClient } from '@prisma/client';
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
+import {
+  getAccessibleProjectIdsForUser,
+  projectAccessWhereForUser,
+  userHasProjectAccess,
+} from './projectMembership';
 
 const prisma = new PrismaClient();
 
@@ -31,27 +36,22 @@ export async function getAccessibleProjectIds(userId: number, isAdmin = false): 
     const projects = await prisma.project.findMany({ select: { id: true } });
     return projects.map((p) => p.id);
   }
-  const members = await prisma.projectMember.findMany({
-    where: { userId },
-    select: { projectId: true },
-  });
-  return members.map((m) => m.projectId);
+  return getAccessibleProjectIdsForUser(userId);
 }
 
 /** Prisma `where` fragment for listing projects the user can see. */
-export function projectListAccessWhere(userId: number, isAdmin = false): Record<string, unknown> {
+export async function projectListAccessWhere(
+  userId: number,
+  isAdmin = false
+): Promise<Record<string, unknown>> {
   if (isAdmin) return {};
-  return { members: { some: { userId } } };
+  return projectAccessWhereForUser(userId);
 }
 
 export async function isProjectMember(userId: number, projectId: number, isAdmin = false): Promise<boolean> {
   if (isAdmin) return Number.isFinite(projectId) && projectId > 0;
   if (!Number.isFinite(projectId) || projectId <= 0) return false;
-  const member = await prisma.projectMember.findUnique({
-    where: { projectId_userId: { projectId, userId } },
-    select: { id: true },
-  });
-  return member != null;
+  return userHasProjectAccess(userId, projectId);
 }
 
 export async function assertProjectMember(
@@ -104,10 +104,6 @@ export async function resolveAttachmentProjectId(attachment: {
   return null;
 }
 
-/**
- * Assert membership when a project-scoped attachment context is present.
- * Company/contact-only attachments skip this check. `isAdmin` bypasses membership.
- */
 export async function assertAttachmentProjectAccess(
   userId: number,
   refs: {
@@ -134,17 +130,19 @@ export function sendProjectAccessDenied(res: Response): void {
 }
 
 /**
- * If the project has no ProjectMember rows after a removal, add `userId`
- * with every Role assigned individually (sourceGroupId = null).
- * Call inside the same transaction as the removal.
+ * If the project has no individual members and no group assignments after a removal,
+ * add `userId` with every Role assigned individually.
  */
 export async function ensureProjectHasMember(
   tx: any,
   projectId: number,
   userId: number
 ): Promise<void> {
-  const count = await tx.projectMember.count({ where: { projectId } });
-  if (count > 0) return;
+  const [memberCount, groupCount] = await Promise.all([
+    tx.projectMember.count({ where: { projectId } }),
+    tx.projectGroup.count({ where: { projectId } }),
+  ]);
+  if (memberCount + groupCount > 0) return;
 
   const roles = await tx.role.findMany({ select: { id: true } });
   await tx.projectMember.create({

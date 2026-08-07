@@ -21,6 +21,7 @@ import {
   normalizeIdList,
   type GroupHierarchyEdge,
 } from '../utils/groupHierarchy';
+import { removeGroupSourcedRoles } from '../services/projectMemberRoles';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -800,6 +801,7 @@ router.put('/groups/:id', requirePermission('admin.groups', 'input'), async (req
       include: {
         parentLinks: { select: { parentGroupId: true } },
         childLinks: { select: { childGroupId: true } },
+        members: { select: { userId: true } },
       },
     });
     if (!existingGroup) {
@@ -856,16 +858,24 @@ router.put('/groups/:id', requirePermission('admin.groups', 'input'), async (req
       }
     }
 
-    await prisma.groupMember.deleteMany({ where: { groupId } });
-    await prisma.group.update({
-      where: { id: groupId },
-      data: {
-        name,
-        ...(permissionSetId !== undefined && { permissionSetId: permissionSetId || null }),
-        members: {
-          create: (memberIds || []).map((userId: number) => ({ userId })),
+    const nextMemberIds = new Set<number>((memberIds || []).map((id: number) => Number(id)));
+    const removedUserIds = existingGroup.members
+      .map((m) => m.userId)
+      .filter((userId) => !nextMemberIds.has(userId));
+
+    await prisma.$transaction(async (tx) => {
+      await tx.groupMember.deleteMany({ where: { groupId } });
+      await tx.group.update({
+        where: { id: groupId },
+        data: {
+          name,
+          ...(permissionSetId !== undefined && { permissionSetId: permissionSetId || null }),
+          members: {
+            create: [...nextMemberIds].map((userId: number) => ({ userId })),
+          },
         },
-      },
+      });
+      await removeGroupSourcedRoles(tx, { groupIds: [groupId], userIds: removedUserIds });
     });
 
     await syncGroupHierarchy(groupId, parentIds, childIds);

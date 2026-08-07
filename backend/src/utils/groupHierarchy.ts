@@ -87,3 +87,60 @@ export function normalizeIdList(raw: unknown): number[] | undefined {
   ];
   return ids;
 }
+
+function buildChildrenByParent(edges: GroupHierarchyEdge[]): Map<number, number[]> {
+  const map = new Map<number, number[]>();
+  for (const { parentGroupId, childGroupId } of edges) {
+    const list = map.get(parentGroupId) ?? [];
+    list.push(childGroupId);
+    map.set(parentGroupId, list);
+  }
+  return map;
+}
+
+function buildParentsByChild(edges: GroupHierarchyEdge[]): Map<number, number[]> {
+  const map = new Map<number, number[]>();
+  for (const { parentGroupId, childGroupId } of edges) {
+    const list = map.get(childGroupId) ?? [];
+    list.push(parentGroupId);
+    map.set(childGroupId, list);
+  }
+  return map;
+}
+
+/** Descendants of rootId (does not include rootId). */
+export function getDescendantGroupIds(edges: GroupHierarchyEdge[], rootId: number): number[] {
+  const childrenByParent = buildChildrenByParent(edges);
+  const out: number[] = [];
+  const seen = new Set<number>();
+  const stack = [...(childrenByParent.get(rootId) ?? [])];
+  while (stack.length > 0) {
+    const id = stack.pop()!;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+    for (const child of childrenByParent.get(id) ?? []) stack.push(child);
+  }
+  return out;
+}
+
+/** Ancestors of groupId (does not include groupId). */
+export function getAncestorGroupIds(edges: GroupHierarchyEdge[], groupId: number): number[] {
+  const parentsByChild = buildParentsByChild(edges);
+  const out: number[] = [];
+  const seen = new Set<number>();
+  const stack = [...(parentsByChild.get(groupId) ?? [])];
+  while (stack.length > 0) {
+    const id = stack.pop()!;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+    for (const parent of parentsByChild.get(id) ?? []) stack.push(parent);
+  }
+  return out;
+}
+
+/** rootId plus all descendants. */
+export function getGroupSubtreeIds(edges: GroupHierarchyEdge[], rootId: number): number[] {
+  return [rootId, ...getDescendantGroupIds(edges, rootId)];
+}

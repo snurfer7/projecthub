@@ -28,6 +28,7 @@ import {
   assertStatusTransition,
   resolveIssueWorkflow,
 } from '../services/issueWorkflow';
+import { getEffectiveMemberUserIds } from '../services/projectMembership';
 import { estimatedHoursError, normalizeEstimatedHours } from '../utils/estimatedHours';
 import {
   issueAssigneesInclude,
@@ -245,7 +246,7 @@ router.get('/meta/options', requirePermission('projects', 'use'), async (req: Au
         res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
         return;
       }
-      // Get explicit members and users who are in groups assigned to this project
+      // Individual members + effective members of assigned groups (incl. descendants)
       const [projectMembers, projectGroups, resolvedWorkflow] = await Promise.all([
         prisma.projectMember.findMany({
           where: { projectId: pid },
@@ -260,12 +261,28 @@ router.get('/meta/options', requirePermission('projects', 'use'), async (req: Au
         resolveIssueWorkflow(req.userId!, pid),
       ]);
 
-      const userMap = new Map();
+      const userMap = new Map<number, { id: number; firstName: string; lastName: string; status?: string }>();
       for (const m of projectMembers) {
         userMap.set(m.user.id, m.user);
       }
+      const shaped: typeof groups = [];
+      for (const pg of projectGroups) {
+        const effectiveIds = await getEffectiveMemberUserIds(pg.groupId);
+        const missing = effectiveIds.filter((id) => !userMap.has(id));
+        if (missing.length > 0) {
+          const extra = await prisma.user.findMany({
+            where: { id: { in: missing } },
+            select: { id: true, firstName: true, lastName: true, status: true },
+          });
+          for (const u of extra) userMap.set(u.id, u);
+        }
+        const base = shapeMetaGroup(pg.group);
+        shaped.push({
+          ...base,
+          members: effectiveIds.map((userId) => ({ userId })),
+        });
+      }
       users = Array.from(userMap.values());
-      const shaped = projectGroups.map((pg) => shapeMetaGroup(pg.group));
       const idSet = new Set(shaped.map((g) => g.id));
       groups = shaped.map((g) => ({
         ...g,

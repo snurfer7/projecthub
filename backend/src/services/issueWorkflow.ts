@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { getUserRoleIdsOnProject } from './projectMembership';
 
 const prisma = new PrismaClient();
 
@@ -29,38 +30,26 @@ async function loadAllStatusIds(): Promise<number[]> {
 }
 
 async function loadUserRoleWorkflows(userId: number, projectId: number): Promise<RoleWorkflowRow[]> {
-  const member = await prisma.projectMember.findUnique({
-    where: { projectId_userId: { projectId, userId } },
+  const roleIds = await getUserRoleIdsOnProject(userId, projectId);
+  if (roleIds.length === 0) return [];
+
+  const roles = await prisma.role.findMany({
+    where: { id: { in: roleIds } },
     select: {
-      roles: {
-        select: {
-          roleId: true,
-          role: {
-            select: {
-              statuses: { select: { statusId: true } },
-              transitions: { select: { oldStatusId: true, newStatusId: true } },
-            },
-          },
-        },
-      },
+      id: true,
+      statuses: { select: { statusId: true } },
+      transitions: { select: { oldStatusId: true, newStatusId: true } },
     },
   });
-  if (!member) return [];
 
-  const byRole = new Map<number, RoleWorkflowRow>();
-  for (const pr of member.roles) {
-    const existing = byRole.get(pr.roleId);
-    if (existing) continue;
-    byRole.set(pr.roleId, {
-      roleId: pr.roleId,
-      statusIds: pr.role.statuses.map((s) => s.statusId),
-      transitions: pr.role.transitions.map((t) => ({
-        oldStatusId: t.oldStatusId,
-        newStatusId: t.newStatusId,
-      })),
-    });
-  }
-  return Array.from(byRole.values());
+  return roles.map((role) => ({
+    roleId: role.id,
+    statusIds: role.statuses.map((s) => s.statusId),
+    transitions: role.transitions.map((t) => ({
+      oldStatusId: t.oldStatusId,
+      newStatusId: t.newStatusId,
+    })),
+  }));
 }
 
 /**

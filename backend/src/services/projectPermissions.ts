@@ -14,6 +14,7 @@ import {
   isRequestAdmin,
   sendProjectAccessDenied,
 } from './projectAccess';
+import { getUserRoleIdsOnProject } from './projectMembership';
 
 const prisma = new PrismaClient();
 
@@ -58,35 +59,29 @@ export async function resolveProjectPermissions(
 ): Promise<PermissionMap> {
   if (!Number.isFinite(projectId) || projectId <= 0) return {};
 
-  const member = await prisma.projectMember.findUnique({
-    where: { projectId_userId: { projectId, userId } },
-    select: {
-      roles: {
-        select: {
-          role: {
-            select: {
-              permissions: {
-                include: { resource: { select: { code: true, scope: true } } },
-              },
+  const roleIds = await getUserRoleIdsOnProject(userId, projectId);
+  const roles =
+    roleIds.length === 0
+      ? []
+      : await prisma.role.findMany({
+          where: { id: { in: roleIds } },
+          select: {
+            permissions: {
+              include: { resource: { select: { code: true, scope: true } } },
             },
           },
-        },
-      },
-    },
-  });
+        });
 
   const merged = new Map<string, PermissionEntry>();
-  if (member) {
-    for (const pr of member.roles) {
-      for (const p of pr.role.permissions) {
-        if (p.resource.scope !== 'role') continue;
-        const code = p.resource.code;
-        const existing = merged.get(code) ?? { canUse: false, canInput: false };
-        merged.set(code, {
-          canUse: existing.canUse || p.canUse,
-          canInput: existing.canInput || p.canInput,
-        });
-      }
+  for (const role of roles) {
+    for (const p of role.permissions) {
+      if (p.resource.scope !== 'role') continue;
+      const code = p.resource.code;
+      const existing = merged.get(code) ?? { canUse: false, canInput: false };
+      merged.set(code, {
+        canUse: existing.canUse || p.canUse,
+        canInput: existing.canInput || p.canInput,
+      });
     }
   }
 

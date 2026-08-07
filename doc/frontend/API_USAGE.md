@@ -22,7 +22,7 @@
 - 各ページ・コンポーネントで `import api from '@/api/client'`（または相対パス）し、`api.get()`, `api.post()`, `api.put()`, `api.patch()`, `api.delete()` でエンドポイントを呼ぶ。
 - レスポンス型は `frontend/src/types/index.ts` の型と一致させる。必要に応じて `include` パラメータや API 仕様に合わせて部分型を定義してよい。
 - エラー時は `error.response?.data?.error` でメッセージを取得し、UI に表示する。
-- **プロジェクトメンバー可視性**: `GET projects` / `gantt/all` / `issues` / `time-entries` 等は所属プロジェクトのみ返す（`isAdmin` は全件）。詳細（`GET projects/:id` 等）で非メンバーの場合は 403。`ProjectDetailPage` は 403 時に権限なしメッセージを表示する。メンバー／グループ解除の結果プロジェクトメンバーが 0 件になる場合、API が操作ユーザーを全ロール付きで自動追加する（フロントは削除後の再取得で反映）。
+- **プロジェクトメンバー可視性**: `GET projects` / `gantt/all` / `issues` / `time-entries` 等は、個別メンバーまたは割当グループのカバレッジ（子孫所属含む）で見えるプロジェクトのみ返す（`isAdmin` は全件）。詳細で非メンバーは 403。`GET projects/:id` の `members` は個別割当、`groups` は `roleIds` と実効メンバー（展開済み）。グループへの後からの所属は再割当なしで一覧に出る。個別／グループとも 0 件になる解除時は API が操作ユーザーを個別メンバーとして自動追加する。
 - **プロジェクトロール権限**: `GET projects/:id` の `myPermissions` でプロジェクト詳細機能・項目を制御。グループの PermissionSet はトップレベル `projects` のみ。管理 > ロールでプロジェクト権限マトリクスを編集。システム管理者は `projects.members` のみ RolePermission をバイパス（メンバー選択 UI が常に利用可能）。一覧系 API（`GET projects` / `gantt/all` / `issues` / `time-entries`）もシステム管理者はロール権限で絞り込まれない。
 - **チケットステータス／ワークフロー**: `GET issues/meta/options?projectId=` の `workflow`（`assignableStatusIds` / `allowedTransitions`）で作成・編集の選択肢とカンバン移動を制限。API の POST/PUT でも検証する。プロジェクト一覧の**時間**タブでもチケット行から `PUT /issues/:id`（`statusId` / `doneRatio`）で一覧更新し、同様にワークフローと field 権限を適用する。
 

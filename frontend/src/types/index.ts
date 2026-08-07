@@ -205,7 +205,16 @@ export interface ProjectGroup {
   id: number;
   projectId: number;
   groupId: number;
-  group: { id: number; name: string };
+  /** Roles granted by this group assignment (expanded membership at read time). */
+  roleIds?: number[];
+  group: {
+    id: number;
+    name: string;
+    members?: {
+      userId: number;
+      user: { id: number; firstName: string; lastName: string; email?: string };
+    }[];
+  };
 }
 
 export interface Tracker {

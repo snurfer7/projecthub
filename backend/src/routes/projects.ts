@@ -12,6 +12,11 @@ import {
   requireProjectPermission,
   resolveProjectPermissions,
 } from '../services/projectPermissions';
+import { removeIndividualMember, removeGroupSourcedRoles } from '../services/projectMemberRoles';
+import {
+  expandProjectGroupMembers,
+  getProjectsEffectiveMemberUserIds,
+} from '../services/projectMembership';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -24,8 +29,9 @@ router.get('/', requirePermission('projects', 'use'), async (req: AuthRequest, r
     // 一覧はクライアント側でフィルタ／ツリー表示のみを行うため、表示・絞り込みに使う
     // フィールドだけを取得する（メンバー詳細・ロール・関連会社の拠点/担当などは取得しない）。
     // これにより 1 件あたりのペイロードとネストしたリレーション読み込みを大幅に削減する。
+    const accessWhere = await projectListAccessWhere(req.userId!, isRequestAdmin(req));
     const projects = await prisma.project.findMany({
-      where: projectListAccessWhere(req.userId!, isRequestAdmin(req)),
+      where: accessWhere,
       include: {
         company: { select: { id: true, name: true } },
         parent: { select: { id: true, name: true } },
@@ -35,13 +41,19 @@ router.get('/', requirePermission('projects', 'use'), async (req: AuthRequest, r
             company: { select: { id: true, name: true } },
           },
         },
-        members: { select: { userId: true } },
-        groups: { select: { groupId: true } },
+        groups: { select: { groupId: true, roleIds: true } },
         _count: { select: { issues: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
-    res.json(projects);
+    // members.userId = effective set (individual ∪ group expansion) for client-side filters
+    const effectiveByProject = await getProjectsEffectiveMemberUserIds(projects.map((p) => p.id));
+    res.json(
+      projects.map((p) => ({
+        ...p,
+        members: (effectiveByProject.get(p.id) ?? []).map((userId) => ({ userId })),
+      }))
+    );
   } catch (e) {
     res.status(500).json({ error: 'プロジェクトの取得に失敗しました' });
   }
@@ -50,8 +62,9 @@ router.get('/', requirePermission('projects', 'use'), async (req: AuthRequest, r
 // Get project
 router.get('/:id', requirePermission('projects', 'use'), requireProjectMember('id'), async (req: AuthRequest, res: Response) => {
   try {
+    const projectId = Number(req.params.id);
     const project = await prisma.project.findUnique({
-      where: { id: Number(req.params.id) },
+      where: { id: projectId },
       include: {
         company: { select: { id: true, name: true } },
         location: { select: { id: true, name: true } },
@@ -73,17 +86,7 @@ router.get('/:id', requirePermission('projects', 'use'), requireProjectMember('i
         },
         groups: {
           include: {
-            group: {
-              select: {
-                id: true,
-                name: true,
-                members: {
-                  include: {
-                    user: { select: { id: true, firstName: true, lastName: true, email: true } },
-                  },
-                },
-              },
-            },
+            group: { select: { id: true, name: true } },
           },
         },
         _count: { select: { issues: true, wikiPages: true, attachments: true, timeEntries: true, comments: true } },
@@ -93,10 +96,27 @@ router.get('/:id', requirePermission('projects', 'use'), requireProjectMember('i
       res.status(404).json({ error: 'プロジェクトが見つかりません' });
       return;
     }
-    const myPermissions = await resolveProjectPermissions(req.userId!, Number(req.params.id), {
+
+    // Individual members only in `members`; strip legacy sourceGroup roles from payload
+    const members = project.members.map((m) => ({
+      ...m,
+      roles: m.roles.filter((r) => r.sourceGroupId == null),
+    }));
+
+    const groups = await Promise.all(
+      project.groups.map(async (pg) => ({
+        ...pg,
+        group: {
+          ...pg.group,
+          members: await expandProjectGroupMembers(pg.groupId),
+        },
+      }))
+    );
+
+    const myPermissions = await resolveProjectPermissions(req.userId!, projectId, {
       isAdmin: isRequestAdmin(req),
     });
-    res.json({ ...project, myPermissions });
+    res.json({ ...project, members, groups, myPermissions });
   } catch (e) {
     res.status(500).json({ error: 'プロジェクトの取得に失敗しました' });
   }
@@ -264,10 +284,10 @@ router.post('/:id/members', requirePermission('projects', 'use'), requireProject
   }
 });
 
-// Update member roles (only individual roles)
+// Update individual member roles
 router.put('/:id/members/:memberId', requirePermission('projects', 'use'), requireProjectPermission('projects.members', 'input', { paramName: 'id' }), async (req: AuthRequest, res: Response) => {
   try {
-    const { roleIds } = req.body; // roleIds for individual assignment
+    const { roleIds } = req.body;
     const memberId = Number(req.params.memberId);
     const projectId = Number(req.params.id);
 
@@ -277,29 +297,19 @@ router.put('/:id/members/:memberId', requirePermission('projects', 'use'), requi
     }
 
     await prisma.$transaction(async (tx: any) => {
-      // Delete existing individual roles
-      await tx.projectMemberRole.deleteMany({
-        where: { projectMemberId: memberId, sourceGroupId: null }
-      });
-
-      // Add new individual roles
-      if (roleIds.length > 0) {
+      if (roleIds.length === 0) {
+        await removeIndividualMember(tx, memberId);
+      } else {
+        await tx.projectMemberRole.deleteMany({ where: { projectMemberId: memberId } });
         await tx.projectMemberRole.createMany({
           data: roleIds.map((id: number) => ({
             projectMemberId: memberId,
             roleId: Number(id),
-            sourceGroupId: null
-          }))
+            sourceGroupId: null,
+          })),
         });
       }
 
-      // If no roles left at all (including group roles), delete the member
-      const rolesCount = await tx.projectMemberRole.count({
-        where: { projectMemberId: memberId }
-      });
-      if (rolesCount === 0) {
-        await tx.projectMember.delete({ where: { id: memberId } });
-      }
       if (req.userId) {
         await ensureProjectHasMember(tx, projectId, req.userId);
       }
@@ -315,27 +325,18 @@ router.put('/:id/members/:memberId', requirePermission('projects', 'use'), requi
   }
 });
 
-// Remove individual roles (effectively deleting the member if no group roles exist)
+// Remove individual member assignment
 router.delete('/:id/members/:memberId', requirePermission('projects', 'use'), requireProjectPermission('projects.members', 'input', { paramName: 'id' }), async (req: AuthRequest, res: Response) => {
   try {
     const memberId = Number(req.params.memberId);
     const projectId = Number(req.params.id);
     await prisma.$transaction(async (tx: any) => {
-      await tx.projectMemberRole.deleteMany({
-        where: { projectMemberId: memberId, sourceGroupId: null }
-      });
-      // If no roles left at all (including group roles), delete the member
-      const rolesCount = await tx.projectMemberRole.count({
-        where: { projectMemberId: memberId }
-      });
-      if (rolesCount === 0) {
-        await tx.projectMember.delete({ where: { id: memberId } });
-      }
+      await removeIndividualMember(tx, memberId);
       if (req.userId) {
         await ensureProjectHasMember(tx, projectId, req.userId);
       }
     });
-    res.json({ message: '個別ロールを削除しました' });
+    res.json({ message: 'メンバーを削除しました' });
   } catch (e) {
     res.status(500).json({ error: 'メンバーの削除に失敗しました' });
   }
@@ -354,25 +355,26 @@ router.get('/roles/available', requirePermission('projects', 'use'), async (req:
 // Get groups assigned to project
 router.get('/:id/groups', requirePermission('projects', 'use'), requireProjectPermission('projects.members', 'use', { paramName: 'id' }), async (req: AuthRequest, res: Response) => {
   try {
-    const projectGroups = await (prisma as any).projectGroup.findMany({
+    const projectGroups = await prisma.projectGroup.findMany({
       where: { projectId: Number(req.params.id) },
-      include: {
-        group: {
-          select: {
-            id: true,
-            name: true,
-            members: { include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } } },
-          },
-        },
-      },
+      include: { group: { select: { id: true, name: true } } },
     });
-    res.json(projectGroups);
+    const expanded = await Promise.all(
+      projectGroups.map(async (pg) => ({
+        ...pg,
+        group: {
+          ...pg.group,
+          members: await expandProjectGroupMembers(pg.groupId),
+        },
+      }))
+    );
+    res.json(expanded);
   } catch (e) {
     res.status(500).json({ error: 'グループ一覧の取得に失敗しました' });
   }
 });
 
-// Assign group to project
+// Assign group to project (store groupId + roleIds only; membership expanded at read time)
 router.post('/:id/groups', requirePermission('projects', 'use'), requireProjectPermission('projects.members', 'input', { paramName: 'id' }), async (req: AuthRequest, res: Response) => {
   try {
     const projectId = Number(req.params.id);
@@ -383,65 +385,35 @@ router.post('/:id/groups', requirePermission('projects', 'use'), requireProjectP
       return;
     }
 
-    const group = await prisma.group.findUnique({
-      where: { id: Number(groupId) },
-      include: { members: true },
-    });
+    const numericGroupId = Number(groupId);
+    const normalizedRoleIds = [...new Set(roleIds.map((id: number) => Number(id)).filter((n: number) => Number.isInteger(n) && n > 0))];
+    if (normalizedRoleIds.length === 0) {
+      res.status(400).json({ error: 'roleIds は必須です' });
+      return;
+    }
+
+    const group = await prisma.group.findUnique({ where: { id: numericGroupId } });
     if (!group) {
       res.status(404).json({ error: 'グループが見つかりません' });
       return;
     }
 
-    await prisma.$transaction(async (tx: any) => {
-      await (tx as any).projectGroup.create({
-        data: { projectId, groupId: Number(groupId) },
-      });
-
-      for (const gm of group.members) {
-        let member = await tx.projectMember.findUnique({
-          where: { projectId_userId: { projectId, userId: gm.userId } }
-        });
-        if (!member) {
-          member = await tx.projectMember.create({
-            data: { projectId, userId: gm.userId }
-          });
-        }
-        // Add only roles the member doesn't already have
-        const existingRoles = await tx.projectMemberRole.findMany({
-          where: { projectMemberId: member.id },
-          select: { roleId: true, sourceGroupId: true }
-        });
-        
-        const existingRoleIds = new Set(existingRoles.map((r: any) => r.roleId));
-        
-        for (const rId of roleIds) {
-          const numericRoleId = Number(rId);
-          if (!existingRoleIds.has(numericRoleId)) {
-            await tx.projectMemberRole.create({
-              data: {
-                projectMemberId: member.id,
-                roleId: numericRoleId,
-                sourceGroupId: Number(groupId)
-              }
-            });
-          }
-        }
-      }
+    const pg = await prisma.projectGroup.create({
+      data: {
+        projectId,
+        groupId: numericGroupId,
+        roleIds: normalizedRoleIds,
+      },
+      include: { group: { select: { id: true, name: true } } },
     });
 
-    const pg = await (prisma as any).projectGroup.findFirst({
-      where: { projectId, groupId: Number(groupId) },
-      include: {
-        group: {
-          select: {
-            id: true,
-            name: true,
-            members: { include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } } },
-          },
-        },
+    res.status(201).json({
+      ...pg,
+      group: {
+        ...pg.group,
+        members: await expandProjectGroupMembers(numericGroupId),
       },
     });
-    res.status(201).json(pg);
   } catch (e: any) {
     console.error('Assign group error:', e);
     if (e.code === 'P2002') {
@@ -452,51 +424,34 @@ router.post('/:id/groups', requirePermission('projects', 'use'), requireProjectP
   }
 });
 
-// Update group-sourced roles
+// Update assigned group roleIds
 router.put('/:id/groups/:groupId/role', requirePermission('projects', 'use'), requireProjectPermission('projects.members', 'input', { paramName: 'id' }), async (req: AuthRequest, res: Response) => {
   try {
     const projectId = Number(req.params.id);
     const groupId = Number(req.params.groupId);
-    const { roleIds } = req.body; // roleIds should be an array
+    const { roleIds } = req.body;
 
     if (!Array.isArray(roleIds)) {
       res.status(400).json({ error: 'roleIds を配列で指定してください' });
       return;
     }
 
-    await prisma.$transaction(async (tx: any) => {
-      // Find group members who are in this project (same approach as the POST endpoint)
-      const group = await tx.group.findUnique({
-        where: { id: groupId },
-        include: { members: { select: { userId: true } } }
-      });
-      const groupUserIds = (group?.members || []).map((m: any) => m.userId);
-      const members = await tx.projectMember.findMany({
-        where: { projectId, userId: { in: groupUserIds } }
-      });
+    const normalizedRoleIds = [...new Set(roleIds.map((id: number) => Number(id)).filter((n: number) => Number.isInteger(n) && n > 0))];
+    if (normalizedRoleIds.length === 0) {
+      res.status(400).json({ error: 'ロールを1つ以上指定してください' });
+      return;
+    }
 
-      // Delete old roles for this group
-      await tx.projectMemberRole.deleteMany({
-        where: {
-          member: { projectId },
-          sourceGroupId: groupId
-        }
-      });
-
-      for (const member of members) {
-        for (const rId of roleIds) {
-          await tx.projectMemberRole.create({
-            data: {
-              projectMemberId: member.id,
-              roleId: Number(rId),
-              sourceGroupId: groupId
-            }
-          });
-        }
-      }
+    const updated = await prisma.projectGroup.updateMany({
+      where: { projectId, groupId },
+      data: { roleIds: normalizedRoleIds },
     });
+    if (updated.count === 0) {
+      res.status(404).json({ error: 'グループの割り当てが見つかりません' });
+      return;
+    }
 
-    res.json({ message: 'グループのロールを更新しました' });
+    res.json({ message: 'グループのロールを更新しました', roleIds: normalizedRoleIds });
   } catch (e) {
     res.status(500).json({ error: 'グループのロール更新に失敗しました' });
   }
@@ -509,41 +464,9 @@ router.delete('/:id/groups/:groupId', requirePermission('projects', 'use'), requ
     const groupId = Number(req.params.groupId);
 
     await prisma.$transaction(async (tx: any) => {
-      // Get members of the group being removed
-      const group = await tx.group.findUnique({
-        where: { id: groupId },
-        include: { members: { select: { userId: true } } }
-      });
-      const groupUserIds: number[] = (group?.members || []).map((m: any) => m.userId);
-
-      // Find other groups still assigned to this project
-      const otherAssignedGroupIds = (await tx.projectGroup.findMany({
-        where: { projectId, groupId: { not: groupId } },
-        select: { groupId: true }
-      })).map((pg: any) => pg.groupId);
-
-      // Collect user IDs that belong to other assigned groups
-      const usersInOtherGroups = new Set<number>();
-      for (const otherGId of otherAssignedGroupIds) {
-        const otherGroup = await tx.group.findUnique({
-          where: { id: otherGId },
-          include: { members: { select: { userId: true } } }
-        });
-        (otherGroup?.members || []).forEach((m: any) => usersInOtherGroups.add(m.userId));
-      }
-
-      // Only remove members who are NOT in any other assigned group
-      const userIdsToRemove = groupUserIds.filter(uid => !usersInOtherGroups.has(uid));
-      if (userIdsToRemove.length > 0) {
-        await tx.projectMember.deleteMany({
-          where: { projectId, userId: { in: userIdsToRemove } }
-        });
-      }
-
-      await tx.projectGroup.deleteMany({
-        where: { projectId, groupId }
-      });
-
+      // Clean any legacy sourceGroup roles for this assignment
+      await removeGroupSourcedRoles(tx, { groupIds: [groupId], projectId });
+      await tx.projectGroup.deleteMany({ where: { projectId, groupId } });
       if (req.userId) {
         await ensureProjectHasMember(tx, projectId, req.userId);
       }

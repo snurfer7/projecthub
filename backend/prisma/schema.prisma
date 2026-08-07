@@ -262,10 +262,12 @@ model Project {
 }
 
 model ProjectGroup {
-  id        Int     @id @default(autoincrement())
-  projectId Int     @map("project_id")
-  groupId   Int     @map("group_id")
-  group     Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  id        Int   @id @default(autoincrement())
+  projectId Int   @map("project_id")
+  groupId   Int   @map("group_id")
+  /** Roles granted to effective members of this group assignment (expanded at read time). */
+  roleIds   Int[] @default([]) @map("role_ids")
+  group     Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, groupId])

@@ -66,9 +66,10 @@
 ## プロジェクト・チケット・Wiki・工数
 
 - **Project** — プロジェクト。identifier（ユニーク）, status, company/location/contact（主契約・拠点・担当）, parent（親プロジェクト）。Issue, WikiPage, TimeEntry, ProjectComment, ProjectMember, ProjectGroup, ProjectRelatedCompany, Attachment, **Activity（N:N・`ActivityProject` 経由）**と関連。
-- **ProjectMember** — プロジェクトメンバー。User と Project の多対多。ProjectMemberRole でロールを持つ。**プロジェクトの可視性条件**: 当該ユーザーに `ProjectMember` 行があるプロジェクトのみ参照・操作可能（グループ経由で同期されたメンバーも含む）。PermissionSet の feature 権限とは別の行レベル制約。**例外**: `User.isAdmin` のユーザーはメンバー登録の有無に関わらず全プロジェクトを参照・操作可能。作成者は作成時に自動でメンバー登録される。**空メンバー防止**: メンバー／グループ解除の結果 `ProjectMember` が 0 件になる場合、操作したログインユーザーを全 Role（個別割当・`sourceGroupId=null`）付きで自動追加する。
-- **ProjectMemberRole** — メンバーのロール。Role と Group（sourceGroupId、グループ経由で付与した場合）と関連。
-- **ProjectGroup** — プロジェクトに紐づくグループ。
+- **ProjectMember** — プロジェクトへの**個別**メンバー割当。User と Project の多対多。ProjectMemberRole で個別ロールを持つ。グループ所属ユーザーはここに展開保存しない。
+- **ProjectMemberRole** — 個別メンバーのロール（`sourceGroupId` は廃止方向・新規付与しない）。
+- **ProjectGroup** — プロジェクトへのグループ割当。`groupId` と **`roleIds`（割当ロールの配列）** のみ保存。所属ユーザーは読み出し時に展開する。
+- **プロジェクトの可視性（読取時展開）**: 次のいずれかで参照可能。(1) 個別 `ProjectMember` がある。(2) いずれかの `ProjectGroup` の `groupId` がユーザーの**カバレッジ集合**に含まれる。カバレッジ = 直接所属グループ ∪ それらの祖先。割当グループ `G` の実効メンバー = `G` 自身および子孫グループの直接所属ユーザー。ロール権限・ワークフローは個別ロール ∪ ヒットした各 `ProjectGroup.roleIds` を OR。PermissionSet の「グループ所属は階層継承しない」とは別（プロジェクト割当のみ子孫を含む）。**例外**: `User.isAdmin` は全プロジェクト参照可。作成者は作成時に個別メンバー（全ロール）として登録。**空割当防止**: 個別メンバーもグループ割当も 0 件になる場合、操作ユーザーを個別メンバー（全ロール）で自動追加する。
 - **ProjectRelatedCompany** — プロジェクトと関連会社（Company + Location + Contact の組み合わせ）。
 - **Issue** — チケット。Project, Tracker, IssueStatus, IssuePriority, User（author）, Group（**assignedToGroup**・担当グループ・任意・単一）, **IssueAssignee**（担当ユーザー・N:N）, IssueRelation, IssueComment, TimeEntry, Attachment と関連。**担当者**は複数ユーザーを同時に割り当て可能（`IssueAssignee`）。担当グループ（`assignedToGroupId`）は従来どおり単一で、ユーザー担当と併用可。**親子階層**（`parentId` → 同一プロジェクト内の親チケット。循環参照不可）。スケジュール用に `startDate`（開始日時）, `endDate`（終了日時）, `dueDate`（期日）, `estimatedHours`（予定工数・`Float?`・0 以上・**0.5 刻み**）を持つ。**子チケットを持つ親チケット**の `startDate` / `endDate` は入力不可で、全子孫チケットの開始の最小・終了の最大を表示する。**ステータス**も入力不可で、子孫のステータスのうち `IssueStatus.position` が最小（一覧で一番上）のものを表示する（API 応答でも集約値を返す。DB 上の親自身の日時・ステータスは子がある場合更新しない）。ガントチャートのバーも同様に集約表示し、親バーのドラッグ／リサイズは不可。
 - **IssueAssignee** — チケットと担当ユーザーの多対多（`issueId` + `userId` 複合主キー）。API 応答では `assignees: { id, firstName, lastName }[]` として展開する。

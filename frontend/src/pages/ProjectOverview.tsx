@@ -48,12 +48,18 @@ export default function ProjectOverview() {
     }, [project.groups]);
 
     useEffect(() => {
-        if (!canEditMembers) return;
+        if (!canViewMembers) return;
         api.get('/projects/roles/available').then((res) => {
             const list: Role[] = res.data;
             setRoles(list);
-            setSelectedRoleIds(new Set(list.filter((r) => r.isDefaultRole).map((r) => r.id)));
+            if (canEditMembers) {
+                setSelectedRoleIds(new Set(list.filter((r) => r.isDefaultRole).map((r) => r.id)));
+            }
         }).catch(() => { });
+    }, [canViewMembers, canEditMembers]);
+
+    useEffect(() => {
+        if (!canEditMembers) return;
         api.get('/issues/meta/options').then((res) => {
             setAllUsers(res.data.users);
             setAllGroups(
@@ -79,17 +85,42 @@ export default function ProjectOverview() {
     // ── Derived sets ──────────────────────────────────────────────────────────
     const assignedGroupIds = new Set((project.groups || []).map((pg: ProjectGroup) => pg.groupId));
 
-    // Users who belong to any assigned group
+    // Effective members under assigned groups (API expands descendants into group.members)
     const allGroupUserIds = new Set(
         (project.groups || []).flatMap((pg: ProjectGroup) =>
-            ((pg.group as any)?.members || []).map((gm: any) => gm.userId)
+            (pg.group?.members || []).map((gm) => gm.userId)
         )
     );
 
-    // Individual members = project members who are NOT in any group (includes those with no roles)
+    // Individual assignments only (not covered by any assigned group's effective members)
     const individualMembers = (project.members || []).filter((m: ProjectMember) =>
         !allGroupUserIds.has(m.userId)
     );
+
+    const roleNameById = useMemo(() => {
+        const map = new Map<number, string>();
+        for (const r of roles) map.set(r.id, r.name);
+        return map;
+    }, [roles]);
+
+    /** Role IDs granted by assigned groups that include this user (exclude from individual role picker). */
+    const groupRoleIdsForUser = (userId: number): number[] => {
+        const ids = new Set<number>();
+        for (const pg of project.groups || []) {
+            const inGroup = (pg.group?.members || []).some((m) => m.userId === userId);
+            if (!inGroup) continue;
+            for (const roleId of pg.roleIds || []) ids.add(roleId);
+        }
+        return [...ids];
+    };
+
+    const individualRoleOptions = (excludeRoleIds: number[]) => {
+        const excluded = new Set(excludeRoleIds);
+        return roles
+            .filter((r) => !excluded.has(r.id))
+            .map((r) => ({ value: r.id, label: r.name }));
+    };
+
     const currentIndividualUserIds = new Set(individualMembers.map((m) => m.userId));
 
     const isPrincipalDisabled = (selectKey: string) => {
@@ -318,9 +349,20 @@ export default function ProjectOverview() {
         const [type, id] = key.split(':');
         try {
             if (type === 'm') {
-                await api.put(`/projects/${project.id}/members/${id}`, { roleIds: Array.from(editingRoleIds) });
+                const member = (project.members || []).find((m) => m.id === Number(id));
+                const excluded = new Set(member ? groupRoleIdsForUser(member.userId) : []);
+                const roleIds = Array.from(editingRoleIds).filter((roleId) => !excluded.has(roleId));
+                await api.put(`/projects/${project.id}/members/${id}`, { roleIds });
             } else if (type === 'u') {
-                await api.post(`/projects/${project.id}/members`, { userId: Number(id), roleIds: Array.from(editingRoleIds) });
+                const excluded = new Set(groupRoleIdsForUser(Number(id)));
+                const roleIds = Array.from(editingRoleIds).filter((roleId) => !excluded.has(roleId));
+                await api.post(`/projects/${project.id}/members`, { userId: Number(id), roleIds });
+            } else if (type === 'g') {
+                if (editingRoleIds.size === 0) {
+                    alert('グループには1つ以上のロールが必要です');
+                    return;
+                }
+                await api.put(`/projects/${project.id}/groups/${id}/role`, { roleIds: Array.from(editingRoleIds) });
             }
             setEditingId(null);
             loadProject();
@@ -482,13 +524,15 @@ export default function ProjectOverview() {
                                     <tbody className="divide-y">
                                         {/* Groups (tree) */}
                                         {(project.groups || []).map((pg: ProjectGroup) => {
-                                            const groupMembers: any[] = (pg.group as any)?.members || [];
+                                            const groupMembers = pg.group?.members || [];
+                                            const groupRoleIds = pg.roleIds || [];
+                                            const gKey = `g:${pg.groupId}`;
                                             const isExpanded = expandedGroups.has(pg.groupId);
                                             return (
                                                 <Fragment key={`g-${pg.groupId}`}>
                                                     {/* Group header row */}
                                                     <tr className="bg-indigo-50/40 border-b border-indigo-100/60 transition-colors hover:bg-indigo-50/60">
-                                                        <td className="px-4 py-2.5" colSpan={2}>
+                                                        <td className="px-4 py-2.5">
                                                             <div className="flex items-center gap-3">
                                                                 <button type="button" onClick={() => toggleGroup(pg.groupId)} className="p-0.5 rounded hover:bg-indigo-100 text-indigo-400 transition-colors">
                                                                     <ChevronRight className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
@@ -498,19 +542,50 @@ export default function ProjectOverview() {
                                                                     <span className="font-bold text-slate-800 text-sm whitespace-nowrap">{pg.group.name}</span>
                                                                     <span className="text-xs text-indigo-400 font-medium">({groupMembers.length})</span>
                                                                 </div>
-                                                                {/* Display group roles in header */}
-                                                                <div className="flex flex-wrap gap-1 ml-4 py-1">
-                                                                    {(() => {
-                                                                        const anyMember = (project.members || []).find(m => m.roles.some(r => r.sourceGroupId === pg.groupId));
-                                                                        const gRoles = anyMember?.roles.filter(r => r.sourceGroupId === pg.groupId) || [];
-                                                                        return gRoles.map(gr => (
-                                                                            <span key={gr.id} className="inline-block px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[10px] font-bold border border-indigo-200 uppercase tracking-tighter">
-                                                                                {gr.role.name}
-                                                                            </span>
-                                                                        ));
-                                                                    })()}
-                                                                </div>
                                                             </div>
+                                                        </td>
+                                                        <td className="px-4 py-2.5">
+                                                            {canEditMembers && editingId === gKey ? (
+                                                                <div className="flex items-center gap-2">
+                                                                    <Combobox
+                                                                        options={roles.map(r => ({ value: r.id, label: r.name }))}
+                                                                        value={Array.from(editingRoleIds)}
+                                                                        onChange={(vals: number[]) => setEditingRoleIds(new Set(vals))}
+                                                                        placeholder="ロールを選択..."
+                                                                        isMulti
+                                                                        isSearchable={false}
+                                                                        showFloatingLabel={false}
+                                                                        size="small"
+                                                                        className="w-52"
+                                                                    />
+                                                                    <button onClick={() => saveEdit(gKey)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"><Check className="w-4 h-4" /></button>
+                                                                    <button onClick={cancelEdit} className="p-1 text-gray-500 hover:bg-gray-50 rounded"><X className="w-4 h-4" /></button>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex flex-wrap gap-1 items-center">
+                                                                    {groupRoleIds.map((roleId) => (
+                                                                        <span
+                                                                            key={roleId}
+                                                                            className={`inline-block px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[10px] font-bold border border-indigo-200 uppercase tracking-tighter ${canEditMembers ? 'cursor-pointer hover:bg-indigo-200 transition-colors' : ''}`}
+                                                                            onClick={canEditMembers ? () => startEdit(gKey, groupRoleIds) : undefined}
+                                                                        >
+                                                                            {roleNameById.get(roleId) || `Role ${roleId}`}
+                                                                        </span>
+                                                                    ))}
+                                                                    {groupRoleIds.length === 0 && (
+                                                                        canEditMembers ? (
+                                                                            <span className="text-gray-300 italic text-xs cursor-pointer" onClick={() => startEdit(gKey, [])}>ロールなし</span>
+                                                                        ) : (
+                                                                            <span className="text-gray-300 italic text-xs">ロールなし</span>
+                                                                        )
+                                                                    )}
+                                                                    {canEditMembers && (
+                                                                        <button onClick={() => startEdit(gKey, groupRoleIds)} className="p-0.5 text-gray-400 hover:text-sky-600 rounded bg-gray-50 border border-gray-100 self-center" title="グループのロールを編集">
+                                                                            <Pencil className="w-3 h-3" />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            )}
                                                         </td>
                                                         {canEditMembers && (
                                                             <td className="px-4 py-2.5 text-right">
@@ -518,32 +593,36 @@ export default function ProjectOverview() {
                                                             </td>
                                                         )}
                                                     </tr>
-                                                    {/* Group member rows */}
-                                                    {isExpanded && groupMembers.map((gm: any, idx: number) => {
+                                                    {/* Group member rows (effective members incl. descendant groups) */}
+                                                    {isExpanded && groupMembers.map((gm, idx) => {
                                                         const pm = (project.members || []).find(m => m.userId === gm.userId);
                                                         const mKey = pm ? `m:${pm.id}` : `u:${gm.userId}`;
-                                                        const indivRoles = pm?.roles.filter(r => !r.sourceGroupId) || [];
+                                                        const excludedGroupRoleIds = groupRoleIdsForUser(gm.userId);
+                                                        const excludedSet = new Set(excludedGroupRoleIds);
+                                                        const indivRoles = (pm?.roles.filter(r => !r.sourceGroupId) || [])
+                                                            .filter((r) => !excludedSet.has(r.roleId));
                                                         const indivRoleIds = indivRoles.map(r => r.roleId);
                                                         const isLast = idx === groupMembers.length - 1;
+                                                        const user = gm.user;
                                                         return (
                                                             <tr key={`gm-${pg.groupId}-${gm.userId}`} className="hover:bg-gray-50/80">
                                                                 <td className="py-2 pl-10 pr-4">
                                                                     <span className="inline-flex items-center gap-2 text-sm text-slate-700">
                                                                         <span className="text-gray-300 select-none text-xs font-mono">{isLast ? '└' : '├'}</span>
                                                                         <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-600">
-                                                                            {gm.user.lastName[0]}{gm.user.firstName[0]}
+                                                                            {user.lastName[0]}{user.firstName[0]}
                                                                         </div>
-                                                                        {gm.user.lastName} {gm.user.firstName}
+                                                                        {user.lastName} {user.firstName}
                                                                     </span>
                                                                 </td>
                                                                 <td className="px-4 py-2">
                                                                     {canEditMembers && editingId === mKey ? (
                                                                         <div className="flex items-center gap-2">
                                                                             <Combobox
-                                                                                options={roles.map(r => ({ value: r.id, label: r.name }))}
+                                                                                options={individualRoleOptions(excludedGroupRoleIds)}
                                                                                 value={Array.from(editingRoleIds)}
-                                                                                onChange={(vals: number[]) => setEditingRoleIds(new Set(vals))}
-                                                                                placeholder="ロールを選択..."
+                                                                                onChange={(vals: number[]) => setEditingRoleIds(new Set(vals.filter((id) => !excludedSet.has(id))))}
+                                                                                placeholder="個別ロールを選択..."
                                                                                 isMulti
                                                                                 isSearchable={false}
                                                                                 showFloatingLabel={false}
@@ -564,19 +643,16 @@ export default function ProjectOverview() {
                                                                                     {pr.role.name}
                                                                                 </span>
                                                                             ))}
-                                                                            {(() => {
-                                                                                const groupRoles = pm?.roles.filter(r => r.sourceGroupId !== null) || [];
-                                                                                return groupRoles.map(pr => {
-                                                                                    const groupInfo = (project.groups || []).find(pgInfo => pgInfo.groupId === pr.sourceGroupId);
-                                                                                    const gName = groupInfo?.group.name || 'Group';
-                                                                                    return (
-                                                                                        <span key={pr.id} className="inline-block px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded text-xs border border-indigo-100 opacity-80" title={`グループ「${gName}」より継承`}>
-                                                                                            {pr.role.name}
-                                                                                        </span>
-                                                                                    );
-                                                                                });
-                                                                            })()}
-                                                                            {(!pm || pm.roles.length === 0) && (
+                                                                            {groupRoleIds.map((roleId) => (
+                                                                                <span
+                                                                                    key={`g-${pg.groupId}-${roleId}`}
+                                                                                    className="inline-block px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded text-xs border border-indigo-100 opacity-80"
+                                                                                    title={`グループ「${pg.group.name}」より継承`}
+                                                                                >
+                                                                                    {roleNameById.get(roleId) || `Role ${roleId}`}
+                                                                                </span>
+                                                                            ))}
+                                                                            {indivRoles.length === 0 && groupRoleIds.length === 0 && (
                                                                                 canEditMembers ? (
                                                                                     <span className="text-gray-300 italic text-xs cursor-pointer" onClick={() => startEdit(mKey, [])}>ロールなし</span>
                                                                                 ) : (
@@ -584,7 +660,7 @@ export default function ProjectOverview() {
                                                                                 )
                                                                             )}
                                                                             {canEditMembers && (
-                                                                                <button onClick={() => startEdit(mKey, indivRoleIds)} className="p-0.5 text-gray-400 hover:text-sky-600 rounded bg-gray-50 border border-gray-100 self-center" title="ロールを編集">
+                                                                                <button onClick={() => startEdit(mKey, indivRoleIds)} className="p-0.5 text-gray-400 hover:text-sky-600 rounded bg-gray-50 border border-gray-100 self-center" title="個別ロールを編集">
                                                                                     <Pencil className="w-3 h-3" />
                                                                                 </button>
                                                                             )}
@@ -603,7 +679,6 @@ export default function ProjectOverview() {
                                         {individualMembers.map((m: ProjectMember) => {
                                             const key = `m:${m.id}`;
                                             const indivRoles = m.roles.filter(r => !r.sourceGroupId);
-                                            const groupRoles = m.roles.filter(r => r.sourceGroupId !== null);
                                             const indivRoleIds = indivRoles.map(r => r.roleId);
 
                                             return (
@@ -644,16 +719,7 @@ export default function ProjectOverview() {
                                                                         {pr.role.name}
                                                                     </span>
                                                                 ))}
-                                                                {groupRoles.map(pr => {
-                                                                    const groupInfo = (project.groups || []).find(pg => pg.groupId === pr.sourceGroupId);
-                                                                    const gName = groupInfo?.group.name || 'Group';
-                                                                    return (
-                                                                        <span key={pr.id} className="inline-block px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded text-xs border border-indigo-100 opacity-80" title={`グループ「${gName}」より継承`}>
-                                                                            {pr.role.name}
-                                                                        </span>
-                                                                    );
-                                                                })}
-                                                                {m.roles.length === 0 && (
+                                                                {indivRoles.length === 0 && (
                                                                     <span className="text-gray-300 text-xs italic">ロールなし</span>
                                                                 )}
                                                                 {canEditMembers && (
@@ -666,7 +732,7 @@ export default function ProjectOverview() {
                                                     </td>
                                                     {canEditMembers && (
                                                         <td className="px-4 py-3 text-right">
-                                                            <button onClick={() => setConfirmDelete({ type: 'member', id: m.id, name: `${m.user.lastName} ${m.user.firstName}`, data: m })} className="text-gray-300 hover:text-red-500 transition-colors" title="個別ロールをすべて削除"><X className="w-4 h-4" /></button>
+                                                            <button onClick={() => setConfirmDelete({ type: 'member', id: m.id, name: `${m.user.lastName} ${m.user.firstName}`, data: m })} className="text-gray-300 hover:text-red-500 transition-colors" title="個別メンバーを削除"><X className="w-4 h-4" /></button>
                                                         </td>
                                                     )}
                                                 </tr>
@@ -815,8 +881,8 @@ export default function ProjectOverview() {
                     </div>
                 </div>
                 <p className="mt-4 text-xs text-gray-400 leading-relaxed">
-                    ※ グループを割り当てると、グループ所属ユーザーがツリー形式で表示されます。<br />
-                    ※ 各ユーザーのロールは個別に設定できます。薄いバッジはグループ追加時の初期ロールです。
+                    ※ グループを割り当てると、そのグループおよび子グループの所属ユーザーが表示されます（所属変更は自動反映）。<br />
+                    ※ インジゴ色のバッジはグループ割当ロール、水色は個別ロールです。
                 </p>
             </div>
             )}
@@ -826,8 +892,8 @@ export default function ProjectOverview() {
                 title={confirmDelete?.type === 'group' ? 'グループ割り当て解除' : 'メンバー削除'}
                 message={
                     confirmDelete?.type === 'group'
-                        ? `グループ「${confirmDelete.name}」の割り当てを解除しますか？\nグループに所属するメンバーもプロジェクトから削除されます。`
-                        : `${confirmDelete?.name} の個別ロールを削除しますか？\nグループ由来のロールがある場合はメンバーとして残り続けます。`
+                        ? `グループ「${confirmDelete.name}」の割り当てを解除しますか？\n子グループ所属を含む実効メンバーは、他の割当が無ければプロジェクトを参照できなくなります。`
+                        : `${confirmDelete?.name} の個別メンバー割当を削除しますか？`
                 }
                 onConfirm={() => {
                     if (!confirmDelete) return;
