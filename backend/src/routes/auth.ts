@@ -226,6 +226,9 @@ router.get('/me', authenticateToken, async (req: AuthRequest, res: Response) => 
       microsoftLinked: Boolean(microsoftOid),
       uiPreferences: parseUiPreferences(uiPreferences),
       permissions,
+      // JWT には role / isAdmin が焼き込まれ最長 7 日更新されない。管理者への昇格・降格を
+      // 次回リクエストへ反映するため、DB の最新値でトークンを再発行する。
+      token: generateToken(user.id, user.role, user.isAdmin),
     });
   } catch (e) {
     res.status(500).json({ error: 'ユーザー情報の取得に失敗しました' });

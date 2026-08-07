@@ -93,7 +93,9 @@ router.get('/:id', requirePermission('projects', 'use'), requireProjectMember('i
       res.status(404).json({ error: 'プロジェクトが見つかりません' });
       return;
     }
-    const myPermissions = await resolveProjectPermissions(req.userId!, Number(req.params.id));
+    const myPermissions = await resolveProjectPermissions(req.userId!, Number(req.params.id), {
+      isAdmin: isRequestAdmin(req),
+    });
     res.json({ ...project, myPermissions });
   } catch (e) {
     res.status(500).json({ error: 'プロジェクトの取得に失敗しました' });

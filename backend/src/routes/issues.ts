@@ -17,6 +17,7 @@ import {
   sendProjectAccessDenied,
 } from '../services/projectAccess';
 import {
+  getListableProjectIds,
   getProjectIdsWithPermission,
   hasProjectPermission,
   PROJECT_PERMISSION_DENIED_MESSAGE,
@@ -75,8 +76,9 @@ router.use(authenticateToken);
 router.get('/', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
     const { projectId, statusId, statusIds, trackerId, trackerIds, priorityId, assignedToId, assignedToIds, assignedToGroupId, assignedToGroupIds } = req.query;
-    const accessibleIds = await getAccessibleProjectIds(req.userId!, isRequestAdmin(req));
-    const permittedIds = await getProjectIdsWithPermission(req.userId!, accessibleIds, 'projects.issues', 'use');
+    const admin = isRequestAdmin(req);
+    const accessibleIds = await getAccessibleProjectIds(req.userId!, admin);
+    const permittedIds = await getListableProjectIds(req.userId!, accessibleIds, 'projects.issues', admin);
     const where: any = {};
 
     if (projectId && !isNaN(Number(projectId))) {

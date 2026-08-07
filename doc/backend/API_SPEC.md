@@ -10,7 +10,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 |----------|------|------|------|
 | POST | `/login` | 不要 | パスワードログイン。Body: `email`, `password` → `token`, `user`（`status`, `authMethod`, `microsoftLinked` を含む）。`status === 'inactive'` は 401。`authMethod === 'sso'` のユーザーは 401（Microsoft ログインを案内） |
 | POST | `/register` | 不要 | 登録。Body: `email`, `password`, `firstName`, `lastName` → `token`, `user` |
-| GET | `/me` | 必要 | 現在ユーザー情報（`status`, `authMethod`, `microsoftLinked`, `permissions`, **`uiPreferences`** を含む）。`permissions` は `Record<string, { canUse: boolean, canInput: boolean }>`。`uiPreferences` は個人 UI 設定 JSON（ガント左ペイン列など） |
+| GET | `/me` | 必要 | 現在ユーザー情報（`status`, `authMethod`, `microsoftLinked`, `permissions`, **`uiPreferences`** を含む）。`permissions` は `Record<string, { canUse: boolean, canInput: boolean }>`。`uiPreferences` は個人 UI 設定 JSON（ガント左ペイン列など）。応答に **`token`**（再発行した JWT）を含む — DB 上の最新の `role` / `isAdmin` を反映するため。クライアントは受け取った `token` で保持中のトークンを差し替える（管理者への昇格・降格が次回リクエストから有効になる） |
 | PUT | `/password` | 必要 | パスワード変更。Body: `currentPassword`, `newPassword`。`authMethod === 'sso'` のときは 400。`pending` の場合は更新完了時に `active` へ |
 | PUT | `/landing-page` | 必要 | ランディング設定。Body: `landingPage` (`home` \| `projects` \| `companies`) |
 | PUT | `/menu-settings` | 必要 | メニュー表示。Body: `showProjectsMenu`, `showGanttMenu`, `showCompanyMenu`, `showAdminMenu` |
@@ -37,7 +37,10 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 **メンバー可視性**: `POST /`（作成）と `GET /roles/available` を除き、操作対象プロジェクトに `ProjectMember` として登録されているユーザーのみアクセス可。一覧は所属プロジェクトのみ返す。非メンバーは **403**（`このプロジェクトを参照する権限がありません`）。**例外**: `isAdmin` のユーザーは全プロジェクトを参照・操作可能。作成者は作成時に自動でメンバーとなり、**全ロール**を付与される。
 
-**二層権限**: グループ PermissionSet の `projects`（use/input）でアプリ機能のゲート。プロジェクト詳細（プロジェクト情報更新・メンバー・チケット・Wiki 等および項目権限）は **RolePermission**（プロジェクト内ロール）で制御。`GET /:id` 応答に `myPermissions`（当該ユーザーのロール権限マップ）を含む。不足時は **403**（`このプロジェクトでの操作権限がありません`）。`User.isAdmin` ではロール権限をバイパスしない。
+**二層権限**: グループ PermissionSet の `projects`（use/input）でアプリ機能のゲート。プロジェクト詳細（プロジェクト情報更新・メンバー・チケット・Wiki 等および項目権限）は **RolePermission**（プロジェクト内ロール）で制御。`GET /:id` 応答に `myPermissions`（当該ユーザーのロール権限マップ）を含む。不足時は **403**（`このプロジェクトでの操作権限がありません`）。`User.isAdmin` / `role=admin` では原則ロール権限をバイパスしない。**例外は 2 つ**:
+
+1. **一覧の絞り込み**: 一覧系 API（`GET /projects`, `GET /gantt/all`, `GET /issues`, `GET /time-entries`）は、システム管理者に対してロール権限による絞り込みを行わない。ロール設定を誤ったプロジェクトにも一覧から到達できるようにするため。
+2. **`projects.members`**: メンバー表示・追加・編集・削除およびグループ紐付けは、システム管理者が RolePermission を無視して use/input とも可能（`myPermissions` にも反映）。メンバーの設定ミスを修正できるようにするため。プロジェクト詳細のその他のタブ・項目は従来どおりロール権限が必要。
 
 | メソッド | パス | 概要 |
 |----------|------|------|
@@ -46,14 +49,14 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | POST | `/` | プロジェクト作成。権限: `projects` input |
 | PUT | `/:id` | プロジェクト情報の更新。権限: `projects` use + ロール `projects.overview` input |
 | DELETE | `/:id` | プロジェクト削除。権限: `projects` use + ロール `projects.overview` input |
-| POST | `/:id/members` | メンバー追加。ロール `projects.members` input |
-| PUT | `/:id/members/:memberId` | メンバー・ロール更新。ロール `projects.members` input。更新の結果メンバーが 0 件になる場合は、操作ユーザーを全ロール付きで自動追加 |
-| DELETE | `/:id/members/:memberId` | メンバー削除。ロール `projects.members` input。削除の結果メンバーが 0 件になる場合は、操作ユーザーを全ロール付きで自動追加 |
+| POST | `/:id/members` | メンバー追加。ロール `projects.members` input（`isAdmin` はロール権限不要） |
+| PUT | `/:id/members/:memberId` | メンバー・ロール更新。ロール `projects.members` input（`isAdmin` はロール権限不要）。更新の結果メンバーが 0 件になる場合は、操作ユーザーを全ロール付きで自動追加 |
+| DELETE | `/:id/members/:memberId` | メンバー削除。ロール `projects.members` input（`isAdmin` はロール権限不要）。削除の結果メンバーが 0 件になる場合は、操作ユーザーを全ロール付きで自動追加 |
 | GET | `/roles/available` | 利用可能ロール一覧。権限: `projects` use |
-| GET | `/:id/groups` | プロジェクト紐付けグループ一覧。ロール `projects.members` use |
-| POST | `/:id/groups` | グループ紐付け。ロール `projects.members` input |
-| PUT | `/:id/groups/:groupId/role` | グループのロール設定更新。ロール `projects.members` input |
-| DELETE | `/:id/groups/:groupId` | グループ紐付け解除。ロール `projects.members` input。解除の結果メンバーが 0 件になる場合は、操作ユーザーを全ロール付きで自動追加 |
+| GET | `/:id/groups` | プロジェクト紐付けグループ一覧。ロール `projects.members` use（`isAdmin` はロール権限不要） |
+| POST | `/:id/groups` | グループ紐付け。ロール `projects.members` input（`isAdmin` はロール権限不要） |
+| PUT | `/:id/groups/:groupId/role` | グループのロール設定更新。ロール `projects.members` input（`isAdmin` はロール権限不要） |
+| DELETE | `/:id/groups/:groupId` | グループ紐付け解除。ロール `projects.members` input（`isAdmin` はロール権限不要）。解除の結果メンバーが 0 件になる場合は、操作ユーザーを全ロール付きで自動追加 |
 | GET | `/:id/comments` | コメント一覧（メンバー必須） |
 | POST | `/:id/comments` | コメント追加（メンバー必須） |
 | PUT | `/:id/comments/:commentId` | コメント更新（メンバー必須） |
@@ -65,7 +68,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 ## Issues — `/api/issues`
 
-**メンバー可視性**: 所属プロジェクトのチケットのみ参照・操作可。一覧は所属プロジェクトに絞り込む。`projectId` 指定時やチケット ID 指定時に非メンバーなら **403**。**例外**: `isAdmin` は全プロジェクト可。
+**メンバー可視性**: 所属プロジェクトのチケットのみ参照・操作可。一覧は所属プロジェクトに絞り込む。`projectId` 指定時やチケット ID 指定時に非メンバーなら **403**。**例外**: `isAdmin` は全プロジェクト可。一覧 `GET /` はロール権限 `projects.issues` use でも絞り込むが、`isAdmin` はこの絞り込みを受けない。
 
 | メソッド | パス | 概要 |
 |----------|------|------|
@@ -131,7 +134,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 ## Time Entries — `/api/time-entries`
 
-**メンバー可視性**: 所属プロジェクトの工数のみ参照・操作可。一覧は所属プロジェクトに絞り込む。非メンバーの `projectId` 指定や既存エントリ操作は **403**。**例外**: `isAdmin` は全プロジェクト可。
+**メンバー可視性**: 所属プロジェクトの工数のみ参照・操作可。一覧は所属プロジェクトに絞り込む。非メンバーの `projectId` 指定や既存エントリ操作は **403**。**例外**: `isAdmin` は全プロジェクト可。一覧 `GET /` はロール権限 `projects.time-entries` use でも絞り込むが、`isAdmin` はこの絞り込みを受けない。
 
 | メソッド | パス | 概要 |
 |----------|------|------|
@@ -243,7 +246,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 ## Gantt — `/api/gantt`
 
-**メンバー可視性**: 所属プロジェクトのみ。`/project/:projectId` で非メンバーは **403**。`/all` は所属かつ `active` のプロジェクトのみ。**例外**: `isAdmin` は全プロジェクト可。
+**メンバー可視性**: 所属プロジェクトのみ。`/project/:projectId` で非メンバーは **403**。`/all` は所属かつ `active` のプロジェクトのみ。**例外**: `isAdmin` は全プロジェクト可。`/all` はロール権限 `projects.gantt` use でも絞り込むが、`isAdmin` はこの絞り込みを受けない（`/project/:projectId` は従来どおりロール権限が必要）。
 
 | メソッド | パス | 概要 |
 |----------|------|------|

@@ -2,6 +2,14 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../api/client';
 import { User } from '../types';
 
+/** `/auth/me` は role / isAdmin の最新値を反映したトークンを返す。あれば保持中のものと差し替える。 */
+function storeMe(data: User & { token?: string }): User {
+  const { token, ...userData } = data;
+  if (token) localStorage.setItem('token', token);
+  localStorage.setItem('user', JSON.stringify(userData));
+  return userData as User;
+}
+
 export function useAuth() {
   const [user, setUser] = useState<User | null>(() => {
     const stored = localStorage.getItem('user');
@@ -14,8 +22,7 @@ export function useAuth() {
     if (token) {
       api.get('/auth/me')
         .then((res) => {
-          setUser(res.data);
-          localStorage.setItem('user', JSON.stringify(res.data));
+          setUser(storeMe(res.data));
         })
         .catch(() => {
           localStorage.removeItem('token');
@@ -52,9 +59,9 @@ export function useAuth() {
 
   const refreshUser = useCallback(async () => {
     const res = await api.get('/auth/me');
-    setUser(res.data);
-    localStorage.setItem('user', JSON.stringify(res.data));
-    return res.data;
+    const userData = storeMe(res.data);
+    setUser(userData);
+    return userData;
   }, []);
 
   const patchUser = useCallback((partial: Partial<User>) => {

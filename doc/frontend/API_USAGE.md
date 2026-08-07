@@ -11,6 +11,7 @@
 ## 権限チェック
 
 - **フック**: `frontend/src/hooks/usePermissions.ts` — `canUse(code)`, `canInput(code)` を提供。`useAuth` が `/auth/me` の `permissions` を保持。
+- **トークン差し替え**: `useAuth` は `/auth/me` の応答に `token` があれば `localStorage` のトークンを差し替える（`role` / `isAdmin` の変更を反映するため）。`token` は `user` オブジェクトには保存しない。
 - **コンポーネント**: `PermissionGate` — 子要素の表示/非表示・readOnly 切替。
 - **権限設定管理**: `GET admin/permissions/resources`, `GET/POST/PUT/DELETE admin/permission-sets`（Body に `groupIds`, `permissions`）。
 
@@ -22,7 +23,7 @@
 - レスポンス型は `frontend/src/types/index.ts` の型と一致させる。必要に応じて `include` パラメータや API 仕様に合わせて部分型を定義してよい。
 - エラー時は `error.response?.data?.error` でメッセージを取得し、UI に表示する。
 - **プロジェクトメンバー可視性**: `GET projects` / `gantt/all` / `issues` / `time-entries` 等は所属プロジェクトのみ返す（`isAdmin` は全件）。詳細（`GET projects/:id` 等）で非メンバーの場合は 403。`ProjectDetailPage` は 403 時に権限なしメッセージを表示する。メンバー／グループ解除の結果プロジェクトメンバーが 0 件になる場合、API が操作ユーザーを全ロール付きで自動追加する（フロントは削除後の再取得で反映）。
-- **プロジェクトロール権限**: `GET projects/:id` の `myPermissions` でプロジェクト詳細機能・項目を制御。グループの PermissionSet はトップレベル `projects` のみ。管理 > ロールでプロジェクト権限マトリクスを編集。
+- **プロジェクトロール権限**: `GET projects/:id` の `myPermissions` でプロジェクト詳細機能・項目を制御。グループの PermissionSet はトップレベル `projects` のみ。管理 > ロールでプロジェクト権限マトリクスを編集。システム管理者は `projects.members` のみ RolePermission をバイパス（メンバー選択 UI が常に利用可能）。一覧系 API（`GET projects` / `gantt/all` / `issues` / `time-entries`）もシステム管理者はロール権限で絞り込まれない。
 - **チケットステータス／ワークフロー**: `GET issues/meta/options?projectId=` の `workflow`（`assignableStatusIds` / `allowedTransitions`）で作成・編集の選択肢とカンバン移動を制限。API の POST/PUT でも検証する。プロジェクト一覧の**時間**タブでもチケット行から `PUT /issues/:id`（`statusId` / `doneRatio`）で一覧更新し、同様にワークフローと field 権限を適用する。
 
 ## エンドポイントとの対応

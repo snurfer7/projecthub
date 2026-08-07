@@ -47,8 +47,9 @@ PostgreSQL + Prisma で永続化し、JWT で認証する。
 - **登録**: `POST /api/auth/register` — `email`, `password`, `firstName`, `lastName` → `token`, `user`
 - **認証が必要なリクエスト**: ヘッダー `Authorization: Bearer <token>`
 - **トークン取得**: `auth.ts` 内の `generateToken(userId, role, isAdmin)`（JWT、要 `JWT_SECRET` 環境変数、有効期限 7 日）
+- **トークン再発行**: `GET /api/auth/me` は応答に `token` を含め、DB の最新 `role` / `isAdmin` で再発行する。JWT には `isAdmin` が焼き込まれ最長 7 日更新されないため、再発行しないと管理者への昇格・降格が反映されない（`isRequestAdmin` は JWT の値を参照する）
 - **トークン無効・期限切れ**: `authenticateToken` が **401** を返す。フロント／Android は 401 でログイン画面へ遷移する（権限不足の 403 とは区別）
-- **権限制御**: 二層。(1) ユーザー → Group → PermissionSet（`scope=group`、例: `projects`）。(2) プロジェクト内 Role → RolePermission（`scope=role`、例: `projects.issues`）。`GET /api/auth/me` はグループ権限のみ。プロジェクト詳細は `GET /api/projects/:id` の `myPermissions`。**isAdmin / role=admin でもバイパスしない**。
+- **権限制御**: 二層。(1) ユーザー → Group → PermissionSet（`scope=group`、例: `projects`）。(2) プロジェクト内 Role → RolePermission（`scope=role`、例: `projects.issues`）。`GET /api/auth/me` はグループ権限のみ。プロジェクト詳細は `GET /api/projects/:id` の `myPermissions`。**isAdmin / role=admin でも原則バイパスしない**。**例外は 2 つ**: (a) 一覧系 API はシステム管理者に対してロール権限で絞り込まない（`getListableProjectIds`）、(b) `projects.members` のみシステム管理者が RolePermission を無視して use/input 可能。
 - **使用可否 (`canUse`)**: 閲覧・GET API・画面アクセス
 - **入力可否 (`canInput`)**: 作成・更新・削除・POST/PUT/DELETE API（canUse が true のときのみ有効）。親の canInput は子（field）の canInput からは推定しない（機能単位の明示設定のみ）
 

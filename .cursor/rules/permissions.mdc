@@ -24,4 +24,4 @@ alwaysApply: true
 - 全体ルール: `doc/README.md`「権限設定を伴う実装（必須）」
 - バックエンド: `doc/backend/SPEC_OVERVIEW.md`
 
-`isAdmin` / `role=admin` ではバイパスしない。PermissionSet 経由のグループ権限のみ有効。
+`isAdmin` / `role=admin` では原則バイパスしない（PermissionSet / RolePermission 経由）。例外は 2 つのみ: 一覧系 API のロール権限絞り込み（`getListableProjectIds`）と、`projects.members` の use/input。

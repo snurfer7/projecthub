@@ -7,7 +7,7 @@ import { applyAssigneeOrFilter } from '../utils/issueAssigneeFilter';
 import { applyAggregatedParentFields } from '../utils/issueParent';
 import { getAccessibleProjectIds, isRequestAdmin } from '../services/projectAccess';
 import {
-  getProjectIdsWithPermission,
+  getListableProjectIds,
   requireProjectPermission,
 } from '../services/projectPermissions';
 import { issueAssigneesInclude, shapeIssueAssignees } from '../utils/issueAssignees';
@@ -176,8 +176,9 @@ router.get('/all', requirePermission('projects', 'use'), async (req: AuthRequest
   try {
     const { trackerId, trackerIds, assignedToId, assignedToIds, assignedToGroupId, assignedToGroupIds, statusId, statusIds } = req.query;
 
-    const accessibleIds = await getAccessibleProjectIds(req.userId!, isRequestAdmin(req));
-    const permittedIds = await getProjectIdsWithPermission(req.userId!, accessibleIds, 'projects.gantt', 'use');
+    const admin = isRequestAdmin(req);
+    const accessibleIds = await getAccessibleProjectIds(req.userId!, admin);
+    const permittedIds = await getListableProjectIds(req.userId!, accessibleIds, 'projects.gantt', admin);
 
     const projects = permittedIds.length === 0
       ? []

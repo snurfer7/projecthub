@@ -18,7 +18,9 @@
 
 1. **グループ権限（PermissionSet）**: ユーザーの**直接所属**グループごとに有効権限を解決し、OR 結合。`PermissionResource.scope = group` のみ（例: トップレベル `projects`）。親 canUse=false → 子孫拒否（PermissionResource ツリー）。
    - **グループの有効権限**: 当該グループに `permissionSetId` がある → **その PermissionSet のみ**（親グループは見ない）。無い → 各親グループの有効権限を再帰解決して **OR 結合**。祖先にも未割当ならそのグループは寄与しない。
-2. **ロール権限（RolePermission）**: プロジェクトの `ProjectMemberRole` → 各 Role の RolePermission を OR 結合。`scope = role`（例: `projects.issues`, `projects.issues.fields.*`）。プロジェクト単位で解決し、`GET /projects/:id` の `myPermissions` および API の `requireProjectPermission` で検証。`User.isAdmin` ではバイパスしない。
+2. **ロール権限（RolePermission）**: プロジェクトの `ProjectMemberRole` → 各 Role の RolePermission を OR 結合。`scope = role`（例: `projects.issues`, `projects.issues.fields.*`）。プロジェクト単位で解決し、`GET /projects/:id` の `myPermissions` および API の `requireProjectPermission` で検証。`User.isAdmin` / `role=admin` では原則バイパスしない。**例外は 2 つのみ**:
+   - **一覧の絞り込み**: プロジェクト一覧画面（一覧／ガント／カンバン／時間）の一覧系 API は、システム管理者に対してロール権限による絞り込みを行わない（`getListableProjectIds`）。ロール設定を誤って自分が締め出されたプロジェクトにも到達できるようにするため。
+   - **`projects.members`**: システム管理者に use/input を付与する（メンバーの設定ミスを修正できるようにするため）。プロジェクト詳細のその他のタブ・項目は従来どおりロール権限が必要。
 3. グループ未所属、または全所属グループの有効権限が空（直接・祖先とも PermissionSet 未割当）→ グループ権限は全拒否
 4. プロジェクトにロール未割当 → ロール権限は全拒否
 

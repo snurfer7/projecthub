@@ -75,7 +75,7 @@
 - field: `projects.issues.fields.subject` 等（`.fields.` を挟む）。開始・終了は `startDateTime` / `endDateTime`（日付・時刻をまとめて制御）
 - API 検証・フロントは **code 文字列** を正とし、`canUse` / `canInput` は PermissionSet または RolePermission のフラグ
 - **プロジェクト詳細**（`projects` 配下の feature / field）は原則 **Role** に紐づけ（`PermissionResource.scope = role`）。グループ PermissionSet にはトップレベル `projects` に加え、一覧向けの `projects.saved-searches`（scope=group）を含む
-- プロジェクト画面・API は `requireProjectPermission` / `myPermissions` でロール権限を検証（`User.isAdmin` ではバイパスしない）
+- プロジェクト画面・API は `requireProjectPermission` / `myPermissions` でロール権限を検証（`User.isAdmin` では原則バイパスしない。例外: 一覧系 API のロール権限絞り込みと `projects.members` の use/input のみ、システム管理者はバイパス）
 
 #### スコープ外
 

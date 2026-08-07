@@ -19,6 +19,13 @@ const prisma = new PrismaClient();
 
 export const PROJECT_PERMISSION_DENIED_MESSAGE = 'このプロジェクトでの操作権限がありません';
 
+/** Role permission that system admins may use without RolePermission rows. */
+export const PROJECT_MEMBERS_PERMISSION_CODE = 'projects.members';
+
+export function adminBypassesProjectPermission(code: string, isAdmin: boolean): boolean {
+  return isAdmin && code === PROJECT_MEMBERS_PERMISSION_CODE;
+}
+
 let roleResourceCache: Array<{
   id: number;
   code: string;
@@ -42,11 +49,12 @@ export function clearProjectPermissionCache() {
 
 /**
  * Resolve role-scoped permissions for a user on a project (OR across assigned roles).
- * System isAdmin does not grant role permissions.
+ * System isAdmin does not grant role permissions in general; exception: projects.members.
  */
 export async function resolveProjectPermissions(
   userId: number,
-  projectId: number
+  projectId: number,
+  options?: { isAdmin?: boolean }
 ): Promise<PermissionMap> {
   if (!Number.isFinite(projectId) || projectId <= 0) return {};
 
@@ -85,16 +93,22 @@ export async function resolveProjectPermissions(
   const resources = await getRoleResources();
   boostParentPermissionsFromChildren(merged, resources);
   const inherited = applyInheritanceScoped(merged, resources);
-  return expandLegacyFieldAliases(inherited);
+  const result = expandLegacyFieldAliases(inherited);
+  if (options?.isAdmin) {
+    result[PROJECT_MEMBERS_PERMISSION_CODE] = { canUse: true, canInput: true };
+  }
+  return result;
 }
 
 export async function hasProjectPermission(
   userId: number,
   projectId: number,
   code: string,
-  action: 'use' | 'input'
+  action: 'use' | 'input',
+  options?: { isAdmin?: boolean }
 ): Promise<boolean> {
-  const map = await resolveProjectPermissions(userId, projectId);
+  if (adminBypassesProjectPermission(code, options?.isAdmin === true)) return true;
+  const map = await resolveProjectPermissions(userId, projectId, options);
   return hasPermission(map, code, action);
 }
 
@@ -102,16 +116,32 @@ export async function getProjectIdsWithPermission(
   userId: number,
   projectIds: number[],
   code: string,
-  action: 'use' | 'input'
+  action: 'use' | 'input',
+  options?: { isAdmin?: boolean }
 ): Promise<number[]> {
   if (projectIds.length === 0) return [];
   const result: number[] = [];
   for (const projectId of projectIds) {
-    if (await hasProjectPermission(userId, projectId, code, action)) {
+    if (await hasProjectPermission(userId, projectId, code, action, options)) {
       result.push(projectId);
     }
   }
   return result;
+}
+
+/**
+ * Project IDs to show on list screens (project list, gantt, kanban, time).
+ * System admins ignore role permissions here: a project whose roles are misconfigured must
+ * stay reachable so an admin can open it and fix its members.
+ */
+export async function getListableProjectIds(
+  userId: number,
+  projectIds: number[],
+  code: string,
+  isAdmin: boolean
+): Promise<number[]> {
+  if (isAdmin) return projectIds;
+  return getProjectIdsWithPermission(userId, projectIds, code, 'use');
 }
 
 /**
@@ -153,7 +183,7 @@ export function requireProjectPermission(
         return;
       }
 
-      if (!(await hasProjectPermission(req.userId, projectId, code, action))) {
+      if (!(await hasProjectPermission(req.userId, projectId, code, action, { isAdmin: admin }))) {
         res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
         return;
       }
