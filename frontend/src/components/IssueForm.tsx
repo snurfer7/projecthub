@@ -368,6 +368,9 @@ export default function IssueForm({
             id: g.id,
             name: g.name,
             members: g.members ?? [],
+            position: g.position,
+            parents: g.parents,
+            children: g.children,
         }));
         return buildGroupedUserOptions({
             users: activeUsers,

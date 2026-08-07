@@ -5,8 +5,9 @@
 ## 認証・ユーザー
 
 - **User** — ユーザー。email, passwordHash, firstName, lastName, role, isAdmin, landingPage, show*Menu。**認証**: `authMethod`（`password` \| `sso`）, `microsoftOid`（Entra object id・ユニーク・任意）, `microsoftTenantId`（任意）。Microsoft 連携の主キーはメールではなく `microsoftOid`（UPN 変更後も継続）。SSO ログイン成功時（oid 一致）は `User.email` を Entra のログイン ID（UPN）へ自動同期する（他ユーザーと衝突時はスキップ）。**`uiPreferences`（JSON）** — 個人 UI 設定。現状はガント左ペイン列（`gantt.columns`: key / visible / width の配列。順序＝表示順。`ticket` は非表示不可）。GroupMember, ProjectMember, Issue（author / **IssueAssignee 経由の担当**）, TimeEntry, WikiPage, 各種 Comment 等と関連。**API アクセスはグループ経由の権限設定で制御**（`isAdmin` / `role=admin` でもバイパスしない）。
-- **Group** — グループ。GroupMember で User と多対多。Issue の担当グループ、ProjectGroup、ProjectMemberRole の sourceGroup として使用。**`permissionSetId`（任意）** で PermissionSet を参照（1 グループ = 最大 1 権限設定）。
-- **GroupMember** — Group と User の多対多中間。ユーザーは複数グループに所属可能。
+- **Group** — グループ。GroupMember で User と多対多。Issue の担当グループ、ProjectGroup、ProjectMemberRole の sourceGroup として使用。**`permissionSetId`（任意）** で PermissionSet を参照（1 グループ = 最大 1 権限設定）。**`position`** は親を持たないグループ同士の表示順。**GroupHierarchy** で親子の多対多（1 グループが複数親・複数子を持てる。DAG。循環参照不可）。
+- **GroupMember** — Group と User の多対多中間。ユーザーは複数グループに所属可能。**メンバーシップは親子階層を継承しない**（直接所属のみ）。
+- **GroupHierarchy** — グループ親子の中間。`parentGroupId` + `childGroupId`（ユニーク）、**`position`**（同一親の下での兄弟順）。グループ削除時は Cascade。自己参照および循環（例: A→B→C→A）は API で拒否。
 - **PermissionResource** — 権限カタログ（機能・項目）。code, name, resourceType（`feature` \| `field`）, **scope（`group` \| `role`）**, parentId, position。`projects` は group、配下（`projects.overview`＝プロジェクト情報 / `projects.members`＝メンバー / issues / fields 等）は role。
 - **PermissionSet** — 権限設定（グループ向け）。name, description。**scope=group のリソースのみ**割当可能。
 - **PermissionSetPermission** — 権限設定と PermissionResource の対応。canUse, canInput。
@@ -15,9 +16,10 @@
 
 ### 権限解決
 
-1. **グループ権限（PermissionSet）**: ユーザーの所属グループ → PermissionSet を OR 結合。`PermissionResource.scope = group` のみ（例: トップレベル `projects`）。親 canUse=false → 子孫拒否。
+1. **グループ権限（PermissionSet）**: ユーザーの**直接所属**グループごとに有効権限を解決し、OR 結合。`PermissionResource.scope = group` のみ（例: トップレベル `projects`）。親 canUse=false → 子孫拒否（PermissionResource ツリー）。
+   - **グループの有効権限**: 当該グループに `permissionSetId` がある → **その PermissionSet のみ**（親グループは見ない）。無い → 各親グループの有効権限を再帰解決して **OR 結合**。祖先にも未割当ならそのグループは寄与しない。
 2. **ロール権限（RolePermission）**: プロジェクトの `ProjectMemberRole` → 各 Role の RolePermission を OR 結合。`scope = role`（例: `projects.issues`, `projects.issues.fields.*`）。プロジェクト単位で解決し、`GET /projects/:id` の `myPermissions` および API の `requireProjectPermission` で検証。`User.isAdmin` ではバイパスしない。
-3. グループ未所属、または全所属グループが権限設定未割当 → グループ権限は全拒否
+3. グループ未所属、または全所属グループの有効権限が空（直接・祖先とも PermissionSet 未割当）→ グループ権限は全拒否
 4. プロジェクトにロール未割当 → ロール権限は全拒否
 
 ## マスタ（チケット・ワークフロー）
@@ -92,6 +94,8 @@
 | `settings.fields.microsoftAccount` | Microsoft アカウント連携 | field | `settings` |
 | `admin.holiday-settings` | 休日設定 | feature | `admin` |
 | `admin.statuses.fields.isClosed` | 終了 | field | `admin.statuses` |
+| `admin.groups.fields.parentGroups` | 親グループ | field | `admin.groups` |
+| `admin.groups.fields.childGroups` | 子グループ | field | `admin.groups` |
 
 ## クライアントとの整合
 

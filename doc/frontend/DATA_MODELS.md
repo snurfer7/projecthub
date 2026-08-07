@@ -9,7 +9,7 @@
 - **PermissionResource** — id, code, name, resourceType, parentId, position, children?。
 - **PermissionSet** — id, name, description, createdAt, groups?, permissions?。
 - **PermissionSetPermission** — resourceId, resource?, canUse, canInput。
-- **Group** — id, name, createdAt, permissionSetId?, permissionSet?, _count, members。
+- **Group** — id, name, createdAt, **position**（ルート同士の表示順）, permissionSetId?, permissionSet?, _count, members, **parents**（`{ id, name }[]`・親グループ）、**children**（`{ id, name }[]`・子グループ・同一親内 position 順）。親子は多対多（DAG）。権限は直接の PermissionSet が無ければ親から継承（フロント表示用ラベル可）。
 
 ## 会社・CRM
 
@@ -40,7 +40,7 @@
 - **Issue** — id, projectId, trackerId, statusId, priorityId, authorId, **assignees**（`{ id, firstName, lastName }[]`・担当ユーザー複数）, assignedToGroupId, subject, description, parentId（親チケット）, startDate, endDate（終了日時）, dueDate（期日）, estimatedHours（0 以上・**0.5 刻み**の数値）, doneRatio, createdAt, updatedAt, project, tracker, status, priority, author, assignedToGroup, parent（`{ id, subject }`）, children（子の要約配列または `_count.children`）, comments, attachments, timeEntries, relationsFrom, relationsTo, _count。後方互換で `assignedTo` / `assignedToId` は `assignees` の先頭。子を持つ場合 `startDate` / `endDate` / `status`（statusId）は子孫から集約した表示値（ステータスは position 最小）。`project` は `GET /` 応答では `company: { id, name } | null` を含む場合がある（一覧・カンバン・時間表示での「企業名 / プロジェクト名」形式表示用）。作成・更新 Body は **`assignedToIds: number[]`**（担当ユーザーの同期）と `assignedToGroupId`。**ガント API**（`GET /gantt/project/:id`・`GET /gantt/all`）のチケットには **`actualHours`**（当該チケットの時間記録 `hours` 合計。記録なしは `0`）を含む。
 - **IssueRelation** — issueFromId, issueToId, relationType, issueFrom, issueTo。
 - **IssueComment** — issueId, userId, content, user, attachments。
-- **IssueMetaOptions** — trackers, statuses, priorities, users, groups（チケット作成/編集用メタ。`groups` は id・name に加え `members`（`{ userId }`）を含み、担当者コンボの階層表示に用いる）。`projectId` 指定時は **workflow**（`assignableStatusIds`, `allowedTransitions`）を含む。
+- **IssueMetaOptions** — trackers, statuses, priorities, users, groups（チケット作成/編集用メタ。`groups` は id・name・position・`members`（`{ userId }`）に加え **`parents` / `children`** を含み、担当者コンボの**グループ階層ツリー**表示に用いる）。`projectId` 指定時は **workflow**（`assignableStatusIds`, `allowedTransitions`）を含む。
 
 ## Wiki・添付・工数
 

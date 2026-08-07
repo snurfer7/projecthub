@@ -349,10 +349,13 @@ export interface Group {
   id: number;
   name: string;
   createdAt: string;
+  position?: number;
   permissionSetId?: number | null;
   permissionSet?: { id: number; name: string } | null;
   _count?: { members: number };
   members?: { id: number; userId: number; user: { id: number; firstName: string; lastName: string; email: string } }[];
+  parents?: { id: number; name: string }[];
+  children?: { id: number; name: string }[];
 }
 
 export interface Contact {
@@ -474,7 +477,14 @@ export interface IssueMetaOptions {
   statuses: IssueStatus[];
   priorities: IssuePriority[];
   users: { id: number; firstName: string; lastName: string; status: string }[];
-  groups?: { id: number; name: string; members?: { userId: number }[] }[];
+  groups?: {
+    id: number;
+    name: string;
+    position?: number;
+    members?: { userId: number }[];
+    parents?: { id: number; name: string }[];
+    children?: { id: number; name: string }[];
+  }[];
   workflow?: IssueMetaWorkflow;
 }
 

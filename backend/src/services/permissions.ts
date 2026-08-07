@@ -102,35 +102,90 @@ export function applyInheritanceScoped(
 }
 
 export async function resolveUserPermissions(userId: number): Promise<PermissionMap> {
-  const groupMembers = await prisma.groupMember.findMany({
-    where: { userId },
-    include: {
-      group: {
-        include: {
-          permissionSet: {
-            include: {
-              permissions: {
-                include: { resource: { select: { code: true, scope: true } } },
-              },
+  const [groupMembers, allGroups, hierarchyEdges] = await Promise.all([
+    prisma.groupMember.findMany({
+      where: { userId },
+      select: { groupId: true },
+    }),
+    prisma.group.findMany({
+      include: {
+        permissionSet: {
+          include: {
+            permissions: {
+              include: { resource: { select: { code: true, scope: true } } },
             },
           },
         },
       },
-    },
-  });
+    }),
+    prisma.groupHierarchy.findMany({
+      select: { parentGroupId: true, childGroupId: true },
+    }),
+  ]);
+
+  const parentsByChild = new Map<number, number[]>();
+  for (const e of hierarchyEdges) {
+    const list = parentsByChild.get(e.childGroupId) ?? [];
+    list.push(e.parentGroupId);
+    parentsByChild.set(e.childGroupId, list);
+  }
+
+  const groupById = new Map(allGroups.map((g) => [g.id, g]));
+  const memo = new Map<number, Map<string, PermissionEntry>>();
+  const resolving = new Set<number>();
+
+  function mergeInto(
+    target: Map<string, PermissionEntry>,
+    code: string,
+    canUse: boolean,
+    canInput: boolean
+  ) {
+    const existing = target.get(code) ?? { canUse: false, canInput: false };
+    target.set(code, {
+      canUse: existing.canUse || canUse,
+      canInput: existing.canInput || canInput,
+    });
+  }
+
+  function applyPermissionSet(
+    target: Map<string, PermissionEntry>,
+    set: NonNullable<(typeof allGroups)[0]['permissionSet']>
+  ) {
+    for (const p of set.permissions) {
+      if (p.resource.scope === 'role') continue;
+      mergeInto(target, p.resource.code, p.canUse, p.canInput);
+    }
+  }
+
+  function resolveGroupEffective(groupId: number): Map<string, PermissionEntry> {
+    const cached = memo.get(groupId);
+    if (cached) return cached;
+    if (resolving.has(groupId)) return new Map();
+    resolving.add(groupId);
+
+    const result = new Map<string, PermissionEntry>();
+    const group = groupById.get(groupId);
+    if (group?.permissionSet) {
+      applyPermissionSet(result, group.permissionSet);
+    } else {
+      for (const parentId of parentsByChild.get(groupId) ?? []) {
+        const parentPerms = resolveGroupEffective(parentId);
+        for (const [code, entry] of parentPerms) {
+          mergeInto(result, code, entry.canUse, entry.canInput);
+        }
+      }
+    }
+
+    resolving.delete(groupId);
+    memo.set(groupId, result);
+    return result;
+  }
 
   const merged = new Map<string, PermissionEntry>();
   for (const gm of groupMembers) {
-    const set = gm.group.permissionSet;
-    if (!set) continue;
-    for (const p of set.permissions) {
-      if (p.resource.scope === 'role') continue;
-      const code = p.resource.code;
-      const existing = merged.get(code) ?? { canUse: false, canInput: false };
-      merged.set(code, {
-        canUse: existing.canUse || p.canUse,
-        canInput: existing.canInput || p.canInput,
-      });
+    const effective = resolveGroupEffective(gm.groupId);
+    for (const [code, entry] of effective) {
+      mergeInto(merged, code, entry.canUse, entry.canInput);
     }
   }
 
@@ -253,7 +308,7 @@ function fieldValueChanged(bodyKey: string, oldVal: unknown, newVal: unknown): b
     return o !== n;
   }
 
-  if (bodyKey === 'assignedToIds') {
+  if (bodyKey === 'assignedToIds' || bodyKey === 'parentIds' || bodyKey === 'childIds') {
     const toSorted = (v: unknown): number[] => {
       if (!Array.isArray(v)) return [];
       return [...new Set(v.map((x) => Number(x)).filter((n) => Number.isInteger(n) && n > 0))].sort(

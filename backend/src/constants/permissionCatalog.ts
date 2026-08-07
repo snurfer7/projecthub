@@ -111,7 +111,15 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
     position: 30,
     children: [
       { code: 'admin.users', name: 'ユーザー', position: 0 },
-      { code: 'admin.groups', name: 'グループ', position: 1 },
+      {
+        code: 'admin.groups',
+        name: 'グループ',
+        position: 1,
+        children: [
+          { code: 'admin.groups.fields.parentGroups', name: '親グループ', resourceType: 'field', position: 0 },
+          { code: 'admin.groups.fields.childGroups', name: '子グループ', resourceType: 'field', position: 1 },
+        ],
+      },
       { code: 'admin.permission-sets', name: '権限設定', position: 2 },
       { code: 'admin.roles', name: 'ロール', position: 3 },
       { code: 'admin.trackers', name: 'トラッカー', position: 4 },

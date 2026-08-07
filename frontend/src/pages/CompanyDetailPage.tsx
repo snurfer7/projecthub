@@ -20,6 +20,8 @@ import { Project } from '../types';
 import {
   buildGroupedUserOptions,
   deriveGroupsFromUserMemberships,
+  mergeGroupHierarchy,
+  type GroupedUserOptionGroup,
 } from '../utils/groupedUserOptions';
 
 
@@ -104,6 +106,7 @@ export default function CompanyDetailPage() {
     status: string;
     groupMembers?: { group: { id: number; name: string } }[];
   }[]>([]);
+  const [groupHierarchySource, setGroupHierarchySource] = useState<GroupedUserOptionGroup[]>([]);
 
   // Company Edit
   const [showCompanyModal, setShowCompanyModal] = useState(false);
@@ -172,6 +175,31 @@ export default function CompanyDetailPage() {
         ),
       ),
     );
+  const loadGroupHierarchy = () =>
+    api
+      .get('/issues/meta/options')
+      .then((res) => {
+        setGroupHierarchySource(
+          (res.data.groups ?? []).map(
+            (g: {
+              id: number;
+              name: string;
+              position?: number;
+              members?: { userId: number }[];
+              parents?: { id: number; name: string }[];
+              children?: { id: number; name: string }[];
+            }) => ({
+              id: g.id,
+              name: g.name,
+              position: g.position,
+              members: g.members ?? [],
+              parents: g.parents,
+              children: g.children,
+            }),
+          ),
+        );
+      })
+      .catch(() => setGroupHierarchySource([]));
   const loadLocations = () => api.get(`/companies/${id}/locations`).then((res) => setLocations(res.data));
 
   useEffect(() => {
@@ -181,6 +209,7 @@ export default function CompanyDetailPage() {
     loadActivities();
     loadMasterAssociations();
     loadUsers();
+    loadGroupHierarchy();
     loadLocations();
   }, [id]);
 
@@ -498,21 +527,23 @@ export default function CompanyDetailPage() {
 
   const dealAssigneeOptions = useMemo(() => {
     const eligible = users.filter((u) => u.status === 'active' || dealForm.assignedToId === String(u.id));
+    const membershipGroups = deriveGroupsFromUserMemberships(eligible);
     return buildGroupedUserOptions({
       users: eligible,
-      groups: deriveGroupsFromUserMemberships(eligible),
+      groups: mergeGroupHierarchy(membershipGroups, groupHierarchySource),
       groupHeadersSelectable: false,
     });
-  }, [users, dealForm.assignedToId]);
+  }, [users, dealForm.assignedToId, groupHierarchySource]);
 
   const activityAssigneeOptions = useMemo(() => {
     const eligible = users.filter((u) => u.status === 'active' || activityForm.assignedToId === String(u.id));
+    const membershipGroups = deriveGroupsFromUserMemberships(eligible);
     return buildGroupedUserOptions({
       users: eligible,
-      groups: deriveGroupsFromUserMemberships(eligible),
+      groups: mergeGroupHierarchy(membershipGroups, groupHierarchySource),
       groupHeadersSelectable: false,
     });
-  }, [users, activityForm.assignedToId]);
+  }, [users, activityForm.assignedToId, groupHierarchySource]);
 
   if (!company) return <div className="text-center py-8 text-gray-500">読み込み中...</div>;
 

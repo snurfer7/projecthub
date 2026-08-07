@@ -199,8 +199,43 @@ router.get('/meta/options', requirePermission('projects', 'use'), async (req: Au
     ]);
 
     let users: { id: number; firstName: string; lastName: string }[] = [];
-    let groups: { id: number; name: string; members: { userId: number }[] }[] = [];
+    let groups: {
+      id: number;
+      name: string;
+      position: number;
+      members: { userId: number }[];
+      parents: { id: number; name: string }[];
+      children: { id: number; name: string }[];
+    }[] = [];
     let workflow: Awaited<ReturnType<typeof resolveIssueWorkflow>> | undefined;
+
+    const groupHierarchyInclude = {
+      members: { select: { userId: true } },
+      parentLinks: {
+        include: { parentGroup: { select: { id: true, name: true } } },
+        orderBy: { parentGroup: { name: 'asc' as const } },
+      },
+      childLinks: {
+        include: { childGroup: { select: { id: true, name: true } } },
+        orderBy: { position: 'asc' as const },
+      },
+    };
+
+    const shapeMetaGroup = (g: {
+      id: number;
+      name: string;
+      position: number;
+      members: { userId: number }[];
+      parentLinks: { parentGroup: { id: number; name: string } }[];
+      childLinks: { childGroup: { id: number; name: string } }[];
+    }) => ({
+      id: g.id,
+      name: g.name,
+      position: g.position,
+      members: g.members,
+      parents: g.parentLinks.map((l) => l.parentGroup),
+      children: g.childLinks.map((l) => l.childGroup),
+    });
 
     if (projectId) {
       const pid = Number(projectId);
@@ -214,12 +249,10 @@ router.get('/meta/options', requirePermission('projects', 'use'), async (req: Au
           where: { projectId: pid },
           include: { user: { select: { id: true, firstName: true, lastName: true, status: true } } }
         }),
-        (prisma as any).projectGroup.findMany({
+        prisma.projectGroup.findMany({
           where: { projectId: pid },
           include: {
-            group: {
-              include: { members: { select: { userId: true } } },
-            },
+            group: { include: groupHierarchyInclude },
           },
         }),
         resolveIssueWorkflow(req.userId!, pid),
@@ -230,16 +263,24 @@ router.get('/meta/options', requirePermission('projects', 'use'), async (req: Au
         userMap.set(m.user.id, m.user);
       }
       users = Array.from(userMap.values());
-      groups = projectGroups.map((pg: any) => pg.group);
+      const shaped = projectGroups.map((pg) => shapeMetaGroup(pg.group));
+      const idSet = new Set(shaped.map((g) => g.id));
+      groups = shaped.map((g) => ({
+        ...g,
+        parents: g.parents.filter((p) => idSet.has(p.id)),
+        children: g.children.filter((c) => idSet.has(c.id)),
+      }));
       workflow = resolvedWorkflow;
     } else {
-      [users, groups] = await Promise.all([
+      const [allUsers, allGroups] = await Promise.all([
         prisma.user.findMany({ select: { id: true, firstName: true, lastName: true, status: true } }),
-        (prisma as any).group.findMany({
-          include: { members: { select: { userId: true } } },
-          orderBy: { name: 'asc' },
+        prisma.group.findMany({
+          include: groupHierarchyInclude,
+          orderBy: [{ position: 'asc' }, { name: 'asc' }],
         }),
       ]);
+      users = allUsers;
+      groups = allGroups.map(shapeMetaGroup);
     }
 
     res.json({ trackers, statuses, priorities, users, groups, ...(workflow ? { workflow } : {}) });

@@ -70,7 +70,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | メソッド | パス | 概要 |
 |----------|------|------|
 | GET | `/` | チケット一覧（所属プロジェクトのみ）。Query: `projectId`, `statusId` / `statusIds`（複数）, `trackerId` / `trackerIds`（複数）, `priorityId`, `assignedToId` / `assignedToIds`（担当ユーザーのいずれかが一致）, `assignedToGroupId` / `assignedToGroupIds`（担当グループのいずれかが一致）。複数 ID はカンマ区切りまたは配列。**担当者条件**: `assignedToIds`（または単数 `assignedToId`）と `assignedToGroupIds`（または単数 `assignedToGroupId`）を同時指定した場合は **OR**（ユーザー担当に一致 **または** 担当グループに一致）。片方のみのときはその条件のみ。応答に **`assignees`**（`{ id, firstName, lastName }[]`）, `assignedToGroup`, `parentId` / `parent` / `_count.children` を含み、子を持つチケットの `startDate` / `endDate` / `statusId`（`status`）は子孫から集約した値（ステータスは position 最小）。`project` は `{ id, name, company: { id, name } \| null }` を含む（カンバン等クロスプロジェクト表示での企業名表示用）。後方互換で `assignedTo` / `assignedToId` は `assignees` の先頭（無ければ null） |
-| GET | `/meta/options` | メタ（trackers, statuses, priorities, users, groups）。Query: `projectId`（任意）。`projectId` 指定時はメンバー必須で、プロジェクトメンバー・紐付きグループのみ返し、応答に **`workflow`**（当該ユーザーのロールに基づく利用可能ステータス・遷移）を含む。未指定時は全ユーザー・全グループを返し `workflow` は含めない。`statuses` は常に全マスタ（カンバン列・フィルタ用） |
+| GET | `/meta/options` | メタ（trackers, statuses, priorities, users, groups）。Query: `projectId`（任意）。`projectId` 指定時はメンバー必須で、プロジェクトメンバー・紐付きグループのみ返し、応答に **`workflow`**（当該ユーザーのロールに基づく利用可能ステータス・遷移）を含む。未指定時は全ユーザー・全グループを返し `workflow` は含めない。`statuses` は常に全マスタ（カンバン列・フィルタ用）。**`groups`** は id・name・position・members に加え **`parents` / `children`**（グループ階層。担当者コンボのツリー表示用）。`projectId` 指定時は紐付きグループ間に閉じた親子のみ返す |
 | GET | `/:id` | チケット詳細（所属プロジェクトのみ）。`assignees` / `assignedToGroup` / `parent` / `children`（id, subject, startDate, endDate）を含む。子がある場合 `startDate` / `endDate` / `status` は集約値 |
 | POST | `/` | チケット作成（対象プロジェクトのメンバー必須）。Body: **`assignedToIds`**（任意・`number[]`。空配列で担当ユーザーなし。旧 `assignedToId` 単数も受理し 1 件配列相当）, `assignedToGroupId`（任意）, `parentId`（任意・同一プロジェクト・循環不可）, **`estimatedHours`**（任意・0 以上・**0.5 刻み**の数値。空／null で未設定）等。仮登録・無効ユーザーは 400。`statusId` はロールの利用可能ステータスに含まれること（否則 400）。権限: `projects.issues.fields.assignee`（`assignedToIds` / `assignedToGroupId` / 旧 `assignedToId` 指定時）, `projects.issues.fields.parent`（`parentId` 指定時）, `projects.issues.fields.estimatedHours`（`estimatedHours` 指定時） |
 | PUT | `/:id` | チケット更新（所属プロジェクトのみ）。Body: **`assignedToIds`**（指定時は中間テーブルをその集合に同期。空配列で全解除。未指定時は変更しない。旧 `assignedToId` も受理）, `assignedToGroupId`, `parentId`（任意・null で解除）, **`estimatedHours`**（任意・0 以上・**0.5 刻み**。空／null で未設定）等。子チケットがある場合 `startDate` / `endDate` / `statusId` の更新は 400。`statusId` 変更時はロールの利用可能ステータス＋ステータス遷移を検証（否則 400）。権限: `projects.issues.fields.assignee` / `projects.issues.fields.parent` / `projects.issues.fields.estimatedHours` 等 |
@@ -171,7 +171,20 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | GET/POST/PUT/DELETE, POST reorder | `/trackers` | トラッカー | 管理者 |
 | GET/POST/PUT/DELETE, POST reorder | `/statuses` | チケットステータス。Body: `name`, **`isClosed`**（終了フラグ・boolean）, `position`。`isClosed` の指定・変更は `admin.statuses.fields.isClosed` input | `admin.statuses` use / input |
 | GET/POST/PUT/DELETE, POST reorder | `/priorities` | 優先度 | 管理者 |
-| GET/GET:id/POST/PUT/DELETE | `/groups` | グループ（`permissionSetId` 割当可） | `admin.groups` |
+| GET/GET:id/POST/PUT/DELETE | `/groups` | グループ（`permissionSetId` 割当可。親子多対多） | `admin.groups` |
+| POST | `/groups/move` | ツリー DnD による親変更・兄弟並び替え | `admin.groups` input（親変更時は `admin.groups.fields.parentGroups` input） |
+
+**グループ（`/groups`）詳細**:
+
+- 一覧・詳細応答に `parents: { id, name }[]` / `children: { id, name }[]` を含む。`children` は同一親内の `GroupHierarchy.position` 順。親なしグループ同士は `Group.position` 順。
+- `POST` / `PUT` Body: `{ name, memberIds?, permissionSetId?, parentIds?, childIds? }`。`parentIds` / `childIds` 指定時は当該グループの親リンク／子リンクを全置換。フィールド権限: `admin.groups.fields.parentGroups`（`parentIds`）、`admin.groups.fields.childGroups`（`childIds`）。
+- 自己参照または循環参照になる親子設定は **400**（`グループの親子関係により循環参照になります`）。存在しないグループ ID は **400**。
+- **`POST /groups/move`** Body: `{ groupId, parentId: number \| null, mode: 'replace' \| 'add', beforeGroupId?: number \| null }`。
+  - `parentId`: 新しい親。`null` はルート（親なし）。
+  - `mode: 'replace'`（通常ドロップ）: 既存の親リンクをすべて外し、`parentId` のみを親にする（`null` なら親なし）。
+  - `mode: 'add'`（Ctrl/Cmd+ドロップ）: `parentId` を親として追加（既存親は残す）。`parentId` が `null` のときは変更なし（no-op）。既にその親なら親は変えず位置のみ更新可。
+  - `beforeGroupId`: 同一親（またはルート）内でこの兄弟の直前へ挿入。省略／null なら末尾。
+  - 循環参照は **400**。親が変わる操作は `admin.groups.fields.parentGroups` input が必要。
 | GET/POST/PUT/DELETE, POST reorder, GET/PUT transitions | `/roles` | ロール・ワークフロー遷移 | 管理者 |
 | GET/GET:id/POST/PUT/DELETE | `/companies` | 会社（一覧・詳細・作成・更新・削除） | 認証 |
 | GET/POST/PUT/DELETE, POST reorder | `/legal-entity-statuses` | 法人区分 | 認証 |

@@ -14,7 +14,13 @@ import {
   parseHolidayWeekdays,
 } from '../services/systemCalendar';
 import { clearProjectPermissionCache } from '../services/projectPermissions';
-import { assertFieldPermissions } from '../services/permissions';
+import { assertFieldPermissions, hasFieldInputPermission } from '../services/permissions';
+import {
+  buildEdgesAfterGroupUpdate,
+  hasCycleInGroupHierarchy,
+  normalizeIdList,
+  type GroupHierarchyEdge,
+} from '../utils/groupHierarchy';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -22,6 +28,117 @@ const prisma = new PrismaClient();
 const STATUS_FIELD_PERMS = {
   isClosed: 'admin.statuses.fields.isClosed',
 } as const;
+
+const GROUP_FIELD_PERMS = {
+  parentIds: 'admin.groups.fields.parentGroups',
+  childIds: 'admin.groups.fields.childGroups',
+} as const;
+
+const GROUP_HIERARCHY_INCLUDE = {
+  parentLinks: {
+    include: { parentGroup: { select: { id: true, name: true } } },
+    orderBy: { parentGroup: { name: 'asc' as const } },
+  },
+  childLinks: {
+    include: { childGroup: { select: { id: true, name: true } } },
+    orderBy: { position: 'asc' as const },
+  },
+} as const;
+
+type GroupWithLinks = {
+  parentLinks?: { parentGroup: { id: number; name: string } }[];
+  childLinks?: { childGroup: { id: number; name: string } }[];
+  [key: string]: unknown;
+};
+
+function shapeGroupResponse<T extends GroupWithLinks>(group: T) {
+  const { parentLinks, childLinks, ...rest } = group;
+  return {
+    ...rest,
+    parents: (parentLinks ?? []).map((l) => l.parentGroup),
+    children: (childLinks ?? []).map((l) => l.childGroup),
+  };
+}
+
+async function loadHierarchyEdges(): Promise<GroupHierarchyEdge[]> {
+  return prisma.groupHierarchy.findMany({
+    select: { parentGroupId: true, childGroupId: true },
+  });
+}
+
+async function assertGroupIdsExist(ids: number[]): Promise<string | null> {
+  if (ids.length === 0) return null;
+  const count = await prisma.group.count({ where: { id: { in: ids } } });
+  if (count !== ids.length) return '指定されたグループが見つかりません';
+  return null;
+}
+
+/** insertId を beforeId の直前へ。beforeId が無い／一覧外なら末尾 */
+function insertBefore(ids: number[], insertId: number, beforeId: number | null): number[] {
+  // 自分自身の直前＝位置は変わらない
+  if (beforeId === insertId) return [...ids];
+  const base = ids.filter((id) => id !== insertId);
+  if (beforeId == null) return [...base, insertId];
+  const idx = base.indexOf(beforeId);
+  if (idx < 0) return [...base, insertId];
+  return [...base.slice(0, idx), insertId, ...base.slice(idx)];
+}
+
+async function nextChildPosition(parentGroupId: number): Promise<number> {
+  const max = await prisma.groupHierarchy.aggregate({
+    where: { parentGroupId },
+    _max: { position: true },
+  });
+  return (max._max.position ?? -1) + 1;
+}
+
+async function nextRootPosition(): Promise<number> {
+  const max = await prisma.group.aggregate({ _max: { position: true } });
+  return (max._max.position ?? -1) + 1;
+}
+
+async function syncGroupHierarchy(
+  groupId: number,
+  parentIds: number[] | undefined,
+  childIds: number[] | undefined
+) {
+  if (parentIds !== undefined) {
+    await prisma.groupHierarchy.deleteMany({ where: { childGroupId: groupId } });
+    for (const parentGroupId of parentIds) {
+      const position = await nextChildPosition(parentGroupId);
+      await prisma.groupHierarchy.create({
+        data: { parentGroupId, childGroupId: groupId, position },
+      });
+    }
+  }
+  if (childIds !== undefined) {
+    await prisma.groupHierarchy.deleteMany({ where: { parentGroupId: groupId } });
+    for (let i = 0; i < childIds.length; i += 1) {
+      await prisma.groupHierarchy.create({
+        data: { parentGroupId: groupId, childGroupId: childIds[i], position: i },
+      });
+    }
+  }
+}
+
+async function reorderSiblingsUnderParent(parentGroupId: number, orderedChildIds: number[]) {
+  await prisma.$transaction(
+    orderedChildIds.map((childGroupId, idx) =>
+      prisma.groupHierarchy.update({
+        where: { parentGroupId_childGroupId: { parentGroupId, childGroupId } },
+        data: { position: idx },
+      })
+    )
+  );
+}
+
+async function reorderRootGroups(orderedIds: number[]) {
+  await prisma.$transaction(
+    orderedIds.map((id, idx) =>
+      prisma.group.update({ where: { id }, data: { position: idx } })
+    )
+  );
+}
 
 const TEMP_PASSWORD_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^*';
 
@@ -408,12 +525,173 @@ router.get('/groups', requirePermission('admin.groups', 'use'), async (_req: Aut
       include: {
         _count: { select: { members: true } },
         permissionSet: { select: { id: true, name: true } },
+        ...GROUP_HIERARCHY_INCLUDE,
       },
-      orderBy: { name: 'asc' },
+      orderBy: [{ position: 'asc' }, { name: 'asc' }],
     });
-    res.json(groups);
+    res.json(groups.map(shapeGroupResponse));
   } catch (e) {
     res.status(500).json({ error: 'グループの取得に失敗しました' });
+  }
+});
+
+router.post('/groups/move', requirePermission('admin.groups', 'input'), async (req: AuthRequest, res: Response) => {
+  try {
+    const groupId = Number(req.body.groupId);
+    if (!Number.isInteger(groupId) || groupId <= 0) {
+      res.status(400).json({ error: 'groupId が不正です' });
+      return;
+    }
+
+    const rawParent = req.body.parentId;
+    let parentId: number | null;
+    if (rawParent === null || rawParent === undefined) {
+      parentId = null;
+    } else {
+      parentId = Number(rawParent);
+      if (!Number.isInteger(parentId) || parentId <= 0) {
+        res.status(400).json({ error: 'parentId が不正です' });
+        return;
+      }
+    }
+
+    const mode = req.body.mode === 'add' ? 'add' : 'replace';
+    const rawBefore = req.body.beforeGroupId;
+    let beforeGroupId: number | null = null;
+    if (rawBefore !== null && rawBefore !== undefined && rawBefore !== '') {
+      beforeGroupId = Number(rawBefore);
+      if (!Number.isInteger(beforeGroupId) || beforeGroupId <= 0) {
+        res.status(400).json({ error: 'beforeGroupId が不正です' });
+        return;
+      }
+    }
+
+    if (parentId === groupId) {
+      res.status(400).json({ error: 'グループの親子関係により循環参照になります' });
+      return;
+    }
+
+    const group = await prisma.group.findUnique({
+      where: { id: groupId },
+      include: { parentLinks: { select: { parentGroupId: true } } },
+    });
+    if (!group) {
+      res.status(404).json({ error: 'グループが見つかりません' });
+      return;
+    }
+
+    if (parentId != null) {
+      const parent = await prisma.group.findUnique({ where: { id: parentId }, select: { id: true } });
+      if (!parent) {
+        res.status(400).json({ error: '指定されたグループが見つかりません' });
+        return;
+      }
+    }
+    if (beforeGroupId != null) {
+      const before = await prisma.group.findUnique({ where: { id: beforeGroupId }, select: { id: true } });
+      if (!before) {
+        res.status(400).json({ error: '指定されたグループが見つかりません' });
+        return;
+      }
+    }
+
+    // Ctrl+ドロップをルートへ: 親変更なし（no-op）
+    if (mode === 'add' && parentId === null) {
+      res.json({ message: '変更なし' });
+      return;
+    }
+
+    const currentParentIds = group.parentLinks.map((l) => l.parentGroupId);
+    let nextParentIds: number[];
+    if (parentId === null) {
+      nextParentIds = [];
+    } else if (mode === 'add') {
+      nextParentIds = currentParentIds.includes(parentId)
+        ? [...currentParentIds]
+        : [...currentParentIds, parentId];
+    } else {
+      nextParentIds = [parentId];
+    }
+
+    const parentsChanged =
+      nextParentIds.length !== currentParentIds.length ||
+      nextParentIds.some((id) => !currentParentIds.includes(id)) ||
+      currentParentIds.some((id) => !nextParentIds.includes(id));
+
+    if (parentsChanged && !hasFieldInputPermission(req.permissions!, 'admin.groups.fields.parentGroups')) {
+      res.status(403).json({ error: '権限がありません', code: 'admin.groups.fields.parentGroups' });
+      return;
+    }
+
+    if (parentsChanged) {
+      const existing = await loadHierarchyEdges();
+      const nextEdges = buildEdgesAfterGroupUpdate(existing, groupId, nextParentIds, undefined);
+      if (hasCycleInGroupHierarchy(nextEdges)) {
+        res.status(400).json({ error: 'グループの親子関係により循環参照になります' });
+        return;
+      }
+
+      const oldLinks = await prisma.groupHierarchy.findMany({
+        where: { childGroupId: groupId },
+        select: { parentGroupId: true, position: true },
+      });
+      const oldPosByParent = new Map(oldLinks.map((l) => [l.parentGroupId, l.position]));
+
+      await prisma.groupHierarchy.deleteMany({ where: { childGroupId: groupId } });
+      for (const pid of nextParentIds) {
+        if (pid === parentId) continue; // 対象親は後で位置付きで作成
+        const position = oldPosByParent.get(pid) ?? (await nextChildPosition(pid));
+        await prisma.groupHierarchy.create({
+          data: { parentGroupId: pid, childGroupId: groupId, position },
+        });
+      }
+    }
+
+    if (parentId === null) {
+      // ルートへ（replace）: 親リンクは上で削除済み。ルート同士の並びを更新
+      const rootGroups = await prisma.group.findMany({
+        where: { parentLinks: { none: {} } },
+        select: { id: true },
+        orderBy: [{ position: 'asc' }, { name: 'asc' }],
+      });
+      // groupId は parentLinks 削除後にルートに含まれる。まだ他親がある場合はここに来ない（replace で空）
+      const rootIds = rootGroups.map((g) => g.id);
+      if (!rootIds.includes(groupId)) {
+        // replace 直後でまだ create していないケースはないが、念のため末尾扱い
+        rootIds.push(groupId);
+      }
+      const ordered = insertBefore(rootIds, groupId, beforeGroupId);
+      await reorderRootGroups(ordered);
+    } else {
+      const siblingLinks = await prisma.groupHierarchy.findMany({
+        where: { parentGroupId: parentId },
+        select: { childGroupId: true },
+        orderBy: { position: 'asc' },
+      });
+      let siblingIds = siblingLinks.map((l) => l.childGroupId);
+      if (!siblingIds.includes(groupId)) {
+        // リンク未作成（新規所属）
+        await prisma.groupHierarchy.create({
+          data: { parentGroupId: parentId, childGroupId: groupId, position: siblingIds.length },
+        });
+        siblingIds = [...siblingIds, groupId];
+      }
+      const ordered = insertBefore(siblingIds, groupId, beforeGroupId);
+      await reorderSiblingsUnderParent(parentId, ordered);
+    }
+
+    const updated = await prisma.group.findUnique({
+      where: { id: groupId },
+      include: {
+        _count: { select: { members: true } },
+        permissionSet: { select: { id: true, name: true } },
+        ...GROUP_HIERARCHY_INCLUDE,
+      },
+    });
+    res.json(shapeGroupResponse(updated!));
+  } catch (e) {
+    console.error('グループ移動エラー:', e);
+    res.status(500).json({ error: 'グループの移動に失敗しました' });
   }
 });
 
@@ -426,13 +704,14 @@ router.get('/groups/:id', requirePermission('admin.groups', 'use'), async (req: 
         members: {
           include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } },
         },
+        ...GROUP_HIERARCHY_INCLUDE,
       },
     });
     if (!group) {
       res.status(404).json({ error: 'グループが見つかりません' });
       return;
     }
-    res.json(group);
+    res.json(shapeGroupResponse(group));
   } catch (e) {
     res.status(500).json({ error: 'グループの取得に失敗しました' });
   }
@@ -440,21 +719,69 @@ router.get('/groups/:id', requirePermission('admin.groups', 'use'), async (req: 
 
 router.post('/groups', requirePermission('admin.groups', 'input'), async (req: AuthRequest, res: Response) => {
   try {
+    const denied = assertFieldPermissions(req.permissions!, req.body, GROUP_FIELD_PERMS);
+    if (denied) {
+      res.status(403).json({ error: '権限がありません', code: denied });
+      return;
+    }
+
     const { name, memberIds, permissionSetId } = req.body;
+    const parentIds = normalizeIdList(req.body.parentIds);
+    const childIds = normalizeIdList(req.body.childIds);
+
+    if (req.body.parentIds !== undefined && parentIds === undefined) {
+      res.status(400).json({ error: 'parentIds の形式が不正です' });
+      return;
+    }
+    if (req.body.childIds !== undefined && childIds === undefined) {
+      res.status(400).json({ error: 'childIds の形式が不正です' });
+      return;
+    }
+
+    const relatedIds = [...(parentIds ?? []), ...(childIds ?? [])];
+    const missing = await assertGroupIdsExist(relatedIds);
+    if (missing) {
+      res.status(400).json({ error: missing });
+      return;
+    }
+
+    if (parentIds !== undefined || childIds !== undefined) {
+      const existing = await loadHierarchyEdges();
+      const provisionalId = -1;
+      const nextEdges = buildEdgesAfterGroupUpdate(existing, provisionalId, parentIds, childIds);
+      if (hasCycleInGroupHierarchy(nextEdges)) {
+        res.status(400).json({ error: 'グループの親子関係により循環参照になります' });
+        return;
+      }
+    }
+
     const group = await prisma.group.create({
       data: {
         name,
         permissionSetId: permissionSetId ?? null,
+        position: await nextRootPosition(),
         members: {
           create: (memberIds || []).map((userId: number) => ({ userId })),
         },
       },
+    });
+
+    try {
+      await syncGroupHierarchy(group.id, parentIds, childIds);
+    } catch (e) {
+      await prisma.group.delete({ where: { id: group.id } }).catch(() => undefined);
+      throw e;
+    }
+
+    const created = await prisma.group.findUnique({
+      where: { id: group.id },
       include: {
         _count: { select: { members: true } },
         permissionSet: { select: { id: true, name: true } },
+        ...GROUP_HIERARCHY_INCLUDE,
       },
     });
-    res.status(201).json(group);
+    res.status(201).json(shapeGroupResponse(created!));
   } catch (e) {
     res.status(500).json({ error: 'グループの作成に失敗しました' });
   }
@@ -462,10 +789,70 @@ router.post('/groups', requirePermission('admin.groups', 'input'), async (req: A
 
 router.put('/groups/:id', requirePermission('admin.groups', 'input'), async (req: AuthRequest, res: Response) => {
   try {
-    const { name, memberIds, permissionSetId } = req.body;
     const groupId = Number(req.params.id);
+    const existingGroup = await prisma.group.findUnique({
+      where: { id: groupId },
+      include: {
+        parentLinks: { select: { parentGroupId: true } },
+        childLinks: { select: { childGroupId: true } },
+      },
+    });
+    if (!existingGroup) {
+      res.status(404).json({ error: 'グループが見つかりません' });
+      return;
+    }
+
+    const existingForFields = {
+      parentIds: existingGroup.parentLinks.map((l) => l.parentGroupId),
+      childIds: existingGroup.childLinks.map((l) => l.childGroupId),
+    };
+    const denied = assertFieldPermissions(
+      req.permissions!,
+      req.body,
+      GROUP_FIELD_PERMS,
+      existingForFields
+    );
+    if (denied) {
+      res.status(403).json({ error: '権限がありません', code: denied });
+      return;
+    }
+
+    const { name, memberIds, permissionSetId } = req.body;
+    const parentIds = normalizeIdList(req.body.parentIds);
+    const childIds = normalizeIdList(req.body.childIds);
+
+    if (req.body.parentIds !== undefined && parentIds === undefined) {
+      res.status(400).json({ error: 'parentIds の形式が不正です' });
+      return;
+    }
+    if (req.body.childIds !== undefined && childIds === undefined) {
+      res.status(400).json({ error: 'childIds の形式が不正です' });
+      return;
+    }
+
+    if (parentIds?.includes(groupId) || childIds?.includes(groupId)) {
+      res.status(400).json({ error: 'グループの親子関係により循環参照になります' });
+      return;
+    }
+
+    const relatedIds = [...(parentIds ?? []), ...(childIds ?? [])];
+    const missing = await assertGroupIdsExist(relatedIds);
+    if (missing) {
+      res.status(400).json({ error: missing });
+      return;
+    }
+
+    if (parentIds !== undefined || childIds !== undefined) {
+      const existing = await loadHierarchyEdges();
+      const nextEdges = buildEdgesAfterGroupUpdate(existing, groupId, parentIds, childIds);
+      if (hasCycleInGroupHierarchy(nextEdges)) {
+        res.status(400).json({ error: 'グループの親子関係により循環参照になります' });
+        return;
+      }
+    }
+
     await prisma.groupMember.deleteMany({ where: { groupId } });
-    const group = await prisma.group.update({
+    await prisma.group.update({
       where: { id: groupId },
       data: {
         name,
@@ -474,12 +861,19 @@ router.put('/groups/:id', requirePermission('admin.groups', 'input'), async (req
           create: (memberIds || []).map((userId: number) => ({ userId })),
         },
       },
+    });
+
+    await syncGroupHierarchy(groupId, parentIds, childIds);
+
+    const group = await prisma.group.findUnique({
+      where: { id: groupId },
       include: {
         _count: { select: { members: true } },
         permissionSet: { select: { id: true, name: true } },
+        ...GROUP_HIERARCHY_INCLUDE,
       },
     });
-    res.json(group);
+    res.json(shapeGroupResponse(group!));
   } catch (e) {
     res.status(500).json({ error: 'グループの更新に失敗しました' });
   }

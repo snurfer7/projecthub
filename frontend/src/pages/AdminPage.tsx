@@ -6,7 +6,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import PermissionSetsPanel from '../components/PermissionSetsPanel';
 import HolidaySettingsPanel from '../components/HolidaySettingsPanel';
 import PermissionMatrixEditor, { flattenPermissionResources, PermissionMatrixRow } from '../components/PermissionMatrixEditor';
-import { Pencil, Trash2, GripVertical, Clock, Plus, UserX, UserCheck, Mail } from 'lucide-react';
+import { Pencil, Trash2, GripVertical, Clock, Plus, UserX, UserCheck, Mail, ChevronRight, ChevronDown } from 'lucide-react';
 import Modal from '../components/Modal';
 import AnalogTimePicker from '../components/AnalogTimePicker';
 import CustomTimePicker from '../components/CustomTimePicker';
@@ -71,7 +71,14 @@ export default function AdminPage({ user }: Props) {
   const [groupName, setGroupName] = useState('');
   const [groupMemberIds, setGroupMemberIds] = useState<number[]>([]);
   const [groupPermissionSetId, setGroupPermissionSetId] = useState<number | ''>('');
+  const [groupParentIds, setGroupParentIds] = useState<number[]>([]);
+  const [groupChildIds, setGroupChildIds] = useState<number[]>([]);
   const [groupError, setGroupError] = useState('');
+  const [collapsedGroupPaths, setCollapsedGroupPaths] = useState<Set<string>>(new Set());
+  const [draggedGroupId, setDraggedGroupId] = useState<number | null>(null);
+  const [groupDragOverPath, setGroupDragOverPath] = useState<string | null>(null);
+  const [groupDragPos, setGroupDragPos] = useState<'before' | 'after' | 'inside' | 'root' | null>(null);
+  const [groupMoveError, setGroupMoveError] = useState('');
 
   // Group detail states
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
@@ -590,6 +597,8 @@ export default function AdminPage({ user }: Props) {
     setGroupName('');
     setGroupMemberIds([]);
     setGroupPermissionSetId('');
+    setGroupParentIds([]);
+    setGroupChildIds([]);
     setGroupError('');
     setShowGroupModal(true);
   };
@@ -601,6 +610,8 @@ export default function AdminPage({ user }: Props) {
     setGroupName(detail.name);
     setGroupMemberIds(detail.members?.map((m) => m.userId) || []);
     setGroupPermissionSetId(detail.permissionSetId ?? '');
+    setGroupParentIds(detail.parents?.map((p) => p.id) || []);
+    setGroupChildIds(detail.children?.map((c) => c.id) || []);
     setGroupError('');
     setShowGroupModal(true);
   };
@@ -615,11 +626,17 @@ export default function AdminPage({ user }: Props) {
     e.preventDefault();
     setGroupError('');
     try {
-      const data = {
+      const data: Record<string, unknown> = {
         name: groupName,
         memberIds: groupMemberIds,
         permissionSetId: groupPermissionSetId === '' ? null : groupPermissionSetId,
       };
+      if (canInputField('admin.groups.fields.parentGroups')) {
+        data.parentIds = groupParentIds;
+      }
+      if (canInputField('admin.groups.fields.childGroups')) {
+        data.childIds = groupChildIds;
+      }
       if (editingGroupId) {
         await api.put(`/admin/groups/${editingGroupId}`, data);
         if (selectedGroup?.id === editingGroupId) {
@@ -651,6 +668,244 @@ export default function AdminPage({ user }: Props) {
     setGroupMemberIds((prev) =>
       prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
     );
+  };
+
+  const toggleGroupParent = (groupId: number) => {
+    setGroupParentIds((prev) =>
+      prev.includes(groupId) ? prev.filter((id) => id !== groupId) : [...prev, groupId]
+    );
+    setGroupChildIds((prev) => prev.filter((id) => id !== groupId));
+  };
+
+  const toggleGroupChild = (groupId: number) => {
+    setGroupChildIds((prev) =>
+      prev.includes(groupId) ? prev.filter((id) => id !== groupId) : [...prev, groupId]
+    );
+    setGroupParentIds((prev) => prev.filter((id) => id !== groupId));
+  };
+
+  const hierarchyCandidateGroups = groups.filter((g) => g.id !== editingGroupId);
+
+  const toggleGroupTreeNode = (path: string) => {
+    setCollapsedGroupPaths((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  };
+
+  type GroupTreeRow = {
+    group: Group;
+    depth: number;
+    path: string;
+    hasChildren: boolean;
+    parentId: number | null;
+  };
+
+  // 親を複数持てる（DAG）ため、同じグループが親ごとに複数回現れる。
+  // 展開状態はルートからのパスで管理する。
+  const groupTreeRows = useMemo(() => {
+    const byId = new Map(groups.map((g) => [g.id, g]));
+
+    const childrenOf = (group: Group, ancestors: Set<number>) =>
+      (group.children ?? [])
+        .map((c) => byId.get(c.id))
+        .filter((c): c is Group => !!c && !ancestors.has(c.id));
+
+    const reachable = new Set<number>();
+    const markReachable = (group: Group, seen: Set<number>) => {
+      if (seen.has(group.id)) return;
+      seen.add(group.id);
+      reachable.add(group.id);
+      for (const child of childrenOf(group, new Set())) {
+        markReachable(child, seen);
+      }
+    };
+    const parentlessGroups = [...groups]
+      .filter((g) => !g.parents || g.parents.length === 0)
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.name.localeCompare(b.name, 'ja'));
+    for (const root of parentlessGroups) markReachable(root, new Set());
+
+    const orphanRoots = groups
+      .filter((g) => !reachable.has(g.id))
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.name.localeCompare(b.name, 'ja'));
+    const roots = [...parentlessGroups, ...orphanRoots];
+
+    const rows: GroupTreeRow[] = [];
+    const visit = (
+      group: Group,
+      depth: number,
+      parentPath: string,
+      parentId: number | null,
+      ancestors: Set<number>
+    ) => {
+      const path = parentPath ? `${parentPath}/${group.id}` : String(group.id);
+      const children = childrenOf(group, ancestors);
+      rows.push({ group, depth, path, hasChildren: children.length > 0, parentId });
+      if (collapsedGroupPaths.has(path)) return;
+      const nextAncestors = new Set(ancestors).add(group.id);
+      for (const child of children) {
+        visit(child, depth + 1, path, group.id, nextAncestors);
+      }
+    };
+    for (const root of roots) visit(root, 0, '', null, new Set());
+
+    return rows;
+  }, [groups, collapsedGroupPaths]);
+
+  const canDragGroups = canInput('admin.groups');
+
+  const clearGroupDragState = () => {
+    setDraggedGroupId(null);
+    setGroupDragOverPath(null);
+    setGroupDragPos(null);
+  };
+
+  const isDescendantGroup = (ancestorId: number, maybeDescendantId: number): boolean => {
+    const byId = new Map(groups.map((g) => [g.id, g]));
+    const seen = new Set<number>();
+    const stack = [ancestorId];
+    while (stack.length > 0) {
+      const id = stack.pop()!;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const g = byId.get(id);
+      for (const c of g?.children ?? []) {
+        if (c.id === maybeDescendantId) return true;
+        stack.push(c.id);
+      }
+    }
+    return false;
+  };
+
+  const handleGroupDragStart = (e: DragEvent, groupId: number) => {
+    if (!canDragGroups) return;
+    setDraggedGroupId(groupId);
+    setGroupMoveError('');
+    e.dataTransfer.setData('text/plain', String(groupId));
+    e.dataTransfer.effectAllowed = 'copyMove';
+  };
+
+  const handleGroupDragOverRow = (e: DragEvent, row: GroupTreeRow) => {
+    if (!canDragGroups || draggedGroupId == null || draggedGroupId === row.group.id) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    let pos: 'before' | 'after' | 'inside';
+    if (y < rect.height * 0.25) pos = 'before';
+    else if (y > rect.height * 0.75) pos = 'after';
+    else pos = 'inside';
+
+    const potentialParentId = pos === 'inside' ? row.group.id : row.parentId;
+    if (
+      potentialParentId === draggedGroupId ||
+      (potentialParentId != null && isDescendantGroup(draggedGroupId, potentialParentId))
+    ) {
+      e.dataTransfer.dropEffect = 'none';
+      setGroupDragOverPath(null);
+      setGroupDragPos(null);
+      return;
+    }
+
+    const addMode = e.ctrlKey || e.metaKey;
+    e.dataTransfer.dropEffect = addMode ? 'copy' : 'move';
+    setGroupDragOverPath(row.path);
+    setGroupDragPos(pos);
+  };
+
+  const handleGroupDragOverRoot = (e: DragEvent) => {
+    if (!canDragGroups || draggedGroupId == null) return;
+    e.preventDefault();
+    if (e.ctrlKey || e.metaKey) {
+      e.dataTransfer.dropEffect = 'none';
+      setGroupDragOverPath('__root__');
+      setGroupDragPos(null);
+      return;
+    }
+    e.dataTransfer.dropEffect = 'move';
+    setGroupDragOverPath('__root__');
+    setGroupDragPos('root');
+  };
+
+  const handleGroupDropOnRow = async (e: DragEvent, row: GroupTreeRow) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const groupId = draggedGroupId;
+    const pos = groupDragPos;
+    clearGroupDragState();
+    if (!canDragGroups || groupId == null || groupId === row.group.id || !pos || pos === 'root') return;
+
+    const addMode = e.ctrlKey || e.metaKey;
+    let parentId: number | null;
+    let beforeGroupId: number | null = null;
+
+    if (pos === 'inside') {
+      parentId = row.group.id;
+      beforeGroupId = null;
+    } else {
+      parentId = row.parentId;
+      if (pos === 'before') {
+        beforeGroupId = row.group.id;
+      } else {
+        const siblings =
+          parentId == null
+            ? groups
+                .filter((g) => !g.parents || g.parents.length === 0)
+                .sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.name.localeCompare(b.name, 'ja'))
+                .map((g) => g.id)
+            : (groups.find((g) => g.id === parentId)?.children ?? []).map((c) => c.id);
+        const idx = siblings.indexOf(row.group.id);
+        beforeGroupId = idx >= 0 && idx < siblings.length - 1 ? siblings[idx + 1] : null;
+      }
+    }
+
+    if (
+      parentId === groupId ||
+      (parentId != null && isDescendantGroup(groupId, parentId))
+    ) {
+      setGroupMoveError('グループの親子関係により循環参照になります');
+      return;
+    }
+
+    try {
+      await api.post('/admin/groups/move', {
+        groupId,
+        parentId,
+        mode: addMode ? 'add' : 'replace',
+        beforeGroupId,
+      });
+      setGroupMoveError('');
+      loadAll();
+    } catch (err: any) {
+      setGroupMoveError(err.response?.data?.error || 'グループの移動に失敗しました');
+    }
+  };
+
+  const handleGroupDropOnRoot = async (e: DragEvent) => {
+    e.preventDefault();
+    const groupId = draggedGroupId;
+    clearGroupDragState();
+    if (!canDragGroups || groupId == null) return;
+    if (e.ctrlKey || e.metaKey) return;
+
+    try {
+      await api.post('/admin/groups/move', {
+        groupId,
+        parentId: null,
+        mode: 'replace',
+        beforeGroupId: groupTreeRows.find((r) => r.parentId == null)?.group.id ?? null,
+      });
+      setGroupMoveError('');
+      loadAll();
+    } catch (err: any) {
+      setGroupMoveError(err.response?.data?.error || 'グループの移動に失敗しました');
+    }
   };
 
 
@@ -809,42 +1064,134 @@ export default function AdminPage({ user }: Props) {
 
       {tab === 'groups' && (
         <div>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 gap-4">
             <button onClick={openCreateGroupModal}
               className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">
               新規グループ
             </button>
+            {canDragGroups && (
+              <p className="text-xs text-gray-500">
+                ドラッグで移動（行の間＝並び替え、行の上＝所属変更）。Ctrl/Cmd+ドロップで親を追加。ルート帯へドロップで親なし。
+              </p>
+            )}
           </div>
+
+          {groupMoveError && (
+            <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{groupMoveError}</div>
+          )}
 
           <div className="bg-white rounded-lg shadow">
             <table className="w-full text-sm">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">グループ名</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">親グループ</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">権限設定</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">メンバー数</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">アクション</th>
                 </tr>
               </thead>
               <tbody>
-                {groups.map((group) => (
-                  <tr key={group.id} className="border-t hover:bg-gray-50 cursor-pointer"
-                    onClick={() => handleSelectGroup(group.id)}>
-                    <td className="px-4 py-3 text-sky-600 font-medium">{group.name}</td>
-                    <td className="px-4 py-3 text-gray-600">{group.permissionSet?.name || '-'}</td>
-                    <td className="px-4 py-3 text-gray-600">{group._count?.members || 0}</td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button onClick={(e) => { e.stopPropagation(); openEditGroupModal(group); }} title="編集" className="p-1.5 text-sky-600 hover:bg-sky-50 rounded">
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: 'groups', id: group.id, name: group.name }); }} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                {canDragGroups && groups.length > 0 && (
+                  <tr
+                    className={`border-t ${groupDragOverPath === '__root__' && groupDragPos === 'root' ? 'bg-sky-50' : 'bg-gray-50/50'}`}
+                    onDragOver={handleGroupDragOverRoot}
+                    onDragLeave={() => {
+                      if (groupDragOverPath === '__root__') {
+                        setGroupDragOverPath(null);
+                        setGroupDragPos(null);
+                      }
+                    }}
+                    onDrop={handleGroupDropOnRoot}
+                  >
+                    <td colSpan={5} className="px-4 py-1.5 text-xs text-gray-400 text-center relative">
+                      {groupDragOverPath === '__root__' && groupDragPos === 'root' && (
+                        <div className="absolute top-0 left-4 right-4 h-0.5 bg-sky-500" />
+                      )}
+                      ここにドロップでルート（親なし）へ
                     </td>
                   </tr>
-                ))}
+                )}
+                {groupTreeRows.map((row) => {
+                  const { group, depth, path, hasChildren } = row;
+                  const isOver = groupDragOverPath === path;
+                  return (
+                    <tr
+                      key={path}
+                      className={`border-t hover:bg-gray-50 cursor-pointer relative ${draggedGroupId === group.id ? 'opacity-40' : ''}`}
+                      draggable={canDragGroups}
+                      onDragStart={(e) => handleGroupDragStart(e, group.id)}
+                      onDragEnd={clearGroupDragState}
+                      onDragOver={(e) => handleGroupDragOverRow(e, row)}
+                      onDragLeave={() => {
+                        if (groupDragOverPath === path) {
+                          setGroupDragOverPath(null);
+                          setGroupDragPos(null);
+                        }
+                      }}
+                      onDrop={(e) => handleGroupDropOnRow(e, row)}
+                      onClick={() => handleSelectGroup(group.id)}
+                    >
+                      <td className="px-4 py-3 relative">
+                        {isOver && groupDragPos === 'before' && (
+                          <div className="absolute left-4 right-4 top-0 h-0.5 bg-sky-500 z-10 pointer-events-none" />
+                        )}
+                        {isOver && groupDragPos === 'after' && (
+                          <div className="absolute left-4 right-4 bottom-0 h-0.5 bg-sky-500 z-10 pointer-events-none" />
+                        )}
+                        <div
+                          className={`flex items-center min-w-0 rounded ${isOver && groupDragPos === 'inside' ? 'ring-2 ring-sky-400 bg-sky-50' : ''}`}
+                          style={depth > 0 ? { paddingLeft: depth * 20 } : undefined}
+                        >
+                          <span className="w-5 flex-shrink-0 flex items-center justify-center mr-0.5">
+                            {hasChildren ? (
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); toggleGroupTreeNode(path); }}
+                                className="p-0.5 text-gray-500 hover:text-gray-800 rounded"
+                                title={collapsedGroupPaths.has(path) ? '展開' : '折りたたむ'}
+                                aria-expanded={!collapsedGroupPaths.has(path)}
+                              >
+                                {collapsedGroupPaths.has(path) ? (
+                                  <ChevronRight size={14} />
+                                ) : (
+                                  <ChevronDown size={14} />
+                                )}
+                              </button>
+                            ) : (
+                              <span className="w-3.5" />
+                            )}
+                          </span>
+                          {canDragGroups && (
+                            <span className="mr-1 text-gray-300 cursor-grab active:cursor-grabbing" title="ドラッグして移動">
+                              <GripVertical className="w-3.5 h-3.5" />
+                            </span>
+                          )}
+                          <span className="text-sky-600 font-medium truncate">{group.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">
+                        {group.parents && group.parents.length > 0
+                          ? group.parents.map((p) => p.name).join(', ')
+                          : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">
+                        {group.permissionSet?.name || (group.parents && group.parents.length > 0 ? '継承' : '-')}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">{group._count?.members || 0}</td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button onClick={(e) => { e.stopPropagation(); openEditGroupModal(group); }} title="編集" className="p-1.5 text-sky-600 hover:bg-sky-50 rounded">
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: 'groups', id: group.id, name: group.name }); }} title="削除" className="p-1.5 text-red-600 hover:bg-red-50 rounded">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
             {groups.length === 0 && (
@@ -1420,7 +1767,26 @@ export default function AdminPage({ user }: Props) {
             </div>
             <div className="text-sm mb-2">
               <span className="text-gray-500">権限設定:</span>
-              <span className="ml-2">{selectedGroup.permissionSet?.name || '未割当'}</span>
+              <span className="ml-2">
+                {selectedGroup.permissionSet?.name
+                  || (selectedGroup.parents && selectedGroup.parents.length > 0 ? '継承（親グループ）' : '未割当')}
+              </span>
+            </div>
+            <div className="text-sm mb-2">
+              <span className="text-gray-500">親グループ:</span>
+              <span className="ml-2">
+                {selectedGroup.parents && selectedGroup.parents.length > 0
+                  ? selectedGroup.parents.map((p) => p.name).join(', ')
+                  : 'なし'}
+              </span>
+            </div>
+            <div className="text-sm mb-2">
+              <span className="text-gray-500">子グループ:</span>
+              <span className="ml-2">
+                {selectedGroup.children && selectedGroup.children.length > 0
+                  ? selectedGroup.children.map((c) => c.name).join(', ')
+                  : 'なし'}
+              </span>
             </div>
             <div className="border-t pt-4">
               <h3 className="text-sm font-semibold text-gray-700 mb-2">メンバー ({selectedGroup.members?.length || 0})</h3>
@@ -1473,11 +1839,65 @@ export default function AdminPage({ user }: Props) {
               onChange={(e) => setGroupPermissionSetId(e.target.value === '' ? '' : Number(e.target.value))}
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
             >
-              <option value="">未割当</option>
+              <option value="">未割当（親から継承）</option>
               {permissionSets.map((ps) => (
                 <option key={ps.id} value={ps.id}>{ps.name}</option>
               ))}
             </select>
+          </div>
+          <div className="mb-4">
+            <label className={`block text-sm font-medium text-gray-700 mb-2 ${canInputField('admin.groups.fields.parentGroups') ? '' : 'opacity-60'}`}>
+              親グループ
+            </label>
+            <div className={`border rounded-md max-h-36 overflow-y-auto ${!canInputField('admin.groups.fields.parentGroups') ? 'opacity-60' : ''}`}>
+              {hierarchyCandidateGroups.length === 0 ? (
+                <p className="px-3 py-2 text-sm text-gray-400">候補がありません</p>
+              ) : (
+                hierarchyCandidateGroups.map((g) => (
+                  <label
+                    key={g.id}
+                    className={`flex items-center px-3 py-2 border-b last:border-b-0 ${canInputField('admin.groups.fields.parentGroups') ? 'hover:bg-gray-50 cursor-pointer' : 'cursor-not-allowed'}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={groupParentIds.includes(g.id)}
+                      onChange={() => toggleGroupParent(g.id)}
+                      disabled={!canInputField('admin.groups.fields.parentGroups')}
+                      className="mr-3 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                    />
+                    <span className="text-sm">{g.name}</span>
+                  </label>
+                ))
+              )}
+            </div>
+            <p className="text-xs text-gray-400 mt-1">{groupParentIds.length} 件選択中</p>
+          </div>
+          <div className="mb-4">
+            <label className={`block text-sm font-medium text-gray-700 mb-2 ${canInputField('admin.groups.fields.childGroups') ? '' : 'opacity-60'}`}>
+              子グループ
+            </label>
+            <div className={`border rounded-md max-h-36 overflow-y-auto ${!canInputField('admin.groups.fields.childGroups') ? 'opacity-60' : ''}`}>
+              {hierarchyCandidateGroups.length === 0 ? (
+                <p className="px-3 py-2 text-sm text-gray-400">候補がありません</p>
+              ) : (
+                hierarchyCandidateGroups.map((g) => (
+                  <label
+                    key={g.id}
+                    className={`flex items-center px-3 py-2 border-b last:border-b-0 ${canInputField('admin.groups.fields.childGroups') ? 'hover:bg-gray-50 cursor-pointer' : 'cursor-not-allowed'}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={groupChildIds.includes(g.id)}
+                      onChange={() => toggleGroupChild(g.id)}
+                      disabled={!canInputField('admin.groups.fields.childGroups')}
+                      className="mr-3 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                    />
+                    <span className="text-sm">{g.name}</span>
+                  </label>
+                ))
+              )}
+            </div>
+            <p className="text-xs text-gray-400 mt-1">{groupChildIds.length} 件選択中</p>
           </div>
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">メンバー</label>

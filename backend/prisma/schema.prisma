@@ -54,13 +54,28 @@ model Group {
   name            String              @unique
   createdAt       DateTime            @default(now()) @map("created_at")
   permissionSetId Int?                @map("permission_set_id")
+  position        Int                 @default(0)
   members         GroupMember[]
   assignedIssues  Issue[]             @relation("IssueAssigneeGroup")
   projects        ProjectGroup[]
   projectRoles    ProjectMemberRole[] @relation("GroupSourceRoles")
   permissionSet   PermissionSet?      @relation(fields: [permissionSetId], references: [id], onDelete: SetNull)
+  parentLinks     GroupHierarchy[]    @relation("GroupChildren")
+  childLinks      GroupHierarchy[]    @relation("GroupParents")
 
   @@map("groups")
+}
+
+model GroupHierarchy {
+  id            Int   @id @default(autoincrement())
+  parentGroupId Int   @map("parent_group_id")
+  childGroupId  Int   @map("child_group_id")
+  position      Int   @default(0)
+  parentGroup   Group @relation("GroupParents", fields: [parentGroupId], references: [id], onDelete: Cascade)
+  childGroup    Group @relation("GroupChildren", fields: [childGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([parentGroupId, childGroupId])
+  @@map("group_hierarchies")
 }
 
 model PermissionResource {

@@ -57,10 +57,20 @@ export default function ProjectOverview() {
         api.get('/issues/meta/options').then((res) => {
             setAllUsers(res.data.users);
             setAllGroups(
-                (res.data.groups ?? []).map((g: { id: number; name: string; members?: { userId: number }[] }) => ({
+                (res.data.groups ?? []).map((g: {
+                    id: number;
+                    name: string;
+                    position?: number;
+                    members?: { userId: number }[];
+                    parents?: { id: number; name: string }[];
+                    children?: { id: number; name: string }[];
+                }) => ({
                     id: g.id,
                     name: g.name,
+                    position: g.position,
                     members: g.members ?? [],
+                    parents: g.parents,
+                    children: g.children,
                 })),
             );
         }).catch(() => { });
@@ -80,60 +90,173 @@ export default function ProjectOverview() {
     const individualMembers = (project.members || []).filter((m: ProjectMember) =>
         !allGroupUserIds.has(m.userId)
     );
+    const currentIndividualUserIds = new Set(individualMembers.map((m) => m.userId));
 
-    // Selectable groups (not yet assigned)
-    const selectableGroups = allGroups.filter((g) => !assignedGroupIds.has(g.id));
+    const isPrincipalDisabled = (selectKey: string) => {
+        if (selectKey.startsWith('g:')) {
+            return assignedGroupIds.has(Number(selectKey.slice(2)));
+        }
+        if (selectKey.startsWith('u:')) {
+            const uid = Number(selectKey.slice(2));
+            return currentIndividualUserIds.has(uid) || allGroupUserIds.has(uid);
+        }
+        return true;
+    };
 
-    // Selectable users (not yet individually added and not in any assigned group)
-    const currentIndividualUserIds = new Set(individualMembers.map(m => m.userId));
-    const selectableUsers = allUsers.filter(u => u.status === 'active' && !currentIndividualUserIds.has(u.id) && !allGroupUserIds.has(u.id));
-
+    /** 階層を崩さないよう全グループを表示し、割当済みは disabled にする */
     const groupedPrincipalList = useMemo(() => {
-        const userById = new Map(selectableUsers.map((u) => [u.id, u]));
+        const userById = new Map(allUsers.map((u) => [u.id, u]));
         const usersInAnyGroup = new Set<number>();
-        const sortedGroups = [...selectableGroups].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
-        const sections: {
-            key: string;
-            label: string;
-            selectable: boolean;
-            users: { id: number; firstName: string; lastName: string }[];
-        }[] = [];
+        const idSet = new Set(allGroups.map((g) => g.id));
+        const groups: GroupedUserOptionGroup[] = allGroups.map((g) => ({
+            ...g,
+            parents: (g.parents ?? []).filter((p) => idSet.has(p.id)),
+            children: (g.children ?? []).filter((c) => idSet.has(c.id)),
+        }));
+        const byId = new Map(groups.map((g) => [g.id, g]));
 
-        for (const g of sortedGroups) {
-            const members = [...g.members]
+        type PrincipalUser = {
+            id: number;
+            firstName: string;
+            lastName: string;
+            disabled: boolean;
+        };
+        type PrincipalSection = {
+            key: string;
+            selectKey: string;
+            label: string;
+            /** グループ見出しとして選択可能（未所属ラベルは false） */
+            selectable: boolean;
+            disabled: boolean;
+            depth: number;
+            users: PrincipalUser[];
+        };
+        const sections: PrincipalSection[] = [];
+
+        const sortGroups = (a: GroupedUserOptionGroup, b: GroupedUserOptionGroup) => {
+            const pos = (a.position ?? 0) - (b.position ?? 0);
+            if (pos !== 0) return pos;
+            return a.name.localeCompare(b.name, 'ja');
+        };
+
+        const membersOf = (g: GroupedUserOptionGroup): PrincipalUser[] =>
+            [...g.members]
                 .map((m) => userById.get(m.userId))
                 .filter((u): u is { id: number; firstName: string; lastName: string; status: string } => !!u)
+                .filter((u) => u.status === 'active' || currentIndividualUserIds.has(u.id) || allGroupUserIds.has(u.id))
                 .sort((a, b) =>
                     `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'ja'),
-                );
+                )
+                .map((u) => ({
+                    id: u.id,
+                    firstName: u.firstName,
+                    lastName: u.lastName,
+                    disabled: currentIndividualUserIds.has(u.id) || allGroupUserIds.has(u.id),
+                }));
+
+        const childrenOf = (group: GroupedUserOptionGroup, ancestors: Set<number>) => {
+            const fromExplicit = !!(group.children && group.children.length > 0);
+            const childIds = fromExplicit
+                ? group.children!.map((c) => c.id)
+                : groups.filter((g) => g.parents?.some((p) => p.id === group.id)).map((g) => g.id);
+            const list = childIds
+                .map((id) => byId.get(id))
+                .filter((c): c is GroupedUserOptionGroup => !!c && !ancestors.has(c.id));
+            return fromExplicit ? list : list.sort(sortGroups);
+        };
+
+        const hasHierarchy = groups.some(
+            (g) => (g.children?.length ?? 0) > 0 || (g.parents?.length ?? 0) > 0,
+        );
+
+        const pushSection = (
+            group: GroupedUserOptionGroup,
+            depth: number,
+            path: string,
+        ) => {
+            const members = membersOf(group);
             for (const u of members) usersInAnyGroup.add(u.id);
             sections.push({
-                key: `g:${g.id}`,
-                label: g.name,
+                key: path,
+                selectKey: `g:${group.id}`,
+                label: group.name,
                 selectable: true,
+                disabled: assignedGroupIds.has(group.id),
+                depth,
                 users: members,
             });
+        };
+
+        if (!hasHierarchy) {
+            for (const g of [...groups].sort((a, b) => a.name.localeCompare(b.name, 'ja'))) {
+                pushSection(g, 0, `g:${g.id}`);
+            }
+        } else {
+            const reachable = new Set<number>();
+            const markReachable = (group: GroupedUserOptionGroup, seen: Set<number>) => {
+                if (seen.has(group.id)) return;
+                seen.add(group.id);
+                reachable.add(group.id);
+                for (const child of childrenOf(group, new Set())) {
+                    markReachable(child, seen);
+                }
+            };
+            const parentless = [...groups]
+                .filter((g) => !g.parents || g.parents.length === 0)
+                .sort(sortGroups);
+            for (const root of parentless) markReachable(root, new Set());
+            const orphans = groups.filter((g) => !reachable.has(g.id)).sort(sortGroups);
+            const roots = [...parentless, ...orphans];
+
+            const visit = (
+                group: GroupedUserOptionGroup,
+                depth: number,
+                parentPath: string,
+                ancestors: Set<number>,
+            ) => {
+                const path = parentPath ? `${parentPath}/${group.id}` : String(group.id);
+                pushSection(group, depth, path);
+                const nextAncestors = new Set(ancestors).add(group.id);
+                for (const child of childrenOf(group, ancestors)) {
+                    visit(child, depth + 1, path, nextAncestors);
+                }
+            };
+            for (const root of roots) visit(root, 0, '', new Set());
         }
 
-        const ungrouped = selectableUsers
-            .filter((u) => !usersInAnyGroup.has(u.id))
+        const ungrouped = allUsers
+            .filter(
+                (u) =>
+                    !usersInAnyGroup.has(u.id) &&
+                    (u.status === 'active' || currentIndividualUserIds.has(u.id)),
+            )
             .sort((a, b) =>
                 `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'ja'),
-            );
+            )
+            .map((u) => ({
+                id: u.id,
+                firstName: u.firstName,
+                lastName: u.lastName,
+                disabled: currentIndividualUserIds.has(u.id) || allGroupUserIds.has(u.id),
+            }));
         if (ungrouped.length > 0) {
             sections.push({
                 key: '__ungrouped__',
+                selectKey: '__ungrouped__',
                 label: '未所属',
                 selectable: false,
+                disabled: false,
+                depth: 0,
                 users: ungrouped,
             });
         }
 
         return sections;
-    }, [selectableGroups, selectableUsers]);
+    }, [allGroups, allUsers, assignedGroupIds, currentIndividualUserIds, allGroupUserIds]);
 
     // ── Toggles ───────────────────────────────────────────────────────────────
     const togglePrincipal = (key: string) => {
+        if (isPrincipalDisabled(key)) return;
         setSelectedPrincipals((prev) => {
             const next = new Set(prev);
             if (next.has(key)) next.delete(key);
@@ -575,16 +698,42 @@ export default function ProjectOverview() {
                                         groupedPrincipalList.map((section) => (
                                             <div key={section.key} className="border-b border-gray-50 last:border-b-0">
                                                 {section.selectable ? (
-                                                    <label className={`flex items-center gap-3 px-3.5 py-2.5 hover:bg-indigo-50/40 cursor-pointer group transition-colors ${selectedPrincipals.has(section.key) ? 'bg-indigo-50/60' : ''}`}>
-                                                        <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${selectedPrincipals.has(section.key) ? 'bg-indigo-500 border-indigo-500' : 'border-gray-200 bg-white group-hover:border-indigo-300'}`}>
-                                                            {selectedPrincipals.has(section.key) && <Check className="w-2.5 h-2.5 text-white" strokeWidth={4} />}
+                                                    <label
+                                                        className={`flex items-center gap-3 pr-3.5 py-2.5 transition-colors ${
+                                                            section.disabled
+                                                                ? 'opacity-45 cursor-not-allowed'
+                                                                : `hover:bg-indigo-50/40 cursor-pointer group ${selectedPrincipals.has(section.selectKey) ? 'bg-indigo-50/60' : ''}`
+                                                        }`}
+                                                        style={{ paddingLeft: 14 + section.depth * 16 }}
+                                                    >
+                                                        <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
+                                                            section.disabled
+                                                                ? 'border-gray-200 bg-gray-100'
+                                                                : selectedPrincipals.has(section.selectKey)
+                                                                  ? 'bg-indigo-500 border-indigo-500'
+                                                                  : 'border-gray-200 bg-white group-hover:border-indigo-300'
+                                                        }`}>
+                                                            {!section.disabled && selectedPrincipals.has(section.selectKey) && <Check className="w-2.5 h-2.5 text-white" strokeWidth={4} />}
+                                                            {section.disabled && <Check className="w-2.5 h-2.5 text-gray-400" strokeWidth={4} />}
                                                         </div>
-                                                        <Users className={`w-4 h-4 ${selectedPrincipals.has(section.key) ? 'text-indigo-500' : 'text-gray-300 group-hover:text-indigo-400'}`} />
-                                                        <span className={`text-[12px] font-semibold ${selectedPrincipals.has(section.key) ? 'text-indigo-700' : 'text-slate-600 group-hover:text-indigo-600'}`}>{section.label}</span>
-                                                        <input type="checkbox" className="hidden" checked={selectedPrincipals.has(section.key)} onChange={() => togglePrincipal(section.key)} />
+                                                        <Users className={`w-4 h-4 ${section.disabled ? 'text-gray-300' : selectedPrincipals.has(section.selectKey) ? 'text-indigo-500' : 'text-gray-300 group-hover:text-indigo-400'}`} />
+                                                        <span className={`text-[12px] font-semibold ${section.disabled ? 'text-gray-400' : selectedPrincipals.has(section.selectKey) ? 'text-indigo-700' : 'text-slate-600 group-hover:text-indigo-600'}`}>
+                                                            {section.label}
+                                                            {section.disabled && <span className="ml-1.5 text-[10px] font-normal text-gray-400">追加済み</span>}
+                                                        </span>
+                                                        <input
+                                                            type="checkbox"
+                                                            className="hidden"
+                                                            disabled={section.disabled}
+                                                            checked={section.disabled || selectedPrincipals.has(section.selectKey)}
+                                                            onChange={() => togglePrincipal(section.selectKey)}
+                                                        />
                                                     </label>
                                                 ) : (
-                                                    <div className="px-3.5 pt-2.5 pb-1 text-[11px] font-semibold text-slate-500 select-none">
+                                                    <div
+                                                        className="pr-3.5 pt-2.5 pb-1 text-[11px] font-semibold text-slate-500 select-none"
+                                                        style={{ paddingLeft: 14 + section.depth * 16 }}
+                                                    >
                                                         {section.label}
                                                     </div>
                                                 )}
@@ -593,17 +742,38 @@ export default function ProjectOverview() {
                                                     const selected = selectedPrincipals.has(key);
                                                     return (
                                                         <label
-                                                            key={key}
-                                                            className={`flex items-center gap-3 pl-9 pr-3.5 py-2 hover:bg-sky-50/40 cursor-pointer group transition-colors ${selected ? 'bg-sky-50/60' : ''}`}
+                                                            key={`${section.key}-${key}`}
+                                                            className={`flex items-center gap-3 pr-3.5 py-2 transition-colors ${
+                                                                u.disabled
+                                                                    ? 'opacity-45 cursor-not-allowed'
+                                                                    : `hover:bg-sky-50/40 cursor-pointer group ${selected ? 'bg-sky-50/60' : ''}`
+                                                            }`}
+                                                            style={{ paddingLeft: 14 + (section.depth + 1) * 16 }}
                                                         >
-                                                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${selected ? 'bg-sky-500 border-sky-500' : 'border-gray-200 bg-white group-hover:border-sky-300'}`}>
-                                                                {selected && <Check className="w-2.5 h-2.5 text-white" strokeWidth={4} />}
+                                                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
+                                                                u.disabled
+                                                                    ? 'border-gray-200 bg-gray-100'
+                                                                    : selected
+                                                                      ? 'bg-sky-500 border-sky-500'
+                                                                      : 'border-gray-200 bg-white group-hover:border-sky-300'
+                                                            }`}>
+                                                                {!u.disabled && selected && <Check className="w-2.5 h-2.5 text-white" strokeWidth={4} />}
+                                                                {u.disabled && <Check className="w-2.5 h-2.5 text-gray-400" strokeWidth={4} />}
                                                             </div>
-                                                            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${selected ? 'bg-sky-200 text-sky-700' : 'bg-gray-100 text-gray-400 group-hover:bg-sky-100 group-hover:text-sky-500'}`}>
+                                                            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${u.disabled ? 'bg-gray-100 text-gray-400' : selected ? 'bg-sky-200 text-sky-700' : 'bg-gray-100 text-gray-400 group-hover:bg-sky-100 group-hover:text-sky-500'}`}>
                                                                 {u.lastName[0]}{u.firstName[0]}
                                                             </div>
-                                                            <span className={`text-[13px] ${selected ? 'text-sky-700 font-semibold' : 'text-gray-600 group-hover:text-sky-600'}`}>{u.lastName} {u.firstName}</span>
-                                                            <input type="checkbox" className="hidden" checked={selected} onChange={() => togglePrincipal(key)} />
+                                                            <span className={`text-[13px] ${u.disabled ? 'text-gray-400' : selected ? 'text-sky-700 font-semibold' : 'text-gray-600 group-hover:text-sky-600'}`}>
+                                                                {u.lastName} {u.firstName}
+                                                                {u.disabled && <span className="ml-1.5 text-[10px] font-normal text-gray-400">追加済み</span>}
+                                                            </span>
+                                                            <input
+                                                                type="checkbox"
+                                                                className="hidden"
+                                                                disabled={u.disabled}
+                                                                checked={u.disabled || selected}
+                                                                onChange={() => togglePrincipal(key)}
+                                                            />
                                                         </label>
                                                     );
                                                 })}

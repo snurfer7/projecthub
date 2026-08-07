@@ -13,6 +13,8 @@ export interface ComboboxOption {
     isGroupLabel?: boolean;
     /** trueの場合、選択可能なグループ見出しとして表示する（直下の通常選択肢はインデント） */
     isGroupHeader?: boolean;
+    /** 階層インデント（0=ルート）。グループツリー表示用 */
+    depth?: number;
 }
 
 interface ComboboxProps {
@@ -71,24 +73,52 @@ export default function Combobox({
         if (!q) return options;
 
         const result: ComboboxOption[] = [];
-        let pendingGroup: ComboboxOption | null = null;
+        const pushed = new Set<number>(); // options 上の index
+        const pushUnique = (idx: number) => {
+            if (pushed.has(idx)) return;
+            pushed.add(idx);
+            result.push(options[idx]);
+        };
+        const pushAncestors = (idx: number) => {
+            let depthLimit = options[idx].depth ?? 0;
+            const ancestors: number[] = [];
+            for (let j = idx - 1; j >= 0; j -= 1) {
+                const prev = options[j];
+                if (!prev.isGroupHeader && !prev.isGroupLabel) continue;
+                const d = prev.depth ?? 0;
+                if (d < depthLimit) {
+                    ancestors.unshift(j);
+                    depthLimit = d;
+                    if (d === 0) break;
+                }
+            }
+            for (const a of ancestors) pushUnique(a);
+        };
+
         let i = 0;
         while (i < options.length) {
             const o = options[i];
             if (o.isGroupLabel || o.isGroupHeader) {
                 const headerMatch = (o.label || '').toLowerCase().includes(q);
-                if (o.isGroupHeader && headerMatch) {
-                    // グループ名が一致したら見出し＋直後のメンバーをまとめて出す
-                    result.push(o);
+                if (headerMatch) {
+                    const headerDepth = o.depth ?? 0;
+                    pushAncestors(i);
+                    pushUnique(i);
                     i += 1;
-                    while (i < options.length && !options[i].isGroupLabel && !options[i].isGroupHeader) {
-                        result.push(options[i]);
+                    while (i < options.length) {
+                        const next = options[i];
+                        const nextDepth = next.depth ?? 0;
+                        if (
+                            (next.isGroupLabel || next.isGroupHeader) &&
+                            nextDepth <= headerDepth
+                        ) {
+                            break;
+                        }
+                        pushUnique(i);
                         i += 1;
                     }
-                    pendingGroup = null;
                     continue;
                 }
-                pendingGroup = o;
                 i += 1;
                 continue;
             }
@@ -96,11 +126,8 @@ export default function Combobox({
                 (o.label || '').toLowerCase().includes(q) ||
                 (o.secondaryLabel || '').toLowerCase().includes(q);
             if (match) {
-                if (pendingGroup) {
-                    result.push(pendingGroup);
-                    pendingGroup = null;
-                }
-                result.push(o);
+                pushAncestors(i);
+                pushUnique(i);
             }
             i += 1;
         }
@@ -350,39 +377,43 @@ export default function Combobox({
                             {filteredOptions.length > 0 ? (
                                 filteredOptions.map((option, index) => {
                                     if (option.isGroupLabel) {
+                                        const labelDepth = option.depth ?? 0;
                                         return (
                                             <li
                                                 key={`label-${option.value}-${index}`}
-                                                className="px-3 pt-2.5 pb-1 text-xs font-semibold text-slate-500 select-none"
+                                                className="pt-2.5 pb-1 text-xs font-semibold text-slate-500 select-none"
+                                                style={{ paddingLeft: 12 + labelDepth * 12, paddingRight: 12 }}
                                             >
                                                 {option.label}
                                             </li>
                                         );
                                     }
                                     const isSelected = values.some(v => String(v) === String(option.value));
-                                    let indented = false;
-                                    if (!option.isGroupHeader) {
-                                        for (let j = index - 1; j >= 0; j--) {
-                                            const prev = filteredOptions[j];
-                                            if (prev.isGroupHeader || prev.isGroupLabel) {
-                                                indented = true;
-                                                break;
+                                    let depth = option.depth;
+                                    if (depth == null) {
+                                        let indented = false;
+                                        if (!option.isGroupHeader) {
+                                            for (let j = index - 1; j >= 0; j--) {
+                                                const prev = filteredOptions[j];
+                                                if (prev.isGroupHeader || prev.isGroupLabel) {
+                                                    indented = true;
+                                                    break;
+                                                }
                                             }
                                         }
+                                        depth = option.isGroupHeader ? 0 : indented ? 1 : 0;
                                     }
                                     return (
                                         <li
                                             key={`${String(option.value)}-${index}`}
                                             onMouseDown={(e) => e.preventDefault()}
                                             onClick={() => handleSelect(option)}
-                                            className={`group px-3 py-2 text-sm cursor-pointer transition-colors flex items-center justify-between gap-2 ${
+                                            className={`group py-2 text-sm cursor-pointer transition-colors flex items-center justify-between gap-2 ${
                                                 option.divider ? 'border-b border-gray-200' : ''
                                             } ${
                                                 option.isGroupHeader
                                                     ? 'pt-2.5 pb-1 text-xs font-semibold'
-                                                    : indented
-                                                      ? 'pl-6'
-                                                      : ''
+                                                    : ''
                                             } ${
                                                 isSelected
                                                 ? option.isGroupHeader
@@ -392,6 +423,7 @@ export default function Combobox({
                                                   ? 'text-slate-600 hover:bg-sky-50'
                                                   : 'text-gray-700 hover:bg-sky-50'
                                             }`}
+                                            style={{ paddingLeft: 12 + depth * 12, paddingRight: 12 }}
                                         >
                                             <div className="min-w-0 flex-1">
                                                 {option.secondaryLabel && (
