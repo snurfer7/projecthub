@@ -303,6 +303,14 @@ export default function ProjectListPage() {
 
   /** 保存済み検索のデフォルトを自動適用（表示モード切替時）。古い応答は破棄する */
   const savedSearchRequestGenRef = useRef(0);
+  /** ビュー切替時のリセット〜デフォルト適用が終わるまでチケット取得を抑止する */
+  const [filterBootstrapReady, setFilterBootstrapReady] = useState(false);
+  const filterBootstrapGenRef = useRef(0);
+  /** ガント／カンバン／時間の取得応答の世代（古い応答を破棄） */
+  const ganttLoadGenRef = useRef(0);
+  const kanbanLoadGenRef = useRef(0);
+  const timeLoadGenRef = useRef(0);
+
   const applyDefaultSavedSearch = useCallback(
     async (mode: ProjectListViewMode) => {
       if (!canUse('projects.saved-searches')) return;
@@ -320,19 +328,36 @@ export default function ProjectListPage() {
     [applyFilter, canUse],
   );
 
-  // ビュー切替時: 条件リセット → デフォルト保存済み検索を適用
+  // ビュー切替時: 条件リセット → デフォルト保存済み検索を適用 → その後にデータ取得を許可
   // ※ 時間タブ初期値エフェクトより先に定義することで、React のエフェクト実行順（定義順）に従い
   //   このリセットが先に走り、その後に時間タブ初期値が上書きされる形になる
   // ※ 時間タブの担当者初期値がガント等に残らないよう、切替時は必ず issueFilter をリセットする
+  // ※ デフォルト適用前に空条件で API を叩くと、終了チケット等が一瞬／残留表示されるため
+  //   filterBootstrapReady が true になるまでガント／カンバン／時間の取得を行わない
   const prevViewModeForSavedRef = useRef<ProjectListViewMode | null>(null);
   useEffect(() => {
     if (prevViewModeForSavedRef.current === viewMode) return;
     prevViewModeForSavedRef.current = viewMode;
+    const bootstrapGen = ++filterBootstrapGenRef.current;
+    setFilterBootstrapReady(false);
+    // 切替中に飛んでいた取得の応答を破棄し、直前ビューのチケット表示を残さない
+    ganttLoadGenRef.current += 1;
+    kanbanLoadGenRef.current += 1;
+    timeLoadGenRef.current += 1;
+    setGanttIssues([]);
+    setGanttProjects([]);
+    setKanbanIssues([]);
+    setTimeIssues([]);
+    setTimeEntries([]);
     savedSearchRequestGenRef.current += 1;
     resetProjectFilter();
     resetIssueFilter();
     setActiveSavedSearchId(null);
-    applyDefaultSavedSearch(viewMode);
+    void (async () => {
+      await applyDefaultSavedSearch(viewMode);
+      if (bootstrapGen !== filterBootstrapGenRef.current) return;
+      setFilterBootstrapReady(true);
+    })();
   }, [viewMode, resetProjectFilter, resetIssueFilter, applyDefaultSavedSearch]);
 
   // 時間タブの初期値を適用（保存済みデフォルト検索がない場合のみ）
@@ -401,6 +426,7 @@ export default function ProjectListPage() {
   };
 
   const loadGanttData = useCallback(() => {
+    const gen = ++ganttLoadGenRef.current;
     const params = buildIssueListQueryParams({
       trackerIds: issueFilter.trackerIds,
       statusIds: issueFilter.statusIds,
@@ -409,10 +435,12 @@ export default function ProjectListPage() {
       includeUnassigned: issueFilter.includeUnassigned,
     });
     api.get('/gantt/all', { params }).then((res) => {
+      if (gen !== ganttLoadGenRef.current) return;
       setGanttProjects(res.data.projects);
       setGanttIssues(res.data.issues);
     });
     api.get('/settings/calendar').then((res) => {
+      if (gen !== ganttLoadGenRef.current) return;
       setSystemSettings(res.data);
     }).catch(() => {});
   }, [
@@ -424,6 +452,7 @@ export default function ProjectListPage() {
   ]);
 
   const loadKanbanData = useCallback(() => {
+    const gen = ++kanbanLoadGenRef.current;
     const params = buildIssueListQueryParams({
       trackerIds: issueFilter.trackerIds,
       statusIds: issueFilter.statusIds,
@@ -435,6 +464,7 @@ export default function ProjectListPage() {
       api.get('/issues', { params }),
       api.get('/issues/meta/options'),
     ]).then(([issuesRes, metaRes]) => {
+      if (gen !== kanbanLoadGenRef.current) return;
       setKanbanIssues(issuesRes.data);
       setKanbanStatuses(metaRes.data.statuses);
     });
@@ -447,6 +477,7 @@ export default function ProjectListPage() {
   ]);
 
   const loadTimeData = useCallback(() => {
+    const gen = ++timeLoadGenRef.current;
     const issueParams = buildIssueListQueryParams({
       trackerIds: issueFilter.trackerIds,
       statusIds: issueFilter.statusIds,
@@ -466,6 +497,7 @@ export default function ProjectListPage() {
       api.get('/issues', { params: issueParams }),
       api.get('/issues/meta/options'),
     ]).then(([issuesRes, metaRes]) => {
+      if (gen !== timeLoadGenRef.current) return;
       const groups = (metaRes.data.groups ?? []) as { id: number; members: { userId: number }[] }[];
       const resolvedUserIds = resolveTimeRecordFilterUserIds(timeRecordFilterUserIds, groups);
 
@@ -483,6 +515,7 @@ export default function ProjectListPage() {
       }
 
       return api.get('/time-entries', { params: entryParams }).then((entriesRes) => {
+        if (gen !== timeLoadGenRef.current) return;
         setTimeIssues(issuesRes.data);
         setTimeEntries(entriesRes.data);
       });
@@ -503,10 +536,11 @@ export default function ProjectListPage() {
   }, []);
 
   useEffect(() => {
+    if (!filterBootstrapReady) return;
     if (viewMode === 'gantt') loadGanttData();
     if (viewMode === 'kanban') loadKanbanData();
     if (viewMode === 'time') loadTimeData();
-  }, [viewMode, loadGanttData, loadKanbanData, loadTimeData]);
+  }, [viewMode, filterBootstrapReady, loadGanttData, loadKanbanData, loadTimeData]);
 
   const openCreateProjectModal = () => {
     setEditingProjectId(null);
