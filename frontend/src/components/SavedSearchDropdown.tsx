@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Bookmark, Star, Trash2, ChevronDown, Check, Plus, Save, Pencil } from 'lucide-react';
 import api from '../api/client';
 import type { SavedSearch, ProjectListViewMode } from '../types';
@@ -13,6 +13,10 @@ interface SavedSearchDropdownProps {
   currentFilter: SavedSearch['filter'];
   /** 保存済み検索を選択したときのコールバック */
   onLoad: (search: SavedSearch) => void;
+  /** 保存済み検索一覧（ページ側で取得して共有） */
+  searches: SavedSearch[];
+  /** 保存・削除・デフォルト変更などの後に一覧を再取得する */
+  onReload: () => Promise<void> | void;
   /** 一覧が変化したときのコールバック（外部でのリロード用途） */
   onListChange?: () => void;
 }
@@ -22,6 +26,8 @@ export default function SavedSearchDropdown({
   activeId,
   currentFilter,
   onLoad,
+  searches,
+  onReload,
   onListChange,
 }: SavedSearchDropdownProps) {
   const { user } = useAuth();
@@ -29,7 +35,6 @@ export default function SavedSearchDropdown({
   const canViewSaved = canUse('projects.saved-searches');
   const canInputSaved = canInput('projects.saved-searches');
   const [isOpen, setIsOpen] = useState(false);
-  const [searches, setSearches] = useState<SavedSearch[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveName, setSaveName] = useState('');
   const [showSaveForm, setShowSaveForm] = useState(false);
@@ -40,30 +45,6 @@ export default function SavedSearchDropdown({
   const [renameError, setRenameError] = useState('');
   const [renaming, setRenaming] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const [fetchError, setFetchError] = useState('');
-
-  const fetchSearches = useCallback(async () => {
-    if (!canViewSaved) {
-      setSearches([]);
-      return;
-    }
-    setFetchError('');
-    try {
-      const res = await api.get('/saved-searches', { params: { viewMode } });
-      setSearches(res.data);
-    } catch (err: any) {
-      setSearches([]);
-      if (err?.response?.status !== 403) {
-        setFetchError(err?.response?.data?.error || `取得エラー (${err?.response?.status ?? 'network'})`);
-      }
-    }
-  }, [viewMode, canViewSaved]);
-
-  // viewMode が変わったら再取得
-  useEffect(() => {
-    fetchSearches();
-  }, [fetchSearches]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -95,7 +76,7 @@ export default function SavedSearchDropdown({
     if (!canInputSaved) return;
     try {
       await api.put(`/saved-searches/${search.id}`, { isDefault: !search.isDefault });
-      await fetchSearches();
+      await onReload();
       onListChange?.();
     } catch {
       /* ignore */
@@ -108,7 +89,7 @@ export default function SavedSearchDropdown({
     if (!window.confirm(`「${search.name}」を削除しますか？`)) return;
     try {
       await api.delete(`/saved-searches/${search.id}`);
-      await fetchSearches();
+      await onReload();
       onListChange?.();
     } catch {
       /* ignore */
@@ -122,7 +103,7 @@ export default function SavedSearchDropdown({
     if (!window.confirm(`「${search.name}」を現在の条件で上書きしますか？`)) return;
     try {
       await api.put(`/saved-searches/${search.id}`, { filter: currentFilter });
-      await fetchSearches();
+      await onReload();
       onListChange?.();
       // 上書きした検索をアクティブに
       onLoad({ ...search, filter: currentFilter });
@@ -158,9 +139,8 @@ export default function SavedSearchDropdown({
     setRenaming(true);
     setRenameError('');
     try {
-      const res = await api.put(`/saved-searches/${search.id}`, { name: trimmed });
-      const updated: SavedSearch = res.data;
-      setSearches((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      await api.put(`/saved-searches/${search.id}`, { name: trimmed });
+      await onReload();
       setRenamingId(null);
       setRenameName('');
       onListChange?.();
@@ -191,7 +171,7 @@ export default function SavedSearchDropdown({
         isDefault: false,
       });
       resetForm();
-      await fetchSearches();
+      await onReload();
       onListChange?.();
     } catch (err: any) {
       if (err?.response?.status === 403) {
@@ -226,13 +206,8 @@ export default function SavedSearchDropdown({
 
       {isOpen && (
         <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[220px] max-w-[320px]">
-          {/* エラー表示 */}
-          {fetchError && (
-            <div className="px-3 py-2 text-xs text-red-500">{fetchError}</div>
-          )}
-
           {/* 保存済み一覧 */}
-          {!fetchError && searches.length === 0 && !showSaveForm && (
+          {searches.length === 0 && !showSaveForm && (
             <div className="px-3 py-3 text-xs text-gray-400">保存済みの検索条件はありません</div>
           )}
           {searches.length > 0 && (

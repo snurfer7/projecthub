@@ -23,8 +23,56 @@ async function getResourceTree() {
   return resourceTreeCache;
 }
 
+/**
+ * グループ→権限セット割り当てとグループ階層は全ユーザー共通で、変更頻度が低い。
+ * これまでは requirePermission が走る度（1 画面表示で 4〜5 回）に全グループ＋権限セット＋
+ * 階層を毎回 DB から読み直しており、権限解決が主要なレイテンシ源になっていた。
+ * ここで共通データをプロセス内にキャッシュし、明示的な無効化（clearPermissionCache）＋
+ * 短い TTL バックストップで最新性を担保する。ユーザー個別のグループ所属は都度取得のため即時反映される。
+ */
+type GlobalGroupData = {
+  groups: Awaited<ReturnType<typeof fetchGroupsWithPermissions>>;
+  hierarchyEdges: { parentGroupId: number; childGroupId: number }[];
+};
+
+let globalGroupCache: GlobalGroupData | null = null;
+let globalGroupCacheExpiresAt = 0;
+const GLOBAL_GROUP_TTL_MS = 30_000;
+
+function fetchGroupsWithPermissions() {
+  return prisma.group.findMany({
+    include: {
+      permissionSet: {
+        include: {
+          permissions: {
+            include: { resource: { select: { code: true, scope: true } } },
+          },
+        },
+      },
+    },
+  });
+}
+
+async function getGlobalGroupData(): Promise<GlobalGroupData> {
+  const now = Date.now();
+  if (globalGroupCache && globalGroupCacheExpiresAt > now) {
+    return globalGroupCache;
+  }
+  const [groups, hierarchyEdges] = await Promise.all([
+    fetchGroupsWithPermissions(),
+    prisma.groupHierarchy.findMany({
+      select: { parentGroupId: true, childGroupId: true },
+    }),
+  ]);
+  globalGroupCache = { groups, hierarchyEdges };
+  globalGroupCacheExpiresAt = now + GLOBAL_GROUP_TTL_MS;
+  return globalGroupCache;
+}
+
 export function clearPermissionCache() {
   resourceTreeCache = null;
+  globalGroupCache = null;
+  globalGroupCacheExpiresAt = 0;
 }
 
 export function applyInheritance(
@@ -102,25 +150,12 @@ export function applyInheritanceScoped(
 }
 
 export async function resolveUserPermissions(userId: number): Promise<PermissionMap> {
-  const [groupMembers, allGroups, hierarchyEdges] = await Promise.all([
+  const [groupMembers, { groups: allGroups, hierarchyEdges }] = await Promise.all([
     prisma.groupMember.findMany({
       where: { userId },
       select: { groupId: true },
     }),
-    prisma.group.findMany({
-      include: {
-        permissionSet: {
-          include: {
-            permissions: {
-              include: { resource: { select: { code: true, scope: true } } },
-            },
-          },
-        },
-      },
-    }),
-    prisma.groupHierarchy.findMany({
-      select: { parentGroupId: true, childGroupId: true },
-    }),
+    getGlobalGroupData(),
   ]);
 
   const parentsByChild = new Map<number, number[]>();

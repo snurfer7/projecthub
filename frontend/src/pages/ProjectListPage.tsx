@@ -109,8 +109,9 @@ export default function ProjectListPage() {
   const { user } = useAuth();
   const { canUse } = usePermissions(user?.permissions);
 
-  // 保存済み検索
+  // 保存済み検索（ページで一度だけ取得し、デフォルト適用とドロップダウン表示で共有する）
   const [activeSavedSearchId, setActiveSavedSearchId] = useState<number | null>(null);
+  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
 
   const [timeIssues, setTimeIssues] = useState<Issue[]>([]);
   const [timeStatuses, setTimeStatuses] = useState<IssueStatus[]>([]);
@@ -314,12 +315,16 @@ export default function ProjectListPage() {
 
   const applyDefaultSavedSearch = useCallback(
     async (mode: ProjectListViewMode) => {
-      if (!canUse('projects.saved-searches')) return;
+      if (!canUse('projects.saved-searches')) {
+        setSavedSearches([]);
+        return;
+      }
       const gen = ++savedSearchRequestGenRef.current;
       try {
         const res = await api.get('/saved-searches', { params: { viewMode: mode } });
         if (gen !== savedSearchRequestGenRef.current) return;
         const list: SavedSearch[] = res.data;
+        setSavedSearches(list);
         const def = list.find((s) => s.isDefault);
         if (def) applyFilter(def);
       } catch {
@@ -328,6 +333,23 @@ export default function ProjectListPage() {
     },
     [applyFilter, canUse],
   );
+
+  // 保存済み検索の再取得（保存／削除／デフォルト変更などの後に呼ぶ）。
+  // デフォルトの自動適用は行わず、一覧のみ更新する。
+  const reloadSavedSearches = useCallback(async () => {
+    if (!canUse('projects.saved-searches')) {
+      setSavedSearches([]);
+      return;
+    }
+    const gen = ++savedSearchRequestGenRef.current;
+    try {
+      const res = await api.get('/saved-searches', { params: { viewMode } });
+      if (gen !== savedSearchRequestGenRef.current) return;
+      setSavedSearches(res.data);
+    } catch {
+      // 接続エラーは無視
+    }
+  }, [canUse, viewMode]);
 
   // ビュー切替時: 条件リセット → デフォルト保存済み検索を適用 → その後にデータ取得を許可
   // ※ 時間タブ初期値エフェクトより先に定義することで、React のエフェクト実行順（定義順）に従い
@@ -816,6 +838,8 @@ export default function ProjectListPage() {
         issueSort={issueSort}
         activeSavedSearchId={activeSavedSearchId}
         onLoadSavedSearch={applyFilter}
+        savedSearches={savedSearches}
+        onReloadSavedSearches={reloadSavedSearches}
       />
 
       {viewMode === 'list' && (

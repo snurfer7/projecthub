@@ -21,37 +21,22 @@ router.use(authenticateToken);
 // List projects (member projects only)
 router.get('/', requirePermission('projects', 'use'), async (req: AuthRequest, res: Response) => {
   try {
+    // 一覧はクライアント側でフィルタ／ツリー表示のみを行うため、表示・絞り込みに使う
+    // フィールドだけを取得する（メンバー詳細・ロール・関連会社の拠点/担当などは取得しない）。
+    // これにより 1 件あたりのペイロードとネストしたリレーション読み込みを大幅に削減する。
     const projects = await prisma.project.findMany({
       where: projectListAccessWhere(req.userId!, isRequestAdmin(req)),
       include: {
         company: { select: { id: true, name: true } },
-        location: { select: { id: true, name: true } },
-        contact: { select: { id: true, firstName: true, lastName: true } },
         parent: { select: { id: true, name: true } },
         relatedCompanies: {
-          include: {
+          select: {
+            companyId: true,
             company: { select: { id: true, name: true } },
-            location: { select: { id: true, name: true } },
-            contact: { select: { id: true, firstName: true, lastName: true } },
-          }
-        },
-        members: {
-          include: {
-            user: { select: { id: true, firstName: true, lastName: true } },
-            roles: { include: { role: true } },
           },
         },
-        groups: {
-          include: {
-            group: {
-              select: {
-                id: true,
-                name: true,
-                members: { include: { user: { select: { id: true, firstName: true, lastName: true } } } },
-              },
-            },
-          },
-        },
+        members: { select: { userId: true } },
+        groups: { select: { groupId: true } },
         _count: { select: { issues: true } },
       },
       orderBy: { createdAt: 'desc' },

@@ -14,7 +14,7 @@ import {
   parseHolidayWeekdays,
 } from '../services/systemCalendar';
 import { clearProjectPermissionCache } from '../services/projectPermissions';
-import { assertFieldPermissions, hasFieldInputPermission } from '../services/permissions';
+import { assertFieldPermissions, hasFieldInputPermission, clearPermissionCache } from '../services/permissions';
 import {
   buildEdgesAfterGroupUpdate,
   hasCycleInGroupHierarchy,
@@ -119,6 +119,8 @@ async function syncGroupHierarchy(
       });
     }
   }
+  // グループ作成・更新時のグループ構成/階層変更を権限キャッシュへ反映
+  clearPermissionCache();
 }
 
 async function reorderSiblingsUnderParent(parentGroupId: number, orderedChildIds: number[]) {
@@ -680,6 +682,9 @@ router.post('/groups/move', requirePermission('admin.groups', 'input'), async (r
       await reorderSiblingsUnderParent(parentId, ordered);
     }
 
+    // 階層の並び替え／親子変更を権限キャッシュへ反映
+    clearPermissionCache();
+
     const updated = await prisma.group.findUnique({
       where: { id: groupId },
       include: {
@@ -882,6 +887,8 @@ router.put('/groups/:id', requirePermission('admin.groups', 'input'), async (req
 router.delete('/groups/:id', requirePermission('admin.groups', 'input'), async (req: AuthRequest, res: Response) => {
   try {
     await prisma.group.delete({ where: { id: Number(req.params.id) } });
+    // グループ削除を権限キャッシュへ反映
+    clearPermissionCache();
     res.json({ message: 'グループを削除しました' });
   } catch (e) {
     res.status(500).json({ error: 'グループの削除に失敗しました' });

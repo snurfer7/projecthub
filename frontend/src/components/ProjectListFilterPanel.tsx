@@ -56,6 +56,10 @@ interface ProjectListFilterPanelProps {
   activeSavedSearchId: number | null;
   /** 保存済み検索をロードしたときのコールバック */
   onLoadSavedSearch: (search: SavedSearch) => void;
+  /** 保存済み検索一覧（ページ側で取得して共有） */
+  savedSearches: SavedSearch[];
+  /** 保存済み検索一覧の再取得（保存・削除・デフォルト変更後） */
+  onReloadSavedSearches: () => Promise<void> | void;
 }
 
 function FilterRow({ label, children }: { label: string; children: React.ReactNode }) {
@@ -119,6 +123,8 @@ export default function ProjectListFilterPanel({
   issueSort,
   activeSavedSearchId,
   onLoadSavedSearch,
+  savedSearches,
+  onReloadSavedSearches,
 }: ProjectListFilterPanelProps) {
   const [trackers, setTrackers] = useState<Tracker[]>([]);
   const [statuses, setStatuses] = useState<IssueStatus[]>([]);
@@ -378,6 +384,8 @@ export default function ProjectListFilterPanel({
           activeId={activeSavedSearchId}
           currentFilter={currentFilter}
           onLoad={onLoadSavedSearch}
+          searches={savedSearches}
+          onReload={onReloadSavedSearches}
         />
         <button
           type="button"
