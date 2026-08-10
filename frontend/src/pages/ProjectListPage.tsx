@@ -2,7 +2,16 @@ import { useState, useEffect, useCallback, useMemo, useRef, FormEvent } from 're
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { List, BarChart2, Kanban, Clock, RefreshCw, ChevronRight, ChevronDown } from 'lucide-react';
 import api from '../api/client';
-import { Project, Company, Issue, IssueStatus, TimeEntry, SavedSearch } from '../types';
+import {
+  Project,
+  Company,
+  Issue,
+  IssueStatus,
+  TimeEntry,
+  SavedSearch,
+  PermissionMap,
+  IssueMetaWorkflow,
+} from '../types';
 import Modal from '../components/Modal';
 import GanttChart from '../components/GanttChart';
 import ProjectListFilterPanel from '../components/ProjectListFilterPanel';
@@ -53,7 +62,7 @@ import {
   type DateRangeSpecifyMode,
 } from '../utils/dateRangeSpecify';
 import type { DateRangeSpecifyValue } from '../components/DateRangeSpecify';
-import { resolveTimeRecordFilterUserIds } from '../utils/timeRecordFilter';
+import { splitTimeRecordFilterSelection } from '../utils/timeRecordFilter';
 
 export default function ProjectListPage() {
   const navigate = useNavigate();
@@ -116,6 +125,10 @@ export default function ProjectListPage() {
   const [timeIssues, setTimeIssues] = useState<Issue[]>([]);
   const [timeStatuses, setTimeStatuses] = useState<IssueStatus[]>([]);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
+  const [timePermByProject, setTimePermByProject] = useState<Record<number, PermissionMap>>({});
+  const [timeWorkflowByProject, setTimeWorkflowByProject] = useState<
+    Record<number, IssueMetaWorkflow | null>
+  >({});
   const [timeRecordDate, setTimeRecordDate] = useState<DateRangeSpecifyValue>({
     mode: 'direct',
     relative: '',
@@ -125,6 +138,8 @@ export default function ProjectListPage() {
   const [timeRecordFilterUserIds, setTimeRecordFilterUserIds] = useState<(number | string)[]>([]);
   const prevViewModeRef = useRef<ProjectListViewMode | null>(null);
   const timeDefaultsUserIdRef = useRef<number | null>(null);
+  const timeIssueFilterKeyRef = useRef('');
+  const timeEntryFilterKeyRef = useRef('');
 
   const applyTimeViewDefaults = useCallback(() => {
     if (!user) return;
@@ -499,60 +514,62 @@ export default function ProjectListPage() {
     issueFilter.includeUnassigned,
   ]);
 
-  const loadTimeData = useCallback(() => {
-    const gen = ++timeLoadGenRef.current;
-    const issueParams = buildIssueListQueryParams({
-      trackerIds: issueFilter.trackerIds,
-      statusIds: issueFilter.statusIds,
-      assignedToIds: issueFilter.assignedToIds,
-      assignedToGroupIds: issueFilter.assignedToGroupIds,
-      includeUnassigned: issueFilter.includeUnassigned,
-    });
-
+  const buildTimeTreeEntryParams = useCallback(() => {
     const recordRange = effectiveDateRange(
       timeRecordDate.mode,
       timeRecordDate.relative,
       timeRecordDate.start,
       timeRecordDate.end,
     );
+    const { userIds, userGroupIds } = splitTimeRecordFilterSelection(timeRecordFilterUserIds);
+    const entryParams: Record<string, string | number> = {};
+    if (recordRange.start) entryParams.startDate = recordRange.start;
+    if (recordRange.end) entryParams.endDate = recordRange.end;
+    if (userIds.length > 0) entryParams.userIds = userIds.join(',');
+    if (userGroupIds.length > 0) entryParams.userGroupIds = userGroupIds.join(',');
+    return entryParams;
+  }, [timeRecordDate, timeRecordFilterUserIds]);
 
-    Promise.all([
-      api.get('/issues', { params: issueParams }),
-      api.get('/issues/meta/options'),
-    ]).then(([issuesRes, metaRes]) => {
-      if (gen !== timeLoadGenRef.current) return;
-      setTimeStatuses(metaRes.data.statuses ?? []);
-      const groups = (metaRes.data.groups ?? []) as { id: number; members: { userId: number }[] }[];
-      const resolvedUserIds = resolveTimeRecordFilterUserIds(timeRecordFilterUserIds, groups);
+  const loadTimeData = useCallback(
+    (opts?: { entriesOnly?: boolean }) => {
+      const gen = ++timeLoadGenRef.current;
+      const entryParams = buildTimeTreeEntryParams();
 
-      const entryParams: Record<string, string | number> = {};
-      if (recordRange.start) entryParams.startDate = recordRange.start;
-      if (recordRange.end) entryParams.endDate = recordRange.end;
-
-      if (timeRecordFilterUserIds.length > 0 && resolvedUserIds.length === 0) {
-        setTimeIssues(issuesRes.data);
-        setTimeEntries([]);
-        return;
+      if (opts?.entriesOnly) {
+        return api
+          .get('/time-tree', { params: { ...entryParams, include: 'entries' } })
+          .then((res) => {
+            if (gen !== timeLoadGenRef.current) return;
+            setTimeEntries(res.data.timeEntries ?? []);
+          });
       }
-      if (resolvedUserIds.length > 0) {
-        entryParams.userIds = resolvedUserIds.join(',');
-      }
 
-      return api.get('/time-entries', { params: entryParams }).then((entriesRes) => {
-        if (gen !== timeLoadGenRef.current) return;
-        setTimeIssues(issuesRes.data);
-        setTimeEntries(entriesRes.data);
+      const issueParams = buildIssueListQueryParams({
+        trackerIds: issueFilter.trackerIds,
+        statusIds: issueFilter.statusIds,
+        assignedToIds: issueFilter.assignedToIds,
+        assignedToGroupIds: issueFilter.assignedToGroupIds,
+        includeUnassigned: issueFilter.includeUnassigned,
       });
-    });
-  }, [
-    issueFilter.trackerIds,
-    issueFilter.statusIds,
-    issueFilter.assignedToIds,
-    issueFilter.assignedToGroupIds,
-    issueFilter.includeUnassigned,
-    timeRecordDate,
-    timeRecordFilterUserIds,
-  ]);
+
+      return api.get('/time-tree', { params: { ...issueParams, ...entryParams } }).then((res) => {
+        if (gen !== timeLoadGenRef.current) return;
+        setTimeIssues(res.data.issues ?? []);
+        setTimeEntries(res.data.timeEntries ?? []);
+        setTimeStatuses(res.data.statuses ?? []);
+        setTimePermByProject(res.data.permissionsByProjectId ?? {});
+        setTimeWorkflowByProject(res.data.workflowByProjectId ?? {});
+      });
+    },
+    [
+      buildTimeTreeEntryParams,
+      issueFilter.trackerIds,
+      issueFilter.statusIds,
+      issueFilter.assignedToIds,
+      issueFilter.assignedToGroupIds,
+      issueFilter.includeUnassigned,
+    ],
+  );
 
   useEffect(() => {
     loadProjects();
@@ -563,8 +580,50 @@ export default function ProjectListPage() {
     if (!filterBootstrapReady) return;
     if (viewMode === 'gantt') loadGanttData();
     if (viewMode === 'kanban') loadKanbanData();
-    if (viewMode === 'time') loadTimeData();
-  }, [viewMode, filterBootstrapReady, loadGanttData, loadKanbanData, loadTimeData]);
+    if (viewMode !== 'time') {
+      timeIssueFilterKeyRef.current = '';
+      timeEntryFilterKeyRef.current = '';
+      return;
+    }
+
+    const issueKey = JSON.stringify({
+      trackerIds: issueFilter.trackerIds,
+      statusIds: issueFilter.statusIds,
+      assignedToIds: issueFilter.assignedToIds,
+      assignedToGroupIds: issueFilter.assignedToGroupIds,
+      includeUnassigned: issueFilter.includeUnassigned,
+    });
+    const entryKey = JSON.stringify({
+      timeRecordDate,
+      timeRecordFilterUserIds,
+    });
+
+    const issueChanged = issueKey !== timeIssueFilterKeyRef.current;
+    const entryChanged = entryKey !== timeEntryFilterKeyRef.current;
+    const firstLoad = timeIssueFilterKeyRef.current === '';
+
+    timeIssueFilterKeyRef.current = issueKey;
+    timeEntryFilterKeyRef.current = entryKey;
+
+    if (firstLoad || issueChanged) {
+      loadTimeData();
+    } else if (entryChanged) {
+      loadTimeData({ entriesOnly: true });
+    }
+  }, [
+    viewMode,
+    filterBootstrapReady,
+    loadGanttData,
+    loadKanbanData,
+    loadTimeData,
+    issueFilter.trackerIds,
+    issueFilter.statusIds,
+    issueFilter.assignedToIds,
+    issueFilter.assignedToGroupIds,
+    issueFilter.includeUnassigned,
+    timeRecordDate,
+    timeRecordFilterUserIds,
+  ]);
 
   const openCreateProjectModal = () => {
     setEditingProjectId(null);
@@ -978,7 +1037,10 @@ export default function ProjectListPage() {
           issues={timeFilteredIssues}
           statuses={timeStatuses}
           timeEntries={timeEntries}
-          onRefresh={loadTimeData}
+          permissionsByProject={timePermByProject}
+          workflowByProject={timeWorkflowByProject}
+          onIssuesChange={setTimeIssues}
+          onTimeEntriesChange={setTimeEntries}
           projectSort={listSort}
           issueSort={issueSort}
         />

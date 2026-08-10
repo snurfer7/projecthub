@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { getUserRoleIdsOnProject } from './projectMembership';
+import { getUserRoleIdsOnProject, getUserRoleIdsOnProjects } from './projectMembership';
 
 const prisma = new PrismaClient();
 
@@ -27,6 +27,49 @@ async function loadAllStatusIds(): Promise<number[]> {
     orderBy: { position: 'asc' },
   });
   return rows.map((r) => r.id);
+}
+
+function buildWorkflowFromRoleRows(
+  allStatusIds: number[],
+  roleRows: RoleWorkflowRow[]
+): IssueWorkflowInfo {
+  if (roleRows.length === 0) {
+    return { assignableStatusIds: [], allowedTransitions: [] };
+  }
+
+  const assignable = new Set<number>();
+  let anyRoleUnrestrictedTransitions = false;
+  const transitionKeys = new Set<string>();
+
+  for (const role of roleRows) {
+    if (role.statusIds.length === 0) {
+      for (const id of allStatusIds) assignable.add(id);
+    } else {
+      for (const id of role.statusIds) assignable.add(id);
+    }
+
+    if (role.transitions.length === 0) {
+      anyRoleUnrestrictedTransitions = true;
+    } else {
+      for (const t of role.transitions) {
+        transitionKeys.add(`${t.oldStatusId}-${t.newStatusId}`);
+      }
+    }
+  }
+
+  const assignableStatusIds = allStatusIds.filter((id) => assignable.has(id));
+
+  let allowedTransitions: WorkflowTransitionPair[] | null;
+  if (anyRoleUnrestrictedTransitions) {
+    allowedTransitions = null;
+  } else {
+    allowedTransitions = Array.from(transitionKeys).map((key) => {
+      const [oldStatusId, newStatusId] = key.split('-').map(Number);
+      return { oldStatusId, newStatusId };
+    });
+  }
+
+  return { assignableStatusIds, allowedTransitions };
 }
 
 async function loadUserRoleWorkflows(userId: number, projectId: number): Promise<RoleWorkflowRow[]> {
@@ -67,44 +110,56 @@ export async function resolveIssueWorkflow(
     loadAllStatusIds(),
     loadUserRoleWorkflows(userId, projectId),
   ]);
+  return buildWorkflowFromRoleRows(allStatusIds, roleRows);
+}
 
-  if (roleRows.length === 0) {
-    return { assignableStatusIds: [], allowedTransitions: [] };
+/** Resolve workflows for many projects with shared status/role queries. */
+export async function resolveIssueWorkflowsBatch(
+  userId: number,
+  projectIds: number[]
+): Promise<Record<number, IssueWorkflowInfo>> {
+  const unique = [...new Set(projectIds.filter((id) => Number.isFinite(id) && id > 0))];
+  const out: Record<number, IssueWorkflowInfo> = {};
+  if (unique.length === 0) return out;
+
+  const [allStatusIds, roleIdsByProject] = await Promise.all([
+    loadAllStatusIds(),
+    getUserRoleIdsOnProjects(userId, unique),
+  ]);
+  const allRoleIds = [...new Set([...roleIdsByProject.values()].flat())];
+  const roles =
+    allRoleIds.length === 0
+      ? []
+      : await prisma.role.findMany({
+          where: { id: { in: allRoleIds } },
+          select: {
+            id: true,
+            statuses: { select: { statusId: true } },
+            transitions: { select: { oldStatusId: true, newStatusId: true } },
+          },
+        });
+  const roleById = new Map(
+    roles.map((role) => [
+      role.id,
+      {
+        roleId: role.id,
+        statusIds: role.statuses.map((s) => s.statusId),
+        transitions: role.transitions.map((t) => ({
+          oldStatusId: t.oldStatusId,
+          newStatusId: t.newStatusId,
+        })),
+      } satisfies RoleWorkflowRow,
+    ])
+  );
+
+  for (const projectId of unique) {
+    const roleIds = roleIdsByProject.get(projectId) ?? [];
+    const roleRows = roleIds
+      .map((id) => roleById.get(id))
+      .filter((r): r is RoleWorkflowRow => r != null);
+    out[projectId] = buildWorkflowFromRoleRows(allStatusIds, roleRows);
   }
-
-  const assignable = new Set<number>();
-  let anyRoleUnrestrictedTransitions = false;
-  const transitionKeys = new Set<string>();
-
-  for (const role of roleRows) {
-    if (role.statusIds.length === 0) {
-      for (const id of allStatusIds) assignable.add(id);
-    } else {
-      for (const id of role.statusIds) assignable.add(id);
-    }
-
-    if (role.transitions.length === 0) {
-      anyRoleUnrestrictedTransitions = true;
-    } else {
-      for (const t of role.transitions) {
-        transitionKeys.add(`${t.oldStatusId}-${t.newStatusId}`);
-      }
-    }
-  }
-
-  const assignableStatusIds = allStatusIds.filter((id) => assignable.has(id));
-
-  let allowedTransitions: WorkflowTransitionPair[] | null;
-  if (anyRoleUnrestrictedTransitions) {
-    allowedTransitions = null;
-  } else {
-    allowedTransitions = Array.from(transitionKeys).map((key) => {
-      const [oldStatusId, newStatusId] = key.split('-').map(Number);
-      return { oldStatusId, newStatusId };
-    });
-  }
-
-  return { assignableStatusIds, allowedTransitions };
+  return out;
 }
 
 export function isStatusAssignable(workflow: IssueWorkflowInfo, statusId: number): boolean {

@@ -33,6 +33,7 @@ PostgreSQL + Prisma で永続化し、JWT で認証する。
 | `/api/wiki` | wiki.ts | プロジェクト Wiki の CRUD・移動 |
 | `/api/attachments` | attachments.ts | アップロード・ダウンロード・削除 |
 | `/api/time-entries` | timeEntries.ts | 工数 CRUD |
+| `/api/time-tree` | timeTree.ts | プロジェクト一覧・時間タブ用の軽量一括取得 |
 | `/api/admin` | admin.ts | ユーザー・tracker/status/priority/group/role・設定は管理者のみ。会社・法人区分・団体の CRUD および GET /users は認証済みユーザーで利用可能 |
 | `/api/gantt` | gantt.ts | ガント用データ（プロジェクト単位・全体） |
 | `/api/companies` | companies.ts | 会社の CRUD・コメント・Wiki・拠点・団体紐付け（認証済みユーザーで利用可能） |

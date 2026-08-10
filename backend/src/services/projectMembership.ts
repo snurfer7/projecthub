@@ -76,33 +76,57 @@ export async function getUserRoleIdsOnProject(
   projectId: number,
   db: Tx = prisma
 ): Promise<number[]> {
-  const [member, projectGroups, coverage] = await Promise.all([
-    db.projectMember.findUnique({
-      where: { projectId_userId: { projectId, userId } },
-      select: { roles: { select: { roleId: true, sourceGroupId: true } } },
+  const map = await getUserRoleIdsOnProjects(userId, [projectId], db);
+  return map.get(projectId) ?? [];
+}
+
+/** Role IDs per project for a user (batched; one coverage + membership query). */
+export async function getUserRoleIdsOnProjects(
+  userId: number,
+  projectIds: number[],
+  db: Tx = prisma
+): Promise<Map<number, number[]>> {
+  const unique = [...new Set(projectIds.filter((id) => Number.isFinite(id) && id > 0))];
+  const result = new Map<number, number[]>();
+  if (unique.length === 0) return result;
+
+  const [members, projectGroups, coverage] = await Promise.all([
+    db.projectMember.findMany({
+      where: { userId, projectId: { in: unique } },
+      select: { projectId: true, roles: { select: { roleId: true, sourceGroupId: true } } },
     }),
     db.projectGroup.findMany({
-      where: { projectId },
-      select: { groupId: true, roleIds: true },
+      where: { projectId: { in: unique } },
+      select: { projectId: true, groupId: true, roleIds: true },
     }),
     getUserCoverageGroupIds(userId, db),
   ]);
 
-  const roleIds = new Set<number>();
-  if (member) {
+  const coverageSet = new Set(coverage);
+  const roleSets = new Map<number, Set<number>>();
+  for (const id of unique) roleSets.set(id, new Set());
+
+  for (const member of members) {
+    const set = roleSets.get(member.projectId);
+    if (!set) continue;
     for (const r of member.roles) {
       // Prefer individual roles; legacy sourceGroup rows still count until cleaned
-      roleIds.add(r.roleId);
+      set.add(r.roleId);
     }
   }
-  const coverageSet = new Set(coverage);
   for (const pg of projectGroups) {
     if (!coverageSet.has(pg.groupId)) continue;
+    const set = roleSets.get(pg.projectId);
+    if (!set) continue;
     for (const roleId of pg.roleIds ?? []) {
-      roleIds.add(roleId);
+      set.add(roleId);
     }
   }
-  return [...roleIds];
+
+  for (const [projectId, set] of roleSets) {
+    result.set(projectId, [...set]);
+  }
+  return result;
 }
 
 export async function userHasProjectAccess(

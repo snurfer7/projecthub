@@ -14,7 +14,7 @@ import {
   isRequestAdmin,
   sendProjectAccessDenied,
 } from './projectAccess';
-import { getUserRoleIdsOnProject } from './projectMembership';
+import { getUserRoleIdsOnProject, getUserRoleIdsOnProjects } from './projectMembership';
 
 const prisma = new PrismaClient();
 
@@ -52,6 +52,44 @@ export function clearProjectPermissionCache() {
  * Resolve role-scoped permissions for a user on a project (OR across assigned roles).
  * System isAdmin does not grant role permissions in general; exception: projects.members.
  */
+function mergeRolePermissions(
+  roles: Array<{
+    permissions: Array<{
+      canUse: boolean;
+      canInput: boolean;
+      resource: { code: string; scope: string };
+    }>;
+  }>
+): Map<string, PermissionEntry> {
+  const merged = new Map<string, PermissionEntry>();
+  for (const role of roles) {
+    for (const p of role.permissions) {
+      if (p.resource.scope !== 'role') continue;
+      const code = p.resource.code;
+      const existing = merged.get(code) ?? { canUse: false, canInput: false };
+      merged.set(code, {
+        canUse: existing.canUse || p.canUse,
+        canInput: existing.canInput || p.canInput,
+      });
+    }
+  }
+  return merged;
+}
+
+async function finalizePermissionMap(
+  merged: Map<string, PermissionEntry>,
+  options?: { isAdmin?: boolean }
+): Promise<PermissionMap> {
+  const resources = await getRoleResources();
+  boostParentPermissionsFromChildren(merged, resources);
+  const inherited = applyInheritanceScoped(merged, resources);
+  const result = expandLegacyFieldAliases(inherited);
+  if (options?.isAdmin) {
+    result[PROJECT_MEMBERS_PERMISSION_CODE] = { canUse: true, canInput: true };
+  }
+  return result;
+}
+
 export async function resolveProjectPermissions(
   userId: number,
   projectId: number,
@@ -72,27 +110,45 @@ export async function resolveProjectPermissions(
           },
         });
 
-  const merged = new Map<string, PermissionEntry>();
-  for (const role of roles) {
-    for (const p of role.permissions) {
-      if (p.resource.scope !== 'role') continue;
-      const code = p.resource.code;
-      const existing = merged.get(code) ?? { canUse: false, canInput: false };
-      merged.set(code, {
-        canUse: existing.canUse || p.canUse,
-        canInput: existing.canInput || p.canInput,
-      });
-    }
-  }
+  return finalizePermissionMap(mergeRolePermissions(roles), options);
+}
 
-  const resources = await getRoleResources();
-  boostParentPermissionsFromChildren(merged, resources);
-  const inherited = applyInheritanceScoped(merged, resources);
-  const result = expandLegacyFieldAliases(inherited);
-  if (options?.isAdmin) {
-    result[PROJECT_MEMBERS_PERMISSION_CODE] = { canUse: true, canInput: true };
-  }
-  return result;
+/** Resolve role-scoped permissions for many projects in few queries. */
+export async function resolveProjectPermissionsBatch(
+  userId: number,
+  projectIds: number[],
+  options?: { isAdmin?: boolean }
+): Promise<Record<number, PermissionMap>> {
+  const unique = [...new Set(projectIds.filter((id) => Number.isFinite(id) && id > 0))];
+  const out: Record<number, PermissionMap> = {};
+  if (unique.length === 0) return out;
+
+  const roleIdsByProject = await getUserRoleIdsOnProjects(userId, unique);
+  const allRoleIds = [...new Set([...roleIdsByProject.values()].flat())];
+  const roles =
+    allRoleIds.length === 0
+      ? []
+      : await prisma.role.findMany({
+          where: { id: { in: allRoleIds } },
+          select: {
+            id: true,
+            permissions: {
+              include: { resource: { select: { code: true, scope: true } } },
+            },
+          },
+        });
+  const roleById = new Map(roles.map((r) => [r.id, r]));
+
+  await Promise.all(
+    unique.map(async (projectId) => {
+      const roleIds = roleIdsByProject.get(projectId) ?? [];
+      const projectRoles = roleIds
+        .map((id) => roleById.get(id))
+        .filter((r): r is (typeof roles)[number] => r != null);
+      out[projectId] = await finalizePermissionMap(mergeRolePermissions(projectRoles), options);
+    })
+  );
+  return out;
 }
 
 export async function hasProjectPermission(

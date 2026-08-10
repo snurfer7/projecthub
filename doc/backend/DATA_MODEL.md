@@ -71,13 +71,14 @@
 - **ProjectGroup** — プロジェクトへのグループ割当。`groupId` と **`roleIds`（割当ロールの配列）** のみ保存。所属ユーザーは読み出し時に展開する。
 - **プロジェクトの可視性（読取時展開）**: 次のいずれかで参照可能。(1) 個別 `ProjectMember` がある。(2) いずれかの `ProjectGroup` の `groupId` がユーザーの**カバレッジ集合**に含まれる。カバレッジ = 直接所属グループ ∪ それらの祖先。割当グループ `G` の実効メンバー = `G` 自身および子孫グループの直接所属ユーザー。ロール権限・ワークフローは個別ロール ∪ ヒットした各 `ProjectGroup.roleIds` を OR。PermissionSet の「グループ所属は階層継承しない」とは別（プロジェクト割当のみ子孫を含む）。**例外**: `User.isAdmin` は全プロジェクト参照可。作成者は作成時に個別メンバー（全ロール）として登録。**空割当防止**: 個別メンバーもグループ割当も 0 件になる場合、操作ユーザーを個別メンバー（全ロール）で自動追加する。
 - **ProjectRelatedCompany** — プロジェクトと関連会社（Company + Location + Contact の組み合わせ）。
-- **Issue** — チケット。Project, Tracker, IssueStatus, IssuePriority, User（author）, Group（**assignedToGroup**・担当グループ・任意・単一）, **IssueAssignee**（担当ユーザー・N:N）, IssueRelation, IssueComment, TimeEntry, Attachment と関連。**担当者**は複数ユーザーを同時に割り当て可能（`IssueAssignee`）。担当グループ（`assignedToGroupId`）は従来どおり単一で、ユーザー担当と併用可。**親子階層**（`parentId` → 同一プロジェクト内の親チケット。循環参照不可）。**プロジェクト変更**（`PUT` で `projectId` 更新）: 当該チケットと全子孫を移動先へ一括移動し、移動対象ルートに親がある場合は `parentId` を解除（子孫同士の親子は維持）。紐づく `TimeEntry.projectId` も同トランザクションで同期。権限は移動元・移動先双方の `projects.issues` input と、移動元の field `projects.issues.fields.project`。スケジュール用に `startDate`（開始日時）, `endDate`（終了日時）, `dueDate`（期日）, `estimatedHours`（予定工数・`Float?`・0 以上・**0.5 刻み**）を持つ。**子チケットを持つ親チケット**の `startDate` / `endDate` は入力不可で、全子孫チケットの開始の最小・終了の最大を表示する。**ステータス**も入力不可で、子孫のステータスのうち `IssueStatus.position` が最小（一覧で一番上）のものを表示する（API 応答でも集約値を返す。DB 上の親自身の日時・ステータスは子がある場合更新しない）。ガントチャートのバーも同様に集約表示し、親バーのドラッグ／リサイズは不可。
+- **Issue** — チケット。Project, Tracker, IssueStatus, IssuePriority, User（author）, Group（**assignedToGroup**・担当グループ・任意・単一）, **IssueAssignee**（担当ユーザー・N:N）, IssueRelation, IssueComment, TimeEntry, Attachment と関連。インデックス: `parentId`, `projectId`。**担当者**は複数ユーザーを同時に割り当て可能（`IssueAssignee`）。担当グループ（`assignedToGroupId`）は従来どおり単一で、ユーザー担当と併用可。**親子階層**（`parentId` → 同一プロジェクト内の親チケット。循環参照不可）。**プロジェクト変更**（`PUT` で `projectId` 更新）: 当該チケットと全子孫を移動先へ一括移動し、移動対象ルートに親がある場合は `parentId` を解除（子孫同士の親子は維持）。紐づく `TimeEntry.projectId` も同トランザクションで同期。権限は移動元・移動先双方の `projects.issues` input と、移動元の field `projects.issues.fields.project`。スケジュール用に `startDate`（開始日時）, `endDate`（終了日時）, `dueDate`（期日）, `estimatedHours`（予定工数・`Float?`・0 以上・**0.5 刻み**）を持つ。**子チケットを持つ親チケット**の `startDate` / `endDate` は入力不可で、全子孫チケットの開始の最小・終了の最大を表示する。**ステータス**も入力不可で、子孫のステータスのうち `IssueStatus.position` が最小（一覧で一番上）のものを表示する（API 応答でも集約値を返す。DB 上の親自身の日時・ステータスは子がある場合更新しない）。ガントチャートのバーも同様に集約表示し、親バーのドラッグ／リサイズは不可。
 - **IssueAssignee** — チケットと担当ユーザーの多対多（`issueId` + `userId` 複合主キー）。API 応答では `assignees: { id, firstName, lastName }[]` として展開する。
 - **IssueRelation** — チケット間関連。relationType（例: precedes）。
 - **IssueComment** — チケットコメント。Attachment 可。
 - **WikiPage** — プロジェクト Wiki。親子階層（parentId）。author, project と関連。
 - **ProjectComment** — プロジェクトコメント。Attachment 可。
-- **TimeEntry** — 工数。projectId, issueId（任意）, userId, hours, activity, spentOn, comments。ガント API はチケットごとに `hours` の合計を `actualHours` として返す（DB 列ではない計算値）。
+- **TimeEntry** — 工数。projectId, issueId（任意）, userId, hours, activity, spentOn, comments。インデックス: `(projectId, spentOn)`, `issueId`, `userId`。ガント API はチケットごとに `hours` の合計を `actualHours` として返す（DB 列ではない計算値）。プロジェクト一覧の時間タブは `GET /api/time-tree` で個別行を返す。
+- **Issue** — チケット。…（既存記述）
 
 ## 添付・その他
 

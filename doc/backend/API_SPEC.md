@@ -39,7 +39,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 **二層権限**: グループ PermissionSet の `projects`（use/input）でアプリ機能のゲート。プロジェクト詳細（プロジェクト情報更新・メンバー・チケット・Wiki 等および項目権限）は **RolePermission**（プロジェクト内ロール）で制御。`GET /:id` 応答に `myPermissions`（当該ユーザーのロール権限マップ）を含む。不足時は **403**（`このプロジェクトでの操作権限がありません`）。`User.isAdmin` / `role=admin` では原則ロール権限をバイパスしない。**例外は 2 つ**:
 
-1. **一覧の絞り込み**: 一覧系 API（`GET /projects`, `GET /gantt/all`, `GET /issues`, `GET /time-entries`）は、システム管理者に対してロール権限による絞り込みを行わない。ロール設定を誤ったプロジェクトにも一覧から到達できるようにするため。
+1. **一覧の絞り込み**: 一覧系 API（`GET /projects`, `GET /gantt/all`, `GET /issues`, `GET /time-entries`, `GET /time-tree`）は、システム管理者に対してロール権限による絞り込みを行わない。ロール設定を誤ったプロジェクトにも一覧から到達できるようにするため。
 2. **`projects.members`**: メンバー表示・追加・編集・削除およびグループ紐付けは、システム管理者が RolePermission を無視して use/input とも可能（`myPermissions` にも反映）。メンバーの設定ミスを修正できるようにするため。プロジェクト詳細のその他のタブ・項目は従来どおりロール権限が必要。
 
 | メソッド | パス | 概要 |
@@ -143,6 +143,25 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | POST | `/` | 作成。Body: `projectId`, `issueId`（任意）, `hours`, `activity`, `spentOn`, `comments`（任意）。メンバー必須 |
 | PUT | `/:id` | 更新（所属プロジェクトのみ） |
 | DELETE | `/:id` | 削除（所属プロジェクトのみ） |
+
+---
+
+## Time Tree — `/api/time-tree`
+
+プロジェクト一覧の**時間**タブ向けの軽量一括取得。権限ゲートは `projects` use。チケット側は `projects.issues` use、時間記録側は `projects.time-entries` use でプロジェクトを絞る（`isAdmin` は一覧系と同様にロール絞り込みなし）。
+
+| メソッド | パス | 概要 |
+|----------|------|------|
+| GET | `/` | 時間タブ用データ。Query: チケット用 `trackerIds` / `statusIds` / `assignedToIds` / `assignedToGroupIds`（`GET /issues` と同趣旨・担当は OR）、時間記録用 `startDate` / `endDate` / `userIds` / `userGroupIds`（グループは所属メンバーへ展開して OR）、`include`（省略時 `all`。`entries` のとき `timeEntries` のみ） |
+
+**`include=all`（既定）の応答**:
+
+- `issues` — 時間タブ表示に必要な最小フィールド（relations・親子集約・説明・author 等は含まない）
+- `timeEntries` — 表示用 `user` 名付き（`project` / `issue` ネストは省略）
+- `statuses` / `groups` — フィルタ・ステータス表示用
+- `permissionsByProjectId` / `workflowByProjectId` — 応答に含まれるプロジェクト分のロール権限・ワークフロー（フロントの N+1 回避）
+
+**`include=entries`**: `{ timeEntries }` のみ（記録期間・記録者変更時の再取得用）。
 
 ---
 

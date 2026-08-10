@@ -1,9 +1,9 @@
-import { useState, useMemo, useEffect, type CSSProperties, type ReactNode } from 'react';
+import { useState, useMemo, useEffect, type CSSProperties, type ReactNode, type Dispatch, type SetStateAction } from 'react';
 import { ChevronDown, ChevronRight, Briefcase, Plus, Pencil, Trash2 } from 'lucide-react';
 import api from '../api/client';
 import { Project, Issue, IssueStatus, IssueMetaWorkflow, TimeEntry, PermissionMap } from '../types';
 import DateInput from './DateInput';
-import { prefetchProjectPermissions, projectMapCanInput } from '../utils/projectPermissionsCache';
+import { projectMapCanInput } from '../utils/projectPermissionsCache';
 import { orderIssuesHierarchically, type IssueListSort } from '../utils/issueSort';
 import { sortSiblingProjects, type ProjectListSort } from '../utils/projectTree';
 import { getSelectableStatuses } from '../utils/issueWorkflow';
@@ -62,7 +62,10 @@ interface TimeRecordTreeProps {
   issues: Issue[];
   statuses: IssueStatus[];
   timeEntries: TimeEntry[];
-  onRefresh: () => void;
+  permissionsByProject: Record<number, PermissionMap>;
+  workflowByProject: Record<number, IssueMetaWorkflow | null>;
+  onIssuesChange: Dispatch<SetStateAction<Issue[]>>;
+  onTimeEntriesChange: Dispatch<SetStateAction<TimeEntry[]>>;
   /** プロジェクトの複合並び替え（ルート・兄弟間） */
   projectSort?: ProjectListSort[];
   /** プロジェクト配下のチケット並び替え */
@@ -96,14 +99,15 @@ export default function TimeRecordTree({
   issues,
   statuses,
   timeEntries,
-  onRefresh,
+  permissionsByProject: permByProject,
+  workflowByProject,
+  onIssuesChange,
+  onTimeEntriesChange,
   projectSort,
   issueSort,
 }: TimeRecordTreeProps) {
   const [collapsedProjects, setCollapsedProjects] = useState<Set<number>>(new Set());
   const [collapsedIssues, setCollapsedIssues] = useState<Set<number>>(new Set());
-  const [permByProject, setPermByProject] = useState<Record<number, PermissionMap>>({});
-  const [workflowByProject, setWorkflowByProject] = useState<Record<number, IssueMetaWorkflow | null>>({});
   const [localIssues, setLocalIssues] = useState<Issue[]>(issues);
   const [updatingIssueIds, setUpdatingIssueIds] = useState<Set<number>>(new Set());
 
@@ -127,42 +131,6 @@ export default function TimeRecordTree({
     setLocalIssues(issues);
   }, [issues]);
 
-  useEffect(() => {
-    const ids = projects.map((p) => p.id);
-    if (ids.length === 0) return;
-    let cancelled = false;
-    prefetchProjectPermissions(ids).then((maps) => {
-      if (!cancelled) setPermByProject(maps);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [projects]);
-
-  useEffect(() => {
-    const ids = [...new Set(projects.map((p) => p.id))];
-    if (ids.length === 0) return;
-    let cancelled = false;
-    Promise.all(
-      ids.map(async (id) => {
-        try {
-          const res = await api.get('/issues/meta/options', { params: { projectId: id } });
-          return [id, (res.data.workflow as IssueMetaWorkflow | undefined) ?? null] as const;
-        } catch {
-          return [id, null] as const;
-        }
-      }),
-    ).then((entries) => {
-      if (cancelled) return;
-      const next: Record<number, IssueMetaWorkflow | null> = {};
-      for (const [id, workflow] of entries) next[id] = workflow;
-      setWorkflowByProject(next);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [projects]);
-
   const canEditTime = (projectId: number) =>
     projectMapCanInput(permByProject[projectId], 'projects.time-entries');
 
@@ -179,23 +147,21 @@ export default function TimeRecordTree({
     });
   };
 
+  const patchIssue = (issueId: number, patch: Partial<Issue>) => {
+    setLocalIssues((prev) => prev.map((i) => (i.id === issueId ? { ...i, ...patch } : i)));
+    onIssuesChange((prev) => prev.map((i) => (i.id === issueId ? { ...i, ...patch } : i)));
+  };
+
   const handleStatusChange = async (issue: Issue, nextStatusId: number) => {
     if (issue.statusId === nextStatusId) return;
     const status = statuses.find((s) => s.id === nextStatusId);
     const previous = { statusId: issue.statusId, status: issue.status };
-    setLocalIssues((prev) =>
-      prev.map((i) =>
-        i.id === issue.id ? { ...i, statusId: nextStatusId, status: status ?? i.status } : i,
-      ),
-    );
+    patchIssue(issue.id, { statusId: nextStatusId, status: status ?? issue.status });
     markUpdating(issue.id, true);
     try {
       await api.put(`/issues/${issue.id}`, { statusId: nextStatusId });
-      onRefresh();
     } catch (e: any) {
-      setLocalIssues((prev) =>
-        prev.map((i) => (i.id === issue.id ? { ...i, ...previous } : i)),
-      );
+      patchIssue(issue.id, previous);
       alert(e.response?.data?.error || 'ステータスの更新に失敗しました');
     } finally {
       markUpdating(issue.id, false);
@@ -205,17 +171,12 @@ export default function TimeRecordTree({
   const handleDoneRatioChange = async (issue: Issue, nextDoneRatio: number) => {
     if (issue.doneRatio === nextDoneRatio) return;
     const previous = issue.doneRatio;
-    setLocalIssues((prev) =>
-      prev.map((i) => (i.id === issue.id ? { ...i, doneRatio: nextDoneRatio } : i)),
-    );
+    patchIssue(issue.id, { doneRatio: nextDoneRatio });
     markUpdating(issue.id, true);
     try {
       await api.put(`/issues/${issue.id}`, { doneRatio: nextDoneRatio });
-      onRefresh();
     } catch (e: any) {
-      setLocalIssues((prev) =>
-        prev.map((i) => (i.id === issue.id ? { ...i, doneRatio: previous } : i)),
-      );
+      patchIssue(issue.id, { doneRatio: previous });
       alert(e.response?.data?.error || '進捗率の更新に失敗しました');
     } finally {
       markUpdating(issue.id, false);
@@ -344,7 +305,7 @@ export default function TimeRecordTree({
     }
     setSubmitting(true);
     try {
-      await api.post('/time-entries', {
+      const res = await api.post('/time-entries', {
         projectId,
         issueId,
         hours: Number(newEntryHours),
@@ -352,8 +313,8 @@ export default function TimeRecordTree({
         spentOn: newEntrySpentOn,
         comments: newEntryComments || undefined,
       });
+      onTimeEntriesChange((prev) => [res.data as TimeEntry, ...prev]);
       setAddingForIssueId(null);
-      onRefresh();
     } catch (e: any) {
       alert('保存に失敗しました: ' + (e.response?.data?.error || e.message));
     } finally {
@@ -368,14 +329,15 @@ export default function TimeRecordTree({
     }
     setSubmitting(true);
     try {
-      await api.put(`/time-entries/${editingEntryId}`, {
+      const res = await api.put(`/time-entries/${editingEntryId}`, {
         hours: Number(editEntryHours),
         activity: editEntryActivity,
         spentOn: editEntrySpentOn,
         comments: editEntryComments || undefined,
       });
+      const updated = res.data as TimeEntry;
+      onTimeEntriesChange((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
       setEditingEntryId(null);
-      onRefresh();
     } catch (e: any) {
       alert('保存に失敗しました: ' + (e.response?.data?.error || e.message));
     } finally {
@@ -387,7 +349,7 @@ export default function TimeRecordTree({
     if (!confirm('この時間記録を削除しますか？')) return;
     try {
       await api.delete(`/time-entries/${entryId}`);
-      onRefresh();
+      onTimeEntriesChange((prev) => prev.filter((e) => e.id !== entryId));
     } catch (e: any) {
       alert('削除に失敗しました: ' + (e.response?.data?.error || e.message));
     }
