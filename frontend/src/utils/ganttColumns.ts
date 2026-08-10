@@ -3,6 +3,7 @@ export type GanttColumnKey =
   | 'priority'
   | 'assignee'
   | 'status'
+  | 'dueDate'
   | 'schedule'
   | 'estimated'
   | 'actual';
@@ -28,6 +29,7 @@ export const GANTT_COLUMN_DEFS: GanttColumnDef[] = [
   { key: 'priority', label: '優先度', defaultWidth: 56, minWidth: 40, maxWidth: 160, hideable: true },
   { key: 'assignee', label: '担当者', defaultWidth: 96, minWidth: 56, maxWidth: 240, hideable: true },
   { key: 'status', label: 'ステータス', defaultWidth: 80, minWidth: 56, maxWidth: 160, hideable: true },
+  { key: 'dueDate', label: '期日', defaultWidth: 80, minWidth: 56, maxWidth: 160, hideable: true },
   { key: 'schedule', label: '開始～終了', defaultWidth: 168, minWidth: 100, maxWidth: 320, hideable: true },
   { key: 'estimated', label: '予定工数', defaultWidth: 56, minWidth: 40, maxWidth: 120, hideable: true },
   { key: 'actual', label: '実工数', defaultWidth: 52, minWidth: 40, maxWidth: 120, hideable: true },

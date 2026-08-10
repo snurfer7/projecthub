@@ -14,7 +14,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | PUT | `/password` | 必要 | パスワード変更。Body: `currentPassword`, `newPassword`。`authMethod === 'sso'` のときは 400。`pending` の場合は更新完了時に `active` へ |
 | PUT | `/landing-page` | 必要 | ランディング設定。Body: `landingPage` (`home` \| `projects` \| `companies`) |
 | PUT | `/menu-settings` | 必要 | メニュー表示。Body: `showProjectsMenu`, `showGanttMenu`, `showCompanyMenu`, `showAdminMenu` |
-| PUT | `/ui-preferences` | 必要 | 個人 UI 設定の部分更新。Body: `{ uiPreferences: { gantt?: { columns?: { key, visible, width }[] } } }`。既存 JSON とマージし、`gantt.columns` 指定時は正規化して置換。列 key は `ticket` \| `priority` \| `assignee` \| `status` \| `schedule` \| `estimated` \| `actual`。`ticket` は常に visible。応答: `{ message, uiPreferences }` |
+| PUT | `/ui-preferences` | 必要 | 個人 UI 設定の部分更新。Body: `{ uiPreferences: { gantt?: { columns?: { key, visible, width }[] } } }`。既存 JSON とマージし、`gantt.columns` 指定時は正規化して置換。列 key は `ticket` \| `priority` \| `assignee` \| `status` \| `dueDate` \| `schedule` \| `estimated` \| `actual`。`ticket` は常に visible。応答: `{ message, uiPreferences }` |
 | PUT | `/auth-method` | 必要 | 認証方式切替。Body: `authMethod`（`password` \| `sso`）, `newPassword`（`password` へ切替時必須）。権限: `settings` use + `settings.fields.authMethod` input。`sso` へは `microsoftOid` 連携済み必須。`sso` 切替時はパスワードを無効化（ランダムハッシュ） |
 | GET | `/microsoft/start` | 不要 | Microsoft 365（Entra ID）OIDC ログイン開始。Entra へリダイレクト |
 | GET | `/microsoft/callback` | 不要 | OIDC コールバック。成功時はワンタイム `ssoCode` 付きで `FRONTEND_URL/login` へ。失敗時は `ssoError` クエリ付きで同 URL へ。連携フロー成功時は `/settings` へ |

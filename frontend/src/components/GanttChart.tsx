@@ -110,6 +110,33 @@ function formatScheduleRange(startDate?: string | null, endDate?: string | null)
   return `～${end}`;
 }
 
+function formatDueDateLabel(dueDate?: string | null): string {
+  if (!dueDate) return '';
+  const d = new Date(dueDate);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' });
+}
+
+function toLocalDateKey(value: Date): string {
+  const y = value.getFullYear();
+  const m = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** 期日（日付）がシステム日付より過去か */
+function isDueDateOverdue(dueDate?: string | null): boolean {
+  if (!dueDate) return false;
+  const dueKey = /^\d{4}-\d{2}-\d{2}/.test(dueDate)
+    ? dueDate.slice(0, 10)
+    : (() => {
+        const d = new Date(dueDate);
+        return Number.isNaN(d.getTime()) ? '' : toLocalDateKey(d);
+      })();
+  if (!dueKey) return false;
+  return dueKey < toLocalDateKey(new Date());
+}
+
 function formatHoursValue(hours: number | null | undefined): string {
   if (hours == null || hours === 0) return '';
   const rounded = Math.round(hours * 100) / 100;
@@ -2055,6 +2082,8 @@ export default function GanttChart({
                       <div style={{ width: leftColWidth }} className="flex-shrink-0 text-xs border-r flex items-stretch sticky left-0 z-20 bg-white group-hover:bg-gray-50" data-issue-id={issue.id}>
                         {(() => {
                           const assigneeLabel = formatIssueAssignees(issue);
+                          const dueDateLabel = formatDueDateLabel(issue.dueDate);
+                          const dueDateOverdue = isDueDateOverdue(issue.dueDate);
                           const scheduleLabel = formatScheduleRange(issue.startDate, issue.endDate);
                           const estimatedLabel = formatHoursValue(issue.estimatedHours);
                           const actualLabel = formatHoursValue(issue.actualHours);
@@ -2123,6 +2152,21 @@ export default function GanttChart({
                                     {issue.status.name}
                                   </span>
                                 ) : null;
+                              case 'dueDate':
+                                return (
+                                  <span
+                                    className={`truncate text-[10px] tabular-nums ${
+                                      dueDateOverdue
+                                        ? 'text-red-600 font-bold underline'
+                                        : dueDateLabel
+                                          ? 'text-gray-600'
+                                          : 'text-gray-400'
+                                    }`}
+                                    title={dueDateLabel || undefined}
+                                  >
+                                    {dueDateLabel}
+                                  </span>
+                                );
                               case 'schedule':
                                 return (
                                   <span

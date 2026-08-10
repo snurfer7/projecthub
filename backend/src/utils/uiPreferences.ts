@@ -3,6 +3,7 @@ export type GanttColumnKey =
   | 'priority'
   | 'assignee'
   | 'status'
+  | 'dueDate'
   | 'schedule'
   | 'estimated'
   | 'actual';
@@ -18,6 +19,7 @@ const COLUMN_KEYS: GanttColumnKey[] = [
   'priority',
   'assignee',
   'status',
+  'dueDate',
   'schedule',
   'estimated',
   'actual',
@@ -30,6 +32,7 @@ const BOUNDS: Record<GanttColumnKey, { min: number; max: number; defaultWidth: n
   priority: { min: 40, max: 160, defaultWidth: 56, hideable: true },
   assignee: { min: 56, max: 240, defaultWidth: 96, hideable: true },
   status: { min: 56, max: 160, defaultWidth: 80, hideable: true },
+  dueDate: { min: 56, max: 160, defaultWidth: 80, hideable: true },
   schedule: { min: 100, max: 320, defaultWidth: 168, hideable: true },
   estimated: { min: 40, max: 120, defaultWidth: 56, hideable: true },
   actual: { min: 40, max: 120, defaultWidth: 52, hideable: true },

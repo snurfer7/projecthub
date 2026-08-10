@@ -64,6 +64,7 @@ export type GanttColumnKey =
   | 'priority'
   | 'assignee'
   | 'status'
+  | 'dueDate'
   | 'schedule'
   | 'estimated'
   | 'actual';
