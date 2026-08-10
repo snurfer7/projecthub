@@ -35,7 +35,7 @@
 | `/projects/:projectId/time-entries` | TimeEntriesPage | 工数一覧。追加・編集・削除: `projects.time-entries` canInput |
 | `/projects/:projectId/activities` | ProjectActivitiesPage | 活動履歴一覧（企業活動との N:N 紐づき）。表示条件: `projects.activities` canUse。既存活動の紐づけ追加・解除は `companies.activities` canInput。候補は主企業・関連企業の、当該プロジェクト未紐づけの活動。企業が未設定の場合は紐づけ不可。活動の新規作成は不可（企業詳細側で作成） |
 | `/issues/:id` | IssueDetailPage | チケット詳細。説明は Markdown 表示。親チケットへのリンクを表示。子がある場合の開始・終了・ステータスは集約値。編集・コメント・関連: `projects.issues` canInput。時間記録: `projects.time-entries` canInput。**時間記録の追加・編集モーダル**はこのチケットに固定し、チケット選択 UI は表示しない（`TimeEntryModal` に `fixedIssueId` を渡す）。プロジェクト工数一覧からの追加ではチケット選択可 |
-| `/issues/:id/edit` | IssueFormPage | チケット編集（親チケット・開始/終了の挙動は新規作成と同様）。ステータスは現在値＋許可された遷移先のみ選択可 |
+| `/issues/:id/edit` | IssueFormPage | チケット編集（親チケット・開始/終了の挙動は新規作成と同様）。**プロジェクト**を変更可能（`projects.issues.fields.project`。権限なし時は disabled）。変更時は親をクリアし、保存で子孫も含めて移動（API 側）。ステータスは現在値＋許可された遷移先のみ選択可 |
 | `/companies` | CompaniesPage | 会社一覧（API ページング・サーバー側検索。ページサイズ変更・前後ページ）。検索語・ページ・件数・法人格表示の有無は `sessionStorage` に保持し、企業詳細から一覧へ戻った際に復元する。ヘッダー（トップバー）の「企業」をクリックしたときは当該保持を削除し条件を初期化する |
 | `/deals` | DealsPage | 商談一覧（全企業横断）。`GET /crm/deals`（`page`, `pageSize`, `q`, `status`）でサーバー側ページング・検索。ステータス絞り込みドロップダウン付き。行クリックで `/companies/:id?tab=deals` へ遷移。表示条件: `deals` canUse |
 | `/contacts` | ContactsPage | 連絡先一覧（全企業横断）。`GET /crm/contacts`（`page`, `pageSize`, `q`）でサーバー側ページング・検索。ページサイズ変更・前後ページ。一覧・**CSV 出力**とも、連絡先詳細に紐づく拠点の**郵便番号**・**住所**（都道府県・市区町村・番地・建物）を表示／出力する。CSV は一覧と同じ検索語 `q` を適用し、表示ページに関係なく一致する全件をページング取得して UTF-8 BOM 付き CSV でダウンロード（検索語なしのときは全件）。列は姓・名・企業・拠点・郵便番号・住所・所属・役職・電話・メール・備考・コメント数。行クリックまたは企業名リンクで `/companies/:id?tab=contacts` へ遷移 |

@@ -7,6 +7,7 @@ import { parseNumericQueryIds } from '../utils/queryParams';
 import { applyAssigneeOrFilter } from '../utils/issueAssigneeFilter';
 import {
   applyAggregatedParentFields,
+  collectIssueSubtreeIds,
   issueHasChildren,
   validateIssueParentId,
 } from '../utils/issueParent';
@@ -582,16 +583,49 @@ router.put('/:id', requirePermission('projects', 'use'), async (req: AuthRequest
       res.status(400).json({ error: '子チケットがあるためステータスは変更できません' });
       return;
     }
+
+    let movingProject = false;
+    let targetProjectId = existingIssue.projectId;
+    if (req.body.projectId !== undefined) {
+      const nextProjectId = Number(req.body.projectId);
+      if (!Number.isInteger(nextProjectId) || nextProjectId <= 0) {
+        return res.status(400).json({ error: 'プロジェクトが不正です' });
+      }
+      if (nextProjectId !== existingIssue.projectId) {
+        const dest = await prisma.project.findUnique({
+          where: { id: nextProjectId },
+          select: { id: true },
+        });
+        if (!dest) {
+          return res.status(400).json({ error: 'プロジェクトが見つかりません' });
+        }
+        if (!(await hasProjectPermission(req.userId!, nextProjectId, 'projects.issues', 'input'))) {
+          res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
+          return;
+        }
+        movingProject = true;
+        targetProjectId = nextProjectId;
+      }
+    }
+
     const deniedDt = assertDatetimeFieldPermissions(permissions, req.body, existingIssue);
     if (deniedDt) {
       res.status(403).json({ error: `フィールドの編集権限がありません: ${deniedDt}` });
       return;
     }
     const existingAssigneeIds = existingIssue.assignees.map((a) => a.userId);
+    // プロジェクト移動時の親解除は fields.parent を要求しない
+    const bodyForFieldPerms = movingProject
+      ? (() => {
+          const { parentId: _omit, ...rest } = req.body;
+          return rest as Record<string, unknown>;
+        })()
+      : (req.body as Record<string, unknown>);
     const denied = assertFieldPermissions(
       permissions,
-      req.body,
+      bodyForFieldPerms,
       {
+        projectId: 'projects.issues.fields.project',
         subject: 'projects.issues.fields.subject',
         trackerId: 'projects.issues.fields.tracker',
         statusId: 'projects.issues.fields.status',
@@ -639,7 +673,10 @@ router.put('/:id', requirePermission('projects', 'use'), async (req: AuthRequest
     if (dueDate !== undefined) data.dueDate = dueDate ? new Date(dueDate) : null;
     if (estimatedHours !== undefined) data.estimatedHours = normalizeEstimatedHours(estimatedHours);
     if (doneRatio !== undefined) data.doneRatio = Number(doneRatio);
-    if (parentId !== undefined) {
+    if (movingProject) {
+      data.projectId = targetProjectId;
+      data.parentId = null;
+    } else if (parentId !== undefined) {
       const nextParentId = parentId === null || parentId === '' ? null : Number(parentId);
       const parentError = await validateIssueParentId(prisma, {
         parentId: nextParentId,
@@ -661,24 +698,64 @@ router.put('/:id', requirePermission('projects', 'use'), async (req: AuthRequest
       await syncIssueAssignees(prisma, issueId, nextAssigneeIds);
     }
 
-    const issue = await prisma.issue.update({
-      where: { id: issueId },
-      data,
-      include: {
-        tracker: true,
-        status: true,
-        priority: true,
-        author: { select: { id: true, firstName: true, lastName: true } },
-        ...issueAssigneesInclude,
-        assignedToGroup: { select: { id: true, name: true } },
-        parent: { select: parentSelect },
-        _count: { select: { children: true } },
-      },
-    });
+    let issue;
+    if (movingProject) {
+      const subtreeIds = await collectIssueSubtreeIds(prisma, issueId);
+      const descendantIds = subtreeIds.filter((id) => id !== issueId);
+      await prisma.$transaction(async (tx) => {
+        await tx.issue.update({
+          where: { id: issueId },
+          data,
+        });
+        if (descendantIds.length > 0) {
+          await tx.issue.updateMany({
+            where: { id: { in: descendantIds } },
+            data: { projectId: targetProjectId },
+          });
+        }
+        await tx.timeEntry.updateMany({
+          where: { issueId: { in: subtreeIds } },
+          data: { projectId: targetProjectId },
+        });
+      });
+      issue = await prisma.issue.findUnique({
+        where: { id: issueId },
+        include: {
+          tracker: true,
+          status: true,
+          priority: true,
+          author: { select: { id: true, firstName: true, lastName: true } },
+          ...issueAssigneesInclude,
+          assignedToGroup: { select: { id: true, name: true } },
+          parent: { select: parentSelect },
+          _count: { select: { children: true } },
+        },
+      });
+    } else {
+      issue = await prisma.issue.update({
+        where: { id: issueId },
+        data,
+        include: {
+          tracker: true,
+          status: true,
+          priority: true,
+          author: { select: { id: true, firstName: true, lastName: true } },
+          ...issueAssigneesInclude,
+          assignedToGroup: { select: { id: true, name: true } },
+          parent: { select: parentSelect },
+          _count: { select: { children: true } },
+        },
+      });
+    }
+
+    if (!issue) {
+      res.status(404).json({ error: 'チケットが見つかりません' });
+      return;
+    }
 
     const shaped = shapeIssueAssignees(issue);
     if ((issue._count?.children ?? 0) > 0) {
-      const aggById = await loadParentAggregations([existingIssue.projectId]);
+      const aggById = await loadParentAggregations([targetProjectId]);
       const agg = aggById.get(issue.id);
       if (agg) {
         res.json({

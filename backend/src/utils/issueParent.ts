@@ -183,3 +183,41 @@ export async function issueHasChildren(
   const count = await prisma.issue.count({ where: { parentId: issueId } });
   return count > 0;
 }
+
+/** 指定チケットとその全子孫の ID（同一プロジェクト内の親子木）を返す。先頭は rootId。 */
+export async function collectIssueSubtreeIds(
+  prisma: {
+    issue: {
+      findUnique: (args: any) => Promise<{ id: number; projectId: number } | null>;
+      findMany: (args: any) => Promise<{ id: number; parentId: number | null }[]>;
+    };
+  },
+  rootId: number
+): Promise<number[]> {
+  const root = await prisma.issue.findUnique({
+    where: { id: rootId },
+    select: { id: true, projectId: true },
+  });
+  if (!root) return [];
+
+  const issues = await prisma.issue.findMany({
+    where: { projectId: root.projectId },
+    select: { id: true, parentId: true },
+  });
+  const childrenByParent = new Map<number, number[]>();
+  for (const issue of issues) {
+    if (issue.parentId == null) continue;
+    const list = childrenByParent.get(issue.parentId) ?? [];
+    list.push(issue.id);
+    childrenByParent.set(issue.parentId, list);
+  }
+
+  const result = [rootId];
+  const stack = [...(childrenByParent.get(rootId) ?? [])];
+  while (stack.length > 0) {
+    const id = stack.pop()!;
+    result.push(id);
+    stack.push(...(childrenByParent.get(id) ?? []));
+  }
+  return result;
+}

@@ -1,6 +1,6 @@
 import { useState, useEffect, FormEvent, useId, useMemo } from 'react';
 import api from '../api/client';
-import { Issue, IssueMetaOptions, SystemSetting, PermissionMap } from '../types';
+import { Issue, IssueMetaOptions, SystemSetting, PermissionMap, Project } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import { usePermissions } from '../hooks/usePermissions';
 import Modal from './Modal';
@@ -162,6 +162,7 @@ export default function IssueForm({
     const [estimatedHours, setEstimatedHours] = useState('');
     const [doneRatio, setDoneRatio] = useState('0');
     const [currentProjectId, setCurrentProjectId] = useState(projectId || '');
+    const [projects, setProjects] = useState<Project[]>([]);
     const [parentId, setParentId] = useState('');
     const [parentOptions, setParentOptions] = useState<{ id: number; subject: string; parentId?: number | null }[]>([]);
     const [hasChildren, setHasChildren] = useState(false);
@@ -208,6 +209,13 @@ export default function IssueForm({
             }
         }).catch(() => { });
     }, [isEdit, initialStartDate, initialEndDate, initialDueDate]);
+
+    useEffect(() => {
+        if (!isEdit) return;
+        api.get('/projects')
+            .then((res) => setProjects(res.data || []))
+            .catch(() => setProjects([]));
+    }, [isEdit]);
 
     useEffect(() => {
         api.get('/issues/meta/options', { params: { projectId: currentProjectId } }).then((res) => {
@@ -337,7 +345,9 @@ export default function IssueForm({
                 data.startDate = startDate ? new Date(startDate).toISOString() : null;
                 data.endDate = endDate ? new Date(endDate).toISOString() : null;
             }
-            if (!isEdit) data.projectId = Number(currentProjectId);
+            if (!isEdit || !fieldDisabled('projects.issues.fields.project')) {
+                data.projectId = Number(currentProjectId);
+            }
 
             if (isEdit) {
                 await api.put(`/issues/${issueId}`, data);
@@ -426,6 +436,21 @@ export default function IssueForm({
 
                 <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
+                        {isEdit && (
+                            <Combobox
+                                label="プロジェクト"
+                                options={projects.map((p) => ({
+                                    value: String(p.id),
+                                    label: p.company?.name ? `${p.company.name} / ${p.name}` : p.name,
+                                }))}
+                                value={currentProjectId}
+                                onChange={(val) => {
+                                    setCurrentProjectId(val);
+                                    setParentId('');
+                                }}
+                                disabled={fieldDisabled('projects.issues.fields.project')}
+                            />
+                        )}
                         <Combobox
                             label="トラッカー"
                             options={meta.trackers.map((t) => ({ value: String(t.id), label: t.name }))}

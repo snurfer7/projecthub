@@ -338,6 +338,7 @@ function fieldValueChanged(bodyKey: string, oldVal: unknown, newVal: unknown): b
     'assignedToGroupId',
     'estimatedHours',
     'doneRatio',
+    'projectId',
   ]);
   if (numericKeys.has(bodyKey)) {
     const o = oldVal == null || oldVal === '' ? null : Number(oldVal);
