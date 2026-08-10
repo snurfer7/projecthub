@@ -1974,11 +1974,14 @@ export default function GanttChart({
                       style={{ height: GANTT_ROW_HEIGHT, boxSizing: 'border-box', ...rowBorderStyle(projectRootEnd ? 'root' : 'normal') }}
                     >
                       <div style={{ width: leftColWidth }} className="flex-shrink-0 text-xs font-semibold text-slate-700 border-r flex items-stretch sticky left-0 z-20 bg-slate-100 group-hover:bg-slate-200" title={group.companyName ? `${group.companyName} / ${group.projectName}` : group.projectName}>
-                        {visibleColumns.map((col, colIndex) => (
+                        {(() => {
+                          const projectDueDateLabel = formatDueDateLabel(group.projectDueDate);
+                          const projectDueDateOverdue = isDueDateOverdue(group.projectDueDate);
+                          return visibleColumns.map((col, colIndex) => (
                           <div
                             key={col.key}
                             style={{ width: col.width }}
-                            className={`relative flex-shrink-0 truncate flex items-center ${colIndex > 0 ? 'border-l border-slate-300/60' : ''} ${col.key === 'ticket' ? 'py-0.5' : ''}`}
+                            className={`relative flex-shrink-0 truncate flex items-center ${colIndex > 0 ? 'border-l border-slate-300/60' : ''} ${col.key === 'ticket' ? 'py-0.5' : ''} ${col.key === 'dueDate' ? 'px-1' : ''}`}
                           >
                             {col.key === 'ticket' ? (
                               <span style={{ paddingLeft: indentPx + 4 }} className="flex items-center gap-1 min-w-0 px-0.5">
@@ -1999,10 +2002,26 @@ export default function GanttChart({
                                   {group.projectName}
                                 </Link>
                               </span>
+                            ) : col.key === 'dueDate' ? (
+                              <span
+                                className={`truncate text-[10px] tabular-nums font-bold underline ${
+                                  projectDueDateOverdue
+                                    ? 'text-red-600'
+                                    : projectDueDateLabel
+                                      ? 'text-slate-600'
+                                      : 'text-slate-400'
+                                }`}
+                                title={projectDueDateLabel ? `期限日: ${projectDueDateLabel}` : undefined}
+                              >
+                                {projectDueDateLabel
+                                  ? `${projectDueDateOverdue ? '*' : ''}${projectDueDateLabel}`
+                                  : ''}
+                              </span>
                             ) : null}
                             {columnResizeHandle(col.key)}
                           </div>
-                        ))}
+                          ));
+                        })()}
                       </div>
                       <div
                         className={`relative flex-1 transition-colors ${canInputIssuesForProject(group.projectId) ? 'cursor-pointer group-hover:bg-slate-200' : ''}`}
@@ -2157,14 +2176,16 @@ export default function GanttChart({
                                   <span
                                     className={`truncate text-[10px] tabular-nums ${
                                       dueDateOverdue
-                                        ? 'text-red-600 font-bold underline'
+                                        ? 'text-red-600'
                                         : dueDateLabel
                                           ? 'text-gray-600'
                                           : 'text-gray-400'
                                     }`}
                                     title={dueDateLabel || undefined}
                                   >
-                                    {dueDateLabel}
+                                    {dueDateLabel
+                                      ? `${dueDateOverdue ? '*' : ''}${dueDateLabel}`
+                                      : ''}
                                   </span>
                                 );
                               case 'schedule':
