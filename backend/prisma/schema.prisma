@@ -185,6 +185,7 @@ model Location {
   company                    Company                 @relation("CompanyLocations", fields: [companyId], references: [id], onDelete: Cascade)
   relatedProjectAssociations ProjectRelatedCompany[]
   projects                   Project[]
+  activities                 Activity[]
 
   @@map("locations")
 }
@@ -574,6 +575,7 @@ model Deal {
 model Activity {
   id            Int               @id @default(autoincrement())
   companyId     Int               @map("company_id")
+  locationId    Int?              @map("location_id")
   contactId     Int?              @map("contact_id")
   dealId        Int?              @map("deal_id")
   userId        Int               @map("user_id")
@@ -586,6 +588,7 @@ model Activity {
   completed     Boolean           @default(false)
   createdAt     DateTime          @default(now()) @map("created_at")
   company       Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  location      Location?         @relation(fields: [locationId], references: [id], onDelete: SetNull)
   contact       Contact?          @relation(fields: [contactId], references: [id], onDelete: Cascade)
   deal          Deal?             @relation(fields: [dealId], references: [id], onDelete: Cascade)
   user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -594,6 +597,7 @@ model Activity {
   projectLinks  ActivityProject[]
 
   @@index([assignedToId])
+  @@index([locationId])
   @@map("activities")
 }
 

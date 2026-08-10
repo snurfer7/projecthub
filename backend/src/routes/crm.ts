@@ -2,10 +2,15 @@ import { Router, Response } from 'express';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { AuthRequest, authenticateToken } from '../middleware/auth';
 import { requirePermission, requireAnyPermission } from '../middleware/permissions';
+import { assertFieldPermissions } from '../services/permissions';
 import { parseStringQueryValues } from '../utils/queryParams';
 
 const router = Router();
 const prisma = new PrismaClient();
+
+const ACTIVITY_FIELD_PERMS: Record<string, string> = {
+  locationId: 'companies.activities.fields.location',
+};
 
 function getActivityPersistenceErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2022') {
@@ -18,6 +23,7 @@ function getActivityPersistenceErrorMessage(error: unknown, fallback: string): s
 const activityInclude = {
   user: { select: { id: true, firstName: true, lastName: true } },
   assignedTo: { select: { id: true, firstName: true, lastName: true } },
+  location: { select: { id: true, name: true } },
   contact: { select: { id: true, firstName: true, lastName: true } },
   deal: { select: { id: true, name: true } },
   projectLinks: {
@@ -83,6 +89,21 @@ async function assertProjectIdsForCompany(
   for (const projectId of projectIds) {
     const mismatch = await assertProjectBelongsToCompany(projectId, companyId);
     if (mismatch) return mismatch;
+  }
+  return null;
+}
+
+async function assertLocationBelongsToCompany(
+  locationId: number | null | undefined,
+  companyId: number,
+): Promise<string | null> {
+  if (locationId == null) return null;
+  const loc = await prisma.location.findFirst({
+    where: { id: locationId, companyId },
+    select: { id: true },
+  });
+  if (!loc) {
+    return '拠点は指定された企業に属する必要があります';
   }
   return null;
 }
@@ -595,7 +616,13 @@ router.get('/activities', requirePermission('companies.activities', 'use'), asyn
 
 router.post('/activities', requirePermission('companies.activities', 'input'), async (req: AuthRequest, res: Response) => {
   try {
-    const { companyId, contactId, dealId, projectIds, assignedToId, type, subject, description, dueDate, completed } = req.body;
+    const { companyId, locationId, contactId, dealId, projectIds, assignedToId, type, subject, description, dueDate, completed } = req.body;
+
+    const denied = assertFieldPermissions(req.permissions!, req.body, ACTIVITY_FIELD_PERMS);
+    if (denied) {
+      return res.status(403).json({ error: '権限がありません', code: denied });
+    }
+
     if (assignedToId) {
       const user = await prisma.user.findUnique({ where: { id: Number(assignedToId) } });
       if (user && (user.status === 'pending' || user.status === 'inactive')) {
@@ -603,18 +630,32 @@ router.post('/activities', requirePermission('companies.activities', 'input'), a
       }
     }
 
+    const resolvedCompanyId = Number(companyId);
+    const resolvedLocationId =
+      locationId === undefined || locationId === null || locationId === ''
+        ? null
+        : Number(locationId);
+    if (resolvedLocationId != null && !Number.isFinite(resolvedLocationId)) {
+      return res.status(400).json({ error: 'locationId が不正です' });
+    }
+    const locationMismatch = await assertLocationBelongsToCompany(resolvedLocationId, resolvedCompanyId);
+    if (locationMismatch) {
+      return res.status(400).json({ error: locationMismatch });
+    }
+
     const resolvedProjectIds = parseProjectIds(projectIds) ?? [];
     if (projectIds !== undefined && !Array.isArray(projectIds)) {
       return res.status(400).json({ error: 'projectIds は配列で指定してください' });
     }
-    const mismatch = await assertProjectIdsForCompany(resolvedProjectIds, Number(companyId));
+    const mismatch = await assertProjectIdsForCompany(resolvedProjectIds, resolvedCompanyId);
     if (mismatch) {
       return res.status(400).json({ error: mismatch });
     }
 
     const activity = await prisma.activity.create({
       data: {
-        companyId,
+        companyId: resolvedCompanyId,
+        locationId: resolvedLocationId,
         contactId,
         dealId,
         userId: req.userId!,
@@ -639,7 +680,24 @@ router.post('/activities', requirePermission('companies.activities', 'input'), a
 
 router.put('/activities/:id', requirePermission('companies.activities', 'input'), async (req: AuthRequest, res: Response) => {
   try {
-    const { contactId, dealId, projectIds, assignedToId, type, subject, description, dueDate, completed } = req.body;
+    const { locationId, contactId, dealId, projectIds, assignedToId, type, subject, description, dueDate, completed } = req.body;
+
+    const activityId = Number(req.params.id);
+    const existing = await prisma.activity.findUnique({
+      where: { id: activityId },
+      select: { id: true, companyId: true, locationId: true },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: '活動が見つかりません' });
+    }
+
+    const denied = assertFieldPermissions(req.permissions!, req.body, ACTIVITY_FIELD_PERMS, {
+      locationId: existing.locationId,
+    });
+    if (denied) {
+      return res.status(403).json({ error: '権限がありません', code: denied });
+    }
+
     if (assignedToId) {
       const user = await prisma.user.findUnique({ where: { id: Number(assignedToId) } });
       if (user && (user.status === 'pending' || user.status === 'inactive')) {
@@ -647,13 +705,17 @@ router.put('/activities/:id', requirePermission('companies.activities', 'input')
       }
     }
 
-    const activityId = Number(req.params.id);
-    const existing = await prisma.activity.findUnique({
-      where: { id: activityId },
-      select: { id: true, companyId: true },
-    });
-    if (!existing) {
-      return res.status(404).json({ error: '活動が見つかりません' });
+    let resolvedLocationId: number | null | undefined = undefined;
+    if (locationId !== undefined) {
+      resolvedLocationId =
+        locationId === null || locationId === '' ? null : Number(locationId);
+      if (resolvedLocationId != null && !Number.isFinite(resolvedLocationId)) {
+        return res.status(400).json({ error: 'locationId が不正です' });
+      }
+      const locationMismatch = await assertLocationBelongsToCompany(resolvedLocationId, existing.companyId);
+      if (locationMismatch) {
+        return res.status(400).json({ error: locationMismatch });
+      }
     }
 
     let resolvedProjectIds: number[] | undefined;
@@ -672,6 +734,7 @@ router.put('/activities/:id', requirePermission('companies.activities', 'input')
     const activity = await prisma.activity.update({
       where: { id: activityId },
       data: {
+        ...(resolvedLocationId !== undefined ? { locationId: resolvedLocationId } : {}),
         ...(contactId !== undefined ? { contactId } : {}),
         ...(dealId !== undefined ? { dealId } : {}),
         ...(assignedToId !== undefined ? { assignedToId } : {}),

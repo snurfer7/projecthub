@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { List, BarChart2, Kanban, Clock, RefreshCw, ChevronRight, ChevronDown } from 'lucide-react';
+import { List, BarChart2, Kanban, Clock, ChevronRight, ChevronDown } from 'lucide-react';
 import api from '../api/client';
 import {
   Project,
@@ -20,9 +20,6 @@ import IssueListSortModal from '../components/IssueListSortModal';
 import KanbanBoard from '../components/KanbanBoard';
 import IssueDetail from '../components/IssueDetail';
 import { IssueFormModal } from '../components/IssueForm';
-import Combobox from '../components/Combobox';
-import TextInput from '../components/TextInput';
-import DateInput from '../components/DateInput';
 import TimeRecordTree from '../components/TimeRecordTree';
 import { useAuth } from '../hooks/useAuth';
 import { usePermissions } from '../hooks/usePermissions';
@@ -34,7 +31,6 @@ import { isLeafIssue } from '../utils/issueTree';
 import {
   buildProjectTreeDisplayRows,
   filterProjectsKeepingAncestorsOfTicketed,
-  getProjectSelectLabelParts,
   PROJECT_LIST_SORT_OPTIONS,
   createSortEntry,
   isOptionalSortKey,
@@ -53,7 +49,11 @@ import {
   type IssueListSortKey,
 } from '../utils/issueSort';
 import type { ProjectListViewMode } from '../utils/projectListStorage';
-import { generateIdentifier } from '../utils/format';
+import ProjectCreateForm, {
+  emptyProjectCreateFormValues,
+  projectCreatePayload,
+  type ProjectCreateFormValues,
+} from '../components/ProjectCreateForm';
 import {
   effectiveDateRange,
   isDateRangeRelativePreset,
@@ -447,13 +447,12 @@ export default function ProjectListPage() {
 
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState<number | null>(null);
-  const [projectName, setProjectName] = useState('');
-  const [projectIdentifier, setProjectIdentifier] = useState('');
-  const [projectDescription, setProjectDescription] = useState('');
-  const [projectCompanyId, setProjectCompanyId] = useState('');
-  const [projectParentId, setProjectParentId] = useState('');
-  const [projectDueDate, setProjectDueDate] = useState('');
+  const [projectForm, setProjectForm] = useState<ProjectCreateFormValues>(emptyProjectCreateFormValues);
   const [projectError, setProjectError] = useState('');
+
+  const patchProjectForm = (patch: Partial<ProjectCreateFormValues>) => {
+    setProjectForm((prev) => ({ ...prev, ...patch }));
+  };
 
   const loadProjects = () => {
     api.get('/projects').then((res) => setProjects(res.data));
@@ -627,12 +626,7 @@ export default function ProjectListPage() {
 
   const openCreateProjectModal = () => {
     setEditingProjectId(null);
-    setProjectName('');
-    setProjectIdentifier(generateIdentifier());
-    setProjectDescription('');
-    setProjectCompanyId('');
-    setProjectParentId('');
-    setProjectDueDate('');
+    setProjectForm(emptyProjectCreateFormValues());
     setProjectError('');
     setShowProjectModal(true);
   };
@@ -647,14 +641,7 @@ export default function ProjectListPage() {
     e.preventDefault();
     setProjectError('');
     try {
-      const data = {
-        name: projectName,
-        identifier: projectIdentifier,
-        description: projectDescription || null,
-        companyId: projectCompanyId ? Number(projectCompanyId) : null,
-        parentId: projectParentId ? Number(projectParentId) : null,
-        dueDate: projectDueDate || null,
-      };
+      const data = projectCreatePayload(projectForm);
       if (editingProjectId) {
         await api.put(`/projects/${editingProjectId}`, data);
       } else {
@@ -1086,94 +1073,15 @@ export default function ProjectListPage() {
         }
       >
         {projectError && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{projectError}</div>}
-        <form id="project-list-form" onSubmit={handleSubmitProject}>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <TextInput
-              label="プロジェクト名 *"
-              value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
-              required
-            />
-            <TextInput
-              label="識別子 *"
-              value={projectIdentifier}
-              onChange={(e) => setProjectIdentifier(e.target.value)}
-              required
-              pattern="[a-z0-9-]+"
-              title="小文字英数字とハイフンのみ"
-              endAdornment={
-                <button
-                  type="button"
-                  onClick={() => setProjectIdentifier(generateIdentifier())}
-                  className="p-1 text-gray-400 hover:text-gray-600 focus:outline-none"
-                  title="識別子を再生成"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                </button>
-              }
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <Combobox
-                label="企業"
-                options={[
-                  { value: '', label: 'なし' },
-                  ...companies.map((c) => ({ value: String(c.id), label: c.name })),
-                ]}
-                value={projectCompanyId}
-                onChange={setProjectCompanyId}
-                size="medium"
-              />
-            </div>
-            <div>
-              <Combobox
-                label="親プロジェクト"
-                options={[
-                  { value: '', label: 'なし' },
-                  ...projects
-                    .filter((p) => p.id !== editingProjectId)
-                    .map((p) => {
-                      const { primary, secondary } = getProjectSelectLabelParts(p, projects);
-                      return {
-                        value: String(p.id),
-                        label: primary,
-                        secondaryLabel: secondary || undefined,
-                      };
-                    }),
-                ]}
-                value={projectParentId}
-                onChange={(val) => {
-                  setProjectParentId(val);
-                  if (val) {
-                    const parent = projects.find((p) => String(p.id) === val);
-                    if (parent?.dueDate) {
-                      setProjectDueDate(parent.dueDate.slice(0, 10));
-                    }
-                  }
-                }}
-                size="medium"
-              />
-            </div>
-          </div>
-          <div className="mb-4">
-            <DateInput
-              label="期限日"
-              id="project-due-date"
-              value={projectDueDate}
-              onChange={setProjectDueDate}
-            />
-          </div>
-          <div className="mb-4">
-            <TextInput
-              label="説明"
-              isMultiline
-              value={projectDescription}
-              onChange={(e) => setProjectDescription(e.target.value)}
-              rows={3}
-            />
-          </div>
-        </form>
+        <ProjectCreateForm
+          formId="project-list-form"
+          values={projectForm}
+          onChange={patchProjectForm}
+          onSubmit={handleSubmitProject}
+          companies={companies}
+          projects={projects}
+          excludeProjectId={editingProjectId}
+        />
       </Modal>
 
       <Modal isOpen={isDetailModalOpen} onClose={closeIssueModal} title="チケット詳細">

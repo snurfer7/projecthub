@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useMemo, FormEvent } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/client';
-import { Company, Contact, Deal, Activity, Association } from '../types';
-import { formatCompanyName, formatContactDisplayName } from '../utils/format';
-import { Pencil, Trash2, MessageSquare, GitMerge } from 'lucide-react';
+import { Company, Contact, Deal, Activity, Association, Project } from '../types';
+import { formatCompanyName, formatContactDisplayName, generateIdentifier } from '../utils/format';
+import { Pencil, Trash2, MessageSquare, GitMerge, FolderPlus } from 'lucide-react';
 import CompanyModal from '../components/CompanyModal';
 import Modal from '../components/Modal';
 import CompanyWikiTab from '../components/CompanyWikiTab';
@@ -16,7 +16,13 @@ import TextInput from '../components/TextInput';
 import NumberInput from '../components/NumberInput';
 import DateInput from '../components/DateInput';
 import Tabs from '../components/Tabs';
-import { Project } from '../types';
+import ProjectCreateForm, {
+  emptyProjectCreateFormValues,
+  projectCreatePayload,
+  type ProjectCreateFormValues,
+} from '../components/ProjectCreateForm';
+import { useAuth } from '../hooks/useAuth';
+import { usePermissions } from '../hooks/usePermissions';
 import {
   buildGroupedUserOptions,
   deriveGroupsFromUserMemberships,
@@ -65,6 +71,8 @@ function getActivityLabel(type: string) {
 export default function CompanyDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { canInput, canInputField, canUse } = usePermissions(user?.permissions);
   const [company, setCompany] = useState<Company | null>(null);
   const { search } = useLocation();
   const query = new URLSearchParams(search);
@@ -123,11 +131,20 @@ export default function CompanyDetailPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
-  const [activityForm, setActivityForm] = useState({ type: 'call', subject: '', description: '', contactId: '', dealId: '', projectIds: [] as string[], assignedToId: '', dueDate: '', completed: false });
+  const [activityForm, setActivityForm] = useState({ type: 'call', subject: '', description: '', locationId: '', contactId: '', dealId: '', projectIds: [] as string[], assignedToId: '', dueDate: '', completed: false });
   const [activityFiles, setActivityFiles] = useState<File[]>([]);
   const [activityError, setActivityError] = useState('');
   const activityHighlightRef = useRef<HTMLDivElement | null>(null);
   const [companyProjects, setCompanyProjects] = useState<{ id: number; name: string; identifier: string }[]>([]);
+
+  // Create project from activity
+  const [showProjectFromActivityModal, setShowProjectFromActivityModal] = useState(false);
+  const [sourceActivity, setSourceActivity] = useState<Activity | null>(null);
+  const [projectForm, setProjectForm] = useState<ProjectCreateFormValues>(emptyProjectCreateFormValues);
+  const [projectError, setProjectError] = useState('');
+  const [projectSubmitting, setProjectSubmitting] = useState(false);
+  const [allCompanies, setAllCompanies] = useState<Company[]>([]);
+  const [allProjects, setAllProjects] = useState<Project[]>([]);
 
   // Associations
   const [masterAssociations, setMasterAssociations] = useState<Association[]>([]);
@@ -382,7 +399,7 @@ export default function CompanyDetailPage() {
   // ========== Activity handlers ==========
   const openCreateActivity = () => {
     setEditingActivity(null);
-    setActivityForm({ type: 'call', subject: '', description: '', contactId: '', dealId: '', projectIds: [], assignedToId: '', dueDate: '', completed: false });
+    setActivityForm({ type: 'call', subject: '', description: '', locationId: '', contactId: '', dealId: '', projectIds: [], assignedToId: '', dueDate: '', completed: false });
     setActivityFiles([]);
     setActivityError('');
     setShowActivityModal(true);
@@ -394,6 +411,7 @@ export default function CompanyDetailPage() {
       type: a.type,
       subject: a.subject,
       description: a.description || '',
+      locationId: a.locationId?.toString() || '',
       contactId: a.contactId?.toString() || '',
       dealId: a.dealId?.toString() || '',
       projectIds: (a.projects || []).map((p) => String(p.id)),
@@ -406,11 +424,70 @@ export default function CompanyDetailPage() {
     setShowActivityModal(true);
   };
 
+  const openCreateProjectFromActivity = async (a: Activity) => {
+    setSourceActivity(a);
+    setProjectError('');
+    // 活動の「詳細」→ プロジェクト「説明」の初期値。拠点・期限日も引き継ぐ
+    const activityDetail = a.description ?? '';
+    setProjectForm({
+      name: a.subject,
+      identifier: generateIdentifier(),
+      description: activityDetail,
+      companyId: String(a.companyId || companyId),
+      locationId: a.locationId != null ? String(a.locationId) : '',
+      contactId: a.contactId != null ? String(a.contactId) : '',
+      parentId: '',
+      dueDate: a.dueDate?.split('T')[0] || '',
+    });
+    setShowProjectFromActivityModal(true);
+    try {
+      const [companiesRes, projectsRes] = await Promise.all([
+        api.get('/companies'),
+        api.get('/projects'),
+      ]);
+      setAllCompanies(companiesRes.data);
+      setAllProjects(projectsRes.data);
+    } catch {
+      setProjectError('企業・プロジェクト一覧の取得に失敗しました');
+    }
+  };
+
+  const closeProjectFromActivityModal = () => {
+    setShowProjectFromActivityModal(false);
+    setSourceActivity(null);
+    setProjectError('');
+    setProjectSubmitting(false);
+  };
+
+  const handleSubmitProjectFromActivity = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!sourceActivity) return;
+    setProjectError('');
+    setProjectSubmitting(true);
+    try {
+      const res = await api.post(
+        '/projects',
+        projectCreatePayload(projectForm, { sourceActivityId: sourceActivity.id }),
+      );
+      closeProjectFromActivityModal();
+      loadActivities();
+      loadCompany();
+      navigate(`/projects/${res.data.id}`);
+    } catch (err: any) {
+      setProjectError(err.response?.data?.error || 'プロジェクトの作成に失敗しました');
+      setProjectSubmitting(false);
+    }
+  };
+
+  const patchProjectForm = (patch: Partial<ProjectCreateFormValues>) => {
+    setProjectForm((prev) => ({ ...prev, ...patch }));
+  };
+
   const handleSubmitActivity = async (e: FormEvent) => {
     e.preventDefault();
     setActivityError('');
     try {
-      const data = {
+      const data: Record<string, unknown> = {
         companyId, type: activityForm.type, subject: activityForm.subject,
         description: activityForm.description || null,
         contactId: activityForm.contactId ? parseInt(activityForm.contactId) : null,
@@ -420,6 +497,9 @@ export default function CompanyDetailPage() {
         dueDate: activityForm.dueDate || null,
         completed: activityForm.completed,
       };
+      if (canInputField('companies.activities.fields.location')) {
+        data.locationId = activityForm.locationId ? parseInt(activityForm.locationId) : null;
+      }
       let saved: Activity;
       if (editingActivity) {
         const res = await api.put(`/crm/activities/${editingActivity.id}`, data);
@@ -775,6 +855,7 @@ export default function CompanyDetailPage() {
                     )}
                     <div className="text-xs text-gray-400 mt-1">
                       自社担当: {a.assignedTo ? `${a.assignedTo.lastName} ${a.assignedTo.firstName}` : '-'}
+                      {a.location && <span> · 拠点: {a.location.name}</span>}
                       {a.contact && <span> · 先方: {formatContactDisplayName(a.contact.lastName, a.contact.firstName)}</span>}
                       <span> · 登録: {a.user.lastName} {a.user.firstName} · {new Date(a.createdAt).toLocaleString('ja-JP')}</span>
                       {a.dueDate && <span className="ml-2">期限: {new Date(a.dueDate).toLocaleDateString('ja-JP')}</span>}
@@ -785,6 +866,16 @@ export default function CompanyDetailPage() {
                       className={`w-5 h-5 rounded border flex items-center justify-center text-xs ${a.completed ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-sky-500'}`}>
                       {a.completed && '✓'}
                     </button>
+                    {canInput('projects') && canUse('projects') && (
+                      <button
+                        type="button"
+                        onClick={() => openCreateProjectFromActivity(a)}
+                        title="プロジェクトを作成"
+                        className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded"
+                      >
+                        <FolderPlus className="w-4 h-4" />
+                      </button>
+                    )}
                     <button onClick={() => openEditActivity(a)} title="編集" className="p-1.5 text-sky-600 hover:bg-sky-50 rounded">
                       <Pencil className="w-4 h-4" />
                     </button>
@@ -1202,18 +1293,28 @@ export default function CompanyDetailPage() {
           <TextInput isMultiline label="詳細" value={activityForm.description} onChange={(e) => setActivityForm({ ...activityForm, description: e.target.value })} rows={3} className="mb-0" />
           <div className="grid grid-cols-2 gap-4 mb-0">
             <Combobox
+              label="拠点"
+              value={activityForm.locationId}
+              options={[
+                { value: '', label: 'なし' },
+                ...locations.map((l) => ({ value: l.id.toString(), label: l.name })),
+              ]}
+              onChange={(val) => setActivityForm({ ...activityForm, locationId: val })}
+              disabled={!canInputField('companies.activities.fields.location')}
+            />
+            <Combobox
               label="先方担当者"
               value={activityForm.contactId}
               options={contacts.map(c => ({ value: c.id.toString(), label: formatContactDisplayName(c.lastName, c.firstName) }))}
               onChange={(val) => setActivityForm({ ...activityForm, contactId: val })}
             />
-            <Combobox
-              label="商談"
-              value={activityForm.dealId}
-              options={deals.map(d => ({ value: d.id.toString(), label: d.name }))}
-              onChange={(val) => setActivityForm({ ...activityForm, dealId: val })}
-            />
           </div>
+          <Combobox
+            label="商談"
+            value={activityForm.dealId}
+            options={deals.map(d => ({ value: d.id.toString(), label: d.name }))}
+            onChange={(val) => setActivityForm({ ...activityForm, dealId: val })}
+          />
           <Combobox
             label="関連プロジェクト"
             isMulti
@@ -1286,6 +1387,45 @@ export default function CompanyDetailPage() {
           </div>
         </form>
       </Modal>
+
+      {/* Project from Activity Modal */}
+      <Modal
+        isOpen={showProjectFromActivityModal}
+        onClose={closeProjectFromActivityModal}
+        title="プロジェクト登録"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={closeProjectFromActivityModal}
+              className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm"
+              disabled={projectSubmitting}
+            >
+              キャンセル
+            </button>
+            <button
+              type="submit"
+              form="company-project-from-activity-form"
+              className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm disabled:opacity-50"
+              disabled={projectSubmitting}
+            >
+              {projectSubmitting ? '作成中…' : '作成'}
+            </button>
+          </>
+        }
+      >
+        {projectError && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{projectError}</div>}
+        <ProjectCreateForm
+          formId="company-project-from-activity-form"
+          values={projectForm}
+          onChange={patchProjectForm}
+          onSubmit={handleSubmitProjectFromActivity}
+          companies={allCompanies}
+          projects={allProjects}
+          dealName={sourceActivity?.deal?.name}
+        />
+      </Modal>
+
       {/* Add Association Modal */}
       <Modal
         isOpen={showAddAssociationModal}

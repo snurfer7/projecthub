@@ -125,45 +125,170 @@ router.get('/:id', requirePermission('projects', 'use'), requireProjectMember('i
 // Create project
 router.post('/', requirePermission('projects', 'input'), async (req: AuthRequest, res: Response) => {
   try {
-    const { name, identifier, description, companyId, locationId, contactId, parentId, dueDate, remarks, relatedCompanies } = req.body;
+    const {
+      name,
+      identifier,
+      description,
+      companyId: companyIdRaw,
+      locationId: locationIdRaw,
+      contactId: contactIdRaw,
+      parentId,
+      dueDate,
+      remarks,
+      relatedCompanies,
+      sourceActivityId: sourceActivityIdRaw,
+    } = req.body;
 
     if (!name || !identifier) {
       return res.status(400).json({ error: 'プロジェクト名と識別子が必要です' });
+    }
+
+    const sourceActivityId =
+      sourceActivityIdRaw != null && sourceActivityIdRaw !== ''
+        ? Number(sourceActivityIdRaw)
+        : null;
+    if (sourceActivityId != null && (!Number.isFinite(sourceActivityId) || sourceActivityId <= 0)) {
+      return res.status(400).json({ error: 'sourceActivityId が不正です' });
+    }
+
+    let sourceActivity: {
+      id: number;
+      companyId: number;
+      description: string | null;
+      locationId: number | null;
+      dueDate: Date | null;
+    } | null = null;
+    if (sourceActivityId != null) {
+      sourceActivity = await prisma.activity.findUnique({
+        where: { id: sourceActivityId },
+        select: { id: true, companyId: true, description: true, locationId: true, dueDate: true },
+      });
+      if (!sourceActivity) {
+        return res.status(404).json({ error: '活動が見つかりません' });
+      }
+    }
+
+    // 活動起点で description 未指定のときのみ、活動の詳細をプロジェクト説明に採用
+    // （フロントが空文字・null を送った場合はユーザーが消したとみなし上書きしない）
+    let projectDescription: string | null;
+    if (description === undefined) {
+      projectDescription = sourceActivity?.description ?? null;
+    } else if (description == null || String(description).trim() === '') {
+      projectDescription = null;
+    } else {
+      projectDescription = String(description);
+    }
+
+    let companyId: number | null = companyIdRaw ? Number(companyIdRaw) : null;
+    if (companyId != null && !Number.isFinite(companyId)) {
+      return res.status(400).json({ error: 'companyId が不正です' });
+    }
+    // 活動起点で主企業が未指定なら活動の企業を採用
+    if (companyId == null && sourceActivity) {
+      companyId = sourceActivity.companyId;
+    }
+
+    let locationId: number | null;
+    if (locationIdRaw === undefined) {
+      locationId = sourceActivity?.locationId ?? null;
+    } else if (locationIdRaw === null || locationIdRaw === '') {
+      locationId = null;
+    } else {
+      locationId = Number(locationIdRaw);
+    }
+
+    const contactId = contactIdRaw ? Number(contactIdRaw) : null;
+    if ((locationId != null && !Number.isFinite(locationId)) || (contactId != null && !Number.isFinite(contactId))) {
+      return res.status(400).json({ error: 'locationId または contactId が不正です' });
+    }
+    if ((locationId != null || contactId != null) && companyId == null) {
+      return res.status(400).json({ error: '拠点・先方担当者を指定する場合は企業が必要です' });
+    }
+    if (companyId != null && locationId != null) {
+      const loc = await prisma.location.findFirst({
+        where: { id: locationId, companyId },
+        select: { id: true },
+      });
+      if (!loc) {
+        return res.status(400).json({ error: '拠点は指定された企業に属する必要があります' });
+      }
+    }
+    if (companyId != null && contactId != null) {
+      const contact = await prisma.contact.findFirst({
+        where: { id: contactId, companyId },
+        select: { id: true },
+      });
+      if (!contact) {
+        return res.status(400).json({ error: '先方担当者は指定された企業に属する必要があります' });
+      }
+    }
+
+    let projectDueDate: Date | null;
+    if (dueDate === undefined) {
+      projectDueDate = sourceActivity?.dueDate ?? null;
+    } else if (dueDate === null || dueDate === '') {
+      projectDueDate = null;
+    } else {
+      projectDueDate = new Date(dueDate);
+    }
+
+    const relatedCompanyIds = (relatedCompanies || []).map((rc: any) => Number(rc.companyId)).filter((id: number) => Number.isFinite(id) && id > 0);
+
+    if (sourceActivity) {
+      const allowed = new Set<number>();
+      if (companyId != null) allowed.add(companyId);
+      for (const id of relatedCompanyIds) allowed.add(id);
+      if (!allowed.has(sourceActivity.companyId)) {
+        return res.status(400).json({
+          error: '活動の企業は作成するプロジェクトの主企業または関連企業である必要があります',
+        });
+      }
     }
 
     // Creator gets every Role (same as ensureProjectHasMember fallback)
     const allRoles = await prisma.role.findMany({ select: { id: true } });
     if (allRoles.length === 0) return res.status(500).json({ error: 'ロールが見つかりません' });
 
-    const project = await prisma.project.create({
-      data: {
-        name,
-        identifier,
-        description,
-        companyId: companyId ? Number(companyId) : null,
-        locationId: locationId ? Number(locationId) : null,
-        contactId: contactId ? Number(contactId) : null,
-        parentId: parentId ? Number(parentId) : null,
-        dueDate: dueDate ? new Date(dueDate) : null,
-        remarks,
-        relatedCompanies: {
-          create: (relatedCompanies || []).map((rc: any) => ({
-            companyId: Number(rc.companyId),
-            locationId: rc.locationId ? Number(rc.locationId) : null,
-            contactId: rc.contactId ? Number(rc.contactId) : null,
-            remarks: rc.remarks
-          }))
-        },
-        members: {
-          create: {
-            userId: req.userId!,
-            roles: {
-              create: allRoles.map((r) => ({ roleId: r.id, sourceGroupId: null })),
+    const project = await prisma.$transaction(async (tx) => {
+      const created = await tx.project.create({
+        data: {
+          name,
+          identifier,
+          description: projectDescription,
+          companyId,
+          locationId,
+          contactId,
+          parentId: parentId ? Number(parentId) : null,
+          dueDate: projectDueDate,
+          remarks,
+          relatedCompanies: {
+            create: (relatedCompanies || []).map((rc: any) => ({
+              companyId: Number(rc.companyId),
+              locationId: rc.locationId ? Number(rc.locationId) : null,
+              contactId: rc.contactId ? Number(rc.contactId) : null,
+              remarks: rc.remarks,
+            })),
+          },
+          members: {
+            create: {
+              userId: req.userId!,
+              roles: {
+                create: allRoles.map((r) => ({ roleId: r.id, sourceGroupId: null })),
+              },
             },
           },
         },
-      },
+      });
+
+      if (sourceActivity) {
+        await tx.activityProject.create({
+          data: { activityId: sourceActivity.id, projectId: created.id },
+        });
+      }
+
+      return created;
     });
+
     res.status(201).json(project);
   } catch (e: any) {
     if (e?.code === 'P2002') {

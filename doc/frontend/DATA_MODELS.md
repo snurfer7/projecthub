@@ -21,7 +21,7 @@
 - **ContactDetail** — 担当者詳細（department, position, phone, email, locationId, isPrimary）。`location` は id・name に加え郵便番号・住所系（postalCode, prefecture, city, street, building）を含み得る（連絡先一覧 GET 時）。
 - **ContactComment**, **CompanyComment** — コメント＋user, attachments。**CompanyComment** は活動のファイル用のとき `linkedActivity?: { id, subject }`（API の紐づけ活動）を含み得る。
 - **Deal** — 商談（companyId, contactId, name, amount, status, probability, expectedCloseDate, assignedToId, notes 等）。
-- **Activity** — CRM アクティビティ（`type`, subject, description, dueDate, completed, `contactId`・`contact`, `assignedToId`・`assignedTo`, `dealId`・`deal`, **`projects`**（`{ id, name, identifier }[]`、N:N）, **`fileCommentId`**, **`fileComment`**＝`{ id, attachments: Attachment[] } | null` 等）。`type` の標準値は [API_SPEC.md](../backend/API_SPEC.md) の Activity.type（`call`〜`claim`）を参照。
+- **Activity** — CRM アクティビティ（`type`, subject, description, dueDate, completed, `locationId`・`location`, `contactId`・`contact`, `assignedToId`・`assignedTo`, `dealId`・`deal`, **`projects`**（`{ id, name, identifier }[]`、N:N）, **`fileCommentId`**, **`fileComment`**＝`{ id, attachments: Attachment[] } | null` 等）。`type` の標準値は [API_SPEC.md](../backend/API_SPEC.md) の Activity.type（`call`〜`claim`）を参照。
 - **CompanyWikiPage** — 会社 Wiki（title, content, parentId, position, children）。
 
 ## プロジェクト

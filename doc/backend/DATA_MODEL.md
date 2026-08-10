@@ -57,7 +57,7 @@
 - **Association** — 団体（業界団体等）。CompanyAssociation で Company と多対多。
 - **CompanyAssociation** — Company と Association の多対多。
 - **Deal** — 商談。Company, Contact, User（assignedTo）, Activity と関連。
-- **Activity** — CRM アクティビティ。`type`（文字列・活動種別。標準値は API_SPEC の Activity.type を参照）, subject, description, dueDate, completed 等。Company, Contact（**先方担当者**）, Deal, User（作成者 `user` / **自社担当者** `assignedTo`）, **fileComment**（Prisma リレーション）, **Project（N:N・`ActivityProject` 経由）**と関連。**`fileCommentId`（任意・ユニーク）** — 活動に紐づく「ファイル用」会社コメント。添付レコードは `Attachment.companyCommentId` でコメントと共有する。API 応答では `projects: { id, name, identifier }[]` を含む。
+- **Activity** — CRM アクティビティ。`type`（文字列・活動種別。標準値は API_SPEC の Activity.type を参照）, subject, description, dueDate, completed 等。Company, **Location（拠点・任意）**, Contact（**先方担当者**）, Deal, User（作成者 `user` / **自社担当者** `assignedTo`）, **fileComment**（Prisma リレーション）, **Project（N:N・`ActivityProject` 経由）**と関連。**`locationId`（任意）** — 当該企業の拠点。**`fileCommentId`（任意・ユニーク）** — 活動に紐づく「ファイル用」会社コメント。添付レコードは `Attachment.companyCommentId` でコメントと共有する。API 応答では `projects: { id, name, identifier }[]` および `location: { id, name } | null` を含む。
 - **ActivityProject** — 活動とプロジェクトの中間テーブル（複合主キー `activityId` + `projectId`）。活動の `companyId` は、紐づく各プロジェクトの主企業または関連企業のいずれかであること（API で検証）。
 - **CompanyComment** — 会社へのコメント。Attachment 可。活動のファイル用コメントの場合、API 応答に **紐づく活動**（`activityFileFor` 等、id・subject）を含め、コメント一覧から活動履歴へ辿れるようにする。
 - **CompanyWikiPage** — 会社用 Wiki。親子階層（parentId）。
@@ -101,6 +101,7 @@
 | `admin.statuses.fields.isClosed` | 終了 | field | `admin.statuses` |
 | `admin.groups.fields.parentGroups` | 親グループ | field | `admin.groups` |
 | `admin.groups.fields.childGroups` | 子グループ | field | `admin.groups` |
+| `companies.activities.fields.location` | 拠点 | field | `companies.activities` |
 
 ## クライアントとの整合
 

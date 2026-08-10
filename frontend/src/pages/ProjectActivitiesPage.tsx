@@ -221,6 +221,7 @@ export default function ProjectActivitiesPage() {
                 <span>
                   自社担当: {a.assignedTo ? `${a.assignedTo.lastName} ${a.assignedTo.firstName}` : '-'}
                 </span>
+                {a.location && <span>拠点: {a.location.name}</span>}
                 {a.contact && (
                   <span>先方: {formatContactDisplayName(a.contact.lastName, a.contact.firstName)}</span>
                 )}

@@ -96,7 +96,14 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
         ],
       },
       { code: 'companies.deals', name: '商談', position: 7 },
-      { code: 'companies.activities', name: '活動履歴', position: 8 },
+      {
+        code: 'companies.activities',
+        name: '活動履歴',
+        position: 8,
+        children: [
+          { code: 'companies.activities.fields.location', name: '拠点', resourceType: 'field', position: 0 },
+        ],
+      },
       { code: 'companies.wiki', name: 'Wiki', position: 9 },
       { code: 'companies.comments', name: 'コメント', position: 10 },
       { code: 'companies.merge', name: '統合', position: 11 },

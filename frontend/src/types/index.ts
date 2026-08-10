@@ -451,6 +451,7 @@ export interface Deal {
 export interface Activity {
   id: number;
   companyId: number;
+  locationId?: number | null;
   contactId?: number | null;
   dealId?: number | null;
   userId: number;
@@ -469,6 +470,7 @@ export interface Activity {
   createdAt: string;
   user: { id: number; firstName: string; lastName: string };
   assignedTo?: { id: number; firstName: string; lastName: string } | null;
+  location?: { id: number; name: string } | null;
   contact?: { id: number; firstName: string; lastName: string } | null;
   deal?: { id: number; name: string } | null;
   /** N:N で紐づくプロジェクト一覧 */
