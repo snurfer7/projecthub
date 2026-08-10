@@ -58,9 +58,10 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | PUT | `/:id/groups/:groupId/role` | 割当グループの `roleIds` 更新。ロール `projects.members` input（`isAdmin` はロール権限不要） |
 | DELETE | `/:id/groups/:groupId` | グループ割当解除。ロール `projects.members` input（`isAdmin` はロール権限不要）。空割当防止あり |
 | GET | `/:id` | 詳細。`members` は個別割当のみ。`groups[].roleIds` と `groups[].group.members` は割当グループの実効メンバー（子孫所属含む）を展開して返す。`myPermissions` は個別＋グループ割当ロールから解決 |
-| GET | `/:id/comments` | コメント一覧（メンバー必須） |
-| POST | `/:id/comments` | コメント追加（メンバー必須） |
-| PUT | `/:id/comments/:commentId` | コメント更新（メンバー必須） |
+| GET | `/:id/comments` | コメント一覧（メンバー必須）。権限: `projects.comments` use |
+| POST | `/:id/comments` | コメント追加（メンバー必須）。権限: `projects.comments` input |
+| PUT | `/:id/comments/:commentId` | コメント更新（メンバー必須）。権限: `projects.comments` input。本人または管理者のみ |
+| DELETE | `/:id/comments/:commentId` | コメント削除（メンバー必須）。権限: `projects.comments` input。本人または管理者のみ |
 | GET | `/:id/activities` | プロジェクトに紐づく活動履歴一覧（N:N）。権限: `projects.activities` use。メンバー必須 |
 | POST | `/:id/activities` | 既存活動をプロジェクトへ紐づけ。Body: `{ activityId }`。権限: `companies.activities` input。活動の企業が当該プロジェクトの主企業または関連企業であること。メンバー必須 |
 | DELETE | `/:id/activities/:activityId` | プロジェクトと活動の紐づけ解除。権限: `companies.activities` input。メンバー必須 |

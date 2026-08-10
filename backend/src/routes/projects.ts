@@ -687,6 +687,36 @@ router.put('/:id/comments/:commentId', requirePermission('projects', 'use'), req
   }
 });
 
+// Delete project comment
+router.delete('/:id/comments/:commentId', requirePermission('projects', 'use'), requireProjectPermission('projects.comments', 'input', { paramName: 'id' }), async (req: AuthRequest, res: Response) => {
+  try {
+    const projectId = Number(req.params.id);
+    const commentId = Number(req.params.commentId);
+
+    const existing = await (prisma as any).projectComment.findFirst({
+      where: { id: commentId, projectId },
+    });
+
+    if (!existing) {
+      res.status(404).json({ error: 'コメントが見つかりません' });
+      return;
+    }
+
+    if (existing.userId !== req.userId) {
+      const user = await prisma.user.findUnique({ where: { id: req.userId! } });
+      if (!user?.isAdmin) {
+        res.status(403).json({ error: '削除権限がありません' });
+        return;
+      }
+    }
+
+    await (prisma as any).projectComment.delete({ where: { id: commentId } });
+    res.json({ message: 'コメントを削除しました' });
+  } catch (e) {
+    res.status(500).json({ error: 'コメントの削除に失敗しました' });
+  }
+});
+
 // Get activities linked to project (N:N)
 router.get('/:id/activities', requirePermission('projects', 'use'), requireProjectPermission('projects.activities', 'use', { paramName: 'id' }), async (req: AuthRequest, res: Response) => {
   try {
