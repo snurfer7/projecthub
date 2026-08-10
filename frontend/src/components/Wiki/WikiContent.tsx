@@ -53,7 +53,7 @@ const WikiContent: React.FC<WikiContentProps> = ({
                 </div>
                 )}
             </div>
-            <div className="p-6 prose prose-slate max-w-none flex-1 overflow-y-auto">
+            <div className="p-6 flex-1 overflow-y-auto">
                 <MarkdownRenderer content={content || '*コンテンツがありません*'} />
             </div>
         </div>

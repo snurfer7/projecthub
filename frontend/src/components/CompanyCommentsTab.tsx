@@ -176,7 +176,7 @@ export default function CompanyCommentsTab({ companyId, highlightCommentId }: Co
                                             {new Date(comment.createdAt).toLocaleString('ja-JP')}
                                         </span>
                                     </div>
-                                    <div className="text-xs text-gray-600 markdown-content">
+                                    <div className="text-xs text-gray-600">
                                         <MarkdownRenderer content={comment.content} />
                                     </div>
                                     {comment.attachments && comment.attachments.length > 0 && (
@@ -231,7 +231,6 @@ export default function CompanyCommentsTab({ companyId, highlightCommentId }: Co
                 initialContent={editingComment?.content || ''}
                 onSubmit={handleModalSubmit}
                 submitLabel={modalMode === 'create' ? '投稿する' : '保存'}
-                showAttachments={true}
             />
 
             <ConfirmationModal

@@ -2440,7 +2440,7 @@ export default function GanttChart({
                     <span className="text-sm font-medium">{c.user.lastName} {c.user.firstName}</span>
                     <span className="text-xs text-gray-400">{new Date(c.createdAt).toLocaleString('ja-JP')}</span>
                   </div>
-                  <div className="text-sm text-gray-700 prose prose-sm max-w-none prose-p:my-1">
+                  <div className="text-sm text-gray-700">
                     <MarkdownRenderer content={c.content} />
                   </div>
                 </div>

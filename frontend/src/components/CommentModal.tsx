@@ -10,7 +10,6 @@ interface CommentModalProps {
     initialContent?: string;
     onSubmit: (content: string, files: File[]) => Promise<void>;
     submitLabel?: string;
-    showAttachments?: boolean;
 }
 
 export default function CommentModal({
@@ -20,7 +19,6 @@ export default function CommentModal({
     initialContent = '',
     onSubmit,
     submitLabel = '投稿する',
-    showAttachments = true,
 }: CommentModalProps) {
     const [content, setContent] = useState(initialContent);
     const [files, setFiles] = useState<File[]>([]);
@@ -50,7 +48,6 @@ export default function CommentModal({
     };
 
     const handleDrop = (e: React.DragEvent) => {
-        if (!showAttachments) return;
         e.preventDefault();
         setIsDragging(false);
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
@@ -59,13 +56,11 @@ export default function CommentModal({
     };
 
     const handleDragOver = (e: React.DragEvent) => {
-        if (!showAttachments) return;
         e.preventDefault();
         setIsDragging(true);
     };
 
     const handleDragLeave = (e: React.DragEvent) => {
-        if (!showAttachments) return;
         e.preventDefault();
         setIsDragging(false);
     };
@@ -125,44 +120,42 @@ export default function CommentModal({
                     />
                 </div>
 
-                {showAttachments && (
-                    <div className="space-y-3">
-                        {files.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                                {files.map((file, idx) => (
-                                    <div key={idx} className="flex items-center gap-1.5 bg-slate-100 text-slate-700 px-2 py-1 rounded border border-slate-200 text-xs">
-                                        <span className="truncate max-w-[200px]">{file.name}</span>
-                                        <button
-                                            type="button"
-                                            onClick={() => setFiles(prev => prev.filter((_, i) => i !== idx))}
-                                            className="text-slate-400 hover:text-red-500 transition-colors"
-                                        >
-                                            <X className="w-3 h-3" />
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        <div className="flex items-center gap-2">
-                            <label className="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 px-3 py-1.5 rounded border border-slate-200 text-xs cursor-pointer transition-colors">
-                                <Paperclip className="w-3.5 h-3.5" />
-                                ファイルを添付
-                                <input
-                                    type="file"
-                                    className="sr-only"
-                                    multiple
-                                    onChange={(e) => {
-                                        const newFiles = Array.from(e.target.files || []);
-                                        if (newFiles.length > 0) {
-                                            setFiles(prev => [...prev, ...newFiles]);
-                                        }
-                                        e.target.value = '';
-                                    }}
-                                />
-                            </label>
+                <div className="space-y-3">
+                    {files.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                            {files.map((file, idx) => (
+                                <div key={idx} className="flex items-center gap-1.5 bg-slate-100 text-slate-700 px-2 py-1 rounded border border-slate-200 text-xs">
+                                    <span className="truncate max-w-[200px]">{file.name}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFiles(prev => prev.filter((_, i) => i !== idx))}
+                                        className="text-slate-400 hover:text-red-500 transition-colors"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            ))}
                         </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                        <label className="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 px-3 py-1.5 rounded border border-slate-200 text-xs cursor-pointer transition-colors">
+                            <Paperclip className="w-3.5 h-3.5" />
+                            ファイルを添付
+                            <input
+                                type="file"
+                                className="sr-only"
+                                multiple
+                                onChange={(e) => {
+                                    const newFiles = Array.from(e.target.files || []);
+                                    if (newFiles.length > 0) {
+                                        setFiles(prev => [...prev, ...newFiles]);
+                                    }
+                                    e.target.value = '';
+                                }}
+                            />
+                        </label>
                     </div>
-                )}
+                </div>
 
             </form>
         </Modal>

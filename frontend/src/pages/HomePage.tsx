@@ -106,7 +106,7 @@ export default function HomePage() {
             </div>
           </div>
         ) : (
-          <div className="prose prose-sm max-w-none bg-slate-50 p-6 rounded-lg">
+          <div className="bg-slate-50 p-6 rounded-lg">
             <MarkdownRenderer content={content} />
           </div>
         )}

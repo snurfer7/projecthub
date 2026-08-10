@@ -160,7 +160,7 @@ export default function ProjectCommentsPage() {
                                         )}
                                     </div>
 
-                                    <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed bg-slate-50 rounded-lg p-3 border border-slate-100 mt-1 markdown-content">
+                                    <div className="text-sm text-slate-700 leading-relaxed bg-slate-50 rounded-lg p-3 border border-slate-100 mt-1">
                                         <MarkdownRenderer content={comment.content} />
                                     </div>
                                     {comment.attachments && comment.attachments.length > 0 && (
@@ -196,7 +196,6 @@ export default function ProjectCommentsPage() {
                 initialContent={editingComment?.content || ''}
                 onSubmit={handleModalSubmit}
                 submitLabel={modalMode === 'create' ? '投稿する' : '保存'}
-                showAttachments={true}
             />
 
             <ConfirmationModal

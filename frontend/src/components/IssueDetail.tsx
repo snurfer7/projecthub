@@ -322,7 +322,7 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh, permissi
                 </div>
 
                 {issue.description && (
-                    <div className="prose prose-sm max-w-none mb-4 text-gray-700 prose-p:my-1 prose-headings:my-2">
+                    <div className="mb-4 text-gray-700">
                         <MarkdownRenderer content={issue.description} />
                     </div>
                 )}
@@ -615,7 +615,7 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh, permissi
                                 </div>
                             ) : (
                                 <>
-                                    <div className="text-sm text-gray-700 prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2">
+                                    <div className="text-sm text-gray-700">
                                         <MarkdownRenderer content={c.content} />
                                     </div>
                                     {c.attachments && c.attachments.length > 0 && (

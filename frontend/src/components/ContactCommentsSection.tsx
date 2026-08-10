@@ -3,7 +3,6 @@ import api from '../api/client';
 import { ContactComment } from '../types';
 import { Trash2, Send, Pencil } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import MarkdownEditor from './MarkdownEditor';
 import MarkdownRenderer from './MarkdownRenderer';
 import ConfirmationModal from './ConfirmationModal';
 import CommentModal from './CommentModal';
@@ -162,7 +161,7 @@ export default function ContactCommentsSection({ contactId }: ContactCommentsSec
                       </div>
                     )}
                   </div>
-                  <div className="text-xs text-gray-600 markdown-content">
+                  <div className="text-xs text-gray-600">
                     <MarkdownRenderer content={comment.content} />
                   </div>
                   {comment.attachments && comment.attachments.length > 0 && (
@@ -197,7 +196,6 @@ export default function ContactCommentsSection({ contactId }: ContactCommentsSec
         initialContent={editingComment?.content || ''}
         onSubmit={handleModalSubmit}
         submitLabel={modalMode === 'create' ? '投稿する' : '保存'}
-        showAttachments={true}
       />
 
       <ConfirmationModal
