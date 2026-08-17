@@ -1,8 +1,8 @@
 import { useState, useEffect, FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { Issue, User, SystemSetting, PermissionMap, TimeEntry } from '../types';
-import { Pencil, Users, Trash2, X, Check, Paperclip } from 'lucide-react';
+import { Pencil, Copy, Users, Trash2, X, Check, Paperclip } from 'lucide-react';
 import { formatEstimatedHours } from '../utils/format';
 import MarkdownRenderer from './MarkdownRenderer';
 import MarkdownEditor from './MarkdownEditor';
@@ -17,12 +17,15 @@ interface IssueDetailProps {
     issueId: string;
     user: User;
     onEdit?: () => void;
+    /** モーダル埋め込み時: コピーで新規フォームを開く。未指定時はフルページ遷移 */
+    onCopy?: () => void;
     onRefresh?: () => void;
     /** プロジェクトロール権限。未指定時はチケットのプロジェクトから取得 */
     permissions?: PermissionMap;
 }
 
-export default function IssueDetail({ issueId, user, onEdit, onRefresh, permissions }: IssueDetailProps) {
+export default function IssueDetail({ issueId, user, onEdit, onCopy, onRefresh, permissions }: IssueDetailProps) {
+    const navigate = useNavigate();
     const [issue, setIssue] = useState<Issue | null>(null);
     const [resolvedPermissions, setResolvedPermissions] = useState<PermissionMap>(permissions ?? {});
     const { canInput } = usePermissions(resolvedPermissions);
@@ -306,19 +309,39 @@ export default function IssueDetail({ issueId, user, onEdit, onRefresh, permissi
                         </div>
                         <h1 className="text-xl font-bold text-slate-800">{issue.subject}</h1>
                     </div>
-                    {canEditIssue && (onEdit ? (
-                        <button
-                            onClick={onEdit}
-                            title="編集"
-                            className="p-1.5 text-sky-600 hover:bg-sky-50 rounded"
-                        >
-                            <Pencil className="w-4 h-4" />
-                        </button>
-                    ) : (
-                        <Link to={`/issues/${issueId}/edit`} title="編集" className="p-1.5 text-sky-600 hover:bg-sky-50 rounded">
-                            <Pencil className="w-4 h-4" />
-                        </Link>
-                    ))}
+                    {canEditIssue && (
+                        <div className="flex items-center gap-1">
+                            {onEdit ? (
+                                <button
+                                    onClick={onEdit}
+                                    title="編集"
+                                    className="p-1.5 text-sky-600 hover:bg-sky-50 rounded"
+                                >
+                                    <Pencil className="w-4 h-4" />
+                                </button>
+                            ) : (
+                                <Link to={`/issues/${issueId}/edit`} title="編集" className="p-1.5 text-sky-600 hover:bg-sky-50 rounded">
+                                    <Pencil className="w-4 h-4" />
+                                </Link>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (onCopy) {
+                                        onCopy();
+                                        return;
+                                    }
+                                    if (issue?.projectId) {
+                                        navigate(`/projects/${issue.projectId}/issues/new?copyFrom=${issueId}`);
+                                    }
+                                }}
+                                title="コピー"
+                                className="p-1.5 text-sky-600 hover:bg-sky-50 rounded"
+                            >
+                                <Copy className="w-4 h-4" />
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {issue.description && (

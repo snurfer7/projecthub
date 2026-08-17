@@ -37,6 +37,7 @@ export default function KanbanPage() {
   const [includeUnscheduled, setIncludeUnscheduled] = useState(false);
   const [isNewIssueModalOpen, setIsNewIssueModalOpen] = useState(false);
   const [newIssueStatusId, setNewIssueStatusId] = useState<number | undefined>(undefined);
+  const [copyFromIssueId, setCopyFromIssueId] = useState<number | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedIssueId, setSelectedIssueId] = useState<number | null>(null);
@@ -118,6 +119,7 @@ export default function KanbanPage() {
   const openNewIssueForColumn = (statusId: number) => {
     if (!canEditIssues) return;
     if (!isStatusAssignable(workflow, statusId)) return;
+    setCopyFromIssueId(null);
     setNewIssueStatusId(statusId);
     setIsNewIssueModalOpen(true);
   };
@@ -145,6 +147,14 @@ export default function KanbanPage() {
     if (!canEditIssues) return;
     setIsDetailModalOpen(false);
     setIsEditModalOpen(true);
+  };
+
+  const handleCopyFromDetail = () => {
+    if (!canEditIssues || selectedIssueId == null) return;
+    setCopyFromIssueId(selectedIssueId);
+    setNewIssueStatusId(undefined);
+    setIsDetailModalOpen(false);
+    setIsNewIssueModalOpen(true);
   };
 
   const closeModal = () => {
@@ -221,16 +231,30 @@ export default function KanbanPage() {
 
       <IssueFormModal
         isOpen={isNewIssueModalOpen}
-        onClose={() => setIsNewIssueModalOpen(false)}
-        title="新規チケット作成"
-        projectId={String(projectId)}
-        defaultStatusId={newIssueStatusId}
-        permissions={projectPermissions}
-        onSuccess={() => {
+        onClose={() => {
+          const fromCopy = copyFromIssueId != null;
           setIsNewIssueModalOpen(false);
-          fetchData();
+          setCopyFromIssueId(null);
+          if (fromCopy) setIsDetailModalOpen(true);
         }}
-        onCancel={() => setIsNewIssueModalOpen(false)}
+        title={copyFromIssueId != null ? 'チケットをコピー' : '新規チケット作成'}
+        projectId={String(projectId)}
+        defaultStatusId={copyFromIssueId != null ? undefined : newIssueStatusId}
+        copyFromIssueId={copyFromIssueId != null ? String(copyFromIssueId) : undefined}
+        permissions={projectPermissions}
+        onSuccess={(savedId) => {
+          setIsNewIssueModalOpen(false);
+          setCopyFromIssueId(null);
+          fetchData();
+          setSelectedIssueId(savedId);
+          setIsDetailModalOpen(true);
+        }}
+        onCancel={() => {
+          const fromCopy = copyFromIssueId != null;
+          setIsNewIssueModalOpen(false);
+          setCopyFromIssueId(null);
+          if (fromCopy) setIsDetailModalOpen(true);
+        }}
       />
 
       <Modal
@@ -243,6 +267,7 @@ export default function KanbanPage() {
             issueId={String(selectedIssueId)}
             user={user}
             onEdit={canEditIssues ? handleEditFromDetail : undefined}
+            onCopy={canEditIssues ? handleCopyFromDetail : undefined}
             permissions={projectPermissions}
           />
         )}

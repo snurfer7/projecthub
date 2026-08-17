@@ -115,6 +115,7 @@ export default function ProjectListPage() {
   const [selectedIssueId, setSelectedIssueId] = useState<number | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [copyFromIssueId, setCopyFromIssueId] = useState<number | null>(null);
   const { user } = useAuth();
   const { canUse } = usePermissions(user?.permissions);
 
@@ -701,9 +702,16 @@ export default function ProjectListPage() {
     setIsEditModalOpen(true);
   };
 
+  const handleCopyFromDetail = () => {
+    if (selectedIssueId == null) return;
+    setCopyFromIssueId(selectedIssueId);
+    setIsDetailModalOpen(false);
+  };
+
   const closeIssueModal = () => {
     setIsDetailModalOpen(false);
     setIsEditModalOpen(false);
+    setCopyFromIssueId(null);
     setSelectedIssueId(null);
   };
 
@@ -1090,6 +1098,7 @@ export default function ProjectListPage() {
             issueId={String(selectedIssueId)}
             user={user}
             onEdit={handleEditFromDetail}
+            onCopy={handleCopyFromDetail}
           />
         )}
       </Modal>
@@ -1107,6 +1116,28 @@ export default function ProjectListPage() {
           }}
           onCancel={() => {
             setIsEditModalOpen(false);
+            setIsDetailModalOpen(true);
+          }}
+        />
+      )}
+
+      {copyFromIssueId != null && (
+        <IssueFormModal
+          isOpen={copyFromIssueId != null}
+          onClose={() => {
+            setCopyFromIssueId(null);
+            setIsDetailModalOpen(true);
+          }}
+          title="チケットをコピー"
+          copyFromIssueId={String(copyFromIssueId)}
+          onSuccess={(savedId) => {
+            setCopyFromIssueId(null);
+            setSelectedIssueId(savedId);
+            loadKanbanData();
+            setIsDetailModalOpen(true);
+          }}
+          onCancel={() => {
+            setCopyFromIssueId(null);
             setIsDetailModalOpen(true);
           }}
         />

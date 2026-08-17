@@ -9,6 +9,8 @@ export default function IssueFormPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const isEdit = !!id;
+  const copyFromIssueId = searchParams.get('copyFrom') || undefined;
+  const isCopyMode = !isEdit && !!copyFromIssueId;
   const initialDueDateStr = searchParams.get('dueDate');
   const initialStartDateStr = searchParams.get('startDate');
   const [permissions, setPermissions] = useState<PermissionMap>({});
@@ -34,6 +36,16 @@ export default function IssueFormPage() {
             setPermissions(projRes.data.myPermissions ?? {});
             setResolvedProjectId(String(pid));
           }
+          return;
+        }
+        if (copyFromIssueId) {
+          const issueRes = await api.get(`/issues/${copyFromIssueId}`);
+          const pid = issueRes.data.projectId;
+          const projRes = await api.get(`/projects/${pid}`);
+          if (!cancelled) {
+            setPermissions(projRes.data.myPermissions ?? {});
+            setResolvedProjectId(String(pid));
+          }
         }
       } catch {
         if (!cancelled) setPermissions({});
@@ -41,16 +53,19 @@ export default function IssueFormPage() {
     };
     load();
     return () => { cancelled = true; };
-  }, [projectId, id]);
+  }, [projectId, id, copyFromIssueId]);
+
+  const pageTitle = isEdit ? 'チケット編集' : isCopyMode ? 'チケットをコピー' : '新規チケット';
 
   return (
     <div className="max-w-full mx-auto">
-      <h1 className="text-2xl font-bold text-slate-800 mb-6">{isEdit ? 'チケット編集' : '新規チケット'}</h1>
+      <h1 className="text-2xl font-bold text-slate-800 mb-6">{pageTitle}</h1>
       <IssueForm
         projectId={resolvedProjectId}
         issueId={id}
-        initialStartDate={initialStartDateStr || undefined}
-        initialDueDate={initialDueDateStr || undefined}
+        copyFromIssueId={copyFromIssueId}
+        initialStartDate={isCopyMode ? undefined : (initialStartDateStr || undefined)}
+        initialDueDate={isCopyMode ? undefined : (initialDueDateStr || undefined)}
         onSuccess={(savedId) => {
           navigate(`/issues/${savedId}`);
         }}

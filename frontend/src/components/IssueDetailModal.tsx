@@ -8,6 +8,7 @@ interface IssueDetailModalProps {
     issueId: string | number | null;
     user: User;
     onEdit?: (issueId: string) => void;
+    onCopy?: (issueId: string) => void;
     onRefresh?: () => void;
     permissions?: PermissionMap;
 }
@@ -18,6 +19,7 @@ export default function IssueDetailModal({
     issueId,
     user,
     onEdit,
+    onCopy,
     onRefresh,
     permissions,
 }: IssueDetailModalProps) {
@@ -34,6 +36,7 @@ export default function IssueDetailModal({
                 issueId={String(issueId)}
                 user={user}
                 onEdit={onEdit ? () => onEdit(String(issueId)) : undefined}
+                onCopy={onCopy ? () => onCopy(String(issueId)) : undefined}
                 onRefresh={onRefresh}
                 permissions={permissions}
             />

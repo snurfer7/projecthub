@@ -31,6 +31,8 @@ function toLocalDatetimeString(dateString?: string | null) {
 interface IssueFormProps {
     projectId?: string;
     issueId?: string;
+    /** コピー元チケット ID。指定時は create モードで浅いコピー項目をプレフィル */
+    copyFromIssueId?: string;
     initialStartDate?: string;
     initialEndDate?: string;
     initialDueDate?: string;
@@ -102,13 +104,14 @@ export function IssueFormModal({ isOpen, onClose, title, size, ...issueFormProps
                 .catch(() => setResolvedPermissions({}));
             return;
         }
-        if (issueFormProps.issueId) {
-            api.get(`/issues/${issueFormProps.issueId}`)
+        const sourceId = issueFormProps.issueId || issueFormProps.copyFromIssueId;
+        if (sourceId) {
+            api.get(`/issues/${sourceId}`)
                 .then((res) => getCachedProjectPermissions(res.data.projectId))
                 .then(setResolvedPermissions)
                 .catch(() => setResolvedPermissions({}));
         }
-    }, [isOpen, issueFormProps.permissions, issueFormProps.projectId, issueFormProps.issueId]);
+    }, [isOpen, issueFormProps.permissions, issueFormProps.projectId, issueFormProps.issueId, issueFormProps.copyFromIssueId]);
 
     return (
         <Modal
@@ -125,7 +128,7 @@ export function IssueFormModal({ isOpen, onClose, title, size, ...issueFormProps
                 />
             }
         >
-            <IssueForm {...issueFormProps} permissions={resolvedPermissions} inModal formId={formId} />
+            <IssueForm {...issueFormProps} key={issueFormProps.copyFromIssueId || issueFormProps.issueId || 'create'} permissions={resolvedPermissions} inModal formId={formId} />
         </Modal>
     );
 }
@@ -133,6 +136,7 @@ export function IssueFormModal({ isOpen, onClose, title, size, ...issueFormProps
 export default function IssueForm({
     projectId,
     issueId,
+    copyFromIssueId,
     initialStartDate,
     initialEndDate,
     initialDueDate,
@@ -144,6 +148,7 @@ export default function IssueForm({
     formId: formIdProp,
 }: IssueFormProps) {
     const isEdit = !!issueId;
+    const isCopyMode = !!copyFromIssueId && !isEdit;
     const { user } = useAuth();
     const { canInput, canInputField } = usePermissions(permissions);
     const fieldDisabled = (code: string) => (permissions ? !canInputField(code) : false);
@@ -180,7 +185,8 @@ export default function IssueForm({
             const total = (data.conversionTimes || []).reduce((a, b) => a + b, 0);
             setTotalDayConversion(total);
 
-            if (!isEdit) {
+            // コピー時はソースの日時を使うため、新規デフォルト日時は設定しない
+            if (!isEdit && !isCopyMode) {
                 let resolvedStartDate = '';
                 if (!initialStartDate) {
                     const now = new Date();
@@ -208,7 +214,7 @@ export default function IssueForm({
                 }
             }
         }).catch(() => { });
-    }, [isEdit, initialStartDate, initialEndDate, initialDueDate]);
+    }, [isEdit, isCopyMode, initialStartDate, initialEndDate, initialDueDate]);
 
     useEffect(() => {
         if (!isEdit) return;
@@ -220,7 +226,6 @@ export default function IssueForm({
     useEffect(() => {
         api.get('/issues/meta/options', { params: { projectId: currentProjectId } }).then((res) => {
             setMeta(res.data);
-            if (!isEdit && res.data.trackers.length > 0) setTrackerId(String(res.data.trackers[0].id));
             if (!isEdit) {
                 const selectable = getSelectableStatuses(res.data.statuses, res.data.workflow, { mode: 'create' });
                 if (selectable.length > 0) {
@@ -232,21 +237,25 @@ export default function IssueForm({
                     setStatusId('');
                 }
             }
-            if (!isEdit && res.data.priorities.length > 0) {
-                const normal = res.data.priorities.find((p: any) => p.name === '通常');
-                setPriorityId(String(normal?.id || res.data.priorities[0].id));
-            }
-            if (!isEdit && user) {
-                const inCandidates = (res.data.users || []).some(
-                    (u: { id: number; status?: string }) => u.id === user.id && u.status === 'active'
-                );
-                setAssignedToPrincipals(inCandidates ? [`u:${user.id}`] : []);
+            // コピー時はソース値を後からセットするため、新規デフォルトはスキップ
+            if (!isEdit && !isCopyMode) {
+                if (res.data.trackers.length > 0) setTrackerId(String(res.data.trackers[0].id));
+                if (res.data.priorities.length > 0) {
+                    const normal = res.data.priorities.find((p: any) => p.name === '通常');
+                    setPriorityId(String(normal?.id || res.data.priorities[0].id));
+                }
+                if (user) {
+                    const inCandidates = (res.data.users || []).some(
+                        (u: { id: number; status?: string }) => u.id === user.id && u.status === 'active'
+                    );
+                    setAssignedToPrincipals(inCandidates ? [`u:${user.id}`] : []);
+                }
             }
         }).catch((err) => {
             setError('メタデータの取得に失敗しました');
             setMeta({ trackers: [], statuses: [], priorities: [], users: [] });
         });
-    }, [isEdit, currentProjectId, defaultStatusId, user?.id]);
+    }, [isEdit, isCopyMode, currentProjectId, defaultStatusId, user?.id]);
 
     useEffect(() => {
         if (!currentProjectId) {
@@ -292,6 +301,36 @@ export default function IssueForm({
             });
         }
     }, [issueId, isEdit]);
+
+    useEffect(() => {
+        if (!isCopyMode || !copyFromIssueId) return;
+        api.get(`/issues/${copyFromIssueId}`).then((res) => {
+            const issue: Issue = res.data;
+            setTrackerId(String(issue.trackerId));
+            setPriorityId(String(issue.priorityId));
+            const principals: string[] = [];
+            if (issue.assignedToGroupId) principals.push(`g:${issue.assignedToGroupId}`);
+            const users = issue.assignees?.length
+                ? issue.assignees
+                : issue.assignedTo
+                    ? [issue.assignedTo]
+                    : [];
+            for (const u of users) principals.push(`u:${u.id}`);
+            setAssignedToPrincipals(principals);
+            setSubject(`${issue.subject} のコピー`);
+            setDescription(issue.description || '');
+            setStartDate(issue.startDate ? toLocalDatetimeString(issue.startDate) : '');
+            setEndDate(issue.endDate ? toLocalDatetimeString(issue.endDate) : '');
+            setDueDate(issue.dueDate ? issue.dueDate.slice(0, 10) : '');
+            setEstimatedHours(issue.estimatedHours != null ? String(issue.estimatedHours) : '');
+            setDoneRatio('0');
+            setCurrentProjectId(String(issue.projectId));
+            setParentId(issue.parentId ? String(issue.parentId) : '');
+            setHasChildren(false);
+        }).catch(() => {
+            setError('コピー元チケットの取得に失敗しました');
+        });
+    }, [copyFromIssueId, isCopyMode]);
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();

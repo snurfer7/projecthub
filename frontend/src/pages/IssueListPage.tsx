@@ -85,6 +85,7 @@ export default function IssueListPage() {
   const [editingIssueId, setEditingIssueId] = useState<string | null>(null);
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [isNewIssueModalOpen, setIsNewIssueModalOpen] = useState(false);
+  const [copyFromIssueId, setCopyFromIssueId] = useState<string | null>(null);
   const [deletingIssueId, setDeletingIssueId] = useState<number | null>(null);
 
   const fetchIssues = () => {
@@ -139,7 +140,10 @@ export default function IssueListPage() {
           <h2 className="text-lg font-semibold text-slate-700">チケット一覧</h2>
           <PermissionGate code="projects.issues" action="input" permissions={projectPermissions}>
             <button
-              onClick={() => setIsNewIssueModalOpen(true)}
+              onClick={() => {
+                setCopyFromIssueId(null);
+                setIsNewIssueModalOpen(true);
+              }}
               className="bg-sky-600 text-white px-4 py-2 rounded-md text-sm hover:bg-sky-700 cursor-pointer"
             >
               新規チケット
@@ -320,20 +324,38 @@ export default function IssueListPage() {
             setEditingIssueId(String(selectedIssueId));
             setSelectedIssueId(null);
           }}
+          onCopy={() => {
+            setCopyFromIssueId(String(selectedIssueId));
+            setSelectedIssueId(null);
+            setIsNewIssueModalOpen(true);
+          }}
           onRefresh={fetchIssues}
           permissions={projectPermissions}
         />
 
         <IssueFormModal
           isOpen={isNewIssueModalOpen}
-          onClose={() => setIsNewIssueModalOpen(false)}
-          title="新規チケット"
-          projectId={projectId}
-          onSuccess={() => {
+          onClose={() => {
+            const from = copyFromIssueId;
             setIsNewIssueModalOpen(false);
-            fetchIssues();
+            setCopyFromIssueId(null);
+            if (from) setSelectedIssueId(from);
           }}
-          onCancel={() => setIsNewIssueModalOpen(false)}
+          title={copyFromIssueId ? 'チケットをコピー' : '新規チケット'}
+          projectId={projectId}
+          copyFromIssueId={copyFromIssueId || undefined}
+          onSuccess={(savedId) => {
+            setIsNewIssueModalOpen(false);
+            setCopyFromIssueId(null);
+            fetchIssues();
+            setSelectedIssueId(String(savedId));
+          }}
+          onCancel={() => {
+            const from = copyFromIssueId;
+            setIsNewIssueModalOpen(false);
+            setCopyFromIssueId(null);
+            if (from) setSelectedIssueId(from);
+          }}
           permissions={projectPermissions}
         />
         <ConfirmationModal

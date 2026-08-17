@@ -905,7 +905,8 @@ export default function GanttChart({
     projectId: number;
     initialStartDate: string;
     initialDueDate: string;
-  }>({ isOpen: false, projectId: 0, initialStartDate: '', initialDueDate: '' });
+    copyFromIssueId?: number | null;
+  }>({ isOpen: false, projectId: 0, initialStartDate: '', initialDueDate: '', copyFromIssueId: null });
 
   const [commentModal, setCommentModal] = useState<{ issue: Issue; comments: IssueComment[] } | null>(null);
   const [commentModalLoading, setCommentModalLoading] = useState(false);
@@ -1696,7 +1697,7 @@ export default function GanttChart({
     const dateStr = `${year}-${month}-${day}`;
 
     // モーダルを開く
-    setAddModal({ isOpen: true, projectId, initialStartDate: dateStr, initialDueDate: '' });
+    setAddModal({ isOpen: true, projectId, initialStartDate: dateStr, initialDueDate: '', copyFromIssueId: null });
     void loadFormPermissionsForProject(projectId);
   }, [chartStart, dayWidth, canInputIssuesForProject]);
 
@@ -2458,20 +2459,30 @@ export default function GanttChart({
         onApply={applyColumns}
       />
 
-      {/* チケット追加モーダル */}
+      {/* チケット追加／コピーモーダル */}
       <IssueFormModal
         isOpen={addModal.isOpen}
-        onClose={() => setAddModal({ ...addModal, isOpen: false })}
-        title="新規チケット作成"
-        projectId={String(addModal.projectId)}
-        initialStartDate={addModal.initialStartDate}
-        initialDueDate={addModal.initialDueDate}
-        permissions={resolvedFormPermissions}
-        onSuccess={() => {
-          setAddModal({ ...addModal, isOpen: false });
-          onIssueCreated?.();
+        onClose={() => {
+          const from = addModal.copyFromIssueId;
+          setAddModal({ ...addModal, isOpen: false, copyFromIssueId: null });
+          if (from != null) setDetailIssueId(from);
         }}
-        onCancel={() => setAddModal({ ...addModal, isOpen: false })}
+        title={addModal.copyFromIssueId != null ? 'チケットをコピー' : '新規チケット作成'}
+        projectId={String(addModal.projectId)}
+        initialStartDate={addModal.copyFromIssueId != null ? undefined : addModal.initialStartDate}
+        initialDueDate={addModal.copyFromIssueId != null ? undefined : addModal.initialDueDate}
+        copyFromIssueId={addModal.copyFromIssueId != null ? String(addModal.copyFromIssueId) : undefined}
+        permissions={resolvedFormPermissions}
+        onSuccess={(savedId) => {
+          setAddModal({ ...addModal, isOpen: false, copyFromIssueId: null });
+          onIssueCreated?.();
+          setDetailIssueId(savedId);
+        }}
+        onCancel={() => {
+          const from = addModal.copyFromIssueId;
+          setAddModal({ ...addModal, isOpen: false, copyFromIssueId: null });
+          if (from != null) setDetailIssueId(from);
+        }}
       />
 
       {/* チケット詳細モーダル */}
@@ -2500,6 +2511,23 @@ export default function GanttChart({
                 return () => {
                   void loadFormPermissionsForProject(issue.projectId);
                   setEditIssueId(detailIssueId);
+                  setDetailIssueId(null);
+                };
+              })()
+            }
+            onCopy={
+              (() => {
+                const issue = issues.find((i) => i.id === detailIssueId);
+                if (!issue || !canInputIssuesForProject(issue.projectId)) return undefined;
+                return () => {
+                  void loadFormPermissionsForProject(issue.projectId);
+                  setAddModal({
+                    isOpen: true,
+                    projectId: issue.projectId,
+                    initialStartDate: '',
+                    initialDueDate: '',
+                    copyFromIssueId: detailIssueId,
+                  });
                   setDetailIssueId(null);
                 };
               })()
