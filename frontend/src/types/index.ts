@@ -110,6 +110,8 @@ export interface Company {
   legalEntityStatusId?: number;
   legalEntityStatus?: LegalEntityStatus;
   legalEntityPosition?: string;
+  isSales: boolean;
+  isPurchase: boolean;
   createdAt: string;
   _count?: { projects: number; comments: number; wikiPages: number; locations: number };
   projects?: { id: number; name: string; identifier: string; status: string }[];

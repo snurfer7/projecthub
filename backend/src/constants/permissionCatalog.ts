@@ -71,10 +71,11 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
       { code: 'companies.fields.notes', name: '備考', resourceType: 'field', position: 2 },
       { code: 'companies.fields.legalEntityStatus', name: '法人格', resourceType: 'field', position: 3 },
       { code: 'companies.fields.legalEntityPosition', name: '法人格位置', resourceType: 'field', position: 4 },
+      { code: 'companies.fields.transactionTypes', name: '取引区分', resourceType: 'field', position: 5 },
       {
         code: 'companies.locations',
         name: '拠点',
-        position: 5,
+        position: 6,
         children: [
           { code: 'companies.locations.fields.name', name: '拠点名', resourceType: 'field', position: 0 },
           { code: 'companies.locations.fields.phone', name: '電話', resourceType: 'field', position: 1 },
@@ -86,7 +87,7 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
       {
         code: 'companies.contacts',
         name: '担当者',
-        position: 6,
+        position: 7,
         children: [
           { code: 'companies.contacts.fields.name', name: '氏名', resourceType: 'field', position: 0 },
           { code: 'companies.contacts.fields.email', name: 'メール', resourceType: 'field', position: 1 },
@@ -95,18 +96,18 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
           { code: 'companies.contacts.fields.position', name: '役職', resourceType: 'field', position: 4 },
         ],
       },
-      { code: 'companies.deals', name: '商談', position: 7 },
+      { code: 'companies.deals', name: '商談', position: 8 },
       {
         code: 'companies.activities',
         name: '活動履歴',
-        position: 8,
+        position: 9,
         children: [
           { code: 'companies.activities.fields.location', name: '拠点', resourceType: 'field', position: 0 },
         ],
       },
-      { code: 'companies.wiki', name: 'Wiki', position: 9 },
-      { code: 'companies.comments', name: 'コメント', position: 10 },
-      { code: 'companies.merge', name: '統合', position: 11 },
+      { code: 'companies.wiki', name: 'Wiki', position: 10 },
+      { code: 'companies.comments', name: 'コメント', position: 11 },
+      { code: 'companies.merge', name: '統合', position: 12 },
     ],
   },
   { code: 'deals', name: '商談一覧', position: 21 },

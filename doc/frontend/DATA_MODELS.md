@@ -16,10 +16,10 @@
 
 ## 会社・CRM
 
-- **Company** — id, name, 住所系（postalCode, prefecture, city, street, building）, phone, fax, website, notes, legalEntityStatusId, legalEntityStatus, legalEntityPosition, createdAt, _count, projects, locations, contacts, associations, comments, wikiPages。
+- **Company** — id, name, 住所系（postalCode, prefecture, city, street, building）, phone, fax, website, notes, legalEntityStatusId, legalEntityStatus, legalEntityPosition, **isSales**（売上先）, **isPurchase**（仕入先）, createdAt, _count, projects, locations, contacts, associations, comments, wikiPages。
 - **PaginatedCompaniesResponse** — `GET /api/companies?page=…` 用。`items`（Company[]）, `total`, `page`, `pageSize`, `totalPages`。
 - **Association**, **LegalEntityStatus**, **Location** — 会社・団体・法人区分・拠点。
-- **Contact** — id, companyId, firstName, lastName, notes, company, details, deals, _count。
+- **Contact** — id, companyId, firstName, lastName, notes, company（一覧 GET 時は `id`, `name`, `isSales`, `isPurchase` を含み得る）, details, deals, _count。
 - **PaginatedContactsResponse** — `GET /api/crm/contacts?page=…` 用。`items`（Contact[]）, `total`, `page`, `pageSize`, `totalPages`。
 - **ContactDetail** — 担当者詳細（department, position, phone, email, locationId, isPrimary）。`location` は id・name に加え郵便番号・住所系（postalCode, prefecture, city, street, building）を含み得る（連絡先一覧 GET 時）。
 - **ContactComment**, **CompanyComment** — コメント＋user, attachments。**CompanyComment** は活動のファイル用のとき `linkedActivity?: { id, subject }`（API の紐づけ活動）を含み得る。

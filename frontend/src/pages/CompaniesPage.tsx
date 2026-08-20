@@ -5,7 +5,8 @@ import { Company, PaginatedCompaniesResponse } from '../types';
 import CompanyModal from '../components/CompanyModal';
 import PermissionGate from '../components/PermissionGate';
 import { useAuth } from '../hooks/useAuth';
-import { formatCompanyName } from '../utils/format';
+import Combobox from '../components/Combobox';
+import { formatCompanyName, formatCompanyTransactionTypes, COMPANY_TRANSACTION_TYPE_OPTIONS } from '../utils/format';
 import {
   COMPANIES_LIST_STORAGE_KEY,
   COMPANIES_LIST_RESET_EVENT,
@@ -71,7 +72,7 @@ export default function CompaniesPage() {
   }, [searchQuery]);
 
   const loadCompanies = useCallback(() => {
-    const { page, pageSize, q } = listQuery;
+    const { page, pageSize, q, transactionTypes } = listQuery;
     setLoading(true);
     api
       .get<PaginatedCompaniesResponse>('/companies', {
@@ -79,6 +80,8 @@ export default function CompaniesPage() {
           page,
           pageSize,
           ...(q ? { q } : {}),
+          ...(transactionTypes.includes('sales') ? { isSales: true } : {}),
+          ...(transactionTypes.includes('purchase') ? { isPurchase: true } : {}),
         },
       })
       .then((res) => {
@@ -112,17 +115,33 @@ export default function CompaniesPage() {
     <div>
       <h1 className="text-2xl font-bold text-slate-800 mb-6">企業</h1>
 
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
+        <div className="flex items-center gap-4 flex-wrap">
         <input
           type="text"
           placeholder="企業名、電話番号、住所で検索..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="border rounded-md px-3 py-2 text-sm w-72 focus:outline-none focus:ring-2 focus:ring-sky-500"
+          className="border border-gray-300 rounded-md px-3 py-2.5 text-sm w-72 min-h-[42px] hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all"
         />
+        <Combobox
+          label="取引区分"
+          options={[...COMPANY_TRANSACTION_TYPE_OPTIONS]}
+          value={listQuery.transactionTypes}
+          onChange={(vals: string[]) =>
+            setListQuery((p) => ({
+              ...p,
+              page: 1,
+              transactionTypes: vals.filter((v): v is 'sales' | 'purchase' => v === 'sales' || v === 'purchase'),
+            }))
+          }
+          isMulti
+          className="w-60"
+        />
+        </div>
         <PermissionGate code="companies" action="input" permissions={user?.permissions}>
           <button onClick={openCreateCompanyModal}
-            className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm">
+            className="bg-sky-600 text-white px-4 py-2 rounded-md hover:bg-sky-700 text-sm min-h-[42px]">
             新規企業
           </button>
         </PermissionGate>
@@ -147,6 +166,7 @@ export default function CompaniesPage() {
                   </label>
                 </div>
               </th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">取引区分</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">電話番号</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">住所</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">プロジェクト数</th>
@@ -155,7 +175,7 @@ export default function CompaniesPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={4} className="px-4 py-12 text-center text-gray-500">
+                <td colSpan={5} className="px-4 py-12 text-center text-gray-500">
                   読み込み中…
                 </td>
               </tr>
@@ -171,6 +191,9 @@ export default function CompaniesPage() {
                   >
                     <td className="px-4 py-3 text-sky-600 font-medium">
                       {showLegalEntity ? formatCompanyName(company) : company.name}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {formatCompanyTransactionTypes(company)}
                     </td>
                     <td className="px-4 py-3 text-gray-600">{mainLocation?.phone || '-'}</td>
                     <td className="px-4 py-3 text-gray-600">

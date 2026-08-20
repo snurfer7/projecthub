@@ -40,6 +40,70 @@ export function formatCompanyName(company: { name: string, legalEntityStatus?: {
     return company.name;
 }
 
+export const COMPANY_TRANSACTION_TYPE_OPTIONS = [
+    { value: 'sales', label: '売上先' },
+    { value: 'purchase', label: '仕入先' },
+] as const;
+
+export type CompanyTransactionType = (typeof COMPANY_TRANSACTION_TYPE_OPTIONS)[number]['value'];
+
+/** 登録・編集モーダル用の排他トグル（売上 / 仕入 / 売上・仕入） */
+export const COMPANY_TRANSACTION_MODE_OPTIONS = [
+    { value: 'sales', label: '売上' },
+    { value: 'purchase', label: '仕入' },
+    { value: 'both', label: '売上・仕入' },
+] as const;
+
+export type CompanyTransactionMode = (typeof COMPANY_TRANSACTION_MODE_OPTIONS)[number]['value'];
+
+export function companyTransactionTypeValues(company: {
+    isSales?: boolean;
+    isPurchase?: boolean;
+}): CompanyTransactionType[] {
+    const values: CompanyTransactionType[] = [];
+    if (company.isSales) values.push('sales');
+    if (company.isPurchase) values.push('purchase');
+    return values;
+}
+
+export function companyFlagsFromTransactionTypes(values: Array<string | number>): {
+    isSales: boolean;
+    isPurchase: boolean;
+} {
+    const set = new Set(values.map((v) => String(v)));
+    return { isSales: set.has('sales'), isPurchase: set.has('purchase') };
+}
+
+/** 未設定・売上のみは sales。仕入のみは purchase。両方は both */
+export function companyTransactionModeFromFlags(company: {
+    isSales?: boolean;
+    isPurchase?: boolean;
+}): CompanyTransactionMode {
+    if (company.isSales && company.isPurchase) return 'both';
+    if (company.isPurchase) return 'purchase';
+    return 'sales';
+}
+
+export function companyFlagsFromTransactionMode(mode: CompanyTransactionMode): {
+    isSales: boolean;
+    isPurchase: boolean;
+} {
+    if (mode === 'purchase') return { isSales: false, isPurchase: true };
+    if (mode === 'both') return { isSales: true, isPurchase: true };
+    return { isSales: true, isPurchase: false };
+}
+
+/** 取引区分の表示（売上 / 仕入 / 売上・仕入） */
+export function formatCompanyTransactionTypes(
+    company: { isSales?: boolean; isPurchase?: boolean },
+    empty = '-',
+): string {
+    if (company.isSales && company.isPurchase) return '売上・仕入';
+    if (company.isSales) return '売上';
+    if (company.isPurchase) return '仕入';
+    return empty;
+}
+
 /**
  * Formats a Date object as YYYY-MM-DD in local time.
  */

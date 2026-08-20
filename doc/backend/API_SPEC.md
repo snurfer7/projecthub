@@ -325,6 +325,8 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | `page` | 整数 ≥ 1 | 指定時は **ページング応答**（オブジェクト）。未指定時は全件配列。 |
 | `pageSize` | 整数 1〜100 | 1 ページあたり件数。省略時は `50`。 |
 | `q` | 文字列 | 企業名（部分一致・大文字小文字無視）またはいずれかの拠点の電話・FAX・郵便番号・住所（都道府県・市区町村・番地・建物）にマッチする企業に絞り込み。 |
+| `isSales` | `true` / `1` | 指定時は **売上先**（`isSales=true`）の企業に絞る。`isPurchase` と同時指定時は **OR**（売上先または仕入先）。未指定は取引区分で絞らない。ページング時のみ。 |
+| `isPurchase` | `true` / `1` | 指定時は **仕入先**（`isPurchase=true`）の企業に絞る。`isSales` と同時指定時は **OR**。ページング時のみ。 |
 
 **ページング時のレスポンス**（`page` 指定時）
 
@@ -339,10 +341,10 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 ```
 
 **全件時**（`page` 未指定）: `Company[]` の JSON 配列（従来どおり。ドロップダウン等用。`locations`, `contacts`, `_count` を含む）。
-| POST | `/` | 会社作成 |
-| PUT | `/:id` | 会社更新 |
+| POST | `/` | 会社作成。Body に任意の **`isSales`** / **`isPurchase`**（boolean）。未指定は false。field 権限 `companies.fields.transactionTypes` input が無い場合、これらのキーを送ると **403** |
+| PUT | `/:id` | 会社更新。Body に任意の **`isSales`** / **`isPurchase`**（boolean）。PUT は部分更新可。取引区分を変える場合は field 権限 `companies.fields.transactionTypes` input（未変化なら検証スキップ） |
 | DELETE | `/:id` | 会社削除 |
-| POST | `/:id/merge` | 企業統合。Body: `targetCompanyId`（数値・必須）。**統合元**はパスの `:id`、**統合先**は `targetCompanyId`。統合元に紐づく拠点・連絡先・商談・活動・会社コメント・会社 Wiki・団体紐付け・主契約プロジェクト・プロジェクト関連会社の `company_id` を統合先 ID に更新し、統合元の企業レコードを削除する。**拠点**は付け替えの際、拠点名の末尾に統合元の企業名を括弧付きで追記する（例: `本社` → `本社（統合元の企業名）`）。**備考（`notes`）**は統合元に内容があるとき、統合先の備考の末尾へ空行を挟んで追記する（統合先のみ・統合元のみのどちらか一方でも可）。団体紐付けは統合先に同一団体が既にある行は統合元側を削除（重複解消）。会社 Wiki は統合先とタイトルが重複するページのみ、統合実行前にタイトルへ `（統合:<ページID>）` を付与して一意化する。**200** で `{ mergedIntoId, message }`。**400**（同一 ID・必須欠如・不正 ID）、**404**（いずれかの企業が存在しない） |
+| POST | `/:id/merge` | 企業統合。Body: `targetCompanyId`（数値・必須）。**統合元**はパスの `:id`、**統合先**は `targetCompanyId`。統合元に紐づく拠点・連絡先・商談・活動・会社コメント・会社 Wiki・団体紐付け・主契約プロジェクト・プロジェクト関連会社の `company_id` を統合先 ID に更新し、統合元の企業レコードを削除する。**拠点**は付け替えの際、拠点名の末尾に統合元の企業名を括弧付きで追記する（例: `本社` → `本社（統合元の企業名）`）。**備考（`notes`）**は統合元に内容があるとき、統合先の備考の末尾へ空行を挟んで追記する（統合先のみ・統合元のみのどちらか一方でも可）。**取引区分（`isSales` / `isPurchase`）**は統合先へ OR で引き継ぐ。団体紐付けは統合先に同一団体が既にある行は統合元側を削除（重複解消）。会社 Wiki は統合先とタイトルが重複するページのみ、統合実行前にタイトルへ `（統合:<ページID>）` を付与して一意化する。**200** で `{ mergedIntoId, message }`。**400**（同一 ID・必須欠如・不正 ID）、**404**（いずれかの企業が存在しない） |
 | POST | `/:companyId/associations/:associationId` | 団体紐付け |
 | DELETE | `/:companyId/associations/:associationId` | 団体紐付け解除 |
 | GET/POST/PUT/DELETE | `/:companyId/comments`, `/:companyId/comments/:commentId` | コメント。GET の各要素に `linkedActivity`（`{ id, subject }` または `null`）— 当該コメントが活動のファイル用コメントとして紐づいている場合に活動を示す。POST Body: `content`（文字列。**`sourceActivityId` 未指定時は必須**）。`sourceActivityId`（数値、任意）— 指定時は当該企業に属する活動に、ファイル用コメントを 1 件紐づける（`content` 省略時は自動文面）。既に活動に `fileCommentId` がある場合は既存コメントを返す（**201** 新規 / **200** 既存） |
@@ -364,7 +366,7 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 | メソッド | パス | 概要 |
 |----------|------|------|
-| GET/POST/PUT/DELETE | `/contacts`, `/contacts/:id` | コンタクト。**GET `/contacts`**: Query `companyId`（任意）— 企業別絞り込み。Query `page` あり — ページング応答 `{ items, total, page, pageSize, totalPages }`。Query `q`（任意）— 氏名・企業名・備考・連絡先詳細（所属・役職・電話・メール・拠点名）の部分一致（大文字小文字無視）。`page` なし — 配列（ドロップダウン・企業詳細タブ用）。一覧の各 `details[].location` は `id`, `name`, `postalCode`, `prefecture`, `city`, `street`, `building` を含む |
+| GET/POST/PUT/DELETE | `/contacts`, `/contacts/:id` | コンタクト。**GET `/contacts`**: Query `companyId`（任意）— 企業別絞り込み。Query `page` あり — ページング応答 `{ items, total, page, pageSize, totalPages }`。Query `q`（任意）— 氏名・企業名・備考・連絡先詳細（所属・役職・電話・メール・拠点名）の部分一致（大文字小文字無視）。`page` なし — 配列（ドロップダウン・企業詳細タブ用）。一覧の各 `company` は `id`, `name`, **`isSales`**, **`isPurchase`** を含む。一覧の各 `details[].location` は `id`, `name`, `postalCode`, `prefecture`, `city`, `street`, `building` を含む |
 | GET/POST/PUT/DELETE | `/contacts/:id/comments`, `/:commentId` | コンタクトコメント |
 | GET/POST/PUT/DELETE | `/deals`, `/deals/:id` | 商談。**GET `/deals`**: 権限 `deals` use。Query `companyId`（任意）・`status`（任意）・`assignedToId`（任意）・`page`（任意）— ページング応答 `{ items, total, page, pageSize, totalPages }`。Query `q`（任意）— 商談名・企業名の部分一致。`page` なし — 配列（企業詳細タブ用）。**DELETE**: 権限 `companies.deals` input |
 | GET/POST/PUT/DELETE | `/activities`, `/activities/:id` | アクティビティ。権限: GET は `companies.activities` use、POST/PUT/DELETE は `companies.activities` input。`assignedToId` は**自社担当者**（User）。`contactId` は**先方担当者**（当該企業の連絡先 Contact を選択、任意）。**`locationId`**（任意）— 当該企業の拠点。指定時は活動の `companyId` 配下であること（不一致時 400）。更新・作成で `locationId` を送る場合は field 権限 `companies.activities.fields.location` input が必要。**`projectIds`**（任意・配列）— 紐づくプロジェクト ID の一覧。POST/PUT で指定時は中間テーブルをその集合に同期（空配列で全解除）。各 ID について活動の `companyId` がそのプロジェクトの主企業または関連企業であること（不一致時 400）。**PUT は部分更新可**（`projectIds` 未指定時は既存紐づけを変更しない）。レスポンスは `assignedTo`・`contact`・`location`（`{ id, name } | null`）・**`projects`**（`{ id, name, identifier }[]`）を含む。`fileCommentId` / `fileComment` は従来どおり。**GET `/activities`**: Query `projectId`（任意）— 当該プロジェクトに紐づく活動に絞り込み。プロジェクト画面からは `GET/POST/DELETE /api/projects/:id/activities` も利用可。**DELETE `/activities/:id`**: Query `deleteLinkedComment` — `true` / `1` で紐づくファイル用会社コメントも削除（添付はカスケード）。`false` / `0` または未指定は活動のみ削除しコメントは残す |

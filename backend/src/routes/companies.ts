@@ -2,9 +2,32 @@ import { Router, Response } from 'express';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { requirePermission, requireAnyPermission } from '../middleware/permissions';
+import { assertFieldPermissions } from '../services/permissions';
 
 const router = Router();
 const prisma = new PrismaClient();
+
+const COMPANY_FIELD_PERMS: Record<string, string> = {
+  isSales: 'companies.fields.transactionTypes',
+  isPurchase: 'companies.fields.transactionTypes',
+};
+
+function queryFlagTrue(value: unknown): boolean {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (raw === undefined || raw === null) return false;
+  const s = String(raw).trim().toLowerCase();
+  return s === 'true' || s === '1';
+}
+
+function parseOptionalBoolean(value: unknown): boolean | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === 'boolean') return value;
+  if (value === null || value === '') return undefined;
+  const s = String(value).trim().toLowerCase();
+  if (s === 'true' || s === '1') return true;
+  if (s === 'false' || s === '0') return false;
+  return undefined;
+}
 
 function companyCommentPersistenceMessage(error: unknown, fallback: string): string {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -80,7 +103,24 @@ router.get('/', requirePermission('companies', 'use'), async (req: AuthRequest, 
     const sizeParsed = parseInt(String(req.query.pageSize ?? '50'), 10);
     const pageSize = Number.isFinite(sizeParsed) ? Math.min(100, Math.max(1, sizeParsed)) : 50;
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
-    const where: Prisma.CompanyWhereInput = q ? companySearchWhere(q) : {};
+    const filterSales = queryFlagTrue(req.query.isSales);
+    const filterPurchase = queryFlagTrue(req.query.isPurchase);
+    const andParts: Prisma.CompanyWhereInput[] = [];
+    if (q) {
+      andParts.push(companySearchWhere(q));
+    }
+    if (filterSales && filterPurchase) {
+      andParts.push({ OR: [{ isSales: true }, { isPurchase: true }] });
+    } else if (filterSales) {
+      andParts.push({ isSales: true });
+    } else if (filterPurchase) {
+      andParts.push({ isPurchase: true });
+    }
+    const where: Prisma.CompanyWhereInput = andParts.length === 0
+      ? {}
+      : andParts.length === 1
+        ? andParts[0]
+        : { AND: andParts };
 
     const [total, items] = await Promise.all([
       prisma.company.count({ where }),
@@ -180,6 +220,14 @@ router.post('/', requirePermission('companies', 'input'), async (req: AuthReques
       return res.status(400).json({ error: '企業名は必須です' });
     }
 
+    const denied = assertFieldPermissions(req.permissions!, req.body, COMPANY_FIELD_PERMS);
+    if (denied) {
+      return res.status(403).json({ error: '権限がありません', code: denied });
+    }
+
+    const isSales = parseOptionalBoolean(req.body.isSales) ?? false;
+    const isPurchase = parseOptionalBoolean(req.body.isPurchase) ?? false;
+
     const result = await prisma.$transaction(async (tx) => {
       const company = await tx.company.create({
         data: {
@@ -188,6 +236,8 @@ router.post('/', requirePermission('companies', 'input'), async (req: AuthReques
           legalEntityPosition,
           website,
           notes,
+          isSales,
+          isPurchase,
         },
       });
 
@@ -223,17 +273,40 @@ router.post('/', requirePermission('companies', 'input'), async (req: AuthReques
 // Update company
 router.put('/:id', requirePermission('companies', 'input'), async (req: AuthRequest, res: Response) => {
   try {
-    const { name, legalEntityStatusId, legalEntityPosition, postalCode, prefecture, city, street, building, phone, fax, website, notes, latitude, longitude } = req.body;
+    const { name, legalEntityStatusId, legalEntityPosition, website, notes } = req.body;
     const companyId = Number(req.params.id);
+    const existing = await prisma.company.findUnique({ where: { id: companyId } });
+    if (!existing) {
+      return res.status(404).json({ error: '企業が見つかりません' });
+    }
+
+    const denied = assertFieldPermissions(req.permissions!, req.body, COMPANY_FIELD_PERMS, {
+      isSales: existing.isSales,
+      isPurchase: existing.isPurchase,
+    });
+    if (denied) {
+      return res.status(403).json({ error: '権限がありません', code: denied });
+    }
+
+    const data: Prisma.CompanyUpdateInput = {
+      name,
+      legalEntityStatus: legalEntityStatusId ? { connect: { id: Number(legalEntityStatusId) } } : { disconnect: true },
+      legalEntityPosition,
+      website,
+      notes,
+    };
+    if ('isSales' in req.body && req.body.isSales !== undefined) {
+      const parsed = parseOptionalBoolean(req.body.isSales);
+      if (parsed !== undefined) data.isSales = parsed;
+    }
+    if ('isPurchase' in req.body && req.body.isPurchase !== undefined) {
+      const parsed = parseOptionalBoolean(req.body.isPurchase);
+      if (parsed !== undefined) data.isPurchase = parsed;
+    }
+
     const company = await prisma.company.update({
       where: { id: companyId },
-      data: {
-        name,
-        legalEntityStatus: legalEntityStatusId ? { connect: { id: Number(legalEntityStatusId) } } : { disconnect: true },
-        legalEntityPosition,
-        website,
-        notes,
-      },
+      data,
     });
     res.json(company);
   } catch (e) {
@@ -341,12 +414,17 @@ router.post('/:id/merge', requirePermission('companies.merge', 'input'), async (
       await tx.projectRelatedCompany.updateMany({ where: { companyId: sourceId }, data: { companyId: targetId } });
 
       const sourceNotes = (source.notes ?? '').trim();
+      const transactionPatch: Prisma.CompanyUpdateInput = {};
+      if (source.isSales && !target.isSales) transactionPatch.isSales = true;
+      if (source.isPurchase && !target.isPurchase) transactionPatch.isPurchase = true;
       if (sourceNotes) {
         const targetNotes = (target.notes ?? '').trim();
-        const mergedNotes = targetNotes ? `${targetNotes}\n\n${sourceNotes}` : sourceNotes;
+        transactionPatch.notes = targetNotes ? `${targetNotes}\n\n${sourceNotes}` : sourceNotes;
+      }
+      if (Object.keys(transactionPatch).length > 0) {
         await tx.company.update({
           where: { id: targetId },
-          data: { notes: mergedNotes },
+          data: transactionPatch,
         });
       }
 

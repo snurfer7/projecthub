@@ -145,7 +145,7 @@ const contactLocationSelect = {
 } satisfies Prisma.LocationSelect;
 
 const contactListInclude = {
-  company: { select: { id: true, name: true } },
+  company: { select: { id: true, name: true, isSales: true, isPurchase: true } },
   details: { include: { location: { select: contactLocationSelect } } },
   _count: { select: { comments: true } },
 } satisfies Prisma.ContactInclude;

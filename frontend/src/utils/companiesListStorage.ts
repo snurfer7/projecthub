@@ -1,24 +1,41 @@
+import type { CompanyTransactionType } from './format';
+
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 
 export const COMPANIES_LIST_STORAGE_KEY = 'projecthub.companiesList.v1';
 
 export const COMPANIES_LIST_RESET_EVENT = 'projecthub:companies-list-reset';
 
-export type CompaniesListQuery = { page: number; pageSize: number; q: string };
+export type CompaniesListQuery = {
+  page: number;
+  pageSize: number;
+  q: string;
+  transactionTypes: CompanyTransactionType[];
+};
 
 export type PersistedCompaniesList = {
   v: 1;
   searchQuery: string;
-  listQuery: CompaniesListQuery;
+  listQuery: CompaniesListQuery & { filterSales?: boolean; filterPurchase?: boolean };
   showLegalEntity: boolean;
 };
 
 export function defaultCompaniesListQuery(): CompaniesListQuery {
-  return { page: 1, pageSize: 50, q: '' };
+  return { page: 1, pageSize: 50, q: '', transactionTypes: [] };
 }
 
 function isPageSize(n: number): n is (typeof PAGE_SIZE_OPTIONS)[number] {
   return (PAGE_SIZE_OPTIONS as readonly number[]).includes(n);
+}
+
+function parseTransactionTypes(listQuery: PersistedCompaniesList['listQuery']): CompanyTransactionType[] {
+  if (Array.isArray(listQuery.transactionTypes)) {
+    return listQuery.transactionTypes.filter((v): v is CompanyTransactionType => v === 'sales' || v === 'purchase');
+  }
+  const fromLegacy: CompanyTransactionType[] = [];
+  if (listQuery.filterSales) fromLegacy.push('sales');
+  if (listQuery.filterPurchase) fromLegacy.push('purchase');
+  return fromLegacy;
 }
 
 export function readPersistedCompaniesList(): Omit<PersistedCompaniesList, 'v'> | null {
@@ -34,7 +51,7 @@ export function readPersistedCompaniesList(): Omit<PersistedCompaniesList, 'v'> 
     if (typeof o.showLegalEntity !== 'boolean') return null;
     return {
       searchQuery: o.searchQuery,
-      listQuery: { page, pageSize, q },
+      listQuery: { page, pageSize, q, transactionTypes: parseTransactionTypes(o.listQuery) },
       showLegalEntity: o.showLegalEntity,
     };
   } catch {

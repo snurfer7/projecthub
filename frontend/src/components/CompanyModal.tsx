@@ -5,9 +5,18 @@ import Modal from './Modal';
 import TextInput from './TextInput';
 import Combobox from './Combobox';
 import { PREFECTURE_OPTIONS } from '../utils/prefectures';
-import { formatPostalCode, convertToHalfWidth } from '../utils/format';
+import {
+    formatPostalCode,
+    convertToHalfWidth,
+    COMPANY_TRANSACTION_MODE_OPTIONS,
+    companyTransactionModeFromFlags,
+    companyFlagsFromTransactionMode,
+    type CompanyTransactionMode,
+} from '../utils/format';
 import MapPicker from './MapPicker';
 import { fetchCoordinatesFromAddress } from '../utils/geocoding';
+import { useAuth } from '../hooks/useAuth';
+import { usePermissions } from '../hooks/usePermissions';
 
 interface CompanyModalProps {
     isOpen: boolean;
@@ -17,7 +26,11 @@ interface CompanyModalProps {
 }
 
 export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompany }: CompanyModalProps) {
+    const { user } = useAuth();
+    const { canInputField } = usePermissions(user?.permissions);
+    const transactionTypesDisabled = !canInputField('companies.fields.transactionTypes');
     const [companyName, setCompanyName] = useState('');
+    const [transactionMode, setTransactionMode] = useState<CompanyTransactionMode>('sales');
     const [legalEntityStatusId, setLegalEntityStatusId] = useState<number | string>('');
     const [legalEntityPosition, setLegalEntityPosition] = useState<number | string>('');
     const [availableStatuses, setAvailableStatuses] = useState<LegalEntityStatus[]>([]);
@@ -44,12 +57,14 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
         if (isOpen) {
             if (editingCompany) {
                 setCompanyName(editingCompany.name);
+                setTransactionMode(companyTransactionModeFromFlags(editingCompany));
                 setLegalEntityStatusId(editingCompany.legalEntityStatusId || '');
                 setLegalEntityPosition(editingCompany.legalEntityPosition || '');
                 setCompanyWebsite(editingCompany.website || '');
                 setCompanyNotes(editingCompany.notes || '');
             } else {
                 setCompanyName('');
+                setTransactionMode('sales');
                 setLegalEntityStatusId('');
                 setLegalEntityPosition('');
                 setCompanyPostalCode('');
@@ -90,6 +105,9 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
                 website: companyWebsite || null,
                 notes: companyNotes || null,
             };
+            if (!transactionTypesDisabled) {
+                Object.assign(data, companyFlagsFromTransactionMode(transactionMode));
+            }
 
             // 新規作成時のみ住所情報を送信する（拠点の初期登録用）
             if (!editingCompany) {
@@ -136,38 +154,89 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
             >
                 {companyError && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">{companyError}</div>}
                 <form id="company-modal-form" onSubmit={handleSubmit} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        <TextInput
-                            label="企業名 *"
-                            value={companyName}
-                            onChange={(e) => setCompanyName(e.target.value)}
-                            required
+                    <TextInput
+                        label="企業名 *"
+                        value={companyName}
+                        onChange={(e) => setCompanyName(e.target.value)}
+                        required
+                    />
+                    <div className="grid grid-cols-3 gap-4 items-end">
+                        <Combobox
+                            label="法人格"
+                            options={availableStatuses.map(s => ({ value: String(s.id), label: s.name }))}
+                            value={legalEntityStatusId}
+                            onChange={(val) => {
+                                setLegalEntityStatusId(val);
+                                if (!val) {
+                                    setLegalEntityPosition('');
+                                } else if (!legalEntityStatusId) {
+                                    // Only set default "前" if we are transitioning from unselected to selected
+                                    setLegalEntityPosition('前');
+                                }
+                            }}
                         />
-                        <div className="grid grid-cols-2 gap-2">
-                            <Combobox
-                                label="法人格"
-                                options={availableStatuses.map(s => ({ value: String(s.id), label: s.name }))}
-                                value={legalEntityStatusId}
-                                onChange={(val) => {
-                                    setLegalEntityStatusId(val);
-                                    if (!val) {
-                                        setLegalEntityPosition('');
-                                    } else if (!legalEntityStatusId) {
-                                        // Only set default "前" if we are transitioning from unselected to selected
-                                        setLegalEntityPosition('前');
-                                    }
-                                }}
-                            />
-                            <Combobox
-                                label="法人格前後"
-                                options={[
-                                    { value: '前', label: '前' },
-                                    { value: '後', label: '後' },
-                                ]}
-                                value={legalEntityPosition}
-                                onChange={setLegalEntityPosition}
-                                disabled={!legalEntityStatusId}
-                            />
+                        <div>
+                            <div className="block text-xs text-gray-500 mb-1">法人格前後</div>
+                            <div
+                                className={`inline-flex rounded-md border border-gray-300 overflow-hidden ${
+                                    !legalEntityStatusId ? 'opacity-50' : ''
+                                }`}
+                                role="group"
+                                aria-label="法人格前後"
+                            >
+                                {(['前', '後'] as const).map((pos, idx) => {
+                                    const selected = legalEntityPosition === pos;
+                                    const disabled = !legalEntityStatusId;
+                                    return (
+                                        <button
+                                            key={pos}
+                                            type="button"
+                                            disabled={disabled}
+                                            onClick={() => setLegalEntityPosition(pos)}
+                                            className={`px-4 py-2 text-sm font-medium transition-colors ${
+                                                idx > 0 ? 'border-l border-gray-300' : ''
+                                            } ${
+                                                selected
+                                                    ? 'bg-sky-600 text-white'
+                                                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                                            } ${disabled ? 'cursor-not-allowed' : ''}`}
+                                        >
+                                            {pos}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                        <div>
+                            <div className="block text-xs text-gray-500 mb-1">取引区分</div>
+                            <div
+                                className={`inline-flex rounded-md border border-gray-300 overflow-hidden ${
+                                    transactionTypesDisabled ? 'opacity-50' : ''
+                                }`}
+                                role="group"
+                                aria-label="取引区分"
+                            >
+                                {COMPANY_TRANSACTION_MODE_OPTIONS.map((opt, idx) => {
+                                    const selected = transactionMode === opt.value;
+                                    return (
+                                        <button
+                                            key={opt.value}
+                                            type="button"
+                                            disabled={transactionTypesDisabled}
+                                            onClick={() => setTransactionMode(opt.value)}
+                                            className={`px-4 py-2 text-sm font-medium transition-colors ${
+                                                idx > 0 ? 'border-l border-gray-300' : ''
+                                            } ${
+                                                selected
+                                                    ? 'bg-sky-600 text-white'
+                                                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                                            } ${transactionTypesDisabled ? 'cursor-not-allowed' : ''}`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
                     </div>
                     {!editingCompany && (

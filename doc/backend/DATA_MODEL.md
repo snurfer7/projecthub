@@ -50,7 +50,7 @@
 
 ## 会社・CRM
 
-- **Company** — 会社。name, 住所系（postalCode, prefecture, city, street, building）, phone, fax, website, notes, legalEntityStatusId, legalEntityPosition。LegalEntityStatus, Location, Contact, Deal, CompanyComment, CompanyWikiPage, Project（主契約）, ProjectRelatedCompany と関連。**企業統合**（API）は統合元にぶら下がる上記リレーションの `company_id` を統合先へ一括更新し、統合元の `Company` を削除する（団体多対多の重複・会社 Wiki の `(companyId, title)` 一意制約はサーバー側で解消する）。統合元の **Location.name** は、統合先へ移すとき統合元の企業名を括弧付きで末尾に付与する。統合元の **Company.notes**（備考）は、空でない場合に統合先の **notes** へ空行区切りで追記する。
+- **Company** — 会社。name, 住所系（postalCode, prefecture, city, street, building）, phone, fax, website, notes, legalEntityStatusId, legalEntityPosition, **`isSales`（売上先・Boolean・既定 false）**, **`isPurchase`（仕入先・Boolean・既定 false）**。同一企業で売上先と仕入先の両方を true にできる。LegalEntityStatus, Location, Contact, Deal, CompanyComment, CompanyWikiPage, Project（主契約）, ProjectRelatedCompany と関連。**企業統合**（API）は統合元にぶら下がる上記リレーションの `company_id` を統合先へ一括更新し、統合元の `Company` を削除する（団体多対多の重複・会社 Wiki の `(companyId, title)` 一意制約はサーバー側で解消する）。統合元の **Location.name** は、統合先へ移すとき統合元の企業名を括弧付きで末尾に付与する。統合元の **Company.notes**（備考）は、空でない場合に統合先の **notes** へ空行区切りで追記する。**取引区分**は統合先へ OR で引き継ぐ（統合元が売上先／仕入先なら統合先も true にする）。
 - **LegalEntityStatus** — 法人区分（マスタ）。
 - **Location** — 会社の拠点。ContactDetail, ProjectRelatedCompany, Project と関連。
 - **Contact** — 担当者。Company に属す。ContactDetail, Deal, Activity, ContactComment, Project, ProjectRelatedCompany と関連。
@@ -104,6 +104,7 @@
 | `admin.groups.fields.parentGroups` | 親グループ | field | `admin.groups` |
 | `admin.groups.fields.childGroups` | 子グループ | field | `admin.groups` |
 | `companies.activities.fields.location` | 拠点 | field | `companies.activities` |
+| `companies.fields.transactionTypes` | 取引区分 | field | `companies`（`isSales` / `isPurchase` をまとめて制御） |
 
 ## クライアントとの整合
 

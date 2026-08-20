@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, FormEvent } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/client';
 import { Company, Contact, Deal, Activity, Association, Project } from '../types';
-import { formatCompanyName, formatContactDisplayName, generateIdentifier } from '../utils/format';
+import { formatCompanyName, formatCompanyTransactionTypes, formatContactDisplayName, generateIdentifier } from '../utils/format';
 import { Pencil, Trash2, MessageSquare, GitMerge, FolderPlus } from 'lucide-react';
 import CompanyModal from '../components/CompanyModal';
 import Modal from '../components/Modal';
@@ -957,6 +957,10 @@ export default function CompanyDetailPage() {
 
                   <div className="border-t border-gray-100 pt-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div>
+                        <div className="text-gray-500 mb-1">取引区分</div>
+                        <div className="text-slate-600 font-medium">{formatCompanyTransactionTypes(company)}</div>
+                      </div>
                       <div className="md:col-span-2">
                         <div className="text-gray-500 mb-1">ウェブサイト</div>
                         <div className="text-slate-600 font-medium">

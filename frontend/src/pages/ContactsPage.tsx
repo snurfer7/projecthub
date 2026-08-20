@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { Contact, PaginatedContactsResponse } from '../types';
-import { formatCompanyName, formatContactDisplayName } from '../utils/format';
+import { formatCompanyName, formatContactDisplayName, formatCompanyTransactionTypes } from '../utils/format';
 import { buildCsv, downloadCsv } from '../utils/csv';
 import { Download, MessageSquare } from 'lucide-react';
 
@@ -113,6 +113,7 @@ export default function ContactsPage() {
         '姓',
         '名',
         '企業',
+        '取引区分',
         '拠点',
         '郵便番号',
         '住所',
@@ -127,6 +128,7 @@ export default function ContactsPage() {
         c.lastName,
         c.firstName,
         c.company ? formatCompanyName(c.company) : '',
+        c.company ? formatCompanyTransactionTypes(c.company, '') : '',
         joinDetailField(c, (d) => d.location?.name ?? ''),
         joinDetailField(c, (d) => d.location?.postalCode ?? ''),
         joinDetailField(c, (d) => (d.location ? formatLocationAddress(d.location) : '')),
@@ -177,6 +179,7 @@ export default function ContactsPage() {
             <tr>
               <th className="text-left px-4 py-3 font-medium text-gray-600">名前</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">企業</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">取引区分</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">拠点</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">郵便番号</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">住所</th>
@@ -189,7 +192,7 @@ export default function ContactsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={9} className="px-4 py-12 text-center text-gray-500">
+                <td colSpan={10} className="px-4 py-12 text-center text-gray-500">
                   読み込み中…
                 </td>
               </tr>
@@ -230,6 +233,9 @@ export default function ContactsPage() {
                       ) : (
                         '-'
                       )}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {c.company ? formatCompanyTransactionTypes(c.company) : '-'}
                     </td>
                     <td className="px-4 py-3 text-gray-600">
                       {details.length > 0
