@@ -39,6 +39,7 @@ PostgreSQL + Prisma で永続化し、JWT で認証する。
 | `/api/companies` | companies.ts | 会社の CRUD・コメント・Wiki・拠点・団体紐付け（認証済みユーザーで利用可能） |
 | `/api/crm` | crm.ts | コンタクト・ Deal・Activity CRUD、コメント |
 | `/api/home` | home.ts | ホームページコンテンツ |
+| `/api/settings` | settings.ts | 個人向けカレンダー参照（営業時間・休日）・作業通知の配信先／種別 |
 
 ## 認証・権限
 
@@ -79,7 +80,17 @@ PostgreSQL + Prisma で永続化し、JWT で認証する。
 - `JWT_SECRET`: JWT 署名用シークレット
 - `UPLOAD_DIR`: アップロードファイル保存先（省略時は `../../uploads`）
 - S3 利用時: `AWS_*`, `S3_BUCKET_NAME` 等（`backend/src/services/s3.ts` 参照）
-- Microsoft SSO: `MICROSOFT_TENANT_ID`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_REDIRECT_URI`, `FRONTEND_URL`（`FRONTEND_URL` はユーザー作成時の案内メールに記載するログイン URL の基点にも使用。未設定時は `http://localhost:5173`）
+- Microsoft SSO: `MICROSOFT_TENANT_ID`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_REDIRECT_URI`, `FRONTEND_URL`（`FRONTEND_URL` はユーザー作成時の案内メール・作業通知のディープリンク基点にも使用。未設定時は `http://localhost:5173`）
+- Teams 個人通知（任意）: 既存 `MICROSOFT_*` のクライアント資格情報で Bot Framework Connector から 1:1 チャットへ投稿。同じ Entra アプリを Azure Bot（Teams チャネル）として登録する。詳細は [MICROSOFT_SSO.md](../MICROSOFT_SSO.md)
+
+### 作業通知
+
+ドメイン更新の成功後に非同期で個人宛て通知する（リクエストは待たない。失敗はログのみ）。チャンネル Webhook は無い。
+
+- **全体配信先**（ユーザー単位）: `email` / `teams` / `off`
+- **イベント種別** ON/OFF（行なしはカタログ初期値）
+- `off` または種別 OFF、および操作者自身は送らない。`pending` / `inactive` も除外
+- `email` → 既存 SES/SMTP。`teams` かつ `microsoftOid` ありかつ Microsoft 設定済み → Bot の 1:1 チャット。未連携または Microsoft 未設定 → メールへフォールバック。送信 API エラー時は再送しない
 
 ## ヘルスチェック
 

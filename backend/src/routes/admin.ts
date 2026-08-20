@@ -7,6 +7,7 @@ import { requirePermission, requireAnyPermission } from '../middleware/permissio
 import permissionSetRoutes from './permissionSets';
 import { sendTemporaryPasswordEmail, sendTestEmail } from '../services/email';
 import { encryptSecret } from '../services/emailCrypto';
+import { isNotificationChannel, sendTestNotification, NotificationClientError } from '../services/notifications';
 import {
   getOrCreateSystemSetting,
   holidaySettingsDto,
@@ -178,10 +179,18 @@ router.post('/users', requirePermission('admin.users', 'input'), async (req: Aut
     const temporaryPassword = generateTemporaryPassword();
     const passwordHash = await bcrypt.hash(temporaryPassword, 10);
     const userRole = isAdmin ? 'admin' : 'member';
+    const setting = await prisma.systemSetting.findUnique({
+      where: { id: 'default' },
+      select: { defaultNotificationChannel: true },
+    });
+    const notificationChannel = isNotificationChannel(setting?.defaultNotificationChannel)
+      ? setting!.defaultNotificationChannel
+      : 'email';
     const user = await prisma.user.create({
       data: {
         email, passwordHash, firstName, lastName, role: userRole, isAdmin: !!isAdmin,
         status: 'pending',
+        notificationChannel,
         groupMembers: {
           create: (groupIds || []).map((groupId: number) => ({ groupId })),
         },
@@ -1629,6 +1638,71 @@ router.put('/settings/holidays', requirePermission('admin.holiday-settings', 'in
   } catch (e: any) {
     console.error('Error updating holiday settings:', e);
     res.status(500).json({ error: '休日設定の更新に失敗しました', details: e.message || e });
+  }
+});
+
+router.get('/settings/notifications', requirePermission('admin.notification-settings', 'use'), async (_req: AuthRequest, res: Response) => {
+  try {
+    const setting = await getOrCreateSystemSetting(prisma);
+    const defaultChannel = isNotificationChannel(setting.defaultNotificationChannel)
+      ? setting.defaultNotificationChannel
+      : 'email';
+    res.json({ defaultChannel });
+  } catch (e: any) {
+    console.error('Error fetching notification settings:', e);
+    res.status(500).json({ error: '通知設定の取得に失敗しました', details: e.message || e });
+  }
+});
+
+router.put('/settings/notifications', requirePermission('admin.notification-settings', 'input'), async (req: AuthRequest, res: Response) => {
+  try {
+    const { defaultChannel } = req.body;
+    if (!isNotificationChannel(defaultChannel)) {
+      res.status(400).json({ error: 'defaultChannel は email, teams, off のいずれかです' });
+      return;
+    }
+    const setting = await prisma.systemSetting.upsert({
+      where: { id: 'default' },
+      update: { defaultNotificationChannel: defaultChannel },
+      create: {
+        id: 'default',
+        startTime: '09:00',
+        endTime: '18:00',
+        managementTimes: [],
+        conversionTimes: [],
+        defaultNotificationChannel: defaultChannel,
+      },
+    });
+    res.json({
+      defaultChannel: isNotificationChannel(setting.defaultNotificationChannel)
+        ? setting.defaultNotificationChannel
+        : 'email',
+    });
+  } catch (e: any) {
+    console.error('Error updating notification settings:', e);
+    res.status(500).json({ error: '通知設定の更新に失敗しました', details: e.message || e });
+  }
+});
+
+router.post('/settings/notifications/test', requirePermission('admin.notification-settings', 'input'), async (req: AuthRequest, res: Response) => {
+  try {
+    const { channel } = req.body;
+    if (!isNotificationChannel(channel) || channel === 'off') {
+      res.status(400).json({ error: 'channel は email または teams です' });
+      return;
+    }
+    await sendTestNotification({ userId: req.userId!, channel });
+    res.json({ message: channel === 'teams' ? 'Teams へテスト通知を送信しました' : 'テストメールを送信しました' });
+  } catch (e: any) {
+    if (e instanceof NotificationClientError) {
+      res.status(400).json({ error: e.message });
+      return;
+    }
+    console.error('Test notification failed:', e);
+    res.status(500).json({
+      error: 'テスト通知の送信に失敗しました',
+      details: e?.message || String(e),
+    });
   }
 });
 

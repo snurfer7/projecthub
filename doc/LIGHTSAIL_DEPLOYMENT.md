@@ -199,7 +199,7 @@ chmod 600 /var/www/projecthub/backend/.env
 - **自動プロビジョニングなし**（未登録ユーザーは SSO 不可）。メール不一致は設定画面からの明示連携
 - Entra で単一テナントのアプリ登録、リダイレクト URI: `https://<公開ドメイン>/api/auth/microsoft/callback`
 - 環境変数: `MICROSOFT_TENANT_ID` / `MICROSOFT_CLIENT_ID` / `MICROSOFT_CLIENT_SECRET` / `MICROSOFT_REDIRECT_URI` / `FRONTEND_URL`
-- 権限 seed 後、`settings.fields.authMethod` / `settings.fields.microsoftAccount` に入力権限を付与
+- 権限 seed 後、`settings.fields.authMethod` / `settings.fields.microsoftAccount` に入力権限を付与。Teams 通知を使う場合は Azure Bot（Teams チャネル）と Bot 付き Teams アプリ配布（[MICROSOFT_SSO.md](MICROSOFT_SSO.md)）
 
 ```bash
 cd /var/www/projecthub/backend

@@ -5,6 +5,7 @@ import api from '../api/client';
 import Combobox from '../components/Combobox';
 import TextInput from '../components/TextInput';
 import { usePermissions } from '../hooks/usePermissions';
+import NotificationSettingsPanel from '../components/NotificationSettingsPanel';
 
 interface Props {
   user: User;
@@ -392,6 +393,8 @@ export default function SettingsPage({ user, refreshUser }: Props) {
           </button>
         </div>
       </div>
+
+      <NotificationSettingsPanel user={user} />
     </div>
   );
 }

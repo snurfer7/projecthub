@@ -83,6 +83,7 @@ services:
       MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
       MICROSOFT_REDIRECT_URI: ${MICROSOFT_REDIRECT_URI:-http://localhost:3000/api/auth/microsoft/callback}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      MICROSOFT_TEAMS_APP_ID: ${MICROSOFT_TEAMS_APP_ID:-}
     volumes:
       - ./backend/src:/app/backend/src
       - ./backend/prisma:/app/backend/prisma

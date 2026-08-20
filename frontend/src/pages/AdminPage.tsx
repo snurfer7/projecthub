@@ -5,6 +5,7 @@ import { User, Tracker, IssueStatus, IssuePriority, Group, Role, SystemSetting, 
 import { usePermissions } from '../hooks/usePermissions';
 import PermissionSetsPanel from '../components/PermissionSetsPanel';
 import HolidaySettingsPanel from '../components/HolidaySettingsPanel';
+import AdminNotificationSettingsPanel from '../components/AdminNotificationSettingsPanel';
 import PermissionMatrixEditor, { flattenPermissionResources, PermissionMatrixRow } from '../components/PermissionMatrixEditor';
 import { Pencil, Trash2, GripVertical, Clock, Plus, UserX, UserCheck, Mail, ChevronRight, ChevronDown } from 'lucide-react';
 import Modal from '../components/Modal';
@@ -32,7 +33,7 @@ const USER_STATUS_FILTER_OPTIONS: { value: UserAccountStatus; label: string }[] 
 const DEFAULT_USER_STATUS_FILTERS: UserAccountStatus[] = ['active', 'pending'];
 
 export default function AdminPage({ user }: Props) {
-  const [tab, setTab] = useState<'users' | 'groups' | 'permission-sets' | 'roles' | 'trackers' | 'statuses' | 'priorities' | 'time' | 'email' | 'holidays'>('users');
+  const [tab, setTab] = useState<'users' | 'groups' | 'permission-sets' | 'roles' | 'trackers' | 'statuses' | 'priorities' | 'time' | 'email' | 'holidays' | 'notifications'>('users');
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [trackers, setTrackers] = useState<Tracker[]>([]);
@@ -922,6 +923,9 @@ export default function AdminPage({ user }: Props) {
     ...(canUse('admin.holiday-settings')
       ? [{ key: 'holidays' as const, label: '休日設定' }]
       : []),
+    ...(canUse('admin.notification-settings')
+      ? [{ key: 'notifications' as const, label: '通知' }]
+      : []),
   ];
 
   if (!canUse('admin')) return <Navigate to="/no-access" replace />;
@@ -1569,6 +1573,7 @@ export default function AdminPage({ user }: Props) {
       )}
 
       {tab === 'holidays' && <HolidaySettingsPanel user={user} />}
+      {tab === 'notifications' && <AdminNotificationSettingsPanel user={user} />}
 
       {/* Master data modal (roles, trackers, statuses, priorities) */}
       <Modal

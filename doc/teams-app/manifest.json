@@ -1,0 +1,47 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.16",
+  "version": "1.1.0",
+  "id": "REPLACE_WITH_TEAMS_APP_ID",
+  "developer": {
+    "name": "ProjectHub",
+    "websiteUrl": "https://example.com",
+    "privacyUrl": "https://example.com/privacy",
+    "termsOfUseUrl": "https://example.com/terms"
+  },
+  "name": {
+    "short": "ProjectHub",
+    "full": "ProjectHub Notifications"
+  },
+  "description": {
+    "short": "ProjectHub の作業通知",
+    "full": "チケット・プロジェクト・商談・活動の更新を Teams の 1:1 チャットに通知します。"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#0EA5E9",
+  "bots": [
+    {
+      "botId": "REPLACE_WITH_MICROSOFT_CLIENT_ID",
+      "scopes": ["personal"],
+      "supportsFiles": false,
+      "isNotificationOnly": true
+    }
+  ],
+  "staticTabs": [
+    {
+      "entityId": "projectHub",
+      "name": "ProjectHub",
+      "contentUrl": "https://example.com/",
+      "websiteUrl": "https://example.com/",
+      "scopes": ["personal"]
+    }
+  ],
+  "validDomains": ["example.com"],
+  "webApplicationInfo": {
+    "id": "REPLACE_WITH_MICROSOFT_CLIENT_ID",
+    "resource": "api://REPLACE_WITH_MICROSOFT_CLIENT_ID"
+  }
+}

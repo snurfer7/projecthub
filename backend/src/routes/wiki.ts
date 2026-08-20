@@ -7,6 +7,7 @@ import {
   PROJECT_PERMISSION_DENIED_MESSAGE,
   requireProjectPermission,
 } from '../services/projectPermissions';
+import { scheduleNotify } from '../services/notifications';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -74,6 +75,11 @@ router.post('/', requirePermission('projects', 'use'), async (req: AuthRequest, 
       },
       include: { author: { select: { id: true, firstName: true, lastName: true } } },
     });
+    scheduleNotify({
+      type: 'project.wiki_changed',
+      actorUserId: req.userId!,
+      projectId: page.projectId,
+    });
     res.status(201).json(page);
   } catch (e) {
     console.error('wiki.createPage error:', e);
@@ -106,6 +112,11 @@ router.put('/:id', requirePermission('projects', 'use'), async (req: AuthRequest
         parentId: parentId ? Number(parentId) : (parentId === null ? null : undefined)
       },
       include: { author: { select: { id: true, firstName: true, lastName: true } } },
+    });
+    scheduleNotify({
+      type: 'project.wiki_changed',
+      actorUserId: req.userId!,
+      projectId: page.projectId,
     });
     res.json(page);
   } catch (e) {

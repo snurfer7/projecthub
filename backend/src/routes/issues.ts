@@ -38,6 +38,7 @@ import {
   syncIssueAssignees,
   validateAssignableUserIds,
 } from '../utils/issueAssignees';
+import { scheduleNotify } from '../services/notifications';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -409,6 +410,12 @@ router.post('/:id/relations', requirePermission('projects', 'use'), async (req: 
         issueTo: { select: { id: true, subject: true } }
       }
     });
+    scheduleNotify({
+      type: 'issue.relation_changed',
+      actorUserId: req.userId!,
+      fromIssueId: issueFromId,
+      toIssueId: Number(issueToId),
+    });
     res.status(201).json(relation);
   } catch (e) {
     console.error('Relation creation error:', e);
@@ -422,7 +429,7 @@ router.delete('/relations/:relationId', requirePermission('projects', 'use'), as
     const relationId = Number(req.params.relationId);
     const relation = await prisma.issueRelation.findUnique({
       where: { id: relationId },
-      select: { issueFromId: true },
+      select: { issueFromId: true, issueToId: true },
     });
     if (!relation) {
       res.status(404).json({ error: '関連付けが見つかりません' });
@@ -440,6 +447,12 @@ router.delete('/relations/:relationId', requirePermission('projects', 'use'), as
 
     await prisma.issueRelation.delete({
       where: { id: relationId }
+    });
+    scheduleNotify({
+      type: 'issue.relation_changed',
+      actorUserId: req.userId!,
+      fromIssueId: relation.issueFromId,
+      toIssueId: relation.issueToId,
     });
     res.json({ message: '関連付けを削除しました' });
   } catch (e: any) {
@@ -535,6 +548,7 @@ router.post('/', requirePermission('projects', 'use'), async (req: AuthRequest, 
         parent: { select: parentSelect },
       },
     });
+    scheduleNotify({ type: 'issue.created', actorUserId: req.userId!, issueId: issue.id });
     res.status(201).json(shapeIssueAssignees(issue));
   } catch (e) {
     console.error('POST /issues:', e);
@@ -754,6 +768,54 @@ router.put('/:id', requirePermission('projects', 'use'), async (req: AuthRequest
     }
 
     const shaped = shapeIssueAssignees(issue);
+    const actorUserId = req.userId!;
+    const finalAssigneeIds = nextAssigneeIds ?? existingAssigneeIds;
+    const finalGroupId =
+      assignedToGroupId !== undefined
+        ? assignedToGroupId
+          ? Number(assignedToGroupId)
+          : null
+        : existingIssue.assignedToGroupId;
+    const oldGroupId = existingIssue.assignedToGroupId;
+    const addedUserIds = finalAssigneeIds.filter((id) => !existingAssigneeIds.includes(id));
+    const removedUserIds = existingAssigneeIds.filter((id) => !finalAssigneeIds.includes(id));
+    const groupChanged = (finalGroupId ?? null) !== (oldGroupId ?? null);
+    if (movingProject) {
+      scheduleNotify({
+        type: 'issue.project_moved',
+        actorUserId,
+        issueId,
+        destProjectId: targetProjectId,
+      });
+    }
+    if (addedUserIds.length > 0 || removedUserIds.length > 0 || groupChanged) {
+      scheduleNotify({
+        type: 'issue.assignee_changed',
+        actorUserId,
+        issueId,
+        addedUserIds,
+        removedUserIds,
+        addedGroupId: groupChanged ? finalGroupId : null,
+        removedGroupId: groupChanged ? oldGroupId : null,
+      });
+    }
+    if (statusId !== undefined && Number(statusId) !== existingIssue.statusId) {
+      scheduleNotify({ type: 'issue.status_changed', actorUserId, issueId });
+    }
+    const otherChanged =
+      (subject !== undefined && subject !== existingIssue.subject) ||
+      (trackerId !== undefined && Number(trackerId) !== existingIssue.trackerId) ||
+      (priorityId !== undefined && Number(priorityId) !== existingIssue.priorityId) ||
+      (description !== undefined && description !== existingIssue.description) ||
+      (doneRatio !== undefined && Number(doneRatio) !== existingIssue.doneRatio) ||
+      (estimatedHours !== undefined) ||
+      (dueDate !== undefined) ||
+      (startDate !== undefined) ||
+      (endDate !== undefined) ||
+      (!movingProject && parentId !== undefined);
+    if (otherChanged) {
+      scheduleNotify({ type: 'issue.updated', actorUserId, issueId });
+    }
     if ((issue._count?.children ?? 0) > 0) {
       const aggById = await loadParentAggregations([targetProjectId]);
       const agg = aggById.get(issue.id);
@@ -787,7 +849,32 @@ router.delete('/:id', requirePermission('projects', 'use'), async (req: AuthRequ
       res.status(403).json({ error: PROJECT_PERMISSION_DENIED_MESSAGE });
       return;
     }
+    const existing = await prisma.issue.findUnique({
+      where: { id: Number(req.params.id) },
+      select: {
+        id: true,
+        subject: true,
+        projectId: true,
+        authorId: true,
+        assignedToGroupId: true,
+        assignees: { select: { userId: true } },
+      },
+    });
     await prisma.issue.delete({ where: { id: Number(req.params.id) } });
+    if (existing) {
+      scheduleNotify({
+        type: 'issue.deleted',
+        actorUserId: req.userId!,
+        snapshot: {
+          id: existing.id,
+          subject: existing.subject,
+          projectId: existing.projectId,
+          authorId: existing.authorId,
+          assigneeIds: existing.assignees.map((a) => a.userId),
+          assignedToGroupId: existing.assignedToGroupId,
+        },
+      });
+    }
     res.json({ message: 'チケットを削除しました' });
   } catch (e) {
     res.status(500).json({ error: 'チケットの削除に失敗しました' });
@@ -815,6 +902,7 @@ router.post('/:id/comments', requirePermission('projects', 'use'), async (req: A
       },
       include: { user: { select: { id: true, firstName: true, lastName: true } } },
     });
+    scheduleNotify({ type: 'issue.commented', actorUserId: req.userId!, issueId: Number(req.params.id) });
     res.status(201).json(comment);
   } catch (e) {
     res.status(500).json({ error: 'コメントの追加に失敗しました' });

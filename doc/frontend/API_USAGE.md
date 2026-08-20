@@ -35,6 +35,8 @@
 - ファイルアップロードは `FormData` で `api.post('attachments/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })` のように呼ぶ。
 - 管理画面のメール設定は `GET/PUT admin/settings/email`、`POST admin/settings/email/test`（Body: `toEmail`）を使用する。SMTP パスワードは PUT でのみ送り、GET では `smtpPasswordSet` のみ参照する。
 - 管理画面の休日設定は `GET/PUT admin/settings/holidays`（Body/応答: `holidayWeekdays`, `holidays`, `workdays`）。国民の祝日データはフロントから `https://holidays-jp.github.io/api/v1/date.json` を直接取得し、モーダルで年選択後に既存 `holidays` へマージして PUT する。
+- 個人の作業通知は `GET/PUT settings/notifications`（`channel`, `events`）。権限 `settings` use。`events` は機能権限がある種別のみ返る／保存する。設定画面では対応機能の canUse が無いグループ（例: 商談=`companies.deals` / `deals`）のチェックを出さない。
+- 管理画面の通知設定は `GET/PUT admin/settings/notifications`（`defaultChannel`）、テストは `POST admin/settings/notifications/test`（Body: `channel`）。権限 `admin.notification-settings`。
 - ガント等での営業時間・休日の参照は `GET settings/calendar`（認証のみ。時間設定＋休日設定をまとめて返す）。
 - ガントデータ（`GET gantt/project/:id` / `GET gantt/all`）の各チケットには `actualHours`（時間記録の hours 合計）が含まれる。左ペイン列の実工数表示に利用する。
 - **チケット／ガントの担当者絞り込み（サーバー側）**: プロジェクト一覧のガント・カンバンはトラッカー／ステータス／担当者条件を `GET issues` または `GET gantt/*` の Query に渡して取得する。時間タブは `GET /time-tree` に同趣旨の Query を渡す（記録期間・記録者変更時は `include=entries` で時間記録のみ再取得）。`assignedToIds` と `assignedToGroupIds` は **OR**（ユーザー担当一致または担当グループ一致）。「未割当」を含む場合は担当者 Query を付けず、クライアントの `matchesIssueFilter` で OR 判定する。期日・開始終了期間など日付系は従来どおりクライアント側。時間記録の記録者は `userIds` と `userGroupIds`（グループ所属メンバーへサーバー展開）で絞り込む。

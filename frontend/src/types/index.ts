@@ -59,6 +59,27 @@ export interface User {
   permissions?: PermissionMap;
 }
 
+export type NotificationChannel = 'email' | 'teams' | 'off';
+export type NotificationEventGroup = 'issue' | 'project' | 'deal' | 'activity';
+
+export interface NotificationEventPref {
+  type: string;
+  group: NotificationEventGroup;
+  name: string;
+  enabled: boolean;
+  defaultEnabled: boolean;
+}
+
+export interface UserNotificationSettings {
+  channel: NotificationChannel;
+  microsoftLinked: boolean;
+  events: NotificationEventPref[];
+}
+
+export interface AdminNotificationSettings {
+  defaultChannel: NotificationChannel;
+}
+
 export type GanttColumnKey =
   | 'ticket'
   | 'priority'

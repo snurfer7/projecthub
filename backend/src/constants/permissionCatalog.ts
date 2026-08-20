@@ -143,6 +143,7 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
       { code: 'admin.time-settings', name: '時間設定', position: 7 },
       { code: 'admin.email-settings', name: 'メール設定', position: 8 },
       { code: 'admin.holiday-settings', name: '休日設定', position: 9 },
+      { code: 'admin.notification-settings', name: '通知設定', position: 10 },
     ],
   },
 ];

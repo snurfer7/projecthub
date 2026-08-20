@@ -4,6 +4,7 @@ import { AuthRequest, authenticateToken } from '../middleware/auth';
 import { requirePermission, requireAnyPermission } from '../middleware/permissions';
 import { assertFieldPermissions } from '../services/permissions';
 import { parseStringQueryValues } from '../utils/queryParams';
+import { scheduleNotify } from '../services/notifications';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -550,6 +551,15 @@ router.post('/deals', async (req: AuthRequest, res: Response) => {
         assignedToId, notes,
       },
     });
+    if (assignedToId) {
+      scheduleNotify({
+        type: 'deal.assignee_changed',
+        actorUserId: req.userId!,
+        dealId: deal.id,
+        addedUserId: Number(assignedToId),
+        removedUserId: null,
+      });
+    }
     res.status(201).json(deal);
   } catch {
     res.status(500).json({ error: '商談の作成に失敗しました' });
@@ -558,6 +568,14 @@ router.post('/deals', async (req: AuthRequest, res: Response) => {
 
 router.put('/deals/:id', async (req: AuthRequest, res: Response) => {
   try {
+    const dealId = Number(req.params.id);
+    const existing = await prisma.deal.findUnique({
+      where: { id: dealId },
+      select: { assignedToId: true, status: true },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: '商談が見つかりません' });
+    }
     const { contactId, name, amount, status, probability, expectedCloseDate, assignedToId, notes } = req.body;
     if (assignedToId) {
       const user = await prisma.user.findUnique({ where: { id: Number(assignedToId) } });
@@ -574,6 +592,23 @@ router.put('/deals/:id', async (req: AuthRequest, res: Response) => {
         assignedToId, notes,
       },
     });
+    const nextAssigned = assignedToId !== undefined ? (assignedToId ? Number(assignedToId) : null) : existing.assignedToId;
+    if (nextAssigned !== existing.assignedToId) {
+      scheduleNotify({
+        type: 'deal.assignee_changed',
+        actorUserId: req.userId!,
+        dealId: deal.id,
+        addedUserId: nextAssigned,
+        removedUserId: existing.assignedToId,
+      });
+    }
+    if (status !== undefined && status !== existing.status) {
+      scheduleNotify({
+        type: 'deal.status_changed',
+        actorUserId: req.userId!,
+        dealId: deal.id,
+      });
+    }
     res.json(deal);
   } catch {
     res.status(500).json({ error: '商談の更新に失敗しました' });
@@ -671,6 +706,28 @@ router.post('/activities', requirePermission('companies.activities', 'input'), a
       },
       include: activityInclude,
     });
+    if (assignedToId) {
+      scheduleNotify({
+        type: 'activity.assignee_changed',
+        actorUserId: req.userId!,
+        activityId: activity.id,
+        addedUserId: Number(assignedToId),
+        removedUserId: null,
+      });
+    } else {
+      scheduleNotify({
+        type: 'activity.updated',
+        actorUserId: req.userId!,
+        activityId: activity.id,
+      });
+    }
+    if (completed) {
+      scheduleNotify({
+        type: 'activity.completed',
+        actorUserId: req.userId!,
+        activityId: activity.id,
+      });
+    }
     res.status(201).json(serializeActivity(activity));
   } catch (e) {
     console.error('Activity create error:', e);
@@ -685,7 +742,7 @@ router.put('/activities/:id', requirePermission('companies.activities', 'input')
     const activityId = Number(req.params.id);
     const existing = await prisma.activity.findUnique({
       where: { id: activityId },
-      select: { id: true, companyId: true, locationId: true },
+      select: { id: true, companyId: true, locationId: true, assignedToId: true, completed: true },
     });
     if (!existing) {
       return res.status(404).json({ error: '活動が見つかりません' });
@@ -746,6 +803,40 @@ router.put('/activities/:id', requirePermission('companies.activities', 'input')
       },
       include: activityInclude,
     });
+    const nextAssigned =
+      assignedToId !== undefined ? (assignedToId ? Number(assignedToId) : null) : existing.assignedToId;
+    if (nextAssigned !== existing.assignedToId) {
+      scheduleNotify({
+        type: 'activity.assignee_changed',
+        actorUserId: req.userId!,
+        activityId,
+        addedUserId: nextAssigned,
+        removedUserId: existing.assignedToId,
+      });
+    }
+    if (completed !== undefined && Boolean(completed) && !existing.completed) {
+      scheduleNotify({
+        type: 'activity.completed',
+        actorUserId: req.userId!,
+        activityId,
+      });
+    }
+    const otherUpdated =
+      type !== undefined ||
+      subject !== undefined ||
+      description !== undefined ||
+      dueDate !== undefined ||
+      contactId !== undefined ||
+      dealId !== undefined ||
+      locationId !== undefined ||
+      projectIds !== undefined;
+    if (otherUpdated) {
+      scheduleNotify({
+        type: 'activity.updated',
+        actorUserId: req.userId!,
+        activityId,
+      });
+    }
     res.json(serializeActivity(activity));
   } catch (e) {
     console.error('Activity update error:', e);

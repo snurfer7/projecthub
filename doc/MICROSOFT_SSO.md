@@ -63,7 +63,9 @@ Web 向け Microsoft Entra ID（Microsoft 365）SSO の設定手順と、ロー�
 
 ### 2.4 API のアクセス許可
 
-既定の **Microsoft Graph** → `openid` / `profile` / `email`（委任）で足ります。追加の管理者同意は通常不要です（組織ポリシーによる）。
+SSO のみなら既定の **Microsoft Graph** → `openid` / `profile` / `email`（委任）で足ります。追加の管理者同意は通常不要です（組織ポリシーによる）。
+
+**Teams 個人通知**は Bot の 1:1 チャットへ投稿します（詳細は [§5 Teams 個人通知](#5-teams-個人通知bot-11)）。Graph のアプリケーション許可（`TeamsActivity.Send` 等）は不要です。同じ Entra アプリを **Azure Bot** として登録し、Developer Portal で Bot 付き Teams アプリを組織配布します。
 
 ---
 
@@ -77,7 +79,8 @@ Web 向け Microsoft Entra ID（Microsoft 365）SSO の設定手順と、ロー�
 | `MICROSOFT_CLIENT_ID` | SSO 利用時 | アプリケーション（クライアント）ID |
 | `MICROSOFT_CLIENT_SECRET` | SSO 利用時 | クライアント シークレット |
 | `MICROSOFT_REDIRECT_URI` | SSO 利用時 | Entra に登録したコールバック URL と **完全一致** |
-| `FRONTEND_URL` | 推奨 | SSO 完了後のフロント URL（末尾スラッシュなし）。未設定時は `http://localhost:5173` |
+| `FRONTEND_URL` | 推奨 | SSO 完了後のフロント URL（末尾スラッシュなし）。作業通知のディープリンク基点。未設定時は `http://localhost:5173` |
+| `MICROSOFT_TEAMS_APP_ID` | 不要 | 旧アクティビティ通知用。設定しても Bot 送信では使わない |
 
 未設定（いずれか欠落）の場合、SSO は無効です。ログイン画面に Microsoft ボタンは出ず、パスワードログインのみになります。
 
@@ -104,6 +107,7 @@ npm run prisma:seed:permissions   # ローカル（tsx）
 | `settings` | 使用（設定画面） |
 | `settings.fields.authMethod` | **入力**（認証方式の変更） |
 | `settings.fields.microsoftAccount` | **入力**（Microsoft 連携・解除） |
+| `admin.notification-settings` | 使用／入力（管理画面の既定配信先・テスト送信） |
 
 カタログだけ seed しても、既存の権限設定マトリクスには自動では付与されません。管理者によるチェックが必要です。
 
@@ -212,7 +216,179 @@ curl -s http://localhost:3000/api/auth/microsoft/status
 
 ---
 
-## 5. 関連ドキュメント
+## 5. Teams 個人通知（Bot 1:1）
+
+チャンネル Webhook とアクティビティ フィード（`sendActivityNotification`）は使いません。**Bot の 1:1 チャット**に投稿します。ユーザーごとに別会話なので個人宛てです。履歴は Teams のチャットに残ります。
+
+### 5.0 構成の全体像
+
+| コンポーネント | 役割 | どこで設定するか |
+|----------------|------|------------------|
+| **Entra アプリ登録** | SSO と Bot 送信の共通 ID・シークレット | Microsoft Entra 管理センター |
+| **Azure Bot** | 「この App ID は Bot として Teams に送れる」と Microsoft に登録 | Azure ポータル |
+| **Teams アプリ（Developer Portal）** | 利用者の Teams に Bot 付きアプリを配布 | [Teams Developer Portal](https://dev.teams.microsoft.com/) |
+| **ProjectHub backend** | 通知本文を Bot Framework Connector へ POST | `.env` + Docker |
+
+メッセージの流れは **ProjectHub → Bot Framework（Azure Bot として登録した Entra アプリ）→ 利用者の Teams チャット** です。Developer Portal は配布用であり、メッセージの中継には入りません。
+
+**ID の対応（混同しやすい点）**
+
+| 名称 | 例（プレースホルダ） | 用途 |
+|------|----------------------|------|
+| Entra **クライアント ID** | `980eb92b-...` | SSO、`MICROSOFT_CLIENT_ID`、Azure Bot の Microsoft App ID、`bots.botId`、`webApplicationInfo.id` |
+| Entra **テナント ID** | `86277f04-...` | `MICROSOFT_TENANT_ID`、Azure Bot の App Tenant ID |
+| Teams **アプリ ID**（Developer Portal） | `d75c74a8-...` | マニフェストの `id`。Bot 送信では **使わない** |
+| クライアント シークレット **値** | `.env` に保存 | `MICROSOFT_CLIENT_SECRET`。シークレット **ID**（GUID）ではない |
+
+Graph のアプリケーション許可（`TeamsActivity.Send` 等）は **不要** です。
+
+---
+
+### 5.1 前提
+
+- [§2 Entra ID](#2-entra-idazure側の設定) の SSO 用アプリ登録が済んでいること
+- テストするユーザーが ProjectHub に存在し、**Microsoft アカウント連携**（`microsoftOid`）済みであること
+- 受信者の Teams に Bot 付き ProjectHub アプリが **インストール済み** であること（未インストールでは 403）
+
+---
+
+### 5.2 Entra ID（既存アプリの確認）
+
+1. [Microsoft Entra 管理センター](https://entra.microsoft.com/) → **アプリの登録** → ProjectHub（SSO 用）を開く
+2. **概要**で次を控える（`.env` と一致させる）:
+   - **アプリケーション（クライアント）ID** → `MICROSOFT_CLIENT_ID`
+   - **ディレクトリ（テナント）ID** → `MICROSOFT_TENANT_ID`
+3. **証明書とシークレット** → 有効なクライアント シークレットがあること  
+   - `.env` の `MICROSOFT_CLIENT_SECRET` には作成時に表示された **値（Value）** を入れる  
+   - 一覧の **シークレット ID**（例: `8b027481-...`）を入れると認証失敗になる
+4. シークレットを作り直した場合のみ、新しい **値** を `.env` に反映し backend を再起動する
+
+---
+
+### 5.3 Azure Bot の作成・設定
+
+Developer Portal だけでは Bot 送信はできません。**Azure ポータルで Azure Bot リソース**が必要です。
+
+1. [Azure ポータル](https://portal.azure.com/) → **リソースの作成** → **Azure Bot**（または Bot Channels Registration）
+2. **既存のアプリ登録を使用** を選び、§5.2 の **クライアント ID** を指定する（**新規アプリ登録は作らない**）
+3. **種類 = 単一テナント（Single Tenant）**。App Tenant ID = `MICROSOFT_TENANT_ID`
+4. 作成後、Bot リソース → **構成** で次を確認:
+   - **Microsoft App ID** = `MICROSOFT_CLIENT_ID`
+   - **App Tenant ID** = `MICROSOFT_TENANT_ID`
+   - **App Type** = Single Tenant
+5. **チャネル** → **Microsoft Teams** を開く  
+   - **Messaging** タブ: 既定（Microsoft Teams Commercial）のままでよい  
+   - **Calling** は変更不要  
+   - 利用規約に同意し、画面下部の **[Apply]（適用）** を押して保存する（未 Apply だと 401 になる）
+6. **メッセージング エンドポイント**  
+   - 通知の **送信のみ**（ユーザーから Bot への返信を処理しない）なら **空で可**  
+   - 入力必須と表示される場合はダミーの https URL を入れてもよいが、ProjectHub 側に受信 API はない
+
+---
+
+### 5.4 Teams Developer Portal（既存アプリの更新）
+
+**アプリを削除して作り直す必要はありません。** 既存アプリのマニフェストを更新します。
+
+#### A. GUI から更新（推奨）
+
+JSON エディターと GUI の設定が衝突して壊れやすいため、**構成メニューから操作**するのが安全です。
+
+1. [Teams Developer Portal](https://dev.teams.microsoft.com/) → 既存の ProjectHub アプリを開く
+2. **構成 → アプリの機能 → Bot**
+   - **Bot ID** = Entra の **クライアント ID**（`MICROSOFT_CLIENT_ID`）
+   - **Scopes**: **Personal（個人）** にチェック（1:1 通知だけなら Personal のみで足りる）
+   - 保存
+3. **構成 → 基本情報**
+   - **バージョン** を上げる（例: `1.0.0` → `1.1.0`）
+   - 保存
+4. **公開 → 組織に公開する** → **+ アプリの更新プログラムを送信する**
+
+#### B. manifest.json を直接編集する場合
+
+サンプル: [teams-app/manifest.json](teams-app/manifest.json)。ZIP に `color.png` / `outline.png` を同梱してアップロードします。
+
+必須の要点:
+
+- `id` = Developer Portal の **Teams アプリ ID**（Entra クライアント ID とは別）
+- `bots[0].botId` と `webApplicationInfo.id` = Entra **クライアント ID**
+- `version` を前回より大きくする
+- Bot 1:1 のみなら `bots[0].scopes` は **`["personal"]` のみ**（推奨）
+
+**マニフェスト検証でハマりやすい点**
+
+| 症状 | 原因 | 対処 |
+|------|------|------|
+| `TeamsScopeMissingSupportChannelFeature` | `manifestVersion` 1.25 以上で `scopes` に `team` がある | `supportsChannelFeatures` を追加する **か** `scopes` から `team` / `groupChat` を外して **Personal のみ**にする（推奨） |
+| `Property supportsChannelFeatures is not allowed` | `manifestVersion` が 1.11 等の旧版なのに `supportsChannelFeatures` を書いている | プロパティを削除する **か** `manifestVersion` を 1.25 以上に上げる |
+| エディター上で JSON が壊れる | GUI 設定と JSON 直編集の衝突 | エディターを全消去して貼り直すより、§5.4 A の GUI 操作を優先 |
+
+旧アクティビティ通知用の `activities` セクションは Bot 送信では **不要** です（残っていても動くが、新規更新時は削除してよい）。
+
+`contentUrl` / `websiteUrl` を公開 https にすると、タブから ProjectHub を開けます。`example.com` のままでも **Bot 通知の送信・受信** は可能です。
+
+---
+
+### 5.5 Teams 管理センターでの承認
+
+Developer Portal から「組織に公開」したあと、**Teams 管理センターへ反映されるまで数分〜十数分**かかることがあります。すぐ一覧に出なくても、反映待ちの可能性があります。
+
+1. [Microsoft Teams 管理センター](https://admin.teams.microsoft.com/) → **Teams のアプリ** → **アプリの管理**
+2. 画面上部の **「承認の保留中」**（更新されたカスタム アプリ）を確認する  
+   - 一覧に出ない場合: 検索窓のフィルターを解除し、名前で `ProjectHub` を検索
+3. 該当行を選択 → **[状態の編集]**（または **[承認]**）→ **許可** で保存
+
+---
+
+### 5.6 利用者側（Teams アプリの更新）
+
+1. テストする本人の **Microsoft Teams** を開く
+2. **アプリ** → **組織用に作成**（社内アプリ）→ **ProjectHub** を検索
+3. **更新** が出れば更新。出なければ一度アンインストールして **追加**
+4. **チャット** 一覧に **ProjectHub** との 1:1 チャット（Bot）が表示されることを確認
+
+---
+
+### 5.7 ProjectHub 側の反映とテスト
+
+`.env`（Compose 用）例:
+
+```bash
+MICROSOFT_TENANT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+MICROSOFT_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+MICROSOFT_CLIENT_SECRET=your_client_secret_value   # シークレット ID ではない
+MICROSOFT_REDIRECT_URI=http://localhost:3000/api/auth/microsoft/callback
+FRONTEND_URL=http://localhost:5173
+```
+
+変更後:
+
+```bash
+docker compose up -d --force-recreate backend
+```
+
+1. 管理画面 → **通知** タブ → **Teams テスト送信**
+2. Teams の ProjectHub チャットに Adaptive Card 付きメッセージが届くこと
+3. 本文に `FRONTEND_URL` のリンクが含まれること（https のとき「開く」ボタン付き）
+
+未連携ユーザー、または Microsoft 設定未完了時は **メールへフォールバック** します。Bot API エラー時、通常の作業通知はログのみ、管理画面のテスト送信はエラー文言を返します。
+
+---
+
+### 5.8 トラブルシューティング
+
+| 症状 | 確認・対処 |
+|------|------------|
+| `Bot Framework の認証に失敗しました` / `Authorization has been denied for this request` | Azure Bot が **同じクライアント ID** で作成されているか。Teams **チャネル** を Apply したか。`MICROSOFT_CLIENT_SECRET` が **値** か |
+| 上記のあと `受信者に … Teams アプリ（Bot）がインストールされていません` | マニフェストに `bots` あり・組織公開・管理センター承認・本人 Teams でアプリ **更新** 済みか。チャット一覧に ProjectHub Bot があるか |
+| 401 が Teams チャネル設定前だけ出ていた | チャネル未 Apply。§5.3 手順 5 |
+| 管理センターに更新要求が出ない | Developer Portal 送信後 **数分〜十数分待つ**。§5.5 |
+| タブだけ開きチャットに来ない | 旧アクティビティ通知用マニフェストのまま。`bots` 入りに更新・再配布 |
+| SSO は動くが Bot だけ失敗 | Entra と Azure Bot の App ID 不一致、または Azure Bot 未作成 |
+
+---
+
+## 6. 関連ドキュメント
 
 | ドキュメント | 内容 |
 |--------------|------|

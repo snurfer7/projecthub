@@ -4,7 +4,8 @@
 
 ## 認証・ユーザー
 
-- **User** — ユーザー。email, passwordHash, firstName, lastName, role, isAdmin, landingPage, show*Menu。**認証**: `authMethod`（`password` \| `sso`）, `microsoftOid`（Entra object id・ユニーク・任意）, `microsoftTenantId`（任意）。Microsoft 連携の主キーはメールではなく `microsoftOid`（UPN 変更後も継続）。SSO ログイン成功時（oid 一致）は `User.email` を Entra のログイン ID（UPN）へ自動同期する（他ユーザーと衝突時はスキップ）。**`uiPreferences`（JSON）** — 個人 UI 設定。現状はガント左ペイン列（`gantt.columns`: key / visible / width の配列。順序＝表示順。`ticket` は非表示不可）。GroupMember, ProjectMember, Issue（author / **IssueAssignee 経由の担当**）, TimeEntry, WikiPage, 各種 Comment 等と関連。**API アクセスはグループ経由の権限設定で制御**（`isAdmin` / `role=admin` でもバイパスしない）。
+- **User** — ユーザー。email, passwordHash, firstName, lastName, role, isAdmin, landingPage, show*Menu。**認証**: `authMethod`（`password` \| `sso`）, `microsoftOid`（Entra object id・ユニーク・任意）, `microsoftTenantId`（任意）。Microsoft 連携の主キーはメールではなく `microsoftOid`（UPN 変更後も継続）。SSO ログイン成功時（oid 一致）は `User.email` を Entra のログイン ID（UPN）へ自動同期する（他ユーザーと衝突時はスキップ）。**`notificationChannel`**（`email` \| `teams` \| `off`。既定 `email`）— 作業通知の全体配信先。**`uiPreferences`（JSON）** — 個人 UI 設定。現状はガント左ペイン列（`gantt.columns`: key / visible / width の配列。順序＝表示順。`ticket` は非表示不可）。GroupMember, ProjectMember, Issue（author / **IssueAssignee 経由の担当**）, TimeEntry, WikiPage, 各種 Comment、**UserNotificationPreference** 等と関連。**API アクセスはグループ経由の権限設定で制御**（`isAdmin` / `role=admin` でもバイパスしない）。
+- **UserNotificationPreference** — ユーザーごとの通知イベント ON/OFF。`userId` + `eventType`（ユニーク）、`enabled`。行が無い種別はカタログの初期値を使う。
 - **Group** — グループ。GroupMember で User と多対多。Issue の担当グループ、ProjectGroup、ProjectMemberRole の sourceGroup として使用。**`permissionSetId`（任意）** で PermissionSet を参照（1 グループ = 最大 1 権限設定）。**`position`** は親を持たないグループ同士の表示順。**GroupHierarchy** で親子の多対多（1 グループが複数親・複数子を持てる。DAG。循環参照不可）。
 - **GroupMember** — Group と User の多対多中間。ユーザーは複数グループに所属可能。**メンバーシップは親子階層を継承しない**（直接所属のみ）。
 - **GroupHierarchy** — グループ親子の中間。`parentGroupId` + `childGroupId`（ユニーク）、**`position`**（同一親の下での兄弟順）。グループ削除時は Cascade。自己参照および循環（例: A→B→C→A）は API で拒否。
@@ -84,7 +85,7 @@
 
 - **Attachment** — 添付ファイル。project, issue, issueComment, projectComment, companyComment, contactComment のいずれかに紐づく。author, filePath, contentType, fileSize 等。
 - **HomePage** — ホームページの HTML 等コンテンツ（1 レコード想定）。
-- **SystemSetting** — システム設定（id: "default"）。startTime, endTime, managementTimes, conversionTimes に加え、**メール**: `emailTransport`（`ses` \| `smtp`）, `emailFromOverride`（任意・送信元上書き）, `smtpHost`, `smtpPort`, `smtpUser`, `smtpPasswordEnc`（暗号化済み）, `smtpSecure`（465 番相当の TLS 用）。**休日**: `holidayWeekdays`（Int[]。0=日〜6=土。該当曜日を休日とする。初期値 `[0, 6]`＝土日）, `holidays`（Json。`{ date: "YYYY-MM-DD", name: string }[]` の個別休日）, `workdays`（Json。同形式の個別出勤日。曜日休日・個別休日より優先して出勤扱い）。
+- **SystemSetting** — システム設定（id: "default"）。startTime, endTime, managementTimes, conversionTimes に加え、**メール**: `emailTransport`（`ses` \| `smtp`）, `emailFromOverride`（任意・送信元上書き）, `smtpHost`, `smtpPort`, `smtpUser`, `smtpPasswordEnc`（暗号化済み）, `smtpSecure`（465 番相当の TLS 用）。**休日**: `holidayWeekdays`（Int[]。0=日〜6=土。該当曜日を休日とする。初期値 `[0, 6]`＝土日）, `holidays`（Json。`{ date: "YYYY-MM-DD", name: string }[]` の個別休日）, `workdays`（Json。同形式の個別出勤日。曜日休日・個別休日より優先して出勤扱い）。**通知**: `defaultNotificationChannel`（`email` \| `teams` \| `off`。新規ユーザー作成時の `User.notificationChannel` 初期値。未設定時は `email`）。チャンネル Webhook は持たない。
 - **SavedSearch** — 保存済み検索条件。userId, viewMode（`list` \| `gantt` \| `kanban` \| `time`）, name（名称）, isDefault（対象 viewMode のデフォルト、1 ユーザー × 1 viewMode = 最大 1 件）, filter（JSON。projectFilter・issueFilter・ganttZoom・showEmptyProjects・ganttStartValue・ganttEndValue・timeRecordStartDate・timeRecordEndDate・timeRecordFilterUserIds（ユーザー ID および `g:{groupId}`）・listSort・issueSort を含む）, createdAt, updatedAt。User と多対多（1 ユーザーが複数保存可能）。**isDefault の一意制約はアプリ層で管理**（デフォルト設定時に同一ユーザー × viewMode の他レコードを false にする）。
 
 ### PermissionResource 追加
@@ -98,6 +99,7 @@
 | `settings.fields.authMethod` | 認証方式 | field | `settings` |
 | `settings.fields.microsoftAccount` | Microsoft アカウント連携 | field | `settings` |
 | `admin.holiday-settings` | 休日設定 | feature | `admin` |
+| `admin.notification-settings` | 通知設定 | feature | `admin` |
 | `admin.statuses.fields.isClosed` | 終了 | field | `admin.statuses` |
 | `admin.groups.fields.parentGroups` | 親グループ | field | `admin.groups` |
 | `admin.groups.fields.childGroups` | 子グループ | field | `admin.groups` |

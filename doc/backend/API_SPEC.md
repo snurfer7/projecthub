@@ -33,6 +33,16 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 
 ---
 
+## Settings — `/api/settings`
+
+| メソッド | パス | 認証 | 概要 |
+|----------|------|------|------|
+| GET | `/calendar` | 必要 | 営業時間・休日の参照専用（権限コード不要） |
+| GET | `/notifications` | 必要 | 作業通知設定。権限: `settings` use。応答: `channel`（`email` \| `teams` \| `off`）, `microsoftLinked`, `events`（`{ type, group, name, enabled, defaultEnabled }[]`）。`events` は対応機能の canUse がある種別のみ（チケット・プロジェクト=`projects`、商談=`companies.deals` または `deals`、活動=`companies.activities`） |
+| PUT | `/notifications` | 必要 | 作業通知設定の更新。権限: `settings` use。Body: `channel?`, `events?: { type, enabled }[]`。未知の `type` は 400。機能権限の無い種別は無視する |
+
+---
+
 ## Projects — `/api/projects`
 
 **メンバー可視性**: `POST /`（作成）と `GET /roles/available` を除き、操作対象プロジェクトに対し次のいずれかでアクセス可。(1) 個別 `ProjectMember`。(2) 割当 `ProjectGroup` がユーザーのカバレッジ（直接所属グループ ∪ 祖先）に含まれる（子孫グループ所属も割当グループの実効メンバー）。一覧も同条件。非メンバーは **403**（`このプロジェクトを参照する権限がありません`）。**例外**: `isAdmin` は全プロジェクト可。作成者は作成時に個別メンバー（全ロール）。DB には画面で選んだグループ ID・個別メンバー ID（とロール）のみ保存し、所属の展開は読取時に行う。グループへの後からの所属追加・階層変更は再同期不要で一覧・権限に反映される。
@@ -218,6 +228,8 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 | GET/PUT | `/settings/email` | メール送信設定（SES API / SMTP の切替、送信元、SMTP 接続情報）。SMTP パスワードは保存時にサーバー側で暗号化され、GET では `smtpPasswordSet` のみ返す | `admin.email-settings` use / input |
 | POST | `/settings/email/test` | テストメール送信。Body: `toEmail`（保存済み設定で 1 通送信） | `admin.email-settings` input |
 | GET/PUT | `/settings/holidays` | 休日設定（曜日休日・個別休日・個別出勤） | `admin.holiday-settings` use / input |
+| GET/PUT | `/settings/notifications` | 新規ユーザーの既定配信先。GET/PUT Body: `{ defaultChannel: 'email' \| 'teams' \| 'off' }` | `admin.notification-settings` use / input |
+| POST | `/settings/notifications/test` | ログイン中管理者へテスト通知。Body: `{ channel: 'email' \| 'teams' }`。`teams` は `microsoftOid` 必須（未連携は 400） | `admin.notification-settings` input |
 
 **メール設定（`/settings/email`）**
 
@@ -233,6 +245,11 @@ Base URL: `/api`（認証が必要なエンドポイントは `Authorization: Be
 - **`holidays` / `workdays`**: `date` は `YYYY-MM-DD`。同一配列内で日付重複は後勝ち（または 400）。名称は必須（空文字不可）。日付昇順で返す。
 - **判定優先度（利用側）**: 個別出勤日 ⊂ 個別休日 ⊂ 曜日休日（出勤日があれば出勤、なければ個別休日、なければ曜日）。
 - 国民の祝日 JSON（`https://holidays-jp.github.io/api/v1/date.json`）の取得・プレビューはフロントで行い、ユーザーが選択した年のみを既存 `holidays` にマージして PUT する。
+
+**通知設定（`/settings/notifications`）**
+
+- **`defaultChannel`**: 管理者がユーザーを新規作成するときの `User.notificationChannel`。未保存時は `email`。
+- 作業通知のイベント種別と受信者は実装（`backend/src/services/notifications/catalog.ts`）を正とする。チャンネル Webhook は無い。
 
 ---
 

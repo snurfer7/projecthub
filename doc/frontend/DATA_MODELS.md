@@ -4,7 +4,10 @@
 
 ## 認証・ユーザー
 
-- **User** — id, email, firstName, lastName, role, isAdmin, landingPage, show*Menu, createdAt, groupMembers, status（`pending` \| `active` \| `inactive`）, **authMethod**（`password` \| `sso`）, **microsoftLinked**（boolean）, **uiPreferences**（個人 UI 設定。`gantt.columns` にガント左ペイン列の key / visible / width）, **permissions**（`Record<string, PermissionEntry>`）等。
+- **User** — id, email, firstName, lastName, role, isAdmin, landingPage, show*Menu, createdAt, groupMembers, status（`pending` \| `active` \| `inactive`）, **authMethod**（`password` \| `sso`）, **microsoftLinked**（boolean）, **uiPreferences**（個人 UI 設定。`gantt.columns` にガント左ペイン列の key / visible / width）, **permissions**（`Record<string, PermissionEntry>`）等。作業通知の配信先・種別は `GET /settings/notifications`（`UserNotificationSettings`）で取得し、`/auth/me` には含めない。
+- **NotificationChannel** — `email` \| `teams` \| `off`。
+- **UserNotificationSettings** — `channel`, `microsoftLinked`, `events`（`NotificationEventPref[]`）。
+- **NotificationEventPref** — `type`, `group`（`issue` \| `project` \| `deal` \| `activity`）, `name`, `enabled`, `defaultEnabled`。
 - **PermissionEntry** — `{ canUse: boolean, canInput: boolean }`。
 - **PermissionResource** — id, code, name, resourceType, parentId, position, children?。
 - **PermissionSet** — id, name, description, createdAt, groups?, permissions?。
@@ -66,6 +69,7 @@
 - **EmailSettings（API 応答）** — GET `/admin/settings/email`: emailTransport, emailFromOverride, smtpHost, smtpPort, smtpUser, smtpSecure, smtpPasswordSet。
 - **HolidayDateEntry** — `{ date: string`（`YYYY-MM-DD`）, `name: string }`。
 - **HolidaySettings（API 応答）** — GET `/admin/settings/holidays`: `holidayWeekdays`（number[]、0=日〜6=土）, `holidays`（HolidayDateEntry[]）, `workdays`（HolidayDateEntry[]）。
+- **AdminNotificationSettings（API 応答）** — GET `/admin/settings/notifications`: `defaultChannel`（NotificationChannel）。
 - **WorkCalendarSettings（API 応答）** — GET `/settings/calendar`: 時間設定（startTime, endTime, managementTimes, conversionTimes）＋休日設定（holidayWeekdays, holidays, workdays）。ガント等の参照専用。
 
 ## 注意

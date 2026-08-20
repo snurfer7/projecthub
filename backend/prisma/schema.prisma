@@ -29,6 +29,7 @@ model User {
   microsoftTenantId  String?           @map("microsoft_tenant_id")
   /** UI 個人設定（ガント列の表示・順序・幅など） */
   uiPreferences      Json              @default("{}") @map("ui_preferences")
+  notificationChannel String           @default("email") @map("notification_channel")
   activities         Activity[]
   assignedActivities Activity[]        @relation("ActivityAssignee")
   attachments        Attachment[]
@@ -45,8 +46,22 @@ model User {
   savedSearches      SavedSearch[]
   timeEntries        TimeEntry[]
   wikiPages          WikiPage[]
+  notificationPreferences UserNotificationPreference[]
 
   @@map("users")
+}
+
+model UserNotificationPreference {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  eventType String   @map("event_type")
+  enabled   Boolean
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventType])
+  @@map("user_notification_preferences")
 }
 
 model Group {
@@ -729,6 +744,8 @@ model SystemSetting {
   holidays           Json     @default("[]")
   /// [{ date: "YYYY-MM-DD", name: string }] 個別出勤（休日より優先）
   workdays           Json     @default("[]")
+  /// 新規ユーザーの作業通知配信先: email | teams | off
+  defaultNotificationChannel String @default("email") @map("default_notification_channel")
 
   @@map("system_settings")
 }

@@ -42,8 +42,8 @@
 | `/companies/:id` | CompanyDetailPage | 会社詳細。クエリ `tab` に加え、`activity=<活動ID>` で活動履歴タブ内の該当行を強調、`comment=<コメントID>` でコメントタブを開き該当コメントを強調。概要タブの基本情報では、編集の左に「統合」操作（統合先企業を選ぶモーダル → API で統合元の全関連データの企業 ID を統合先へ付け替え、統合元レコード削除）がある。商談・活動履歴の**自社担当者**はプロジェクト一覧の担当者と同様、**グループ階層ツリー**見出しの下にユーザーを並べた一覧から選択する（見出しは選択不可。未所属ユーザーは「未所属」の下）。活動履歴では**拠点**（当該企業の `locations`）を登録でき、field 権限 `companies.activities.fields.location` canInput で編集制御。**活動履歴**タブでは、`projects` の canUse と canInput の両方があるとき各活動から「プロジェクトを作成」でき、件名・説明・期限・企業・拠点・先方担当者をプリフィルした登録モーダルを開く（識別子は自動生成。親プロジェクトは手動選択）。送信は `POST /api/projects`（`sourceActivityId` 付き）で作成と同時に元活動へ紐づく。商談・活動種別はプロジェクト項目に引き継がない（商談がある場合はモーダルに参照表示のみ） |
 | `/associations` | AssociationsPage | 団体マスタ |
 | `/legal-entity-statuses` | LegalEntityStatusesPage | 法人区分マスタ |
-| `/settings` | SettingsPage | 設定（パスワード・ランディング・メニュー表示・**認証方式**・**Microsoft アカウント連携**）。表示: `settings` canUse。認証方式: `settings.fields.authMethod` canInput。Microsoft 連携: `settings.fields.microsoftAccount` canInput。`authMethod === 'sso'` のときはパスワード変更 UI を非表示。`user.status === 'pending'` の場合は遷移不可 |
-| `/admin` | AdminPage | 管理（ユーザー・トラッカー・ステータス・優先度・グループ・**権限設定**・ロール・会社・法人区分・団体・**メール設定**（SES / SMTP・テスト送信）・時間設定・**休日設定**等） |
+| `/settings` | SettingsPage | 設定（パスワード・ランディング・メニュー表示・**認証方式**・**Microsoft アカウント連携**・**通知**）。表示: `settings` canUse。認証方式: `settings.fields.authMethod` canInput。Microsoft 連携: `settings.fields.microsoftAccount` canInput。通知の配信先・イベント種別は `settings` canUse で編集可（個別 field 権限は無い）。イベント種別は対応機能の canUse が無いグループを非表示（チケット・プロジェクト=`projects`、商談=`companies.deals` または `deals`、活動=`companies.activities`）。`authMethod === 'sso'` のときはパスワード変更 UI を非表示。`user.status === 'pending'` の場合は遷移不可 |
+| `/admin` | AdminPage | 管理（ユーザー・トラッカー・ステータス・優先度・グループ・**権限設定**・ロール・会社・法人区分・団体・**メール設定**（SES / SMTP・テスト送信）・時間設定・**休日設定**・**通知設定**等） |
 
 ### その他
 
@@ -90,6 +90,22 @@
 - **個別の休日**: 日付＋名称の一覧。手動追加・削除。**データ取得**ボタンで [国民の祝日 API](https://holidays-jp.github.io/api/v1/date.json) を取得し、即時取込せずモーダルで年単位グループ一覧を表示。年ごとの取込可否トグル後、確定で既存リストへ日付マージ（同日は名称上書き）。
 - **個別の出勤**: 日付＋名称の一覧。曜日休日・個別休日より優先する出勤例外。
 - ガント（プロジェクト一覧ガント含む）は `GET /settings/calendar` で読み、日表示の列強調と予定工数の営業日スキップに利用する。
+
+## 設定 > 通知
+
+- 表示・保存: `settings` canUse（設定画面内セクション。個別 field 権限は無い）。
+- **配信先**（全体 1 つ）: メール / Teams / 送信しない。
+- Teams 選択かつ Microsoft 未連携: 「連携するまでメールで送ります」を案内。設定値は `teams` のまま。
+- **イベント種別**: 対応機能の canUse があるグループのみ表示する。
+  - チケット・プロジェクト: `projects`
+  - 商談: `companies.deals` または `deals`
+  - 活動履歴: `companies.activities`
+
+## 管理 > 通知設定タブ
+
+- 表示: `admin.notification-settings` canUse。保存・テスト送信: `admin.notification-settings` canInput。
+- 新規ユーザーの既定配信先（メール / Teams / 送信しない）。
+- テスト送信: 自分宛てメール、または Teams の Bot 1:1（未連携時は不可）。
 
 ## データの取得方針
 

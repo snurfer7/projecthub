@@ -17,6 +17,7 @@ import {
   expandProjectGroupMembers,
   getProjectsEffectiveMemberUserIds,
 } from '../services/projectMembership';
+import { scheduleNotify } from '../services/notifications';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -289,6 +290,16 @@ router.post('/', requirePermission('projects', 'input'), async (req: AuthRequest
       return created;
     });
 
+    scheduleNotify({ type: 'project.created', actorUserId: req.userId!, projectId: project.id });
+    if (sourceActivity) {
+      scheduleNotify({
+        type: 'project.activity_linked',
+        actorUserId: req.userId!,
+        projectId: project.id,
+        activityId: sourceActivity.id,
+      });
+    }
+
     res.status(201).json(project);
   } catch (e: any) {
     if (e?.code === 'P2002') {
@@ -301,6 +312,11 @@ router.post('/', requirePermission('projects', 'input'), async (req: AuthRequest
 // Update project
 router.put('/:id', requirePermission('projects', 'use'), requireProjectPermission('projects.overview', 'input', { paramName: 'id' }), async (req: AuthRequest, res: Response) => {
   try {
+    const projectId = Number(req.params.id);
+    const existing = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { status: true, dueDate: true },
+    });
     const { name, description, status, companyId, locationId, contactId, parentId, dueDate, remarks, relatedCompanies } = req.body;
     const data: any = { name, description, status, remarks };
     if (companyId !== undefined) data.companyId = companyId ? Number(companyId) : null;
@@ -324,6 +340,26 @@ router.put('/:id', requirePermission('projects', 'use'), requireProjectPermissio
       where: { id: Number(req.params.id) },
       data,
     });
+    if (existing) {
+      if (status !== undefined && status !== existing.status) {
+        scheduleNotify({
+          type: 'project.status_changed',
+          actorUserId: req.userId!,
+          projectId: project.id,
+        });
+      }
+      if (dueDate !== undefined) {
+        const nextMs = dueDate ? new Date(dueDate).getTime() : null;
+        const prevMs = existing.dueDate ? existing.dueDate.getTime() : null;
+        if (nextMs !== prevMs) {
+          scheduleNotify({
+            type: 'project.due_date_changed',
+            actorUserId: req.userId!,
+            projectId: project.id,
+          });
+        }
+      }
+    }
     res.json(project);
   } catch (e) {
     res.status(500).json({ error: 'プロジェクトの更新に失敗しました' });
@@ -401,6 +437,12 @@ router.post('/:id/members', requirePermission('projects', 'use'), requireProject
         }
       },
       include: { user: { select: { id: true, firstName: true, lastName: true, email: true } }, roles: { include: { role: true } } },
+    });
+    scheduleNotify({
+      type: 'project.member_added',
+      actorUserId: req.userId!,
+      projectId,
+      addedUserId: Number(userId),
     });
     res.status(201).json(newMember);
   } catch (e: any) {
@@ -539,6 +581,12 @@ router.post('/:id/groups', requirePermission('projects', 'use'), requireProjectP
         members: await expandProjectGroupMembers(numericGroupId),
       },
     });
+    scheduleNotify({
+      type: 'project.group_assigned',
+      actorUserId: req.userId!,
+      projectId,
+      groupId: numericGroupId,
+    });
   } catch (e: any) {
     console.error('Assign group error:', e);
     if (e.code === 'P2002') {
@@ -644,6 +692,11 @@ router.post('/:id/comments', requirePermission('projects', 'use'), requireProjec
       include: {
         user: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
+    });
+    scheduleNotify({
+      type: 'project.commented',
+      actorUserId: req.userId!,
+      projectId,
     });
     res.status(201).json(comment);
   } catch (e) {
@@ -804,6 +857,12 @@ router.post('/:id/activities', requirePermission('companies.activities', 'input'
     });
 
     res.status(201).json({ message: '活動をプロジェクトに紐づけました', activityId, projectId });
+    scheduleNotify({
+      type: 'project.activity_linked',
+      actorUserId: req.userId!,
+      projectId,
+      activityId,
+    });
   } catch (e) {
     console.error('Project activity link error:', e);
     res.status(500).json({ error: '活動の紐づけに失敗しました' });
