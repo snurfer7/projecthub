@@ -160,7 +160,7 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
                         onChange={(e) => setCompanyName(e.target.value)}
                         required
                     />
-                    <div className="grid grid-cols-3 gap-4 items-end">
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-4 items-end">
                         <Combobox
                             label="法人格"
                             options={availableStatuses.map(s => ({ value: String(s.id), label: s.name }))}
@@ -193,7 +193,7 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
                                             type="button"
                                             disabled={disabled}
                                             onClick={() => setLegalEntityPosition(pos)}
-                                            className={`px-4 py-2 text-sm font-medium transition-colors ${
+                                            className={`px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors ${
                                                 idx > 0 ? 'border-l border-gray-300' : ''
                                             } ${
                                                 selected
@@ -224,7 +224,7 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, editingCompan
                                             type="button"
                                             disabled={transactionTypesDisabled}
                                             onClick={() => setTransactionMode(opt.value)}
-                                            className={`px-4 py-2 text-sm font-medium transition-colors ${
+                                            className={`px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors ${
                                                 idx > 0 ? 'border-l border-gray-300' : ''
                                             } ${
                                                 selected
