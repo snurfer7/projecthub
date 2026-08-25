@@ -4,6 +4,7 @@ import DateInput from './DateInput';
 import {
   DATE_RANGE_RELATIVE_OPTIONS,
   isDateRangeRelativePreset,
+  relativePresetLabel,
   resolveRelativeDateRange,
   type DateRangeRelativePreset,
   type DateRangeSpecifyMode,
@@ -32,29 +33,36 @@ function applyRelative(
 export default function DateRangeSpecify({ label, value, onChange }: Props) {
   const isRelative = value.mode === 'relative';
 
-  const relativeOptions: ComboboxOption[] = useMemo(
-    () =>
-      DATE_RANGE_RELATIVE_OPTIONS.map((o, index) =>
-        o.type === 'group'
-          ? {
-              value: `__group__:${index}:${o.label}`,
-              label: o.label,
-              isGroupLabel: true,
-            }
-          : {
-              value: o.value,
-              label: o.label,
-            },
-      ),
-    [],
-  );
+  const relativeOptions: ComboboxOption[] = useMemo(() => {
+    const now = new Date();
+    return DATE_RANGE_RELATIVE_OPTIONS.map((o, index) =>
+      o.type === 'group'
+        ? {
+            value: `__group__:${index}:${o.label}`,
+            label: o.label,
+            isGroupLabel: true,
+          }
+        : {
+            value: o.value,
+            label: relativePresetLabel(o.value, now),
+          },
+    );
+  }, []);
 
   // 相対指定は都度日付を再計算して表示を同期する
   useEffect(() => {
-    if (value.mode !== 'relative' || !value.relative) return;
-    const range = resolveRelativeDateRange(value.relative);
-    if (range.start === value.start && range.end === value.end) return;
-    onChange({ ...value, start: range.start, end: range.end });
+    if (value.mode !== 'relative') return;
+    const relative =
+      value.relative && isDateRangeRelativePreset(value.relative) ? value.relative : 'today';
+    const range = resolveRelativeDateRange(relative);
+    if (
+      value.relative === relative &&
+      range.start === value.start &&
+      range.end === value.end
+    ) {
+      return;
+    }
+    onChange({ mode: 'relative', relative, start: range.start, end: range.end });
     // onChange は親のインライン関数になり得るため依存に含めない
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sync relative dates only
   }, [value.mode, value.relative, value.start, value.end]);
@@ -118,7 +126,10 @@ export default function DateRangeSpecify({ label, value, onChange }: Props) {
       )}
       <DateInput
         value={value.start}
-        onChange={(start) => onChange({ ...value, mode: 'direct', relative: '', start })}
+        onChange={(start) => {
+          if (isRelative) return;
+          onChange({ ...value, mode: 'direct', relative: '', start });
+        }}
         size="small"
         showFloatingLabel={false}
         placeholder="開始"
@@ -128,7 +139,10 @@ export default function DateRangeSpecify({ label, value, onChange }: Props) {
       <span className="text-gray-400 text-xs">〜</span>
       <DateInput
         value={value.end}
-        onChange={(end) => onChange({ ...value, mode: 'direct', relative: '', end })}
+        onChange={(end) => {
+          if (isRelative) return;
+          onChange({ ...value, mode: 'direct', relative: '', end });
+        }}
         size="small"
         showFloatingLabel={false}
         placeholder="終了"

@@ -56,6 +56,7 @@ import ProjectCreateForm, {
 } from '../components/ProjectCreateForm';
 import {
   effectiveDateRange,
+  defaultGanttDisplayDate,
   isDateRangeRelativePreset,
   resolveRelativeDateRange,
   type DateRangeRelativePreset,
@@ -103,8 +104,7 @@ export default function ProjectListPage() {
   const [ganttIssues, setGanttIssues] = useState<Issue[]>([]);
   const [ganttProjects, setGanttProjects] = useState<Project[]>([]);
   const [systemSettings, setSystemSettings] = useState<any>(null);
-  const [ganttStartValue, setGanttStartValue] = useState('');
-  const [ganttEndValue, setGanttEndValue] = useState('');
+  const [ganttDate, setGanttDate] = useState<DateRangeSpecifyValue>(() => defaultGanttDisplayDate());
   const [ganttCollapsedProjects, setGanttCollapsedProjects] = useState<Set<number>>(new Set());
   const [listCollapsedIds, setListCollapsedIds] = useState<Set<number>>(() => new Set());
   const [showSortModal, setShowSortModal] = useState(false);
@@ -163,6 +163,12 @@ export default function ProjectListPage() {
     setTimeRecordFilterUserIds([]);
     timeDefaultsUserIdRef.current = user.id;
   }, [user, updateIssueFilter]);
+
+  const effectiveGanttRange = useMemo(
+    () =>
+      effectiveDateRange(ganttDate.mode, ganttDate.relative, ganttDate.start, ganttDate.end),
+    [ganttDate],
+  );
 
   /** 保存済み検索条件を画面状態に反映する（相対指定の日付は再計算。時間タブでは期限を使わず開始・終了期間を使う） */
   const applyFilter = useCallback(
@@ -239,6 +245,34 @@ export default function ProjectListPage() {
       }
       if (f.ganttZoom) setGanttZoom(f.ganttZoom);
       if (f.showEmptyProjects !== undefined) setShowEmptyProjects(f.showEmptyProjects);
+      if (
+        f.ganttStartValue !== undefined ||
+        f.ganttEndValue !== undefined ||
+        f.ganttDateMode !== undefined ||
+        f.ganttDateRelative !== undefined
+      ) {
+        setGanttDate((prev) => {
+          const mode: DateRangeSpecifyMode =
+            f.ganttDateMode === 'relative' || f.ganttDateMode === 'direct'
+              ? f.ganttDateMode
+              : prev.mode;
+          const relative: DateRangeRelativePreset | '' = isDateRangeRelativePreset(f.ganttDateRelative)
+            ? f.ganttDateRelative
+            : f.ganttDateRelative === ''
+              ? ''
+              : prev.relative;
+          if (mode === 'relative' && isDateRangeRelativePreset(relative)) {
+            const range = resolveRelativeDateRange(relative);
+            return { mode, relative, start: range.start, end: range.end };
+          }
+          return {
+            mode: 'direct',
+            relative: '',
+            start: f.ganttStartValue ?? '',
+            end: f.ganttEndValue ?? '',
+          };
+        });
+      }
       if (f.timeRecordFilterUserIds !== undefined) setTimeRecordFilterUserIds(f.timeRecordFilterUserIds);
       if (
         f.timeRecordStartDate !== undefined ||
@@ -419,8 +453,7 @@ export default function ProjectListPage() {
   const resetAllFilters = useCallback(() => {
     resetProjectFilter();
     resetIssueFilter();
-    setGanttStartValue('');
-    setGanttEndValue('');
+    setGanttDate(defaultGanttDisplayDate());
     setActiveSavedSearchId(null);
     if (viewMode === 'time' && user) {
       updateIssueFilter({
@@ -863,10 +896,11 @@ export default function ProjectListPage() {
           setActiveSavedSearchId(null);
         }}
         ganttZoom={ganttZoom}
-        ganttStartValue={ganttStartValue}
-        onGanttStartValueChange={(v) => { setGanttStartValue(v); setActiveSavedSearchId(null); }}
-        ganttEndValue={ganttEndValue}
-        onGanttEndValueChange={(v) => { setGanttEndValue(v); setActiveSavedSearchId(null); }}
+        ganttDate={ganttDate}
+        onGanttDateChange={(v) => {
+          setGanttDate(v);
+          setActiveSavedSearchId(null);
+        }}
         showEmptyProjects={showEmptyProjects}
         onShowEmptyProjectsChange={(v) => { setShowEmptyProjects(v); setActiveSavedSearchId(null); }}
         timeRecordDate={timeRecordDate}
@@ -999,10 +1033,22 @@ export default function ProjectListPage() {
           onRelationCreated={handleCreateRelation}
           zoom={ganttZoom}
           onZoomChange={setGanttZoom}
-          startValue={ganttStartValue}
-          onStartValueChange={setGanttStartValue}
-          endValue={ganttEndValue}
-          onEndValueChange={setGanttEndValue}
+          startValue={effectiveGanttRange.start}
+          onStartValueChange={(v) => {
+            setGanttDate((prev) => {
+              if (prev.start === v) return prev;
+              return { ...prev, mode: 'direct', relative: '', start: v };
+            });
+            setActiveSavedSearchId(null);
+          }}
+          endValue={effectiveGanttRange.end}
+          onEndValueChange={(v) => {
+            setGanttDate((prev) => {
+              if (prev.end === v) return prev;
+              return { ...prev, mode: 'direct', relative: '', end: v };
+            });
+            setActiveSavedSearchId(null);
+          }}
           filterTrackerIds={[]}
           filterStatusIds={[]}
           filterAssignedToIds={issueFilter.includeUnassigned ? issueFilter.assignedToIds : []}

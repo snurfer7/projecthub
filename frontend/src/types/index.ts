@@ -608,6 +608,11 @@ export interface SavedSearchFilter {
   ganttZoom?: 'day' | 'month' | 'year';
   /** ガント: チケットなしのプロジェクトを表示するか（省略時 true） */
   showEmptyProjects?: boolean;
+  /** ガント: 表示期間（直接指定時） */
+  ganttStartValue?: string;
+  ganttEndValue?: string;
+  ganttDateMode?: DateRangeSpecifyMode;
+  ganttDateRelative?: DateRangeRelativePreset | '';
   timeRecordStartDate?: string;
   timeRecordEndDate?: string;
   timeRecordDateMode?: DateRangeSpecifyMode;

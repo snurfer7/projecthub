@@ -936,37 +936,42 @@ export default function GanttChart({
     setCollapsedProjects(next);
   }, [collapsedProjects, setCollapsedProjects]);
 
-  // ズーム変更時の初期値設定（ユーザーが未設定の場合のみ）
+  // 表示期間の初期値（未設定時）およびズーム変更時のフォーマット変換
+  const prevChartZoomRef = useRef(zoom);
+
   useEffect(() => {
+    if (propsStartValue || propsEndValue) return;
+
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth();
 
-    // 値がない場合は初期値をセット
-    if (!propsStartValue && !propsEndValue) {
-      if (zoom === 'day') {
-        setStartValue(formatDateToYYYYMMDD(new Date(currentYear, currentMonth, 1)));
-        setEndValue(formatDateToYYYYMMDD(new Date(currentYear, currentMonth + 6, 0)));
-      } else if (zoom === 'month') {
-        const startMonthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
-        const endMonth = currentMonth + 11;
-        const endYear = currentYear + Math.floor(endMonth / 12);
-        const endMonthNum = ((endMonth % 12) + 1);
-        const endMonthStr = `${endYear}-${String(endMonthNum).padStart(2, '0')}`;
-        setStartValue(startMonthStr);
-        setEndValue(endMonthStr);
-      } else if (zoom === 'year') {
-        setStartValue(`${currentYear}`);
-        setEndValue(`${currentYear + 9}`);
-      }
-      return;
+    if (zoom === 'day') {
+      setStartValue(formatDateToYYYYMMDD(new Date(currentYear, currentMonth, 1)));
+      setEndValue(formatDateToYYYYMMDD(new Date(currentYear, currentMonth + 6, 0)));
+    } else if (zoom === 'month') {
+      const startMonthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+      const endMonth = currentMonth + 11;
+      const endYear = currentYear + Math.floor(endMonth / 12);
+      const endMonthNum = (endMonth % 12) + 1;
+      const endMonthStr = `${endYear}-${String(endMonthNum).padStart(2, '0')}`;
+      setStartValue(startMonthStr);
+      setEndValue(endMonthStr);
+    } else if (zoom === 'year') {
+      setStartValue(`${currentYear}`);
+      setEndValue(`${currentYear + 9}`);
     }
+  }, [zoom, propsStartValue, propsEndValue, setStartValue, setEndValue]);
 
-    // 値がある場合は、ズームレベルに合わせて変換
+  useEffect(() => {
+    if (prevChartZoomRef.current === zoom) return;
+    prevChartZoomRef.current = zoom;
+
+    if (!propsStartValue && !propsEndValue) return;
+
     const startStr = propsStartValue || '';
     const endStr = propsEndValue || '';
 
-    // 現在のズームレベルを判定（値のフォーマットから）
     const getCurrentZoom = (value: string): 'day' | 'month' | 'year' | null => {
       if (!value) return null;
       const parts = value.split('-');
@@ -978,52 +983,41 @@ export default function GanttChart({
 
     const prevZoom = getCurrentZoom(startStr);
 
-    // ズーム変換処理
     let newStart = startStr;
     let newEnd = endStr;
 
     if (prevZoom === 'day') {
       if (zoom === 'month') {
-        // 日 → 月: YYYY-MM-DD → YYYY-MM
         newStart = startStr.slice(0, 7);
         newEnd = endStr.slice(0, 7);
       } else if (zoom === 'year') {
-        // 日 → 年: YYYY-MM-DD → YYYY
         newStart = startStr.slice(0, 4);
         newEnd = endStr.slice(0, 4);
       }
     } else if (prevZoom === 'month') {
       if (zoom === 'day') {
-        // 月 → 日: YYYY-MM → YYYY-MM-01 と YYYY-MM-末日
         const startDate = new Date(startStr + '-01');
         const endDate = new Date(endStr + '-01');
         endDate.setMonth(endDate.getMonth() + 1);
-        endDate.setDate(0); // 月の最後の日
+        endDate.setDate(0);
         newStart = startDate.toISOString().slice(0, 10);
         newEnd = endDate.toISOString().slice(0, 10);
       } else if (zoom === 'year') {
-        // 月 → 年: YYYY-MM → YYYY
         newStart = startStr.slice(0, 4);
         newEnd = endStr.slice(0, 4);
       }
     } else if (prevZoom === 'year') {
       if (zoom === 'day') {
-        // 年 → 日: YYYY → YYYY-01-01 と YYYY-12-31
-        const startYear = startStr;
-        const endYear = endStr;
-        newStart = `${startYear}-01-01`;
-        newEnd = `${endYear}-12-31`;
+        newStart = `${startStr}-01-01`;
+        newEnd = `${endStr}-12-31`;
       } else if (zoom === 'month') {
-        // 年 → 月: YYYY → YYYY-01 と YYYY-12
-        const startYear = startStr;
-        const endYear = endStr;
-        newStart = `${startYear}-01`;
-        newEnd = `${endYear}-12`;
+        newStart = `${startStr}-01`;
+        newEnd = `${endStr}-12`;
       }
     }
 
-    setStartValue(newStart);
-    setEndValue(newEnd);
+    if (newStart !== propsStartValue) setStartValue(newStart);
+    if (newEnd !== propsEndValue) setEndValue(newEnd);
   }, [zoom, propsStartValue, propsEndValue, setStartValue, setEndValue]);
 
   useEffect(() => {

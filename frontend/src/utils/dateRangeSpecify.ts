@@ -17,6 +17,7 @@ export type DateRangeRelativePreset =
   | 'thisMonth'
   | 'nextMonth'
   | 'lastMonth'
+  | 'thisHalfYear'
   | 'thisFiscalYear'
   | 'lastFiscalYear';
 
@@ -41,6 +42,7 @@ export const DATE_RANGE_RELATIVE_OPTIONS: DateRangeRelativeOption[] = [
   { type: 'option', value: 'thisMonth', label: '今月（1日〜末日）' },
   { type: 'option', value: 'nextMonth', label: '来月' },
   { type: 'option', value: 'lastMonth', label: '先月' },
+  { type: 'option', value: 'thisHalfYear', label: '半年' },
   { type: 'group', label: '年度単位' },
   { type: 'option', value: 'thisFiscalYear', label: '今年度（6月〜翌3月）' },
   { type: 'option', value: 'lastFiscalYear', label: '前年度' },
@@ -60,12 +62,41 @@ export function isDateRangeRelativePreset(v: unknown): v is DateRangeRelativePre
   return typeof v === 'string' && PRESET_SET.has(v);
 }
 
-export function dateRangeRelativeLabel(preset: DateRangeRelativePreset | ''): string {
-  if (!preset) return '';
+/** 当月を含む6か月間（当月〜当月+5か月）の月番号（1〜12） */
+export function thisHalfYearMonthNumbers(now: Date = new Date()): {
+  startMonth: number;
+  endMonth: number;
+} {
+  const startMonth = now.getMonth() + 1;
+  const endMonth = new Date(now.getFullYear(), now.getMonth() + 5, 1).getMonth() + 1;
+  return { startMonth, endMonth };
+}
+
+function formatHalfYearLabel(now: Date = new Date()): string {
+  const { startMonth, endMonth } = thisHalfYearMonthNumbers(now);
+  const endYear = new Date(now.getFullYear(), now.getMonth() + 5, 1).getFullYear();
+  const spansNextYear = endYear > now.getFullYear();
+  const endLabel = spansNextYear ? `翌${endMonth}月` : `${endMonth}月`;
+  return `半年（${startMonth}月〜${endLabel}）`;
+}
+
+export function relativePresetLabel(
+  preset: DateRangeRelativePreset,
+  now: Date = new Date(),
+): string {
+  if (preset === 'thisHalfYear') return formatHalfYearLabel(now);
   const found = DATE_RANGE_RELATIVE_OPTIONS.find(
     (o) => o.type === 'option' && o.value === preset,
   );
   return found && found.type === 'option' ? found.label : preset;
+}
+
+export function dateRangeRelativeLabel(
+  preset: DateRangeRelativePreset | '',
+  now: Date = new Date(),
+): string {
+  if (!preset) return '';
+  return relativePresetLabel(preset, now);
 }
 
 function addDays(date: Date, days: number): Date {
@@ -170,6 +201,14 @@ export function resolveRelativeDateRange(
         end: formatDateToYYYYMMDD(new Date(year, month, daysInMonth(year, month))),
       };
     }
+    case 'thisHalfYear': {
+      const y = today.getFullYear();
+      const m = today.getMonth();
+      return {
+        start: formatDateToYYYYMMDD(new Date(y, m, 1)),
+        end: formatDateToYYYYMMDD(new Date(y, m + 6, 0)),
+      };
+    }
     case 'thisFiscalYear':
       return fiscalYearRange(fiscalYearStartYear(today));
     case 'lastFiscalYear':
@@ -223,4 +262,31 @@ export function toSavedDateRangeFields(
     start,
     end,
   };
+}
+
+/** プロジェクト一覧ガントの表示期間の既定（相対指定・半年） */
+export function defaultGanttDisplayDate(now: Date = new Date()): {
+  mode: DateRangeSpecifyMode;
+  relative: DateRangeRelativePreset;
+  start: string;
+  end: string;
+} {
+  const relative: DateRangeRelativePreset = 'thisHalfYear';
+  const range = resolveRelativeDateRange(relative, now);
+  return { mode: 'relative', relative, start: range.start, end: range.end };
+}
+
+export function isDefaultGanttDisplayDate(
+  value: {
+    mode: DateRangeSpecifyMode;
+    relative: DateRangeRelativePreset | '';
+    start: string;
+    end: string;
+  },
+  now: Date = new Date(),
+): boolean {
+  const def = defaultGanttDisplayDate(now);
+  if (value.mode !== def.mode || value.relative !== def.relative) return false;
+  if (value.mode === 'relative') return true;
+  return value.start === def.start && value.end === def.end;
 }

@@ -10,11 +10,9 @@ import type { ProjectListSort } from '../utils/projectTree';
 import type { IssueListSort } from '../utils/issueSort';
 import Combobox, { type ComboboxOption } from './Combobox';
 import TextInput from './TextInput';
-import CustomDatePicker from './CustomDatePicker';
 import SavedSearchDropdown from './SavedSearchDropdown';
 import DateRangeSpecify, { type DateRangeSpecifyValue } from './DateRangeSpecify';
-import { formatDateToYYYYMMDD } from '../utils/format';
-import { toSavedDateRangeFields } from '../utils/dateRangeSpecify';
+import { toSavedDateRangeFields, isDefaultGanttDisplayDate } from '../utils/dateRangeSpecify';
 import {
   buildGroupedUserOptions,
   splitGroupedAssigneeSelection,
@@ -29,10 +27,8 @@ interface ProjectListFilterPanelProps {
   issueFilter: IssueFilterCriteria;
   onIssueFilterChange: (patch: Partial<IssueFilterCriteria>) => void;
   ganttZoom: 'day' | 'month' | 'year';
-  ganttStartValue: string;
-  onGanttStartValueChange: (value: string) => void;
-  ganttEndValue: string;
-  onGanttEndValueChange: (value: string) => void;
+  ganttDate: DateRangeSpecifyValue;
+  onGanttDateChange: (value: DateRangeSpecifyValue) => void;
   showEmptyProjects: boolean;
   onShowEmptyProjectsChange: (value: boolean) => void;
   timeRecordDate: DateRangeSpecifyValue;
@@ -71,29 +67,6 @@ function FilterRow({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
-function getGanttDefaultRange(zoom: 'day' | 'month' | 'year') {
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth();
-
-  if (zoom === 'day') {
-    return {
-      start: formatDateToYYYYMMDD(new Date(currentYear, currentMonth, 1)),
-      end: formatDateToYYYYMMDD(new Date(currentYear, currentMonth + 6, 0)),
-    };
-  }
-  if (zoom === 'month') {
-    const endMonth = currentMonth + 11;
-    const endYear = currentYear + Math.floor(endMonth / 12);
-    const endMonthNum = (endMonth % 12) + 1;
-    return {
-      start: `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`,
-      end: `${endYear}-${String(endMonthNum).padStart(2, '0')}`,
-    };
-  }
-  return { start: `${currentYear}`, end: `${currentYear + 9}` };
-}
-
 export default function ProjectListFilterPanel({
   viewMode,
   companies,
@@ -102,10 +75,8 @@ export default function ProjectListFilterPanel({
   issueFilter,
   onIssueFilterChange,
   ganttZoom,
-  ganttStartValue,
-  onGanttStartValueChange,
-  ganttEndValue,
-  onGanttEndValueChange,
+  ganttDate,
+  onGanttDateChange,
   showEmptyProjects,
   onShowEmptyProjectsChange,
   timeRecordDate,
@@ -159,22 +130,6 @@ export default function ProjectListFilterPanel({
   const showGanttRange = viewMode === 'gantt';
   const showTimeRecordFilters = viewMode === 'time';
 
-  const handleGanttStartChange = (value: string) => {
-    if (value === '') {
-      onGanttStartValueChange(getGanttDefaultRange(ganttZoom).start);
-    } else {
-      onGanttStartValueChange(value);
-    }
-  };
-
-  const handleGanttEndChange = (value: string) => {
-    if (value === '') {
-      onGanttEndValueChange(getGanttDefaultRange(ganttZoom).end);
-    } else {
-      onGanttEndValueChange(value);
-    }
-  };
-
   const hasActiveFilter =
     projectFilter.searchQuery.trim() !== '' ||
     projectFilter.dueDateStart !== '' ||
@@ -198,78 +153,15 @@ export default function ProjectListFilterPanel({
       (issueFilter.scheduleDateMode === 'relative' ||
         issueFilter.scheduleDateStart !== '' ||
         issueFilter.scheduleDateEnd !== '')) ||
-    ganttStartValue !== '' ||
-    ganttEndValue !== '' ||
+    (showGanttRange && !isDefaultGanttDisplayDate(ganttDate)) ||
     timeRecordDate.start !== '' ||
     timeRecordDate.end !== '' ||
     timeRecordDate.mode === 'relative' ||
     timeRecordFilterUserIds.length > 0;
 
-  const ganttRangePickers = ganttZoom === 'year' ? (
-    <>
-      <CustomDatePicker
-        value={ganttStartValue}
-        onChange={handleGanttStartChange}
-        size="small"
-        showFloatingLabel={false}
-        placeholder="開始"
-        className="w-36"
-        selectMode="year"
-      />
-      <span className="text-gray-400 text-xs">〜</span>
-      <CustomDatePicker
-        value={ganttEndValue}
-        onChange={handleGanttEndChange}
-        size="small"
-        showFloatingLabel={false}
-        placeholder="終了"
-        className="w-36"
-        selectMode="year"
-      />
-    </>
-  ) : ganttZoom === 'month' ? (
-    <>
-      <CustomDatePicker
-        value={ganttStartValue}
-        onChange={handleGanttStartChange}
-        size="small"
-        showFloatingLabel={false}
-        placeholder="開始"
-        className="w-48"
-        selectMode="month"
-      />
-      <span className="text-gray-400 text-xs">〜</span>
-      <CustomDatePicker
-        value={ganttEndValue}
-        onChange={handleGanttEndChange}
-        size="small"
-        showFloatingLabel={false}
-        placeholder="終了"
-        className="w-48"
-        selectMode="month"
-      />
-    </>
-  ) : (
-    <>
-      <CustomDatePicker
-        value={ganttStartValue}
-        onChange={handleGanttStartChange}
-        size="small"
-        showFloatingLabel={false}
-        placeholder="開始"
-        className="w-48"
-      />
-      <span className="text-gray-400 text-xs">〜</span>
-      <CustomDatePicker
-        value={ganttEndValue}
-        onChange={handleGanttEndChange}
-        size="small"
-        showFloatingLabel={false}
-        placeholder="終了"
-        className="w-48"
-      />
-    </>
-  );
+  const ganttDateSaved = showGanttRange
+    ? toSavedDateRangeFields(ganttDate.mode, ganttDate.relative, ganttDate.start, ganttDate.end)
+    : null;
 
   const projectDueSaved = toSavedDateRangeFields(
     projectFilter.dueDateMode,
@@ -348,6 +240,15 @@ export default function ProjectListFilterPanel({
     },
     ganttZoom,
     showEmptyProjects,
+    ...(ganttDateSaved
+      ? {
+          ganttDateMode: ganttDateSaved.mode,
+          ganttDateRelative: ganttDateSaved.relative,
+          ...(ganttDateSaved.start !== undefined
+            ? { ganttStartValue: ganttDateSaved.start, ganttEndValue: ganttDateSaved.end ?? '' }
+            : {}),
+        }
+      : {}),
     ...(timeRecordSaved
       ? {
           timeRecordDateMode: timeRecordSaved.mode,
@@ -586,10 +487,7 @@ export default function ProjectListFilterPanel({
 
         {showGanttRange && (
           <FilterRow label="ガント">
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-gray-400 shrink-0">表示期間</span>
-              {ganttRangePickers}
-            </div>
+            <DateRangeSpecify label="表示期間" value={ganttDate} onChange={onGanttDateChange} />
             <label className="flex items-center gap-1.5 cursor-pointer select-none">
               <input
                 type="checkbox"
