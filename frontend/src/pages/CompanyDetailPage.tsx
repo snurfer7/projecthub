@@ -666,6 +666,7 @@ export default function CompanyDetailPage() {
                   <th className="text-left px-4 py-3 font-medium text-gray-600">役職</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">電話</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">メール</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">備考</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">アクション</th>
                 </tr>
               </thead>
@@ -731,6 +732,15 @@ export default function CompanyDetailPage() {
                           ))}
                         </div>
                       ) : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 max-w-xs">
+                      {c.notes ? (
+                        <div className="text-xs whitespace-pre-wrap break-words line-clamp-3" title={c.notes}>
+                          {c.notes}
+                        </div>
+                      ) : (
+                        '-'
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-2">

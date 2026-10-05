@@ -187,12 +187,13 @@ export default function ContactsPage() {
               <th className="text-left px-4 py-3 font-medium text-gray-600">役職</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">電話</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">メール</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">備考</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={10} className="px-4 py-12 text-center text-gray-500">
+                <td colSpan={11} className="px-4 py-12 text-center text-gray-500">
                   読み込み中…
                 </td>
               </tr>
@@ -312,6 +313,15 @@ export default function ContactsPage() {
                             </div>
                           ))
                         : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 max-w-xs">
+                      {c.notes ? (
+                        <div className="text-xs whitespace-pre-wrap break-words line-clamp-3" title={c.notes}>
+                          {c.notes}
+                        </div>
+                      ) : (
+                        '-'
+                      )}
                     </td>
                   </tr>
                 );
