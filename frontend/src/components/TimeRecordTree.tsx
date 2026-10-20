@@ -57,6 +57,31 @@ function entryIndentPx(projectDepth: number, issueDepth: number): number {
   return ticketIndentPx(projectDepth, issueDepth) + TIME_INDENT_STEP;
 }
 
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+function localTimeHm(d: Date): string {
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+/** 当日の終了日時（ISO）。時刻は既存終了時刻、なければシステム終了時刻。 */
+function todayEndDateIso(existingEndDate: string | undefined, systemEndTime: string): string {
+  let time = systemEndTime && /^\d{1,2}:\d{2}/.test(systemEndTime)
+    ? systemEndTime.slice(0, 5)
+    : '18:00';
+  if (existingEndDate) {
+    const prev = new Date(existingEndDate);
+    if (!Number.isNaN(prev.getTime())) {
+      time = localTimeHm(prev);
+    }
+  }
+  const [h, m] = time.split(':').map(Number);
+  const local = new Date();
+  local.setHours(h, m, 0, 0);
+  return local.toISOString();
+}
+
 interface TimeRecordTreeProps {
   projects: Project[];
   issues: Issue[];
@@ -126,10 +151,17 @@ export default function TimeRecordTree({
   const [editEntryComments, setEditEntryComments] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
+  const [systemEndTime, setSystemEndTime] = useState('18:00');
 
   useEffect(() => {
     setLocalIssues(issues);
   }, [issues]);
+
+  useEffect(() => {
+    api.get('/settings/calendar').then((res) => {
+      if (res.data?.endTime) setSystemEndTime(res.data.endTime);
+    }).catch(() => {});
+  }, []);
 
   const canEditTime = (projectId: number) =>
     projectMapCanInput(permByProject[projectId], 'projects.time-entries');
@@ -155,11 +187,30 @@ export default function TimeRecordTree({
   const handleStatusChange = async (issue: Issue, nextStatusId: number) => {
     if (issue.statusId === nextStatusId) return;
     const status = statuses.find((s) => s.id === nextStatusId);
-    const previous = { statusId: issue.statusId, status: issue.status };
-    patchIssue(issue.id, { statusId: nextStatusId, status: status ?? issue.status });
+    const previousClosed = issue.status?.isClosed ?? statuses.find((s) => s.id === issue.statusId)?.isClosed ?? false;
+    const closing = Boolean(status?.isClosed) && !previousClosed;
+    const canUpdateEndDate = canEditIssueField(issue.projectId, 'projects.issues.fields.endDateTime');
+    if (closing) {
+      const message = canUpdateEndDate
+        ? 'ステータスを終了に変更します。終了日時を本日に更新します。よろしいですか？'
+        : 'ステータスを終了に変更します。よろしいですか？';
+      if (!window.confirm(message)) return;
+    }
+    const nextEndDate = closing && canUpdateEndDate
+      ? todayEndDateIso(issue.endDate, systemEndTime)
+      : undefined;
+    const previous = { statusId: issue.statusId, status: issue.status, endDate: issue.endDate };
+    patchIssue(issue.id, {
+      statusId: nextStatusId,
+      status: status ?? issue.status,
+      ...(nextEndDate ? { endDate: nextEndDate } : {}),
+    });
     markUpdating(issue.id, true);
     try {
-      await api.put(`/issues/${issue.id}`, { statusId: nextStatusId });
+      await api.put(`/issues/${issue.id}`, {
+        statusId: nextStatusId,
+        ...(nextEndDate ? { endDate: nextEndDate } : {}),
+      });
     } catch (e: any) {
       patchIssue(issue.id, previous);
       alert(e.response?.data?.error || 'ステータスの更新に失敗しました');
