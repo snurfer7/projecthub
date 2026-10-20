@@ -12,6 +12,7 @@ import PermissionGate from '../components/PermissionGate';
 import Combobox from '../components/Combobox';
 import type { ProjectOutletContext } from './ProjectDetailPage';
 import { issueAssigneeUsers } from '../utils/issueAssignees';
+import { buildIssueListQueryParams } from '../utils/issueListQueryParams';
 
 type TreeDisplayRow = {
   issue: Issue;
@@ -79,8 +80,8 @@ export default function IssueListPage() {
   const { canInput } = usePermissions(projectPermissions);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [meta, setMeta] = useState<IssueMetaOptions | null>(null);
-  const [filterStatus, setFilterStatus] = useState('');
-  const [filterTracker, setFilterTracker] = useState('');
+  const [filterStatusIds, setFilterStatusIds] = useState<(string | number)[]>([]);
+  const [filterTrackerIds, setFilterTrackerIds] = useState<(string | number)[]>([]);
   const [collapsedIds, setCollapsedIds] = useState<Set<number>>(() => new Set());
   const [editingIssueId, setEditingIssueId] = useState<string | null>(null);
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
@@ -89,9 +90,11 @@ export default function IssueListPage() {
   const [deletingIssueId, setDeletingIssueId] = useState<number | null>(null);
 
   const fetchIssues = () => {
-    const params: Record<string, string | undefined> = { projectId };
-    if (filterStatus) params.statusId = filterStatus;
-    if (filterTracker) params.trackerId = filterTracker;
+    const params = buildIssueListQueryParams({
+      projectId,
+      statusIds: filterStatusIds,
+      trackerIds: filterTrackerIds,
+    });
     api.get('/issues', { params }).then((res) => setIssues(res.data));
   };
 
@@ -101,7 +104,7 @@ export default function IssueListPage() {
 
   useEffect(() => {
     fetchIssues();
-  }, [projectId, filterStatus, filterTracker]);
+  }, [projectId, filterStatusIds, filterTrackerIds]);
 
   const displayRows = useMemo(
     () => buildTreeDisplayRows(issues, collapsedIds),
@@ -152,27 +155,25 @@ export default function IssueListPage() {
         </div>
 
         <div className="bg-white rounded-lg shadow p-4 mb-6 flex gap-4">
-          <div>
+          <div className="w-[13.5rem]">
             <Combobox
               label="ステータス"
-              options={[
-                { value: '', label: '全て' },
-                ...(meta?.statuses || []).map((s) => ({ value: String(s.id), label: s.name })),
-              ]}
-              value={filterStatus}
-              onChange={setFilterStatus}
+              options={(meta?.statuses || []).map((s) => ({ value: String(s.id), label: s.name }))}
+              value={filterStatusIds}
+              onChange={setFilterStatusIds}
+              placeholder="全ステータス"
+              isMulti={true}
               size="small"
             />
           </div>
-          <div>
+          <div className="w-[13.5rem]">
             <Combobox
               label="トラッカー"
-              options={[
-                { value: '', label: '全て' },
-                ...(meta?.trackers || []).map((t) => ({ value: String(t.id), label: t.name })),
-              ]}
-              value={filterTracker}
-              onChange={setFilterTracker}
+              options={(meta?.trackers || []).map((t) => ({ value: String(t.id), label: t.name }))}
+              value={filterTrackerIds}
+              onChange={setFilterTrackerIds}
+              placeholder="全トラッカー"
+              isMulti={true}
               size="small"
             />
           </div>
