@@ -1,38 +1,40 @@
 # ==============================================================================
-# ProjectHub デプロイ設定ファイル
+# ProjectHub デプロイ設定サンプル
 #
-# このファイルをコピーして deploy.conf を作成し、各自の環境に合わせて編集してください。
-#   cp scripts/deploy.conf.sample scripts/deploy.conf
+# 環境ごとに scripts/deploy_<環境>.conf を作成します（いずれも .gitignore）。
+#   cp scripts/deploy.conf.sample scripts/deploy_prod.conf
+#   cp scripts/deploy.conf.sample scripts/deploy_demo.conf
+#   cp scripts/deploy.conf.sample scripts/deploy_dev.conf
 #
-# deploy.conf は .gitignore で Git 管理対象外になっています。
+# Lightsail の .pem は scripts/ssh/ に配置してください（例: scripts/ssh/projecthub-lightsail.pem）。
+#
+# デプロイ: ./scripts/deploy.sh（起動後に環境を対話で選択）
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
 # SSH 接続設定
 # ------------------------------------------------------------------------------
 
-# サーバーのIPアドレスまたはホスト名（Lightsail の Public IP）
+# サーバーの IP アドレスまたはホスト名（Lightsail の Public IP）
 SERVER_HOST="your-server-ip-address"
 
 # SSH ログインユーザー（Lightsail Ubuntu インスタンスは通常 "ubuntu"）
 SERVER_USER="ubuntu"
 
-# SSH 秘密鍵ファイルのパス（Lightsail からダウンロードした .pem ファイル）
-SSH_KEY="$HOME/.ssh/your_key.pem"
+# プロジェクトルートからの相対パス、または絶対パス（~ 可）
+SSH_KEY="scripts/ssh/your_key.pem"
 
 # ------------------------------------------------------------------------------
 # フロントエンド設定
 # ------------------------------------------------------------------------------
 
-# 本番環境の API URL（末尾に /api を含める）
+# デプロイ先の API URL（末尾に /api を含める）
 VITE_API_URL="https://your-domain.example/api"
 
 # ------------------------------------------------------------------------------
 # デプロイオプション（通常は変更不要）
 # ------------------------------------------------------------------------------
 
-# サーバー上のアプリ配置ディレクトリ
 REMOTE_APP_DIR="/var/www/projecthub"
 
-# バックエンドの PM2 プロセス名
 PM2_APP_NAME="projecthub-backend"

@@ -18,20 +18,24 @@
 
 ### 1.1 設定ファイルを作成する
 
-`scripts/deploy.conf.sample` をコピーして設定ファイルを作成します。  
-`deploy.conf` は `.gitignore` により Git 管理対象外です。
+環境ごとに `scripts/deploy_<環境>.conf` を用意します（いずれも `.gitignore`）。  
+サンプルは `scripts/deploy.conf.sample` です。
 
 ```bash
-cp scripts/deploy.conf.sample scripts/deploy.conf
+cp scripts/deploy.conf.sample scripts/deploy_prod.conf
+cp scripts/deploy.conf.sample scripts/deploy_demo.conf
+cp scripts/deploy.conf.sample scripts/deploy_dev.conf
+# 各ファイルを編集
 ```
 
-`scripts/deploy.conf` を開いて、以下の 3 項目を環境に合わせて編集します。
+Lightsail からダウンロードした `.pem` は **`scripts/ssh/`** に配置します（例: `scripts/ssh/projecthub-lightsail.pem`）。  
+`SSH_KEY` には `scripts/ssh/...` のようなプロジェクトルートからの相対パスを指定します。
 
 | 変数 | 説明 |
 |---|---|
 | `SERVER_HOST` | Lightsail の Public IP アドレス |
-| `SSH_KEY` | ダウンロードした `.pem` ファイルのパス |
-| `VITE_API_URL` | 本番の API URL（例: `https://your-domain.example/api`） |
+| `SSH_KEY` | `scripts/ssh/` 内の `.pem` へのパス |
+| `VITE_API_URL` | その環境の API URL（例: `https://your-domain.example/api`） |
 
 ### 1.2 スクリプトの使い方
 
@@ -39,9 +43,11 @@ cp scripts/deploy.conf.sample scripts/deploy.conf
 ./scripts/deploy.sh [オプション]
 ```
 
+実行開始時に **本番 / デモ / 開発** を番号で選び、接続先・API URL を確認してから `y` で開始します。
+
 | オプション | 動作 |
 |---|---|
-| （なし） | フロントエンド + バックエンド 全体デプロイ |
+| （オプションなし） | フロントエンド + バックエンド 全体デプロイ |
 | `--backend-only` | バックエンドのみ |
 | `--frontend-only` | フロントエンドのみ |
 | `--skip-build` | ビルドをスキップしてアップロードのみ |
@@ -312,8 +318,8 @@ sudo certbot renew --dry-run  # 更新テスト
 
 ```bash
 # 1. 設定ファイルを準備（未作成の場合）
-cp scripts/deploy.conf.sample scripts/deploy.conf
-# scripts/deploy.conf を編集
+cp scripts/deploy.conf.sample scripts/deploy_prod.conf
+# deploy_prod.conf を編集し、.pem を scripts/ssh/ に配置
 
 # 2. 初回デプロイ（シード込み）
 ./scripts/deploy.sh --seed
@@ -566,7 +572,7 @@ pm2 logs projecthub-backend --lines 100
 - [ ] **HTTPS/SSL** が有効で、HTTP は HTTPS にリダイレクト
 - [ ] **PostgreSQL** が localhost のみでリッスン中
 - [ ] **自動バックアップ**が設定されている
-- [ ] **`scripts/deploy.conf`** が `.gitignore` で管理対象外になっている
+- [ ] **`scripts/deploy_*.conf`** と **`scripts/ssh/*.pem`** が `.gitignore` で管理対象外になっている
 - [ ] **管理者アカウント**の初期パスワード（`admin123`）を変更済み
 - [ ] **Amazon SES** の送信元が検証済みで、IAM に送信権限がある
 
